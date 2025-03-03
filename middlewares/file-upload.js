@@ -37,7 +37,21 @@ const formatDate = (date) => {
   return `${year}-${month}-${day}-${hours}-${minutes}-${seconds}`;
 };
 
-const fileFilter1 = (req, file, cb) => {
+const fileSizeFilter = (req, size, cb) => {
+  const fileSize = parseInt(req.headers['content-length'], 10);
+  if (fileSize > size) {
+    return cb(
+      new ErrorResponse(
+        413,
+        `您的檔案不得超過 ${
+          size / (1024 * 1024)
+        } MB / File size is limited to ${size / (1024 * 1024)} MB!`
+      )
+    );
+  }
+};
+
+const threadFileFilter = (req, file, cb) => {
   if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     return cb(
       new ErrorResponse(
@@ -46,23 +60,11 @@ const fileFilter1 = (req, file, cb) => {
       )
     );
   }
-  const fileSize = parseInt(req.headers['content-length'], 10);
-  if (fileSize > MAX_DOC_FILE_SIZE_MB) {
-    return cb(
-      new ErrorResponse(
-        413,
-        `您的檔案不得超過 ${
-          MAX_DOC_FILE_SIZE_MB / (1024 * 1024)
-        } MB / File size is limited to ${
-          MAX_DOC_FILE_SIZE_MB / (1024 * 1024)
-        } MB!`
-      )
-    );
-  }
+  fileSizeFilter(req, MAX_DOC_FILE_SIZE_MB, cb);
   cb(null, true);
 };
 
-const fileFilter2 = (req, file, cb) => {
+const docFileFilter = (req, file, cb) => {
   if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     return cb(
       new ErrorResponse(
@@ -71,17 +73,25 @@ const fileFilter2 = (req, file, cb) => {
       )
     );
   }
-  const fileSize = parseInt(req.headers['content-length'], 10);
-  if (fileSize > MAX_FILE_SIZE_MB) {
-    return cb(
-      new ErrorResponse(
-        413,
-        `您的檔案不得超過 ${
-          MAX_FILE_SIZE_MB / (1024 * 1024)
-        } MB / File size is limited to ${MAX_FILE_SIZE_MB / (1024 * 1024)} MB!`
-      )
-    );
+  fileSizeFilter(req, MAX_FILE_SIZE_MB, cb);
+
+  cb(null, true);
+};
+
+const filterProfile = (req, file, cb) => {
+  const { category } = req.params;
+  if (category === 'Passport_Photo') {
+    if (!ALLOWED_MIME_IMAGE_TYPES.includes(file.mimetype)) {
+      return cb(
+        new ErrorResponse(415, 'Only .png, .jpg and .jpeg format are allowed')
+      );
+    }
+  } else if (!ALLOWED_MIME_PDF_TYPES.includes(file.mimetype)) {
+    return cb(new ErrorResponse(415, 'Only .pdf format are allowed'));
   }
+
+  fileSizeFilter(req, MAX_FILE_SIZE_MB, cb);
+
   cb(null, true);
 };
 
@@ -91,17 +101,9 @@ const fileImageFilter = (req, file, cb) => {
       new ErrorResponse(415, 'Only .png, .jpg and .jpeg format are allowed')
     );
   }
-  const fileSize = parseInt(req.headers['content-length'], 10);
-  if (fileSize > MAX_FILE_SIZE_MB) {
-    return cb(
-      new ErrorResponse(
-        413,
-        `您的檔案不得超過 ${
-          MAX_FILE_SIZE_MB / (1024 * 1024)
-        } MB / File size is limited to ${MAX_FILE_SIZE_MB / (1024 * 1024)} MB!`
-      )
-    );
-  }
+
+  fileSizeFilter(req, MAX_FILE_SIZE_MB, cb);
+
   cb(null, true);
 };
 
@@ -129,7 +131,7 @@ const template_storage_s3 = multerS3({
 const upload_template_s3 = multer({
   storage: template_storage_s3,
   limits: { fileSize: MAX_FILE_SIZE_MB },
-  fileFilter: fileFilter2
+  fileFilter: docFileFilter
 });
 
 // VPD file upload
@@ -291,19 +293,8 @@ const upload_admission_letter_s3 = multer({
     if (!ALLOWED_MIME_PDF_TYPES.includes(file.mimetype)) {
       return cb(new ErrorResponse(415, 'Only .pdf format is allowed'));
     }
-    const fileSize = parseInt(req.headers['content-length'], 10);
-    if (fileSize > MAX_FILE_SIZE_MB) {
-      return cb(
-        new ErrorResponse(
-          413,
-          `您的檔案不得超過 ${
-            MAX_FILE_SIZE_MB / (1024 * 1024)
-          } MB / File size is limited to ${
-            MAX_FILE_SIZE_MB / (1024 * 1024)
-          } MB!`
-        )
-      );
-    }
+    fileSizeFilter(req, MAX_FILE_SIZE_MB, cb);
+
     cb(null, true);
   }
 });
@@ -317,7 +308,7 @@ const upload_doc_image_s3 = multer({
 const upload_doc_docs_s3 = multer({
   storage: doc_docs_s3,
   limits: { fileSize: MAX_FILE_SIZE_MB },
-  fileFilter: fileFilter2
+  fileFilter: docFileFilter
 });
 
 const upload_vpd_s3 = multer({
@@ -327,19 +318,9 @@ const upload_vpd_s3 = multer({
     if (!ALLOWED_MIME_PDF_TYPES.includes(file.mimetype)) {
       return cb(new ErrorResponse(415, 'Only .pdf format is allowed'));
     }
-    const fileSize = parseInt(req.headers['content-length'], 10);
-    if (fileSize > MAX_FILE_SIZE_MB) {
-      return cb(
-        new ErrorResponse(
-          413,
-          `您的檔案不得超過 ${
-            MAX_FILE_SIZE_MB / (1024 * 1024)
-          } MB / File size is limited to ${
-            MAX_FILE_SIZE_MB / (1024 * 1024)
-          } MB!`
-        )
-      );
-    }
+
+    fileSizeFilter(req, MAX_FILE_SIZE_MB, cb);
+
     cb(null, true);
   }
 });
@@ -352,20 +333,7 @@ const upload_vpd_s3 = multer({
 const upload_profile_s3 = multer({
   storage: storage_profile_s3,
   limits: { fileSize: MAX_FILE_SIZE_MB },
-  fileFilter: (req, file, cb) => {
-    const { category } = req.params;
-    if (category === 'Passport_Photo') {
-      if (!ALLOWED_MIME_IMAGE_TYPES.includes(file.mimetype)) {
-        return cb(
-          new ErrorResponse(415, 'Only .png, .jpg and .jpeg format are allowed')
-        );
-      }
-    } else if (!ALLOWED_MIME_PDF_TYPES.includes(file.mimetype)) {
-      return cb(new ErrorResponse(415, 'Only .pdf format are allowed'));
-    }
-
-    cb(null, true);
-  }
+  fileFilter: filterProfile
 });
 
 // Message ticket files upload
@@ -540,19 +508,19 @@ const storage_messagesthread_image_s3 = multerS3({
 const upload_messagesticket_file_s3 = multer({
   storage: storage_messagesticket_file_s3,
   limits: { fileSize: MAX_DOC_FILE_SIZE_MB },
-  fileFilter: fileFilter1
+  fileFilter: threadFileFilter
 });
 
 const upload_messagesthread_file_s3 = multer({
   storage: storage_messagesthread_file_s3,
   limits: { fileSize: MAX_DOC_FILE_SIZE_MB },
-  fileFilter: fileFilter1
+  fileFilter: threadFileFilter
 });
 
 const upload_messagesChat_file_s3 = multer({
   storage: storage_messagesChat_file_s3,
   limits: { fileSize: MAX_DOC_FILE_SIZE_MB },
-  fileFilter: fileFilter1
+  fileFilter: threadFileFilter
 });
 
 const upload_messagesthread_image_s3 = multer({

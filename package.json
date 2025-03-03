@@ -9,7 +9,7 @@
     "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles --verbose --coverage --logHeapUsage --watchAll --no-cache --clearMocks --no-compilation-cache --bail",
     "test:ci": "cross-env NODE_ENV=test jest --ci --watchAll=false",
     "format": "prettier --write --cache . --ignore-path .prettierignore",
-    "deploy-s3": "aws s3 sync . s3://taiger-file-storage-production-backend-server --exclude \".env.production\" --exclude \"__tests__/*\" --exclude \"node_modules/*\" --exclude \"cert/*\" --exclude \"coverage/*\" --exclude \"logs/*\"",
+    "deploy-s3": "aws s3 sync . s3://taiger-file-storage-production-backend-server --exclude \".husky/*\" --exclude \".git/*\" --exclude \".env.production\" --exclude \"__tests__/*\" --exclude \"node_modules/*\" --exclude \"cert/*\" --exclude \"coverage/*\" --exclude \"logs/*\"",
     "deploy-ec2": "aws ec2 run-instances --launch-template LaunchTemplateId=\"lt-00b01e82ef9ebd817\" --region us-west-2",
     "deploy": "npm run deploy-s3 && npm run deploy-ec2",
     "pre-commit": "lint-staged",

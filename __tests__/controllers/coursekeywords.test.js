@@ -15,6 +15,8 @@ const { agent } = require('../mock/user');
 const { app } = require('../../app');
 const { disconnectFromDatabase } = require('../../database');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -64,7 +66,7 @@ beforeEach(async () => {
 
 describe('GET /api/course-keywords', () => {
   it('getKeywordSets', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/course-keywords/')
       .set('tenantId', TENANT_ID);
 
@@ -74,7 +76,7 @@ describe('GET /api/course-keywords', () => {
 
 describe('GET /api/course-keywords/:keywordsSetId', () => {
   it('getKeywordSet', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get(`/api/course-keywords/${subject1._id}`)
       .set('tenantId', TENANT_ID);
 
@@ -84,7 +86,7 @@ describe('GET /api/course-keywords/:keywordsSetId', () => {
 
 describe('POST /api/course-keywords/:keywordsSetId', () => {
   it('createKeywordSet', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/course-keywords/${subject1._id}`)
       .set('tenantId', TENANT_ID)
       .send({
@@ -100,7 +102,7 @@ describe('POST /api/course-keywords/:keywordsSetId', () => {
 
 describe('PUT /api/course-keywords/:keywordsSetId', () => {
   it('updateKeywordSet', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(`/api/course-keywords/${subject1._id}`)
       .set('tenantId', TENANT_ID)
       .send({
@@ -113,7 +115,7 @@ describe('PUT /api/course-keywords/:keywordsSetId', () => {
 
 describe('DELETE /api/course-keywords/:keywordsSetId', () => {
   it('deleteKeywordSet', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .delete(`/api/course-keywords/${subject2._id}`)
       .set('tenantId', TENANT_ID);
 

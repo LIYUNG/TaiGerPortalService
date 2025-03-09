@@ -35,7 +35,7 @@ const { program1, programs } = require('../mock/programs');
 const { disconnectFromDatabase } = require('../../database');
 
 const s3ClientMock = mockClient(s3Client);
-// for small files upload:
+const requestWithSupertest = request(app);
 
 jest.mock('../../middlewares/auth', () => {
   const passthrough = async (req, res, next) => next();
@@ -143,7 +143,7 @@ describe('POST /api/students/:id/agents', () => {
       agents_obj[ag._id] = true;
     });
 
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/students/${studentId}/agents`)
       .set('tenantId', TENANT_ID)
       .send(agents_obj);
@@ -176,7 +176,7 @@ describe('POST /api/students/:id/editors', () => {
       editors_obj[editor._id] = true;
     });
 
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/students/${studentId}/editors`)
       .set('tenantId', TENANT_ID)
       .send(editors_obj);
@@ -219,7 +219,7 @@ describe('POST /api/students/:studentId/applications', () => {
     programs.forEach((pro) => {
       programs_arr.push(pro._id.toString());
     });
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/students/${studentId}/applications`)
       .set('tenantId', TENANT_ID)
       .send({ program_id_set: programs_arr });
@@ -252,21 +252,21 @@ describe('DELETE /api/students/:studentId/applications/:applicationId', () => {
   it('should delete an application from student', async () => {
     const { _id: studentId } = student;
 
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/students/${studentId}/applications`)
       .set('tenantId', TENANT_ID)
       .send({ program_id_set: [program1._id?.toString()] });
 
     expect(resp.status).toBe(201);
 
-    const resp2 = await request(app)
+    const resp2 = await requestWithSupertest
       .delete(
         `/api/students/${studentId}/applications/${program1._id?.toString()}`
       )
       .set('tenantId', TENANT_ID);
 
     expect(resp2.status).toBe(200);
-    const resp2_std = await request(app)
+    const resp2_std = await requestWithSupertest
       .get(`/api/students/doc-links/${studentId}`)
       .set('tenantId', TENANT_ID);
     expect(resp2_std.body.data.applications).toHaveLength(0);
@@ -275,14 +275,14 @@ describe('DELETE /api/students/:studentId/applications/:applicationId', () => {
   it('deleting an application should fail if one of the threads is none-empty', async () => {
     const { _id: studentId } = student;
 
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/students/${studentId}/applications`)
       .set('tenantId', TENANT_ID)
       .send({ program_id_set: [program1._id?.toString()] });
 
     expect(resp.status).toBe(201);
 
-    const resp_std = await request(app)
+    const resp_std = await requestWithSupertest
       .get(`/api/students/doc-links/${studentId}`)
       .set('tenantId', TENANT_ID);
 
@@ -298,20 +298,20 @@ describe('DELETE /api/students/:studentId/applications/:applicationId', () => {
     expect(thread.doc_thread_id.file_type).toBe('ML');
     const messagesThreadId = thread.doc_thread_id._id?.toString();
 
-    const resp2 = await request(app)
+    const resp2 = await requestWithSupertest
       .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
       .set('tenantId', TENANT_ID)
       .field('message', '{}');
     expect(resp2.status).toBe(200);
 
-    const resp3 = await request(app)
+    const resp3 = await requestWithSupertest
       .delete(
         `/api/students/${studentId}/applications/${program1._id?.toString()}`
       )
       .set('tenantId', TENANT_ID);
 
     expect(resp3.status).toBe(409);
-    const resp3_std = await request(app)
+    const resp3_std = await requestWithSupertest
       .get(`/api/students/doc-links/${studentId}`)
       .set('tenantId', TENANT_ID);
     expect(resp3_std.body.data.applications).toHaveLength(1);
@@ -336,7 +336,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
 
   it('should return 415 when profile file type not .pdf .png, .jpg and .jpeg .docx', async () => {
     let buffer_2MB_exe = Buffer.alloc(1024 * 1024 * 2); // 2 MB
-    const resp2 = await request(app)
+    const resp2 = await requestWithSupertest
       .post(`/api/students/${studentId}/files/${category}`)
       .set('tenantId', TENANT_ID)
       .attach('file', buffer_2MB_exe, { filename: filename_invalid_ext });
@@ -350,7 +350,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
   // TODO: take too much time
   // it('should return 413 when profile size over 5 MB', async () => {
   //   const buffer_10MB = Buffer.alloc(1024 * 1024 * 6); // 6 MB
-  //   const resp2 = await request(app)
+  //   const resp2 = await requestWithSupertest
   //     .post(`/api/students/${studentId}/files/${category}`)
   //     .set('tenantId', TENANT_ID)
   //     .attach('file', buffer_10MB, { filename });
@@ -363,7 +363,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
   // it('should save the uploaded profile file and store the path in db', async () => {
   //   let buffer_1kB_exe = Buffer.alloc(1024 * 1); // 1 kB
 
-  //   const resp = await request(app)
+  //   const resp = await requestWithSupertest
   //     .post(`/api/students/${studentId}/files/${category}`)
   //     .set('tenantId', TENANT_ID)
   //     .attach('file', buffer_1kB_exe, { filename });
@@ -387,7 +387,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
   //   expect(file_name_inDB).toBe(temp_name);
 
   //   // Test Download:
-  //   const resp2 = await request(app)
+  //   const resp2 = await requestWithSupertest
   //     .get(`/api/students/${studentId}/files/${category}`)
   //     .set('tenantId', TENANT_ID)
   //     .buffer();
@@ -399,7 +399,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
 
   //   // TODO: test download: should not download other students's stuff!
   //   // const invalidApplicationId = "invalidapplicationID";
-  //   // const resp3 = await request(app)
+  //   // const resp3 = await requestWithSupertest
   //   //   .get(`/api/students/${studentId}/files/${category}`)
   //   //   .buffer();
 
@@ -407,14 +407,14 @@ describe('POST /api/students/:studentId/files/:category', () => {
   //   // expect(resp3.body.success).toBe(false);
 
   //   // test delete
-  //   const resp4 = await request(app)
+  //   const resp4 = await requestWithSupertest
   //     .delete(`/api/students/${studentId}/files/${category}`)
   //     .set('tenantId', TENANT_ID);
   //   expect(resp4.status).toBe(200);
   //   expect(resp4.body.success).toBe(true);
 
   //   // TODO test delete: should not delete other students file
-  //   const resp5 = await request(app)
+  //   const resp5 = await requestWithSupertest
   //     .delete(`/api/students/${student2Id}/files/${category}`)
   //     .set('tenantId', TENANT_ID);
   //   expect(resp5.status).toBe(403);
@@ -450,7 +450,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
     'should return 415 when profile file type not .pdf .png, .jpg and .jpeg .docx',
     async (File_Name, status, success) => {
       let buffer_1MB_exe = Buffer.alloc(1024 * 1024 * 1); // 1 MB
-      const resp2 = await request(app)
+      const resp2 = await requestWithSupertest
         .post(`/api/students/${studentId.toString()}/files/${category}`)
         .set('tenantId', TENANT_ID)
         .attach('file', buffer_1MB_exe, { filename: File_Name });
@@ -466,7 +466,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
   // TODO: take too much time
   // it('should return 413 when profile size over 5 MB', async () => {
   //   const buffer_10MB = Buffer.alloc(1024 * 1024 * 6); // 6 MB
-  //   const resp2 = await request(app)
+  //   const resp2 = await requestWithSupertest
   //     .post(`/api/students/${studentId.toString()}/files/${category}`)
   //     .set('tenantId', TENANT_ID)
   //     .attach('file', buffer_10MB, { filename });
@@ -478,7 +478,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
   // TODO: take too much to run
   // it('should save the uploaded profile file and store the path in db', async () => {
   //   let buffer_1kB_exe = Buffer.alloc(1024 * 1); // 1 kB
-  //   const resp = await request(app)
+  //   const resp = await requestWithSupertest
   //     .post(`/api/students/${studentId.toString()}/files/${category}`)
   //     .set('tenantId', TENANT_ID)
   //     .attach('file', buffer_1kB_exe, { filename });
@@ -501,7 +501,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
   //   expect(file_name_inDB).toBe(temp_name);
 
   //   // Test Download:
-  //   const resp2 = await request(app)
+  //   const resp2 = await requestWithSupertest
   //     .get(`/api/students/${studentId.toString()}/files/${category}`)
   //     .set('tenantId', TENANT_ID)
   //     .buffer();
@@ -513,7 +513,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
 
   //   // TODO: test download: should not download other students's stuff!
   //   // const invalidApplicationId = "invalidapplicationID";
-  //   // const resp3 = await request(app)
+  //   // const resp3 = await requestWithSupertest
   //   //   .get(`/api/students/${studentId.toString()}/files/${category}`)
   //   //   .buffer();
 
@@ -522,7 +522,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
 
   //   // test update profile status
   //   const feedback_str = 'too blurred';
-  //   const resp5 = await request(app)
+  //   const resp5 = await requestWithSupertest
   //     .post(`/api/students/${studentId}/${category}/status`)
   //     .set('tenantId', TENANT_ID)
   //     .send({ status: 'rejected', feedback: feedback_str });
@@ -533,7 +533,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
   //   expect(updatedFile2.feedback).toBe(feedback_str);
 
   //   // test delete
-  //   const resp4 = await request(app)
+  //   const resp4 = await requestWithSupertest
   //     .delete(`/api/students/${studentId}/files/${category}`)
   //     .set('tenantId', TENANT_ID);
   //   expect(resp4.status).toBe(200);
@@ -544,7 +544,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
 // //TODO: token-specific API!!!
 // describe("GET /api/students", () => {
 //   it("should return role-specific students", async () => {
-//     const resp = await request(app).get("/api/students").set('tenantId', TENANT_ID);
+//     const resp = await requestWithSupertest.get("/api/students").set('tenantId', TENANT_ID);
 //     const { success, data } = resp.body;
 
 //     const studentIds = students.map(({ _id }) => _id).sort();
@@ -559,7 +559,7 @@ describe('POST /api/students/:studentId/files/:category', () => {
 // TODO: token-specific API!!!
 // describe("GET /api/students/archiv", () => {
 //   it("should return all archiv students", async () => {
-//     const resp = await request(app).get("/api/students/archiv");
+//     const resp = await requestWithSupertest.get("/api/students/archiv");
 //     const { success, data } = resp.body;
 
 //     const studentIds = students.map(({ _id }) => _id).sort();

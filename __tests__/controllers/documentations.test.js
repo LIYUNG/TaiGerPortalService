@@ -11,6 +11,8 @@ const { users, admin } = require('../mock/user');
 const { program1 } = require('../mock/programs');
 const { disconnectFromDatabase } = require('../../database');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -94,7 +96,7 @@ describe('/api/docs/:category', () => {
   });
 
   test('POST should create a new documentation in db', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post('/api/docs')
       .set('tenantId', TENANT_ID)
       .send(article);
@@ -109,7 +111,7 @@ describe('/api/docs/:category', () => {
 
   test('GET uni-assist documentation in db', async () => {
     // Test Get Article:
-    const resp2 = await request(app)
+    const resp2 = await requestWithSupertest
       .get(`/api/docs/${category_uniassist}`)
       .set('tenantId', TENANT_ID)
       .buffer();
@@ -117,7 +119,7 @@ describe('/api/docs/:category', () => {
   });
 
   test('GET certification documentation in db', async () => {
-    const resp2_cert = await request(app)
+    const resp2_cert = await requestWithSupertest
       .get(`/api/docs/${category_certification}`)
       .set('tenantId', TENANT_ID)
       .buffer();
@@ -125,7 +127,7 @@ describe('/api/docs/:category', () => {
   });
 
   test('GET application documentation in db', async () => {
-    const resp2_app = await request(app)
+    const resp2_app = await requestWithSupertest
       .get(`/api/docs/${category_application}`)
       .set('tenantId', TENANT_ID)
       .buffer();
@@ -133,7 +135,7 @@ describe('/api/docs/:category', () => {
   });
 
   test('GET visa documentation in db', async () => {
-    const resp2_visa = await request(app)
+    const resp2_visa = await requestWithSupertest
       .get(`/api/docs/${category_visa}`)
       .set('tenantId', TENANT_ID)
       .buffer();
@@ -142,7 +144,7 @@ describe('/api/docs/:category', () => {
 
   test('PUT update documentation in db', async () => {
     // test update doc status
-    const resp5 = await request(app)
+    const resp5 = await requestWithSupertest
       .put(`/api/docs/${article_id}`)
       .set('tenantId', TENANT_ID)
       .send(Newarticle);
@@ -154,14 +156,14 @@ describe('/api/docs/:category', () => {
   });
 
   test('GET all documentation in db', async () => {
-    const resp4 = await request(app)
+    const resp4 = await requestWithSupertest
       .get('/api/docs/all')
       .set('tenantId', TENANT_ID);
     expect(resp4.body.success).toBe(true);
   });
 
   test('GET all internal documentation in db', async () => {
-    const resp4 = await request(app)
+    const resp4 = await requestWithSupertest
       .get('/api/docs/internal/all')
       .set('tenantId', TENANT_ID);
     expect(resp4.body.success).toBe(true);
@@ -169,7 +171,7 @@ describe('/api/docs/:category', () => {
 
   test('DELETE documentation in db', async () => {
     // test delete
-    const resp4 = await request(app)
+    const resp4 = await requestWithSupertest
       .delete(`/api/docs/${article_id}`)
       .set('tenantId', TENANT_ID);
     expect(resp4.status).toBe(200);

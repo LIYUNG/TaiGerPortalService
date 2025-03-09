@@ -9,6 +9,8 @@ const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
 const { users, student } = require('../mock/user');
 const { disconnectFromDatabase } = require('../../database');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -77,7 +79,7 @@ beforeEach(async () => {
 
 describe('auth Controller: login', () => {
   it('should failed if password not correct', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post('/auth/login')
       .set('tenantId', TENANT_ID)
       .send({
@@ -89,7 +91,7 @@ describe('auth Controller: login', () => {
   });
 
   it('should success if password is correct', async () => {
-    const resp2 = await request(app)
+    const resp2 = await requestWithSupertest
       .post('/auth/login')
       .set('tenantId', TENANT_ID)
       .send({

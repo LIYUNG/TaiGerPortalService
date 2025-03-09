@@ -11,6 +11,8 @@ const { admin } = require('../mock/user');
 const { programs } = require('../mock/programs');
 const { disconnectFromDatabase } = require('../../database');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -67,7 +69,7 @@ describe('GET /api/programs', () => {
     next();
   });
   it('should return all programs', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/programs')
       .set('tenantId', TENANT_ID);
     const { success, data } = resp.body;
@@ -82,7 +84,7 @@ describe('GET /api/programs', () => {
 describe('POST /api/programs', () => {
   it('should create a program', async () => {
     const { _id, ...fields } = generateProgram();
-    const resp = await request(app).post('/api/programs').send(fields);
+    const resp = await requestWithSupertest.post('/api/programs').send(fields);
     const { success, data } = resp.body;
 
     expect(resp.status).toBe(201);
@@ -95,7 +97,9 @@ describe('PUT /api/programs/:id', () => {
     const { _id } = programs[0];
     const { _id: _, ...fields } = generateProgram();
 
-    const resp = await request(app).put(`/api/programs/${_id}`).send(fields);
+    const resp = await requestWithSupertest
+      .put(`/api/programs/${_id}`)
+      .send(fields);
     const { success } = resp.body;
 
     expect(resp.status).toBe(200);
@@ -107,7 +111,7 @@ describe('DELETE /api/programs/:id', () => {
   it('should delete a program', async () => {
     const { _id } = programs[0];
 
-    const resp = await request(app).delete(`/api/programs/${_id}`);
+    const resp = await requestWithSupertest.delete(`/api/programs/${_id}`);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);

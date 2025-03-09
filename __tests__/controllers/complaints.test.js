@@ -15,6 +15,8 @@ const {
   ticketWithMessage
 } = require('../mock/complaintTickets');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -102,7 +104,7 @@ beforeEach(async () => {
 
 describe('GET /api/complaints', () => {
   it('getComplaints', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/complaints')
       .set('tenantId', TENANT_ID);
 
@@ -113,7 +115,7 @@ describe('GET /api/complaints', () => {
 
 describe('POST /api/complaints', () => {
   it('createComplaint', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post('/api/complaints')
       .set('tenantId', TENANT_ID)
       .send({ ticket: ticketNew });
@@ -125,7 +127,7 @@ describe('POST /api/complaints', () => {
 
 describe('message In Ticket Controller', () => {
   it('postMessageInTicket: should post a message in a ticket', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(
         `/api/complaints/new-message/${ticket._id.toString()}/${student._id}`
       )
@@ -140,7 +142,7 @@ describe('message In Ticket Controller', () => {
   });
 
   it('updateAMessageInComplaint: should update a message in a ticket', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(
         `/api/complaints/${ticketWithMessage._id.toString()}/${
           ticketWithMessage.messages[0]._id
@@ -158,7 +160,7 @@ describe('message In Ticket Controller', () => {
 
 describe('getComplaint Controller', () => {
   it('should get a ticket', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get(`/api/complaints/${ticket._id.toString()}`)
       .set('tenantId', TENANT_ID);
 
@@ -169,7 +171,7 @@ describe('getComplaint Controller', () => {
 
 describe('updateComplaint Controller', () => {
   it('should update a ticket', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(`/api/complaints/${ticket._id.toString()}`)
       .set('tenantId', TENANT_ID)
       .send({ description: 'new information' });
@@ -181,7 +183,7 @@ describe('updateComplaint Controller', () => {
 
 describe('deleteComplaint Controller', () => {
   it('should delete a tickets', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .delete(`/api/complaints/${ticket._id.toString()}`)
       .set('tenantId', TENANT_ID);
 

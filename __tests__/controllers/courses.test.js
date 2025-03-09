@@ -11,6 +11,8 @@ const { users, student } = require('../mock/user');
 const { app } = require('../../app');
 const { disconnectFromDatabase } = require('../../database');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -84,7 +86,7 @@ beforeEach(async () => {
 
 describe('GET /api/courses/:studentId', () => {
   it('getMycourses', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get(`/api/courses/${student._id}`)
       .set('tenantId', TENANT_ID);
 
@@ -95,7 +97,7 @@ describe('GET /api/courses/:studentId', () => {
 
 describe('PUT /api/courses/:studentId', () => {
   it('putMycourses', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(`/api/courses/${student._id}`)
       .set('tenantId', TENANT_ID)
       .send({
@@ -109,7 +111,7 @@ describe('PUT /api/courses/:studentId', () => {
 
 describe('DELETE /api/courses/:studentId', () => {
   it('deleteMyCourse', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .delete(`/api/courses/${student._id}`)
       .set('tenantId', TENANT_ID);
 
@@ -130,7 +132,7 @@ describe('DELETE /api/courses/:studentId', () => {
 //     const filename = 'my-file.xlsx';
 //     const group = 'cs';
 
-//     const resp = await request(app)
+//     const resp = await requestWithSupertest
 //       .post(`/api/courses/transcript/${studentId}/${category}/${group}`)
 //       .set('tenantId', TENANT_ID)
 //       .attach('file', Buffer.from('Lorem ipsum'), filename);
@@ -152,7 +154,7 @@ describe('DELETE /api/courses/:studentId', () => {
 //     const filename = 'my-file.xlsx';
 //     const group = 'cs';
 
-//     const resp = await request(app)
+//     const resp = await requestWithSupertest
 //       .post(`/api/courses/transcript/${studentId}/${category}/${group}`)
 //       .set('tenantId', TENANT_ID)
 //       .attach('file', Buffer.from('Lorem ipsum'), filename);

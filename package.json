@@ -16,7 +16,7 @@
     "lint": "eslint ./"
   },
   "lint-staged": {
-    "**/*.js": [
+    "**/*.{js}": [
       "prettier --write --cache .",
       "git add ."
     ]

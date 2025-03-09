@@ -1,7 +1,4 @@
-const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
-const EventEmitter = require('events');
 const request = require('supertest');
 
 const { connect, closeDatabase, clearDatabase } = require('../fixtures/db');
@@ -14,6 +11,8 @@ const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
 const { program1 } = require('../mock/programs');
 const { users, student } = require('../mock/user');
 const { disconnectFromDatabase } = require('../../database');
+
+const requestWithSupertest = request(app);
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -97,7 +96,7 @@ beforeEach(async () => {
 
 describe('updateCredentials Controller', () => {
   it('should update the user password and send an email', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post('/api/account/credentials')
       .set('tenantId', TENANT_ID)
       .send({
@@ -115,7 +114,7 @@ describe('updateCredentials Controller', () => {
       req.user = { _id: '012345678901234567891234' };
       next();
     });
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post('/api/account/credentials')
       .set('tenantId', TENANT_ID)
       .send({
@@ -149,7 +148,7 @@ describe('updateCredentials Controller', () => {
 //       next();
 //     });
 
-//     const resp = await request(app)
+//     const resp = await requestWithSupertest
 //       .post(`/api/students/${studentId}/applications`)
 //       .send({ program_id_set: [program._id] });
 
@@ -164,7 +163,7 @@ describe('updateCredentials Controller', () => {
 //   'should return 400 when program specific file type not .pdf .png, .jpg and .jpeg .docx %p %p %p',
 //   async (File_Name, status, success) => {
 //     const buffer_1MB_exe = Buffer.alloc(1024 * 1024 * 1); // 1 MB
-//     const resp2 = await request(app)
+//     const resp2 = await requestWithSupertest
 //       .post(
 //         `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
 //       )
@@ -177,7 +176,7 @@ describe('updateCredentials Controller', () => {
 
 // it('should return 400 when program specific file size (ML, Essay) over 5 MB', async () => {
 //   const buffer_6MB = Buffer.alloc(1024 * 1024 * 6); // 6 MB
-//   const resp2 = await request(app)
+//   const resp2 = await requestWithSupertest
 //     .post(
 //       `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
 //     )
@@ -188,7 +187,7 @@ describe('updateCredentials Controller', () => {
 // });
 
 // it('should save the uploaded program specific file and store the path in db', async () => {
-//   const resp = await request(app)
+//   const resp = await requestWithSupertest
 //     .post(
 //       `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
 //     )
@@ -198,7 +197,7 @@ describe('updateCredentials Controller', () => {
 //   expect(status).toBe(201);
 //   expect(body.success).toBe(true);
 
-// const resp_dup = await request(app)
+// const resp_dup = await requestWithSupertest
 //   .post(
 //     `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
 //   )
@@ -207,7 +206,7 @@ describe('updateCredentials Controller', () => {
 // expect(resp_dup.body.success).toBe(true);
 
 // // test delete first
-// const resp4 = await request(app).delete(
+// const resp4 = await requestWithSupertest.delete(
 //   `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
 // );
 // expect(resp4.status).toBe(200);
@@ -261,7 +260,7 @@ describe('updateCredentials Controller', () => {
 //     expect(file_name_inDB).toBe(db_file_name);
 
 //     // Test Download:
-//     const resp2 = await request(app)
+//     const resp2 = await requestWithSupertest
 //       .get(
 //         `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
 //       )
@@ -273,7 +272,7 @@ describe('updateCredentials Controller', () => {
 //     );
 
 //     // Mark as final documents
-//     const resp6 = await request(app).put(
+//     const resp6 = await requestWithSupertest.put(
 //       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
 //     );
 //     expect(resp6.status).toBe(201);
@@ -281,7 +280,7 @@ describe('updateCredentials Controller', () => {
 
 //     // test download: should return 400 with invalid applicationId
 //     const invalidApplicationId = 'invalidapplicationID';
-//     const resp3 = await request(app)
+//     const resp3 = await requestWithSupertest
 //       .get(
 //         `/api/account/files/programspecific/${studentId}/${invalidApplicationId}/${whoupdate}/${temp_name}`
 //       )
@@ -291,7 +290,7 @@ describe('updateCredentials Controller', () => {
 //     expect(resp3.body.success).toBe(false);
 
 //     // test delete
-//     const resp4 = await request(app).delete(
+//     const resp4 = await requestWithSupertest.delete(
 //       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
 //     );
 //     expect(resp4.status).toBe(200);
@@ -320,7 +319,7 @@ describe('updateCredentials Controller', () => {
 //       next();
 //     });
 
-//     const resp = await request(app)
+//     const resp = await requestWithSupertest
 //       .post(`/api/students/${studentId}/applications`)
 //       .send({ program_id_set: [program._id] });
 
@@ -335,7 +334,7 @@ describe('updateCredentials Controller', () => {
 //   'should return 400 when program specific file type not .pdf .png, .jpg and .jpeg .docx %p %p %p',
 //   async (File_Name, status, success) => {
 //     const buffer_1MB_exe = Buffer.alloc(1024 * 1024 * 1); // 1 MB
-//     const resp2 = await request(app)
+//     const resp2 = await requestWithSupertest
 //       .post(
 //         `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
 //       )
@@ -348,7 +347,7 @@ describe('updateCredentials Controller', () => {
 
 // it('should return 400 when program specific file size (ML, Essay) over 5 MB', async () => {
 //   const buffer_6MB = Buffer.alloc(1024 * 1024 * 6); // 6 MB
-//   const resp2 = await request(app)
+//   const resp2 = await requestWithSupertest
 //     .post(
 //       `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
 //     )
@@ -359,7 +358,7 @@ describe('updateCredentials Controller', () => {
 // });
 
 //   it('should save the uploaded program specific file and store the path in db', async () => {
-//     const resp = await request(app)
+//     const resp = await requestWithSupertest
 //       .post(
 //         `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
 //       )
@@ -369,7 +368,7 @@ describe('updateCredentials Controller', () => {
 //     expect(status).toBe(201);
 //     expect(body.success).toBe(true);
 
-//     // const resp_dup = await request(app)
+//     // const resp_dup = await requestWithSupertest
 //     //   .post(
 //     //     `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
 //     //   )
@@ -407,7 +406,7 @@ describe('updateCredentials Controller', () => {
 //     }
 
 //     // Test Download:
-//     const resp2 = await request(app)
+//     const resp2 = await requestWithSupertest
 //       .get(
 //         `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
 //       )
@@ -419,7 +418,7 @@ describe('updateCredentials Controller', () => {
 
 //     // test download: should return 400 with invalid applicationId
 //     const invalidApplicationId = 'invalidapplicationID';
-//     const resp3 = await request(app)
+//     const resp3 = await requestWithSupertest
 //       .get(
 //         `/api/account/files/programspecific/${studentId}/${invalidApplicationId}/${whoupdate}/${temp_name}`
 //       )
@@ -429,21 +428,21 @@ describe('updateCredentials Controller', () => {
 //     expect(resp3.body.success).toBe(false);
 
 //     // Mark as final documents (Invalid operation for student)
-//     const resp6 = await request(app).put(
+//     const resp6 = await requestWithSupertest.put(
 //       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
 //     );
 //     expect(resp6.status).toBe(401);
 //     expect(resp6.body.success).toBe(false);
 
 //     // test delete
-//     const resp4 = await request(app).delete(
+//     const resp4 = await requestWithSupertest.delete(
 //       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
 //     );
 //     expect(resp4.status).toBe(200);
 //     expect(resp4.body.success).toBe(true);
 
 //     // test delete: student can not delete other student's file
-//     const resp5 = await request(app).delete(
+//     const resp5 = await requestWithSupertest.delete(
 //       `/api/account/files/programspecific/${student2Id}/${applicationId}/${whoupdate}/${temp_name}`
 //     );
 //     expect(resp5.status).toBe(401);
@@ -468,7 +467,7 @@ describe('updateCredentials Controller', () => {
 //       req.user = await User.findById(editor._id);
 //       next();
 //     });
-//     const resp22 = await request(app).post(
+//     const resp22 = await requestWithSupertest.post(
 //       `/api/document-threads/init/general/${studentId}/${document_category}`
 //     );
 //     student_1 = resp22.body.data;
@@ -482,7 +481,7 @@ describe('updateCredentials Controller', () => {
 //     'should return 400 when program specific file type not .pdf .png, .jpg and .jpeg .docx %p %p %p',
 //     async (File_Name, status, success) => {
 //       const buffer_1MB_exe = Buffer.alloc(1024 * 1024 * 1); // 1 MB
-//       const resp2 = await request(app)
+//       const resp2 = await requestWithSupertest
 //         .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
 //         .attach('file', buffer_1MB_exe, File_Name);
 
@@ -492,7 +491,7 @@ describe('updateCredentials Controller', () => {
 //   );
 //   it('should return 400 when editor general file (CV, RL) size over 5 MB', async () => {
 //     const buffer_6MB = Buffer.alloc(1024 * 1024 * 6); // 6 MB
-//     const resp2 = await request(app)
+//     const resp2 = await requestWithSupertest
 //       .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
 //       .attach('file', buffer_6MB, filename);
 
@@ -501,7 +500,7 @@ describe('updateCredentials Controller', () => {
 //   });
 
 //   it('should save the uploaded general CV,RL files and store the path in db', async () => {
-//     const resp = await request(app)
+//     const resp = await requestWithSupertest
 //       .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
 //       .attach('file', Buffer.from('Lorem ipsum'), filename);
 
@@ -516,7 +515,7 @@ describe('updateCredentials Controller', () => {
 
 //     // Test Download:
 
-//     const resp3 = await request(app)
+//     const resp3 = await requestWithSupertest
 //       .get(`/api/account/files/general/${studentId}/${whoupdate}/${temp_name}`)
 //       .buffer();
 
@@ -531,7 +530,7 @@ describe('updateCredentials Controller', () => {
 //       .exec();
 
 //     // Mark as final documents
-//     const resp6 = await request(app).put(
+//     const resp6 = await requestWithSupertest.put(
 //       `/api/account/files/general/${studentId}/${whoupdate}/${temp_name}`
 //     );
 //     expect(resp6.status).toBe(201);
@@ -539,7 +538,7 @@ describe('updateCredentials Controller', () => {
 //     //TODO: check if it is really flagged with final: true
 
 //     // test delete
-//     const resp4 = await request(app).delete(
+//     const resp4 = await requestWithSupertest.delete(
 //       `/api/account/files/general/${studentId}/${whoupdate}/${temp_name}`
 //     );
 //     expect(resp4.status).toBe(200);
@@ -557,7 +556,7 @@ describe('POST /api/account/profile/:user_id', () => {
     });
   });
   it('should update personal data', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/account/profile/${student._id.toString()}`)
       .set('tenantId', TENANT_ID)
       .send({ personaldata });
@@ -591,7 +590,7 @@ describe('POST /api/account/survey/language', () => {
   });
 
   it('should update language status', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/account/survey/language/${student._id}`)
       .set('tenantId', TENANT_ID)
       .send({ language });
@@ -624,7 +623,7 @@ describe('POST /api/account/survey/university', () => {
     });
   });
   it('should update university (academic background) ', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/account/survey/university/${student._id}`)
       .set('tenantId', TENANT_ID)
       .send({ university });
@@ -639,7 +638,7 @@ describe('POST /api/account/survey/university', () => {
     );
     expect(body.data.isGraduated).toBe(university.isGraduated);
 
-    const resp2 = await request(app)
+    const resp2 = await requestWithSupertest
       .get('/api/account/survey')
       .set('tenantId', TENANT_ID);
     const university_body = resp2.body.data;

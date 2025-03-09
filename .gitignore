@@ -17,7 +17,7 @@ node_modules
 /dev/
 
 # testing
-/coverage
+/coverage/*
 
 # production
 /build

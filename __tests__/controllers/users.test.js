@@ -13,6 +13,8 @@ const { TENANT_ID } = require('../fixtures/constants');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
 const { disconnectFromDatabase } = require('../../database');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -74,7 +76,7 @@ describe('GET /api/users', () => {
   });
 
   it('should return all users', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/users')
       .set('tenantId', TENANT_ID);
     const { success, data } = resp.body;
@@ -89,7 +91,7 @@ describe('GET /api/users', () => {
 // TODO: move below to their own files?
 describe('GET /api/agents', () => {
   it('should return all agents', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/agents')
       .set('tenantId', TENANT_ID);
     const { success, data } = resp.body;
@@ -105,7 +107,7 @@ describe('GET /api/agents', () => {
 
 describe('GET /api/editors', () => {
   it('should return all editors', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/editors')
       .set('tenantId', TENANT_ID);
     const { success, data } = resp.body;
@@ -121,7 +123,7 @@ describe('GET /api/editors', () => {
 
 describe('GET /api/students/all', () => {
   it('should return all students', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/students/all')
       .set('tenantId', TENANT_ID);
     const { success, data } = resp.body;
@@ -139,7 +141,7 @@ describe('POST /api/users/:id', () => {
     const { _id } = users[3];
     const { email, role } = generateUser(Role.Editor);
 
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/users/${_id}`)
       .set('tenantId', TENANT_ID)
       .send({ email, role });
@@ -163,7 +165,7 @@ describe('POST /api/users/:id', () => {
     const { _id } = users[5];
     const { email, role } = generateUser(Role.Admin);
 
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/users/${_id}`)
       .set('tenantId', TENANT_ID)
       .send({ email, role });
@@ -178,7 +180,7 @@ describe('DELETE /api/users/:id', () => {
   it('should delete a user', async () => {
     const { _id } = users[0];
 
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .delete(`/api/users/${_id}`)
       .set('tenantId', TENANT_ID);
 

@@ -10,6 +10,8 @@ const { agent } = require('../mock/user');
 const { app } = require('../../app');
 const { disconnectFromDatabase } = require('../../database');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -59,7 +61,7 @@ beforeEach(async () => {
 
 describe('GET /api/all-courses', () => {
   it('getCourses', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/all-courses/')
       .set('tenantId', TENANT_ID);
 
@@ -69,7 +71,7 @@ describe('GET /api/all-courses', () => {
 
 describe('POST /api/all-courses', () => {
   it('createCourse', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post('/api/all-courses/')
       .set('tenantId', TENANT_ID)
       .send({
@@ -83,7 +85,7 @@ describe('POST /api/all-courses', () => {
 
 describe('GET /api/all-courses/:courseId', () => {
   it('getCourse', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get(`/api/all-courses/${subject1._id}`)
       .set('tenantId', TENANT_ID);
 
@@ -93,7 +95,7 @@ describe('GET /api/all-courses/:courseId', () => {
 
 describe('PUT /api/all-courses/:courseId', () => {
   it('updateCourse', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(`/api/all-courses/${subject1._id}`)
       .set('tenantId', TENANT_ID)
       .send({
@@ -107,7 +109,7 @@ describe('PUT /api/all-courses/:courseId', () => {
 
 describe('DELETE /api/all-courses/:courseId', () => {
   it('deleteCourse', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .delete(`/api/all-courses/${subject3._id}`)
       .set('tenantId', TENANT_ID);
 

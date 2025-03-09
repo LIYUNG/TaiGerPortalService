@@ -17,6 +17,8 @@ const {
 } = require('../mock/tickets');
 const { program1 } = require('../mock/programs');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -84,7 +86,7 @@ beforeEach(async () => {
 
 describe('GET /api/tickets?type=program&status=open', () => {
   it('getTickets query type=program&status=open', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/tickets?type=program&status=open')
       .set('tenantId', TENANT_ID);
 
@@ -93,7 +95,7 @@ describe('GET /api/tickets?type=program&status=open', () => {
   });
 
   it('getTickets query type=program&program_id=<proramId>', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get(`/api/tickets?type=program&program_id=${program1._id}`)
       .set('tenantId', TENANT_ID);
 
@@ -104,7 +106,7 @@ describe('GET /api/tickets?type=program&status=open', () => {
 
 describe('POST /api/tickets/', () => {
   it('createTicket', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post('/api/tickets')
       .set('tenantId', TENANT_ID)
       .send(programTicketNew);
@@ -116,7 +118,7 @@ describe('POST /api/tickets/', () => {
 
 describe('PUT /api/tickets/:ticket_id', () => {
   it('updateTicket', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(`/api/tickets/${programTicket1._id}`)
       .set('tenantId', TENANT_ID)
       .send({
@@ -131,7 +133,7 @@ describe('PUT /api/tickets/:ticket_id', () => {
 
 describe('DELETE /api/tickets/:ticket_id', () => {
   it('deleteTicket', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .delete(`/api/tickets/${programTicket2._id}`)
       .set('tenantId', TENANT_ID);
 

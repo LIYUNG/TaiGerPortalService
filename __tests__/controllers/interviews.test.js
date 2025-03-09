@@ -12,6 +12,8 @@ const { interviews, interview1, interview3 } = require('../mock/interviews');
 const { program4 } = require('../mock/programs');
 const { disconnectFromDatabase } = require('../../database');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -94,7 +96,7 @@ beforeEach(async () => {
 
 describe('POST /api/interviews/create/:program_id/:studentId', () => {
   it('createInterview', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/interviews/create/${program4._id}/${student3._id}`)
       .set('tenantId', TENANT_ID)
       .send({
@@ -111,7 +113,7 @@ describe('POST /api/interviews/create/:program_id/:studentId', () => {
 
 describe('GET /api/interviews/:interview_id', () => {
   it('getInterview', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get(`/api/interviews/${interview1._id}`)
       .set('tenantId', TENANT_ID);
 
@@ -121,7 +123,7 @@ describe('GET /api/interviews/:interview_id', () => {
 
 describe('PUT /api/interviews/:interview_id', () => {
   it('updateInterview', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(`/api/interviews/${interview1._id}`)
       .set('tenantId', TENANT_ID)
       .send({
@@ -134,7 +136,7 @@ describe('PUT /api/interviews/:interview_id', () => {
 
 describe('DELETE /api/interviews/:interview_id', () => {
   it('deleteInterview', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .delete(`/api/interviews/${interview3._id}`)
       .set('tenantId', TENANT_ID);
 

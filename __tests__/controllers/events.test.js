@@ -24,6 +24,8 @@ const {
 const { app } = require('../../app');
 const { disconnectFromDatabase } = require('../../database');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -106,7 +108,7 @@ beforeEach(async () => {
 
 describe('GET /api/events/all', () => {
   it('getAllEvents', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/events/all')
       .set('tenantId', TENANT_ID);
 
@@ -116,7 +118,7 @@ describe('GET /api/events/all', () => {
 
 describe('GET /api/events/ping', () => {
   it('getActiveEventsNumber', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/events/ping')
       .set('tenantId', TENANT_ID);
 
@@ -128,7 +130,7 @@ describe('POST /api/events/', () => {
   it('postEvent: can not book further event if there is upcoming one', async () => {
     eventNew2.requester_id = student._id;
     eventNew2.receiver_id = agent._id;
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post('/api/events/')
       .set('tenantId', TENANT_ID)
       .send(eventNew2);
@@ -143,7 +145,7 @@ describe('POST /api/events/', () => {
     });
     eventNew.requester_id = student3._id;
     eventNew.receiver_id = agent2._id;
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post('/api/events/')
       .set('tenantId', TENANT_ID)
       .send(eventNew);
@@ -154,7 +156,7 @@ describe('POST /api/events/', () => {
 
 describe('PUT /api/events/:event_id', () => {
   it('updateEvent: student is not allowed to update others events', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(`/api/events/${event2._id}`)
       .set('tenantId', TENANT_ID)
       .send({
@@ -170,7 +172,7 @@ describe('PUT /api/events/:event_id', () => {
       req.user = student2;
       next();
     });
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(`/api/events/${event2._id}`)
       .set('tenantId', TENANT_ID)
       .send({
@@ -184,7 +186,7 @@ describe('PUT /api/events/:event_id', () => {
 
 describe('DELETE /api/events/:event_id', () => {
   it('deleteEvent', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .delete(`/api/events/${event3._id}`)
       .set('tenantId', TENANT_ID);
 

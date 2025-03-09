@@ -27,6 +27,8 @@ const { disconnectFromDatabase } = require('../../database');
 
 const s3ClientMock = mockClient(s3Client);
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -180,14 +182,14 @@ describe('POST /api/document-threads/init/application/:studentId/:programId/:doc
 
   // TODO: need to simplify mock data.
   it('should create a new ML thread when assigned a new program with ML required', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/students/${studentId}/applications`)
       .set('tenantId', TENANT_ID)
       .send({ program_id_set: [programId.toString()] });
 
     expect(resp.status).toBe(201);
 
-    const resp_std = await request(app)
+    const resp_std = await requestWithSupertest
       .get(`/api/students/doc-links/${studentId}`)
       .set('tenantId', TENANT_ID);
 
@@ -205,14 +207,14 @@ describe('POST /api/document-threads/init/application/:studentId/:programId/:doc
   });
 
   it('should create a Supplementary_Form thread when manually added', async () => {
-    const resp22 = await request(app)
+    const resp22 = await requestWithSupertest
       .post(
         `/api/document-threads/init/application/${studentId}/${programId}/${'Supplementary_Form'}`
       )
       .set('tenantId', TENANT_ID);
     expect(resp22.status).toBe(200);
 
-    const resp_std = await request(app)
+    const resp_std = await requestWithSupertest
       .get(`/api/students/doc-links/${studentId}`)
       .set('tenantId', TENANT_ID);
 
@@ -235,7 +237,7 @@ describe('POST /api/document-threads/init/application/:studentId/:programId/:doc
     '%p should return %p hen program specific file type not .pdf .png, .jpg and .jpeg .docx %p',
     async (File_Name, status, success) => {
       const buffer_1kB_exe = Buffer.alloc(1024 * 1); // 1 kB
-      const resp2 = await request(app)
+      const resp2 = await requestWithSupertest
         .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
         .set('tenantId', TENANT_ID)
         .attach('files', buffer_1kB_exe, { filename: File_Name })
@@ -250,7 +252,7 @@ describe('POST /api/document-threads/init/application/:studentId/:programId/:doc
 
   it('should return 413 when program specific file size (ML, Essay) over 1 MB', async () => {
     const buffer_2MB = Buffer.alloc(1024 * 1024 * 2); // 1 kB
-    const resp2 = await request(app)
+    const resp2 = await requestWithSupertest
       .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
       .set('tenantId', TENANT_ID)
       .attach('files', buffer_2MB, { filename });
@@ -260,7 +262,7 @@ describe('POST /api/document-threads/init/application/:studentId/:programId/:doc
   });
 
   // it('should save the uploaded program specific file and store the path in db', async () => {
-  // const resp_std = await request(app)
+  // const resp_std = await requestWithSupertest
   //   .get(`/api/students/doc-links/${studentId}`)
   //   .set('tenantId', TENANT_ID);
 
@@ -307,7 +309,7 @@ describe('POST /api/document-threads/init/application/:studentId/:programId/:doc
   //   expect(file_name_inDB).toBe(temp_name);
 
   //   // Test Download:
-  //   const resp2 = await request(app)
+  //   const resp2 = await requestWithSupertest
   //     .get(
   //       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
   //     )
@@ -320,7 +322,7 @@ describe('POST /api/document-threads/init/application/:studentId/:programId/:doc
   //   );
 
   //   // Mark as final documents
-  //   const resp6 = await request(app)
+  //   const resp6 = await requestWithSupertest
   //     .put(
   //       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
   //     )
@@ -330,7 +332,7 @@ describe('POST /api/document-threads/init/application/:studentId/:programId/:doc
 
   //   // test download: should return 400 with invalid applicationId
   //   const invalidApplicationId = 'invalidapplicationID';
-  //   const resp3 = await request(app)
+  //   const resp3 = await requestWithSupertest
   //     .get(
   //       `/api/account/files/programspecific/${studentId}/${invalidApplicationId}/${whoupdate}/${temp_name}`
   //     )

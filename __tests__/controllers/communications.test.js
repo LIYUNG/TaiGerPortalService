@@ -11,6 +11,8 @@ const { communicationsSchema } = require('../../models/Communication');
 const { users, admin, agent, student } = require('../mock/user');
 const { disconnectFromDatabase } = require('../../database');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -109,7 +111,7 @@ beforeEach(async () => {
 
 describe('getUnreadNumberMessages Controller', () => {
   it('should get messages of an user', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/communications/ping/all')
       .set('tenantId', TENANT_ID);
 
@@ -120,7 +122,7 @@ describe('getUnreadNumberMessages Controller', () => {
 
 describe('loadMessages Controller', () => {
   it('should load messages from a student', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get(`/api/communications/${student._id.toString()}/pages/1`)
       .set('tenantId', TENANT_ID);
 
@@ -131,7 +133,7 @@ describe('loadMessages Controller', () => {
 
 describe('getMessages Controller', () => {
   it('should get messages from a student', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get(`/api/communications/${student._id.toString()}`)
       .set('tenantId', TENANT_ID);
 
@@ -142,7 +144,7 @@ describe('getMessages Controller', () => {
 
 describe('postMessages and Controller', () => {
   it('postMessages should create a new message', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post(`/api/communications/${student._id.toString()}`)
       .set('tenantId', TENANT_ID)
       .send({ message: testMessage });
@@ -155,7 +157,7 @@ describe('postMessages and Controller', () => {
 describe('updateAMessageInThread Controller', () => {
   it('should update a message', async () => {
     const messageId = messages[0]._id.toString();
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(`/api/communications/${student._id.toString()}/${messageId}`)
       .set('tenantId', TENANT_ID)
       .send({ message: 'new information' });
@@ -167,7 +169,7 @@ describe('updateAMessageInThread Controller', () => {
 
 // describe('deleteComplaint Controller', () => {
 //   it('should delete a message', async () => {
-//     const resp = await request(app)
+//     const resp = await requestWithSupertest
 //       .delete(`/api/communications/${student._id.toString()}`)
 //       .set('tenantId', TENANT_ID);
 

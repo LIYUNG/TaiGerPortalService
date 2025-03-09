@@ -17,6 +17,8 @@ const {
   programRequirementsNew
 } = require('../mock/programRequirements');
 
+const requestWithSupertest = request(app);
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
@@ -102,7 +104,7 @@ beforeEach(async () => {
 
 describe('GET /api/program-requirements/', () => {
   it('getProgramRequirements', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/program-requirements/')
       .set('tenantId', TENANT_ID);
 
@@ -112,7 +114,7 @@ describe('GET /api/program-requirements/', () => {
 
 describe('GET /api/program-requirements/programs-and-keywords/', () => {
   it('getDistinctProgramsAndKeywordSets', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get('/api/program-requirements/programs-and-keywords')
       .set('tenantId', TENANT_ID);
 
@@ -122,7 +124,7 @@ describe('GET /api/program-requirements/programs-and-keywords/', () => {
 
 describe('POST /api/program-requirements/new/', () => {
   it('createProgramRequirement', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .post('/api/program-requirements/new/')
       .set('tenantId', TENANT_ID)
       .send({
@@ -140,7 +142,7 @@ describe('POST /api/program-requirements/new/', () => {
 
 describe('GET /api/program-requirements/:requirementId', () => {
   it('getProgramRequirement', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .get(`/api/program-requirements/${programRequirements1._id}`)
       .set('tenantId', TENANT_ID);
 
@@ -150,7 +152,7 @@ describe('GET /api/program-requirements/:requirementId', () => {
 
 describe('PUT /api/program-requirements/:requirementId', () => {
   it('updateInterview', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .put(`/api/program-requirements/${programRequirements1._id}`)
       .set('tenantId', TENANT_ID)
       .send({
@@ -163,7 +165,7 @@ describe('PUT /api/program-requirements/:requirementId', () => {
 
 describe('DELETE /api/program-requirements/:requirementId', () => {
   it('deleteInterview', async () => {
-    const resp = await request(app)
+    const resp = await requestWithSupertest
       .delete(`/api/program-requirements/${programRequirements2._id}`)
       .set('tenantId', TENANT_ID);
 

@@ -1,4 +1,3 @@
-const path = require('path');
 const request = require('supertest');
 
 const { connect, closeDatabase, clearDatabase } = require('../fixtures/db');
@@ -89,7 +88,7 @@ beforeEach(async () => {
   await ProgramModel.create(program1);
 
   protect.mockImplementation(async (req, res, next) => {
-    req.user = await UserModel.findById(student._id);
+    req.user = student;
     next();
   });
 });
@@ -548,13 +547,7 @@ describe('updateCredentials Controller', () => {
 
 describe('POST /api/account/profile/:user_id', () => {
   const personaldata = { firstname: 'New_FirstName', lastname: 'New_LastName' };
-  beforeEach(async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      // req.user = await Student.findById(student._ìd);
-      req.user = student;
-      next();
-    });
-  });
+
   it('should update personal data', async () => {
     const resp = await requestWithSupertest
       .post(`/api/account/profile/${student._id.toString()}`)
@@ -580,15 +573,6 @@ describe('POST /api/account/survey/language', () => {
     german_test_date: ''
   };
 
-  beforeEach(async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      // req.user = await User.findById(student._ìd);
-      // TODO NOTE: req.user is strange here when using new mongoose version.
-      req.user = student;
-      next();
-    });
-  });
-
   it('should update language status', async () => {
     const resp = await requestWithSupertest
       .post(`/api/account/survey/language/${student._id}`)
@@ -613,15 +597,7 @@ describe('POST /api/account/survey/university', () => {
     attended_university_program: 'Electronics Engineering',
     isGraduated: 'No'
   };
-  beforeEach(async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      // TODO NOTE: req.user is strange here when using new mongoose version.
-      // req.user = await Student.findById(student._ìd);
-      // req.user = await User.findById(admin._id);
-      req.user = student;
-      next();
-    });
-  });
+
   it('should update university (academic background) ', async () => {
     const resp = await requestWithSupertest
       .post(`/api/account/survey/university/${student._id}`)

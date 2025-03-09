@@ -3,7 +3,6 @@ const { ticketSchema } = require('@taiger-common/model');
 
 const { connect, closeDatabase, clearDatabase } = require('../fixtures/db');
 const { UserSchema } = require('../../models/User');
-const { generateCourse } = require('../fixtures/faker');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');

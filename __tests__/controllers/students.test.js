@@ -1,7 +1,5 @@
 const fs = require('fs');
-const path = require('path');
 const request = require('supertest');
-const { Role } = require('@taiger-common/core');
 const { mockClient } = require('aws-sdk-client-mock');
 
 const { UPLOAD_PATH } = require('../../config');

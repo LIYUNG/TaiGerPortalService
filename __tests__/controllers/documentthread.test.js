@@ -1,7 +1,5 @@
 const fs = require('fs');
-const path = require('path');
 const request = require('supertest');
-const { Role } = require('@taiger-common/core');
 const { mockClient } = require('aws-sdk-client-mock');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');

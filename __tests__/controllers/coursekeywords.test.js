@@ -5,12 +5,7 @@ const { protect } = require('../../middlewares/auth');
 const { connect, clearDatabase } = require('../fixtures/db');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
 const { TENANT_ID } = require('../fixtures/constants');
-const {
-  subjects,
-  subject1,
-  subject3,
-  subject2
-} = require('../mock/allcourses');
+const { subjects, subject1, subject2 } = require('../mock/allcourses');
 const { agent } = require('../mock/user');
 const { app } = require('../../app');
 const { disconnectFromDatabase } = require('../../database');

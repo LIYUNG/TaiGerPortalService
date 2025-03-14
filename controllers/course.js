@@ -282,8 +282,8 @@ const processTranscript_api = asyncHandler(async (req, res, next) => {
 
 const processTranscript_api_gatway = asyncHandler(async (req, res, next) => {
   const {
-    params: { category, studentId, language },
-    body: { requirementIds }
+    params: { studentId, language },
+    body: { requirementIds, factor }
   } = req;
 
   try {
@@ -310,6 +310,7 @@ const processTranscript_api_gatway = asyncHandler(async (req, res, next) => {
       courses: stringified_courses,
       student_id: studentId,
       student_name,
+      factor: factor || 1.5,
       language,
       courses_taiger_guided: stringified_courses_taiger_guided,
       requirement_ids: JSON.stringify(requirementIds)

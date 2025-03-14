@@ -22,7 +22,7 @@ const student_name = 'PreCustomer';
 const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, next) => {
   const {
     params: { language },
-    body: { courses, requirementIds }
+    body: { courses, requirementIds, factor }
   } = req;
 
   const { Credentials } = await getTemporaryCredentials(
@@ -39,6 +39,7 @@ const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, next) => {
       student_id: studentId,
       student_name,
       language,
+      factor: factor || 1.5,
       courses_taiger_guided: '"[]"',
       requirement_ids: JSON.stringify(requirementIds)
     });

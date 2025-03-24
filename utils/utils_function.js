@@ -1554,7 +1554,7 @@ const userChangesHelperFunction = async (req, newUserIds, existingUsers) => {
   );
 
   // Prepare data for updating
-  const beforeChangeUsersArr = existingUsers;
+  const beforeChangeUsersArr = existingUsers || [];
 
   // Create sets for easy comparison
   const previousEditorSet = new Set(

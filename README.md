@@ -36,7 +36,7 @@ brew install mongodb-community@4.4 # version 4.4
 ```
 
 ```
-brew service start monodb-community@4.4 # start the mongodb as a service
+brew services start mongodb-community@4.4 # start the mongodb as a service
 ```
 
 **Create Key and Pem file**

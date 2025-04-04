@@ -1588,7 +1588,9 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
           uploaded_documentname: generaldocs_thread.doc_thread_id.file_type,
           uploaded_updatedAt: new Date(),
           thread_id: generaldocs_thread.doc_thread_id._id?.toString(),
-          isFinalVersion: generaldocs_thread.isFinalVersion
+          isFinalVersion: generaldocs_thread.isFinalVersion,
+          is_essay: generaldocs_thread.doc_thread_id.file_type === 'Essay',
+          outsourced_users: generaldocs_thread.doc_thread_id.outsourced_user_id
         }
       );
     }
@@ -1616,7 +1618,9 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
               thread_id: generaldocs_thread.doc_thread_id._id?.toString(),
               uploaded_documentname: generaldocs_thread.doc_thread_id.file_type,
               uploaded_updatedAt: new Date(),
-              isFinalVersion: generaldocs_thread.isFinalVersion
+              isFinalVersion: generaldocs_thread.isFinalVersion,
+              is_essay: generaldocs_thread.doc_thread_id.file_type === 'Essay',
+              outsourced_users: generaldocs_thread.doc_thread_id.outsourced_user_id
             }
           );
         }

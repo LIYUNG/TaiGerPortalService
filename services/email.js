@@ -1415,7 +1415,7 @@ const sendSetAsFinalGeneralFileForAgentEmail = asyncHandler(
 
 <p>嗨 ${recipient.firstname} ${recipient.lastname},</p>
 
-<p>${msg.editor_firstname} ${msg.editor_lastname} 對於學生 ${student_name} 已標示 ${msg.uploaded_documentname} 為完成，
+<p>${msg.is_essay ? msg.outsourced_users.map(user => `${user.firstname} ${user.lastname}`).join(', ') : `${msg.editor_firstname} ${msg.editor_lastname}`} 對於學生 ${student_name} 已標示 ${msg.uploaded_documentname} 為完成，
 
 於 ${msg.uploaded_updatedAt}. </p>
 
@@ -1431,7 +1431,7 @@ const sendSetAsFinalGeneralFileForAgentEmail = asyncHandler(
 
 <p>Hi ${recipient.firstname} ${recipient.lastname},</p>
 
-<p>${msg.editor_firstname} ${msg.editor_lastname} have finalized ${msg.uploaded_documentname} </p>
+<p>${msg.is_essay ? msg.outsourced_users.map(user => `${user.firstname} ${user.lastname}`).join(', ') : `${msg.editor_firstname} ${msg.editor_lastname}`} have finalized ${msg.uploaded_documentname} </p>
 
 <p>for student ${student_name} </p>
 
@@ -1454,7 +1454,7 @@ const sendSetAsFinalGeneralFileForAgentEmail = asyncHandler(
 
 <p>嗨 ${recipient.firstname} ${recipient.lastname},</p>
 
-${msg.editor_firstname} ${msg.editor_lastname} 標示 ${msg.uploaded_documentname} 
+${msg.is_essay ? msg.outsourced_users.map(user => `${user.firstname} ${user.lastname}`).join(', ') : `${msg.editor_firstname} ${msg.editor_lastname}`} 標示 ${msg.uploaded_documentname} 
 
 為未完成。
 
@@ -1468,7 +1468,7 @@ ${msg.editor_firstname} ${msg.editor_lastname} 標示 ${msg.uploaded_documentnam
   
 <p>Hi ${recipient.firstname} ${recipient.lastname},</p>
 
-<p>${msg.editor_firstname} ${msg.editor_lastname} set ${msg.uploaded_documentname} 
+<p>${msg.is_essay ? msg.outsourced_users.map(user => `${user.firstname} ${user.lastname}`).join(', ') : `${msg.editor_firstname} ${msg.editor_lastname}`} set ${msg.uploaded_documentname} 
 
 as not finished.</p>
 
@@ -1495,7 +1495,7 @@ const sendSetAsFinalGeneralFileForStudentEmail = asyncHandler(
 
 <p>嗨 ${student_name},</p>
 
-<p>${msg.editor_firstname} ${msg.editor_lastname} 將 ${
+<p>${msg.is_essay ? msg.outsourced_users.map(user => `${user.firstname} ${user.lastname}`).join(', ') : `${msg.editor_firstname} ${msg.editor_lastname}`} 將 ${
         msg.uploaded_documentname
       } 列為已完成
 
@@ -1514,9 +1514,7 @@ const sendSetAsFinalGeneralFileForStudentEmail = asyncHandler(
 
 <p>Hi ${student_name},</p>
 
-<p>your editor ${msg.editor_firstname} ${
-        msg.editor_lastname
-      } have finalized <a href="${threadUrl}">${msg.uploaded_documentname}</a> 
+<p>your editor ${msg.is_essay ? msg.outsourced_users.map(user => `${user.firstname} ${user.lastname}`).join(', ') : `${msg.editor_firstname} ${msg.editor_lastname}`} have finalized <a href="${threadUrl}">${msg.uploaded_documentname}</a> 
 
 on ${msg.uploaded_updatedAt} for you.</p>
 
@@ -1537,7 +1535,7 @@ on ${msg.uploaded_updatedAt} for you.</p>
 
 <p>嗨 ${student_name},</p>
 
-<p>${msg.editor_firstname} ${msg.editor_lastname} 標記 <a href="${threadUrl}">${
+<p>${msg.is_essay ? msg.outsourced_users.map(user => `${user.firstname} ${user.lastname}`).join(', ') : `${msg.editor_firstname} ${msg.editor_lastname}`} 標記 <a href="${threadUrl}">${
         msg.uploaded_documentname
       }</a> 為未完成。 </p>
 
@@ -1551,7 +1549,7 @@ on ${msg.uploaded_updatedAt} for you.</p>
 
 <p>Hi ${student_name},</p>
 
-<p>${msg.editor_firstname} ${msg.editor_lastname} set <a href="${threadUrl}">${
+<p>${msg.is_essay ? msg.outsourced_users.map(user => `${user.firstname} ${user.lastname}`).join(', ') : `${msg.editor_firstname} ${msg.editor_lastname}`} set <a href="${threadUrl}">${
         msg.uploaded_documentname
       }</a> as not finished.</p>
 

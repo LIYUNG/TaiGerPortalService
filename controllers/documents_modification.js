@@ -242,8 +242,8 @@ const getCVMLRLOverview = asyncHandler(async (req, res) => {
     res.status(200).send({ success: true, data: students });
   } else if (is_TaiGer_Student(user)) {
     const obj = user.notification; // create object
-    obj['isRead_new_cvmlrl_messsage'] = true; // set value
-    obj['isRead_new_cvmlrl_tasks_created'] = true;
+    obj.isRead_new_cvmlrl_messsage = true; // set value
+    obj.isRead_new_cvmlrl_tasks_created = true;
     await req.db
       .model('Student')
       .findByIdAndUpdate(user._id.toString(), { notification: obj }, {});
@@ -721,7 +721,7 @@ const postMessages = asyncHandler(async (req, res) => {
       throw new ErrorResponse(403, 'Unauthorized request');
     }
   }
-  let newfile = [];
+  const newfile = [];
   if (req.files) {
     for (let i = 0; i < req.files.length; i += 1) {
       const filePath = req.files[i].key.split('/');
@@ -2035,9 +2035,29 @@ const clearEssayWriters = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const getRelevantEssayThreads = (essayDocumentThreads) => {
+  // filter active student, then see if the essay thread belongs to a decided application
+  const matchingDocuments = [];
+  essayDocumentThreads
+    .filter((doc) => doc.student_id && !doc.student_id.archiv)
+    .filter((doc) => {
+      const docIdStr = doc._id?.toString();
+      const { applications } = doc.student_id;
+      const decidedApplications = applications.filter(isProgramDecided);
+      const threadIds = decidedApplications.flatMap(
+        (app) =>
+          app.doc_modification_thread?.map((thread) =>
+            thread.doc_thread_id?.toString()
+          ) || []
+      );
+      return threadIds.includes(docIdStr);
+    })
+    .forEach((doc) => matchingDocuments.push(doc));
+  return matchingDocuments;
+};
+
 const getAllActiveEssays = asyncHandler(async (req, res, next) => {
   try {
-    const matchingDocuments = [];
     const { user } = req;
     if (is_TaiGer_Student(user)) {
       const essayDocumentThreads = await req.db
@@ -2065,20 +2085,7 @@ const getAllActiveEssays = asyncHandler(async (req, res, next) => {
         )
         .lean();
 
-      for (const doc of essayDocumentThreads) {
-        if (doc.student_id && !doc.student_id.archiv) {
-          for (const application of doc.student_id?.applications || []) {
-            if (isProgramDecided(application)) {
-              for (const thread of application?.doc_modification_thread || []) {
-                if (doc._id.toString() === thread.doc_thread_id.toString()) {
-                  matchingDocuments.push(doc);
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
+      const matchingDocuments = getRelevantEssayThreads(essayDocumentThreads);
       res.status(200).send({ success: true, data: matchingDocuments });
     } else if (is_TaiGer_External(user)) {
       res.status(200).send({ success: true, data: [] });
@@ -2106,20 +2113,7 @@ const getAllActiveEssays = asyncHandler(async (req, res, next) => {
         )
         .lean();
 
-      for (const doc of essayDocumentThreads) {
-        if (doc.student_id && !doc.student_id.archiv) {
-          for (const application of doc.student_id?.applications || []) {
-            if (isProgramDecided(application)) {
-              for (const thread of application?.doc_modification_thread || []) {
-                if (doc._id.toString() === thread.doc_thread_id.toString()) {
-                  matchingDocuments.push(doc);
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
+      const matchingDocuments = getRelevantEssayThreads(essayDocumentThreads);
       res.status(200).send({ success: true, data: matchingDocuments });
     }
     next();

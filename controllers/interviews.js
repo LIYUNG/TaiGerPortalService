@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const async = require('async');
 const path = require('path');
 const { Role, is_TaiGer_Student } = require('@taiger-common/core');
@@ -400,6 +401,140 @@ const addInterviewTrainingDateTime = asyncHandler(async (req, res, next) => {
   }
 });
 
+const assignInterviewTrainersToInterview = asyncHandler(async (req, res) => {
+  const {
+    user,
+    params: { interview_id },
+    body: trainersId
+  } = req;
+
+  // Data validation
+  if (!interview_id || !trainersId || typeof trainersId !== 'object') {
+    return res
+      .status(400)
+      .json({ success: false, message: 'Invalid input data.' });
+  }
+
+  const interview = await req.db.model('Interview').findById(interview_id);
+  if (!interview) {
+    throw new ErrorResponse(404, 'Interview not found');
+  }
+
+  const studentId = interview.student_id;
+  const student = await req.db.model('Student').findById(studentId);
+
+  const {
+    addedUsers: addedInterviewTrainers,
+    removedUsers: removedInterviewTrainers,
+    updatedUsers: updatedInterviewTrainers,
+    toBeInformedUsers: toBeInformedEditors,
+    updatedUserIds: updatedInterviewTrainerIds
+  } = await userChangesHelperFunction(
+    req,
+    trainersId,
+    interview_id.trainer_id
+  );
+
+  // Update interview trainers
+  if (addedInterviewTrainers.length > 0 || removedInterviewTrainers.length > 0) {
+    // Log the changes here
+    logger.info('Interview Trainers updated:', {
+      added: addedInterviewTrainers,
+      removed: removedInterviewTrainers
+    });
+    const updatedInterview = await req.db.model('Interview').findByIdAndUpdate(
+      interview_id,
+      {
+        trainer_id: updatedInterviewTrainerIds.map(
+          (id) => new mongoose.Types.ObjectId(id)
+        )
+      },
+      {}
+    );
+    res.status(200).send({ success: true, data: updatedInterview });
+  }
+
+  // for (let i = 0; i < toBeInformedEditors.length; i += 1) {
+  //   if (isNotArchiv(student)) {
+  //     if (isNotArchiv(toBeInformedEditors[i])) {
+  //       await informEssayWriterNewEssayEmail(
+  //         {
+  //           firstname: toBeInformedEditors[i].firstname,
+  //           lastname: toBeInformedEditors[i].lastname,
+  //           address: toBeInformedEditors[i].email
+  //         },
+  //         {
+  //           std_firstname: student.firstname,
+  //           std_lastname: student.lastname,
+  //           std_id: student._id.toString(),
+  //           thread_id: essayDocumentThreads._id.toString(),
+  //           file_type: essayDocumentThreads.file_type,
+  //           program: essayDocumentThreads.program_id
+  //         }
+  //       );
+  //     }
+  //   }
+  // }
+  // // TODO: inform Agent for assigning editor.
+  // for (let i = 0; i < student_upated.agents.length; i += 1) {
+  //   if (isNotArchiv(student)) {
+  //     if (isNotArchiv(student_upated.agents[i])) {
+  //       await informAgentEssayAssignedEmail(
+  //         {
+  //           firstname: student_upated.agents[i].firstname,
+  //           lastname: student_upated.agents[i].lastname,
+  //           address: student_upated.agents[i].email
+  //         },
+  //         {
+  //           std_firstname: student.firstname,
+  //           std_lastname: student.lastname,
+  //           std_id: student._id.toString(),
+  //           thread_id: essayDocumentThreads._id.toString(),
+  //           file_type: essayDocumentThreads.file_type,
+  //           essay_writers: toBeInformedEditors,
+  //           program: essayDocumentThreads.program_id
+  //         }
+  //       );
+  //     }
+  //   }
+  // }
+
+  // if (updatedEditors.length !== 0) {
+  //   if (isNotArchiv(student)) {
+  //     await informStudentTheirEssayWriterEmail(
+  //       {
+  //         firstname: student.firstname,
+  //         lastname: student.lastname,
+  //         address: student.email
+  //       },
+  //       {
+  //         program: essayDocumentThreads.program_id,
+  //         thread_id: essayDocumentThreads._id.toString(),
+  //         file_type: essayDocumentThreads.file_type,
+  //         editors: updatedInterviewTrainers
+  //       }
+  //     );
+  //   }
+  // }
+
+  req.audit = {
+    performedBy: user._id,
+    targetUserId: student._id, // Change this if you have a different target user ID
+    targetInterviewId: interview_id,
+    action: 'update', // Action performed
+    field: 'interview trainer', // Field that was updated (if applicable)
+    changes: {
+      before: interview.trainer_id, // Before state
+      after: {
+        added: addedInterviewTrainers,
+        removed: removedInterviewTrainers
+      }
+    }
+  };
+
+  next();
+});
+
 const updateInterview = asyncHandler(async (req, res, next) => {
   const {
     user,
@@ -747,6 +882,18 @@ const createInterview = asyncHandler(async (req, res) => {
   }
 });
 
+const getAllOpenInterviews = asyncHandler(async (req, res) => {
+  const interviews = await req.db
+    .model('Interview')
+    .find({ isClosed: false })
+    .populate('student_id trainer_id', 'firstname lastname email')
+    .populate('program_id', 'school program_name degree semester')
+    .populate('event_id')
+    .lean();
+
+  res.status(200).send({ success: true, data: interviews });
+});
+
 module.exports = {
   getAllInterviews,
   getInterviewQuestions,
@@ -757,5 +904,7 @@ module.exports = {
   getInterviewSurvey,
   updateInterviewSurvey,
   deleteInterview,
-  createInterview
+  createInterview,
+  getAllOpenInterviews,
+  assignInterviewTrainersToInterview
 };

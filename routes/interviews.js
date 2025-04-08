@@ -106,14 +106,6 @@ router
     updateInterviewSurvey
   );
 
-  // router
-  // .route('/:interview_id/trainers')
-  // .post(
-  //   filter_archiv_user,
-  //   permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-  //   assignInterviewTrainersToInterview
-  // );
-
 router
   .route('/time/:interview_id')
   .post(

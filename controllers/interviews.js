@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const async = require('async');
 const path = require('path');
 const { Role, is_TaiGer_Student } = require('@taiger-common/core');
@@ -747,6 +748,18 @@ const createInterview = asyncHandler(async (req, res) => {
   }
 });
 
+const getAllOpenInterviews = asyncHandler(async (req, res) => {
+  const interviews = await req.db
+    .model('Interview')
+    .find({ isClosed: false })
+    .populate('student_id trainer_id', 'firstname lastname email')
+    .populate('program_id', 'school program_name degree semester')
+    .populate('event_id')
+    .lean();
+
+  res.status(200).send({ success: true, data: interviews });
+});
+
 module.exports = {
   getAllInterviews,
   getInterviewQuestions,
@@ -757,5 +770,6 @@ module.exports = {
   getInterviewSurvey,
   updateInterviewSurvey,
   deleteInterview,
-  createInterview
+  createInterview,
+  getAllOpenInterviews
 };

@@ -12,7 +12,8 @@ const {
   addInterviewTrainingDateTime,
   updateInterviewSurvey,
   getInterviewSurvey,
-  getInterviewQuestions
+  getInterviewQuestions,
+  getAllOpenInterviews
 } = require('../controllers/interviews');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
@@ -56,6 +57,13 @@ router
     InterviewGETRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     getMyInterview
+  );
+
+router
+  .route('/open')
+  .get(
+    filter_archiv_user,
+    getAllOpenInterviews
   );
 
 router

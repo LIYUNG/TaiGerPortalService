@@ -771,5 +771,5 @@ module.exports = {
   updateInterviewSurvey,
   deleteInterview,
   createInterview,
-  getAllOpenInterviews
+  getAllOpenInterviews,
 };

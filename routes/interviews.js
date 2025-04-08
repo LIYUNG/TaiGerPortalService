@@ -13,8 +13,7 @@ const {
   updateInterviewSurvey,
   getInterviewSurvey,
   getInterviewQuestions,
-  getAllOpenInterviews,
-  assignInterviewTrainersToInterview
+  getAllOpenInterviews
 } = require('../controllers/interviews');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
@@ -107,13 +106,13 @@ router
     updateInterviewSurvey
   );
 
-  router
-  .route('/:interview_id/trainers')
-  .post(
-    filter_archiv_user,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    assignInterviewTrainersToInterview
-  );
+  // router
+  // .route('/:interview_id/trainers')
+  // .post(
+  //   filter_archiv_user,
+  //   permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+  //   assignInterviewTrainersToInterview
+  // );
 
 router
   .route('/time/:interview_id')

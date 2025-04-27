@@ -39,10 +39,11 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 jest.mock('../../middlewares/auth', () => {
   const passthrough = async (req, res, next) => next();
 
-  return Object.assign({}, jest.requireActual('../../middlewares/auth'), {
+  return {
+    ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
     permit: jest.fn().mockImplementation((...roles) => passthrough)
-  });
+  };
 });
 const admins = [...Array(2)].map(() => generateUser(Role.Admin));
 const agents = [...Array(3)].map(() => generateUser(Role.Agent));
@@ -56,7 +57,7 @@ let dbUri;
 beforeAll(async () => {
   dbUri = await connect();
   const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
+  const UserModel = db.models.User || db.model('User', UserSchema);
 
   await UserModel.deleteMany();
   await UserModel.insertMany(users);

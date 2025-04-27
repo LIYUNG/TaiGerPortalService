@@ -5,7 +5,7 @@ const { Strategy: JwtStrategy } = require('passport-jwt');
 const { JWT_SECRET } = require('../config');
 const { UserSchema } = require('../models/User');
 
-const getUserModel = (db) => db.model('User', UserSchema);
+const getUserModel = (db) => db.models.User || db.model('User', UserSchema);
 
 passport.use(
   new LocalStrategy(

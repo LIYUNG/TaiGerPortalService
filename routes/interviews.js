@@ -59,12 +59,7 @@ router
     getMyInterview
   );
 
-router
-  .route('/open')
-  .get(
-    filter_archiv_user,
-    getAllOpenInterviews
-  );
+router.route('/open').get(filter_archiv_user, getAllOpenInterviews);
 
 router
   .route('/:interview_id')

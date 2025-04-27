@@ -29,7 +29,7 @@
     "@aws-sdk/util-stream-node": "^3.374.0",
     "@faker-js/faker": "^8.4.1",
     "@taiger-common/core": "^1.0.10",
-    "@taiger-common/model": "^1.0.22",
+    "@taiger-common/model": "^1.0.24",
     "async": "^3.2.4",
     "axios": "^1.6.7",
     "bcryptjs": "^2.4.3",

@@ -14,7 +14,8 @@ const {
   getInterviewSurvey,
   getInterviewQuestions,
   getAllOpenInterviews,
-  getInterviewsByProgramId
+  getInterviewsByProgramId,
+  getInterviewsByStudentId
 } = require('../controllers/interviews');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
@@ -51,6 +52,13 @@ router
     getInterviewsByProgramId
   );
 
+router
+  .route('/interviews/:studentId')
+  .get(
+    filter_archiv_user,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getInterviewsByStudentId
+  );
 
 router
   .route('/questions/:programId')

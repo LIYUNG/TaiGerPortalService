@@ -783,6 +783,29 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
   }
 });
 
+const getInterviewsByStudentId = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  if (!studentId) {
+    return res.status(400).send({ success: false, message: 'Student ID is required' });
+  }
+
+  try {
+    const interviews = await req.db
+      .model('Interview')
+      .find({ student_id: studentId })
+      .populate('student_id', 'firstname lastname email')
+      .populate('trainer_id', 'firstname lastname email')  // This will populate an array of trainers
+      .populate('program_id', 'school program_name degree semester')
+      .populate('event_id')
+      .populate('thread_id')
+      .lean();
+
+    res.status(200).send({ success: true, data: interviews, count: interviews.length });
+  } catch (error) {
+    res.status(500).send({ success: false, message: error.message });
+  }
+});
+
 module.exports = {
   getAllInterviews,
   getInterviewQuestions,
@@ -795,5 +818,6 @@ module.exports = {
   deleteInterview,
   createInterview,
   getAllOpenInterviews,
-  getInterviewsByProgramId
+  getInterviewsByProgramId,
+  getInterviewsByStudentId
 };

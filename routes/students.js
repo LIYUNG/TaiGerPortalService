@@ -31,7 +31,6 @@ const {
   ToggleProgramStatus,
   deleteApplication,
   getAllActiveStudents,
-  getAllArchivStudents,
   getStudentApplications,
   assignAttributesToStudent
 } = require('../controllers/students');
@@ -74,17 +73,6 @@ router
     ),
     permission_canAccessStudentDatabase_filter,
     getStudents,
-    logAccess
-  );
-
-router
-  .route('/all/archiv')
-  .get(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    permission_canAccessStudentDatabase_filter,
-    getAllArchivStudents,
     logAccess
   );
 

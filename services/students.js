@@ -27,6 +27,17 @@ const StudentService = {
       .select('-notification')
       .lean();
   },
+  async getStudents(req, { filter = {}, options = {} }) {
+    return req.db
+      .model('User')
+      .find(filter)
+      .populate('agents editors', 'firstname lastname email')
+      .populate('applications.programId')
+      .sort(options.sort)
+      .skip(options.skip)
+      .limit(options.limit)
+      .lean();
+  },
   async fetchStudentsWithThreadsInfo(req, filter) {
     return req.db
       .model('Student')

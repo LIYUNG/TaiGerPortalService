@@ -763,7 +763,9 @@ const getAllOpenInterviews = asyncHandler(async (req, res) => {
 const getInterviewsByProgramId = asyncHandler(async (req, res) => {
   const { programId } = req.params;
   if (!programId) {
-    return res.status(400).send({ success: false, message: 'Program ID is required' });
+    return res
+      .status(400)
+      .send({ success: false, message: 'Program ID is required' });
   }
 
   try {
@@ -771,13 +773,15 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
       .model('Interview')
       .find({ program_id: programId })
       .populate('student_id', 'firstname lastname email')
-      .populate('trainer_id', 'firstname lastname email')  // This will populate an array of trainers
+      .populate('trainer_id', 'firstname lastname email') // This will populate an array of trainers
       .populate('program_id', 'school program_name degree semester')
       .populate('event_id')
       .populate('thread_id')
       .lean();
 
-    res.status(200).send({ success: true, data: interviews, count: interviews.length });
+    res
+      .status(200)
+      .send({ success: true, data: interviews, count: interviews.length });
   } catch (error) {
     res.status(500).send({ success: false, message: error.message });
   }
@@ -786,7 +790,9 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
 const getInterviewsByStudentId = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
   if (!studentId) {
-    return res.status(400).send({ success: false, message: 'Student ID is required' });
+    return res
+      .status(400)
+      .send({ success: false, message: 'Student ID is required' });
   }
 
   try {
@@ -794,13 +800,15 @@ const getInterviewsByStudentId = asyncHandler(async (req, res) => {
       .model('Interview')
       .find({ student_id: studentId })
       .populate('student_id', 'firstname lastname email')
-      .populate('trainer_id', 'firstname lastname email')  // This will populate an array of trainers
+      .populate('trainer_id', 'firstname lastname email') // This will populate an array of trainers
       .populate('program_id', 'school program_name degree semester')
       .populate('event_id')
       .populate('thread_id')
       .lean();
 
-    res.status(200).send({ success: true, data: interviews, count: interviews.length });
+    res
+      .status(200)
+      .send({ success: true, data: interviews, count: interviews.length });
   } catch (error) {
     res.status(500).send({ success: false, message: error.message });
   }

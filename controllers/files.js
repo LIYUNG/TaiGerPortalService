@@ -852,6 +852,153 @@ const UpdateStudentApplications = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const updateStudentApplicationResultV2 = asyncHandler(
+  async (req, res, next) => {
+    const { studentId, programId } = req.params;
+    const { user } = req;
+    const { result, admission, closed } = req.body;
+    console.log('result', result);
+    console.log('admission', admission);
+    console.log('closed', closed);
+    const student = await req.db
+      .model('Student')
+      .findById(studentId)
+      .populate('agents editors', 'firstname lastname email')
+      .populate('applications.programId');
+    if (!student) {
+      logger.error('updateStudentApplicationResult: Invalid student Id');
+      throw new ErrorResponse(404, 'Invalid student Id');
+    }
+
+    let updatedStudent;
+    if (closed) {
+      updatedStudent = await req.db.model('Student').findOneAndUpdate(
+        { _id: studentId, 'applications.programId': programId },
+        {
+          'applications.$.closed': closed
+        },
+        { new: true }
+      );
+    }
+    if (admission) {
+      if (req.file) {
+        const admission_letter_temp = {
+          status: DocumentStatusType.Uploaded,
+          admission_file_path: req.file.key,
+          comments: '',
+          updatedAt: new Date()
+        };
+
+        updatedStudent = await req.db.model('Student').findOneAndUpdate(
+          { _id: studentId, 'applications.programId': programId },
+          {
+            'applications.$.admission': result,
+            'applications.$.admission_letter': admission_letter_temp
+          },
+          { new: true }
+        );
+      } else if (admission === '-') {
+        const app = student.applications.find(
+          (application) => application.programId?._id.toString() === programId
+        );
+        const file_path = app.admission_letter?.admission_file_path;
+        if (file_path && file_path !== '') {
+          const fileKey = file_path.replace(/\\/g, '/');
+          logger.info('Trying to delete file', fileKey);
+          try {
+            await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
+            const value = two_month_cache.del(fileKey);
+            if (value === 1) {
+              logger.info('Admission cache key deleted successfully');
+            }
+          } catch (err) {
+            if (err) {
+              logger.error(`Error: delete Application result letter: ${err}`);
+              throw new ErrorResponse(
+                500,
+                'Error occurs while deleting Application result letter'
+              );
+            }
+          }
+        }
+        const admission_letter_temp = {
+          status: '',
+          admission_file_path: '',
+          comments: '',
+          updatedAt: new Date()
+        };
+        updatedStudent = await req.db.model('Student').findOneAndUpdate(
+          { _id: studentId, 'applications.programId': programId },
+          {
+            'applications.$.admission': admission,
+            'applications.$.admission_letter': admission_letter_temp
+          },
+          { new: true }
+        );
+      } else {
+        updatedStudent = await req.db.model('Student').findOneAndUpdate(
+          { _id: studentId, 'applications.programId': programId },
+          {
+            'applications.$.admission': admission
+          },
+          { new: true }
+        );
+      }
+    }
+    const udpatedApplication = updatedStudent.applications.find(
+      (application) => application.programId.toString() === programId
+    );
+    const udpatedApplicationForEmail = student.applications.find(
+      (application) => application.programId?.id.toString() === programId
+    );
+    res.status(200).send({ success: true, data: udpatedApplication });
+    if (is_TaiGer_Student(user)) {
+      if (result !== '-') {
+        for (let i = 0; i < student.agents?.length; i += 1) {
+          if (isNotArchiv(student.agents[i])) {
+            await AdmissionResultInformEmailToTaiGer(
+              {
+                firstname: student.agents[i].firstname,
+                lastname: student.agents[i].lastname,
+                address: student.agents[i].email
+              },
+              {
+                student_id: student._id.toString(),
+                student_firstname: student.firstname,
+                student_lastname: student.lastname,
+                udpatedApplication: udpatedApplicationForEmail,
+                result
+              }
+            );
+          }
+        }
+        for (let i = 0; i < student.editors?.length; i += 1) {
+          if (isNotArchiv(student.editors[i])) {
+            await AdmissionResultInformEmailToTaiGer(
+              {
+                firstname: student.editors[i].firstname,
+                lastname: student.editors[i].lastname,
+                address: student.editors[i].email
+              },
+              {
+                student_id: student._id.toString(),
+                student_firstname: student.firstname,
+                student_lastname: student.lastname,
+                udpatedApplication: udpatedApplicationForEmail,
+                result
+              }
+            );
+          }
+        }
+        logger.info(
+          'admission or rejection inform email sent to agents and editors'
+        );
+      }
+    }
+    next();
+  }
+);
+
 const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   const { studentId, programId, result } = req.params;
   const { user } = req;
@@ -1182,6 +1329,7 @@ module.exports = {
   downloadTemplateFile,
   updateProfileDocumentStatus,
   UpdateStudentApplications,
+  updateStudentApplicationResultV2,
   updateStudentApplicationResult,
   deleteProfileFile,
   updateVPDPayment,

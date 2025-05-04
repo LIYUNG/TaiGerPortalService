@@ -1270,7 +1270,7 @@ ${applications_name}
 // For editor, agents
 const AdmissionResultInformEmailToTaiGer = asyncHandler(
   async (recipient, msg) => {
-    const result = msg.result === 'O' ? 'Admission' : 'Rejection';
+    const result = msg.admission === 'O' ? 'Admission' : 'Rejection';
     const student_name = `${msg.student_firstname} ${msg.student_lastname}`;
     const applications_name = `${msg.udpatedApplication.programId.school} ${msg.udpatedApplication.programId.program_name} ${msg.udpatedApplication.programId.degree} ${msg.udpatedApplication.programId.semester}`;
     const subject = `[${result}] ${student_name} has received ${result} from ${applications_name}`;

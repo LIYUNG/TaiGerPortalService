@@ -856,10 +856,8 @@ const updateStudentApplicationResultV2 = asyncHandler(
   async (req, res, next) => {
     const { studentId, programId } = req.params;
     const { user } = req;
-    const { result, admission, closed } = req.body;
-    console.log('result', result);
-    console.log('admission', admission);
-    console.log('closed', closed);
+    const { admission, closed } = req.body;
+
     const student = await req.db
       .model('Student')
       .findById(studentId)
@@ -892,7 +890,7 @@ const updateStudentApplicationResultV2 = asyncHandler(
         updatedStudent = await req.db.model('Student').findOneAndUpdate(
           { _id: studentId, 'applications.programId': programId },
           {
-            'applications.$.admission': result,
+            'applications.$.admission': admission,
             'applications.$.admission_letter': admission_letter_temp
           },
           { new: true }
@@ -952,47 +950,49 @@ const updateStudentApplicationResultV2 = asyncHandler(
       (application) => application.programId?.id.toString() === programId
     );
     res.status(200).send({ success: true, data: udpatedApplication });
-    if (is_TaiGer_Student(user)) {
-      if (result !== '-') {
-        for (let i = 0; i < student.agents?.length; i += 1) {
-          if (isNotArchiv(student.agents[i])) {
-            await AdmissionResultInformEmailToTaiGer(
-              {
-                firstname: student.agents[i].firstname,
-                lastname: student.agents[i].lastname,
-                address: student.agents[i].email
-              },
-              {
-                student_id: student._id.toString(),
-                student_firstname: student.firstname,
-                student_lastname: student.lastname,
-                udpatedApplication: udpatedApplicationForEmail,
-                result
-              }
-            );
+    if (admission) {
+      if (is_TaiGer_Student(user)) {
+        if (admission !== '-') {
+          for (let i = 0; i < student.agents?.length; i += 1) {
+            if (isNotArchiv(student.agents[i])) {
+              await AdmissionResultInformEmailToTaiGer(
+                {
+                  firstname: student.agents[i].firstname,
+                  lastname: student.agents[i].lastname,
+                  address: student.agents[i].email
+                },
+                {
+                  student_id: student._id.toString(),
+                  student_firstname: student.firstname,
+                  student_lastname: student.lastname,
+                  udpatedApplication: udpatedApplicationForEmail,
+                  admission
+                }
+              );
+            }
           }
-        }
-        for (let i = 0; i < student.editors?.length; i += 1) {
-          if (isNotArchiv(student.editors[i])) {
-            await AdmissionResultInformEmailToTaiGer(
-              {
-                firstname: student.editors[i].firstname,
-                lastname: student.editors[i].lastname,
-                address: student.editors[i].email
-              },
-              {
-                student_id: student._id.toString(),
-                student_firstname: student.firstname,
-                student_lastname: student.lastname,
-                udpatedApplication: udpatedApplicationForEmail,
-                result
-              }
-            );
+          for (let i = 0; i < student.editors?.length; i += 1) {
+            if (isNotArchiv(student.editors[i])) {
+              await AdmissionResultInformEmailToTaiGer(
+                {
+                  firstname: student.editors[i].firstname,
+                  lastname: student.editors[i].lastname,
+                  address: student.editors[i].email
+                },
+                {
+                  student_id: student._id.toString(),
+                  student_firstname: student.firstname,
+                  student_lastname: student.lastname,
+                  udpatedApplication: udpatedApplicationForEmail,
+                  admission
+                }
+              );
+            }
           }
+          logger.info(
+            'admission or rejection inform email sent to agents and editors'
+          );
         }
-        logger.info(
-          'admission or rejection inform email sent to agents and editors'
-        );
       }
     }
     next();

@@ -259,8 +259,8 @@ const admission_letter_s3 = multerS3({
     cb(null, { fieldName: file.fieldname, path: directory });
   },
   key: (req, file, cb) => {
-    const { studentId, programId, result } = req.params;
-    const admission_status = result === 'O' ? 'Admission' : 'Rejection';
+    const { studentId, programId, admission } = req.params;
+    const admission_status = admission === 'O' ? 'Admission' : 'Rejection';
 
     req.db
       .model('Student')

@@ -95,7 +95,7 @@ router
   );
 
 router
-  .route('/applications/result/v2/:studentId/:programId')
+  .route('/applications/result/v2/:studentId/:programId/:admission')
   .post(
     filter_archiv_user,
     GeneralPUTRequestRateLimiter,

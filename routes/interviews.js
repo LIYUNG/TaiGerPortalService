@@ -13,7 +13,9 @@ const {
   updateInterviewSurvey,
   getInterviewSurvey,
   getInterviewQuestions,
-  getAllOpenInterviews
+  getAllOpenInterviews,
+  getInterviewsByProgramId,
+  getInterviewsByStudentId
 } = require('../controllers/interviews');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
@@ -43,6 +45,22 @@ router
   );
 
 router
+  .route('/interview/:programId')
+  .get(
+    filter_archiv_user,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getInterviewsByProgramId
+  );
+
+router
+  .route('/interviews/:studentId')
+  .get(
+    filter_archiv_user,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getInterviewsByStudentId
+  );
+
+router
   .route('/questions/:programId')
   .get(
     filter_archiv_user,
@@ -59,12 +77,7 @@ router
     getMyInterview
   );
 
-router
-  .route('/open')
-  .get(
-    filter_archiv_user,
-    getAllOpenInterviews
-  );
+router.route('/open').get(filter_archiv_user, getAllOpenInterviews);
 
 router
   .route('/:interview_id')

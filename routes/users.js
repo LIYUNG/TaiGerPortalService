@@ -19,6 +19,9 @@ const {
   getUser
 } = require('../controllers/users');
 const { auditLog } = require('../utils/log/auditLog');
+const {
+  permission_canAddUser_filter
+} = require('../middlewares/permission-filter');
 
 const router = Router();
 
@@ -28,14 +31,15 @@ router
   .route('/')
   .get(
     filter_archiv_user,
-    permit(Role.Admin),
+    permit(Role.Admin, Role.Agent, Role.Editor),
     GeneralGETRequestRateLimiter,
     getUsers
   )
   .post(
     filter_archiv_user,
-    permit(Role.Admin),
+    permit(Role.Admin, Role.Agent, Role.Editor),
     GeneralPOSTRequestRateLimiter,
+    permission_canAddUser_filter,
     addUser,
     auditLog
   );

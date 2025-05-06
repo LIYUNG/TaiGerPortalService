@@ -34,6 +34,7 @@ const {
 } = require('../constants');
 const { getPermission } = require('../utils/queryFunctions');
 const StudentService = require('../services/students');
+const UserQueryBuilder = require('../builders/UserQueryBuilder');
 
 const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const {
@@ -146,13 +147,6 @@ const updateDocumentationHelperLink = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const getAllArchivStudents = asyncHandler(async (req, res, next) => {
-  const students = await StudentService.fetchStudents(req, { archiv: true });
-
-  res.status(200).send({ success: true, data: students });
-  next();
-});
-
 const getAllActiveStudents = asyncHandler(async (req, res, next) => {
   const studentsPromise = StudentService.fetchStudents(req, {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
@@ -190,6 +184,12 @@ const getAllActiveStudents = asyncHandler(async (req, res, next) => {
 });
 
 const getAllStudents = asyncHandler(async (req, res, next) => {
+  const { page, limit, sortBy, sortOrder } = req.query;
+  const { filter, options } = new UserQueryBuilder()
+    .withRole(Role.Student)
+    .withPagination(page, limit)
+    .withSort(sortBy, sortOrder)
+    .build();
   const students = await StudentService.fetchStudents(req);
 
   res.status(200).send({ success: true, data: students });
@@ -1290,7 +1290,6 @@ const deleteApplication = asyncHandler(async (req, res, next) => {
 module.exports = {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
-  getAllArchivStudents,
   getAllActiveStudents,
   getAllStudents,
   getStudents,

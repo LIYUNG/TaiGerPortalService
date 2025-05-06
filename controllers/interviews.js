@@ -95,9 +95,9 @@ const computeStatus = async (db, interviews) => {
   const now = Date.now();
 
   const updatedInterviews = interviews.map((interview) => {
-    const { interview_date, event_id } = interview;
+    const { interview_date, event_id, isClosed } = interview;
 
-    if (interview_date && interview_date < now) {
+    if (isClosed || (interview_date && interview_date < now)) {
       return { ...interview, status: 'Closed' };
     }
 
@@ -801,9 +801,10 @@ const createInterview = asyncHandler(async (req, res) => {
 });
 
 const getAllOpenInterviews = asyncHandler(async (req, res) => {
+  const now = Date.now();
   const interviews = await req.db
     .model('Interview')
-    .find({ isClosed: false })
+    .find({ isClosed: false, interview_date: { $gte: now } })
     .populate('student_id trainer_id', 'firstname lastname email')
     .populate('program_id', 'school program_name degree semester')
     .populate('event_id')

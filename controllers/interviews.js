@@ -91,8 +91,63 @@ const InterviewTrainingInvitation = async (
   );
 };
 
+const computeStatus = async (db, interviews) => {
+  const now = Date.now();
+
+  const updatedInterviews = interviews.map((interview) => {
+    const { interview_date, event_id } = interview;
+
+    if (interview_date && interview_date < now) {
+      return { ...interview, status: 'Interviewed' };
+    }
+
+    if (event_id?.start) {
+      return event_id.start < now
+        ? { ...interview, status: 'Trained' }
+        : { ...interview, status: 'Scheduled' };
+    }
+
+    return { ...interview, status: 'Open' };
+  });
+
+  // Gather student IDs from 'Open' interviews
+  const openStudentIds = new Set(
+    updatedInterviews
+      .filter((i) => i.status === 'Open')
+      .map((i) => i?.student_id?._id?.toString())
+      .filter(Boolean)
+  );
+
+  if (openStudentIds.size === 0) return updatedInterviews;
+
+  const events = await db
+    .model('Event')
+    .find({
+      requester_id: { $in: Array.from(openStudentIds) },
+      isConfirmedRequester: true,
+      isConfirmedReceiver: true,
+      event_type: 'Interview'
+    })
+    .select('requester_id')
+    .lean();
+
+  const eventStudentIds = new Set(events.map((e) => e.requester_id.toString()));
+
+  // Update 'Open' statuses to 'Not Needed' if matched
+  return updatedInterviews.map((interview) => {
+    if (interview.status !== 'Open') return interview;
+
+    const studentId = interview?.student_id?._id?.toString();
+    if (studentId && eventStudentIds.has(studentId)) {
+      return { ...interview, status: 'Not Needed' };
+    }
+
+    return interview;
+  });
+};
+
 const getAllInterviews = asyncHandler(async (req, res) => {
-  const interviews = await req.db
+  let interviews = await req.db
     .model('Interview')
     .find()
     .populate('student_id trainer_id', 'firstname lastname email')
@@ -100,6 +155,7 @@ const getAllInterviews = asyncHandler(async (req, res) => {
     .populate('event_id')
     .lean();
 
+  interviews = await computeStatus(req.db, interviews);
   res.status(200).send({ success: true, data: interviews });
 });
 

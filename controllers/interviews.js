@@ -98,7 +98,7 @@ const computeStatus = async (db, interviews) => {
     const { interview_date, event_id } = interview;
 
     if (interview_date && interview_date < now) {
-      return { ...interview, status: 'Interviewed' };
+      return { ...interview, status: 'Closed' };
     }
 
     if (event_id?.start) {
@@ -119,27 +119,23 @@ const computeStatus = async (db, interviews) => {
   );
 
   if (openStudentIds.size === 0) return updatedInterviews;
-
-  const events = await db
-    .model('Event')
-    .find({
-      requester_id: { $in: Array.from(openStudentIds) },
-      isConfirmedRequester: true,
-      isConfirmedReceiver: true,
-      event_type: 'Interview'
-    })
-    .select('requester_id')
-    .lean();
-
-  const eventStudentIds = new Set(events.map((e) => e.requester_id.toString()));
+  const trainedStudentIds = (
+    await db
+      .model('Interview')
+      .find({
+        student_id: { $in: Array.from(openStudentIds) },
+        event_id: { $exists: true, $ne: null }
+      })
+      .distinct('student_id')
+  ).map((id) => id.toString());
 
   // Update 'Open' statuses to 'Not Needed' if matched
   return updatedInterviews.map((interview) => {
     if (interview.status !== 'Open') return interview;
 
     const studentId = interview?.student_id?._id?.toString();
-    if (studentId && eventStudentIds.has(studentId)) {
-      return { ...interview, status: 'Not Needed' };
+    if (studentId && trainedStudentIds.includes(studentId)) {
+      return { ...interview, status: 'N/A' };
     }
 
     return interview;

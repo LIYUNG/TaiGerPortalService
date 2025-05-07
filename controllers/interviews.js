@@ -186,7 +186,7 @@ const getMyInterview = asyncHandler(async (req, res) => {
   if (is_TaiGer_Student(user)) {
     filter.student_id = user._id.toString();
   }
-  const interviews = await req.db
+  let interviews = await req.db
     .model('Interview')
     .find(filter)
     .populate('student_id trainer_id', 'firstname lastname email')
@@ -200,12 +200,15 @@ const getMyInterview = asyncHandler(async (req, res) => {
         studentFilter.agents = user._id;
       }
     }
+
+    interviews = await addInterviewStatus(req.db, interviews);
     const students = await req.db
       .model('Student')
       .find(studentFilter)
       .populate('agents editors', 'firstname lastname email')
       .populate('applications.programId', 'school program_name degree semester')
       .lean();
+
     if (!students) {
       logger.info('getMyInterview: No students found!');
       throw new ErrorResponse(400, 'No students found!');
@@ -808,14 +811,15 @@ const createInterview = asyncHandler(async (req, res) => {
 
 const getAllOpenInterviews = asyncHandler(async (req, res) => {
   const now = Date.now();
-  const interviews = await req.db
+  let interviews = await req.db
     .model('Interview')
-    .find({ isClosed: false, interview_date: { $lte: now } })
+    .find({ isClosed: false })
     .populate('student_id trainer_id', 'firstname lastname email')
     .populate('program_id', 'school program_name degree semester')
     .populate('event_id')
     .lean();
 
+  interviews = await addInterviewStatus(req.db, interviews);
   res.status(200).send({ success: true, data: interviews });
 });
 

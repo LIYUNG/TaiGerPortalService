@@ -235,7 +235,7 @@ const getInterview = asyncHandler(async (req, res) => {
     params: { interview_id }
   } = req;
   try {
-    const interview = await req.db
+    let interview = await req.db
       .model('Interview')
       .findById(interview_id)
       .populate('student_id trainer_id', 'firstname lastname email')
@@ -251,6 +251,11 @@ const getInterview = asyncHandler(async (req, res) => {
       })
       .populate('event_id')
       .lean();
+
+    if (interview) {
+      const [updatedInterview] = await addInterviewStatus(req.db, [interview]);
+      interview = updatedInterview;
+    }
 
     if (!interview) {
       logger.info('getInterview: this interview is not found!');
@@ -832,7 +837,7 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
   }
 
   try {
-    const interviews = await req.db
+    let interviews = await req.db
       .model('Interview')
       .find({ program_id: programId })
       .populate('student_id', 'firstname lastname email')
@@ -842,6 +847,7 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
       .populate('thread_id')
       .lean();
 
+    interviews = await addInterviewStatus(req.db, interviews);
     res
       .status(200)
       .send({ success: true, data: interviews, count: interviews.length });
@@ -859,7 +865,7 @@ const getInterviewsByStudentId = asyncHandler(async (req, res) => {
   }
 
   try {
-    const interviews = await req.db
+    let interviews = await req.db
       .model('Interview')
       .find({ student_id: studentId })
       .populate('student_id', 'firstname lastname email')
@@ -868,6 +874,8 @@ const getInterviewsByStudentId = asyncHandler(async (req, res) => {
       .populate('event_id')
       .populate('thread_id')
       .lean();
+
+    interviews = await addInterviewStatus(req.db, interviews);
 
     res
       .status(200)

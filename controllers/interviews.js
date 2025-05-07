@@ -91,34 +91,42 @@ const InterviewTrainingInvitation = async (
   );
 };
 
-const computeStatus = async (db, interviews) => {
+const addInterviewStatus = async (db, interviews) => {
   const now = Date.now();
+  const interviewsWithStatus = [];
+  let openInterviews = [];
 
-  const updatedInterviews = interviews.map((interview) => {
+  for (const interview of interviews) {
     const { interview_date, event_id, isClosed } = interview;
 
-    if (isClosed || (interview_date && interview_date < now)) {
-      return { ...interview, status: 'Closed' };
+    if (isClosed) {
+      interviewsWithStatus.push({ ...interview, status: 'Closed' });
+      continue;
+    }
+
+    if (interview_date && interview_date < now) {
+      interviewsWithStatus.push({ ...interview, status: 'Passed' });
+      continue;
     }
 
     if (event_id?.start) {
-      return event_id.start < now
-        ? { ...interview, status: 'Trained' }
-        : { ...interview, status: 'Scheduled' };
+      interviewsWithStatus.push({
+        ...interview,
+        status: event_id.start < now ? 'Trained' : 'Scheduled'
+      });
+      continue;
     }
 
-    return { ...interview, status: 'Open' };
-  });
+    // If none of the above, skip adding to interviewsWithStatus
+    openInterviews.push(interview);
+  }
 
   // Gather student IDs from 'Open' interviews
   const openStudentIds = new Set(
-    updatedInterviews
-      .filter((i) => i.status === 'Open')
-      .map((i) => i?.student_id?._id?.toString())
-      .filter(Boolean)
+    openInterviews.map((i) => i?.student_id?._id?.toString()).filter(Boolean)
   );
 
-  if (openStudentIds.size === 0) return updatedInterviews;
+  if (openStudentIds.size === 0) return interviewsWithStatus;
   const trainedStudentIds = (
     await db
       .model('Interview')
@@ -129,17 +137,15 @@ const computeStatus = async (db, interviews) => {
       .distinct('student_id')
   ).map((id) => id.toString());
 
-  // Update 'Open' statuses to 'Not Needed' if matched
-  return updatedInterviews.map((interview) => {
-    if (interview.status !== 'Open') return interview;
-
+  openInterviews = openInterviews.map((interview) => {
     const studentId = interview?.student_id?._id?.toString();
     if (studentId && trainedStudentIds.includes(studentId)) {
       return { ...interview, status: 'N/A' };
     }
-
-    return interview;
+    return { ...interview, status: 'Open' };
   });
+
+  return [...openInterviews, ...interviewsWithStatus];
 };
 
 const getAllInterviews = asyncHandler(async (req, res) => {
@@ -151,7 +157,7 @@ const getAllInterviews = asyncHandler(async (req, res) => {
     .populate('event_id')
     .lean();
 
-  interviews = await computeStatus(req.db, interviews);
+  interviews = await addInterviewStatus(req.db, interviews);
   res.status(200).send({ success: true, data: interviews });
 });
 

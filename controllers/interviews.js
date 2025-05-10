@@ -91,8 +91,65 @@ const InterviewTrainingInvitation = async (
   );
 };
 
+const addInterviewStatus = async (db, interviews) => {
+  const now = Date.now();
+  const interviewsWithStatus = [];
+  let openInterviews = [];
+
+  for (const interview of interviews) {
+    const { interview_date, event_id, isClosed } = interview;
+
+    if (isClosed) {
+      interviewsWithStatus.push({ ...interview, status: 'Closed' });
+      continue;
+    }
+
+    if (interview_date && interview_date < now) {
+      interviewsWithStatus.push({ ...interview, status: 'Interviewed' });
+      continue;
+    }
+
+    if (event_id?.start) {
+      interviewsWithStatus.push({
+        ...interview,
+        status: event_id.start < now ? 'Trained' : 'Scheduled'
+      });
+      continue;
+    }
+
+    // If none of the above, skip adding to interviewsWithStatus
+    openInterviews.push(interview);
+  }
+
+  // Gather student IDs from 'Open' interviews
+  const openStudentIds = new Set(
+    openInterviews.map((i) => i?.student_id?._id?.toString()).filter(Boolean)
+  );
+
+  if (openStudentIds.size === 0) return interviewsWithStatus;
+  const trainedStudentIds = (
+    await db
+      .model('Interview')
+      .find({
+        student_id: { $in: Array.from(openStudentIds) },
+        event_id: { $exists: true, $ne: null }
+      })
+      .distinct('student_id')
+  ).map((id) => id.toString());
+
+  openInterviews = openInterviews.map((interview) => {
+    const studentId = interview?.student_id?._id?.toString();
+    if (studentId && trainedStudentIds.includes(studentId)) {
+      return { ...interview, status: 'N/A' };
+    }
+    return { ...interview, status: 'Open' };
+  });
+
+  return [...openInterviews, ...interviewsWithStatus];
+};
+
 const getAllInterviews = asyncHandler(async (req, res) => {
-  const interviews = await req.db
+  let interviews = await req.db
     .model('Interview')
     .find()
     .populate('student_id trainer_id', 'firstname lastname email')
@@ -100,6 +157,7 @@ const getAllInterviews = asyncHandler(async (req, res) => {
     .populate('event_id')
     .lean();
 
+  interviews = await addInterviewStatus(req.db, interviews);
   res.status(200).send({ success: true, data: interviews });
 });
 
@@ -128,7 +186,7 @@ const getMyInterview = asyncHandler(async (req, res) => {
   if (is_TaiGer_Student(user)) {
     filter.student_id = user._id.toString();
   }
-  const interviews = await req.db
+  let interviews = await req.db
     .model('Interview')
     .find(filter)
     .populate('student_id trainer_id', 'firstname lastname email')
@@ -142,12 +200,15 @@ const getMyInterview = asyncHandler(async (req, res) => {
         studentFilter.agents = user._id;
       }
     }
+
+    interviews = await addInterviewStatus(req.db, interviews);
     const students = await req.db
       .model('Student')
       .find(studentFilter)
       .populate('agents editors', 'firstname lastname email')
       .populate('applications.programId', 'school program_name degree semester')
       .lean();
+
     if (!students) {
       logger.info('getMyInterview: No students found!');
       throw new ErrorResponse(400, 'No students found!');
@@ -174,7 +235,7 @@ const getInterview = asyncHandler(async (req, res) => {
     params: { interview_id }
   } = req;
   try {
-    const interview = await req.db
+    let interview = await req.db
       .model('Interview')
       .findById(interview_id)
       .populate('student_id trainer_id', 'firstname lastname email')
@@ -190,6 +251,11 @@ const getInterview = asyncHandler(async (req, res) => {
       })
       .populate('event_id')
       .lean();
+
+    if (interview) {
+      const [updatedInterview] = await addInterviewStatus(req.db, [interview]);
+      interview = updatedInterview;
+    }
 
     if (!interview) {
       logger.info('getInterview: this interview is not found!');
@@ -749,7 +815,8 @@ const createInterview = asyncHandler(async (req, res) => {
 });
 
 const getAllOpenInterviews = asyncHandler(async (req, res) => {
-  const interviews = await req.db
+  const now = Date.now();
+  let interviews = await req.db
     .model('Interview')
     .find({ isClosed: false })
     .populate('student_id trainer_id', 'firstname lastname email')
@@ -757,27 +824,33 @@ const getAllOpenInterviews = asyncHandler(async (req, res) => {
     .populate('event_id')
     .lean();
 
+  interviews = await addInterviewStatus(req.db, interviews);
   res.status(200).send({ success: true, data: interviews });
 });
 
 const getInterviewsByProgramId = asyncHandler(async (req, res) => {
   const { programId } = req.params;
   if (!programId) {
-    return res.status(400).send({ success: false, message: 'Program ID is required' });
+    return res
+      .status(400)
+      .send({ success: false, message: 'Program ID is required' });
   }
 
   try {
-    const interviews = await req.db
+    let interviews = await req.db
       .model('Interview')
       .find({ program_id: programId })
       .populate('student_id', 'firstname lastname email')
-      .populate('trainer_id', 'firstname lastname email')  // This will populate an array of trainers
+      .populate('trainer_id', 'firstname lastname email') // This will populate an array of trainers
       .populate('program_id', 'school program_name degree semester')
       .populate('event_id')
       .populate('thread_id')
       .lean();
 
-    res.status(200).send({ success: true, data: interviews, count: interviews.length });
+    interviews = await addInterviewStatus(req.db, interviews);
+    res
+      .status(200)
+      .send({ success: true, data: interviews, count: interviews.length });
   } catch (error) {
     res.status(500).send({ success: false, message: error.message });
   }
@@ -786,21 +859,27 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
 const getInterviewsByStudentId = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
   if (!studentId) {
-    return res.status(400).send({ success: false, message: 'Student ID is required' });
+    return res
+      .status(400)
+      .send({ success: false, message: 'Student ID is required' });
   }
 
   try {
-    const interviews = await req.db
+    let interviews = await req.db
       .model('Interview')
       .find({ student_id: studentId })
       .populate('student_id', 'firstname lastname email')
-      .populate('trainer_id', 'firstname lastname email')  // This will populate an array of trainers
+      .populate('trainer_id', 'firstname lastname email') // This will populate an array of trainers
       .populate('program_id', 'school program_name degree semester')
       .populate('event_id')
       .populate('thread_id')
       .lean();
 
-    res.status(200).send({ success: true, data: interviews, count: interviews.length });
+    interviews = await addInterviewStatus(req.db, interviews);
+
+    res
+      .status(200)
+      .send({ success: true, data: interviews, count: interviews.length });
   } catch (error) {
     res.status(500).send({ success: false, message: error.message });
   }

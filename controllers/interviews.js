@@ -105,7 +105,7 @@ const addInterviewStatus = async (db, interviews) => {
     }
 
     if (interview_date && interview_date < now) {
-      interviewsWithStatus.push({ ...interview, status: 'Passed' });
+      interviewsWithStatus.push({ ...interview, status: 'Interviewed' });
       continue;
     }
 

@@ -2663,20 +2663,22 @@ const InterviewSurveyRequestEmail = asyncHandler(async (recipient, msg) => {
   const interviewSurveyUrl = `${SINGLE_INTERVIEW_SURVEY_THREAD_URL(
     msg.interview._id.toString()
   )}`;
-  const interview_name = `${student_name} ${msg.interview.program_id.school} ${msg.interview.program_id.program_name} ${msg.interview.program_id.degree} `;
+  const interview_name = `${msg.interview.program_id.school} ${msg.interview.program_id.program_name} ${msg.interview.program_id.degree} `;
   const subject = `[TODO][Urgent] Interview Survey for ${interview_name}`;
   const message = `\
 <p>${ENGLISH_BELOW}</p>
 
 <p>嗨 ${student_name},</p>
 
-<p>您的面試 <b>${interview_name}</b> 進行還順利嗎？</p>
+<p>我們希望您的面試 <b>${interview_name}</b> 進行順利，並且我們的訓練對您有幫助！</p>
 
-<p>我們想要請你提供面試訓練的回饋以及和學校面試的相關資訊給我們。</p>
+<p>為了改善我們的訓練，我們想要請你提供寶貴的回饋以及和學校面試的相關資訊給我們。請您花費2分鐘完成這份問卷，幫助我們繼續支持未來台灣的學生。</p>
 
-<a href="${interviewSurveyUrl}" class="mui-button" target="_blank">前往面試訓練回饋</a>
+<a href="${interviewSurveyUrl}" class="mui-button" target="_blank">開啟面試問卷</a>
 
 <p>如果您有任何問題，請聯絡您的面試訓練官或顧問。</p>
+
+<p>謝謝您的回饋，我們祝您順利錄取！</p>
 
 <br />
 
@@ -2684,14 +2686,15 @@ const InterviewSurveyRequestEmail = asyncHandler(async (recipient, msg) => {
 
 <p>Hi ${student_name},</p>
 
-<p>How was the interview <b>${interview_name}</b>?</p>
+<p>We hope your interview for <b>${interview_name}</b> went well and that our training was helpful!</p>
 
-<p>We would like you providing us the interview training feedback and actual interview questions from this program.</p>
+<p>To improve our interview training, we would appreciate your <b>valuable feedback</b>. Please take <b>2 minutes</b> to complete this <b>short survey</b> and help us continue supporting future students from Taiwan.</p>
 
-<a href="${interviewSurveyUrl}" class="mui-button" target="_blank">Go to survey</a>
+<a href="${interviewSurveyUrl}" class="mui-button" target="_blank">CLICK TO OPEN THE SURVEY</a>
 
-<p>If you have any question, feel free to contact your interview trainer or agent.</p>
+<p>If you have any questions or feedback, feel free to contact your trainer or agent.</p>
 
+<p>Thank you - our fingers are crossed for your admission!</p>
 `;
 
   sendEmail(recipient, subject, message);

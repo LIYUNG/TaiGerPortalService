@@ -28,7 +28,8 @@ const {
   removeNotification,
   removeAgentNotification,
   getMyAcademicBackground,
-  updateStudentApplicationResult
+  updateStudentApplicationResult,
+  updateStudentApplicationResultV2
 } = require('../controllers/files');
 const {
   updateAcademicBackground,
@@ -90,6 +91,19 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     UpdateStudentApplications,
+    logAccess
+  );
+
+router
+  .route('/applications/result/v2/:studentId/:programId/:admission')
+  .post(
+    filter_archiv_user,
+    GeneralPUTRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
+    multitenant_filter,
+    InnerTaigerMultitenantFilter,
+    admissionUpload,
+    updateStudentApplicationResultV2,
     logAccess
   );
 

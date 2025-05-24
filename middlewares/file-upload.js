@@ -259,8 +259,8 @@ const admission_letter_s3 = multerS3({
     cb(null, { fieldName: file.fieldname, path: directory });
   },
   key: (req, file, cb) => {
-    const { studentId, programId, result } = req.params;
-    const admission_status = result === 'O' ? 'Admission' : 'Rejection';
+    const { studentId, programId, admission } = req.params;
+    const admission_status = admission === 'O' ? 'Admission' : 'Rejection';
 
     req.db
       .model('Student')
@@ -399,7 +399,7 @@ const storage_messagesthread_file_s3 = multerS3({
             .model('Program')
             .findById(thread.program_id)
             .then((program) => {
-              program_name = `${program.school}_${program.program_name}`;
+              program_name = `${program?.school}_${program?.program_name}`;
               let version_number_max = 0;
 
               thread.messages.forEach((message) => {

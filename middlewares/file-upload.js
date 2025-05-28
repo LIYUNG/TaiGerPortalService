@@ -415,8 +415,8 @@ const storage_messagesthread_file_s3 = multerS3({
               });
 
               const version_number = parseInt(version_number_max, 10) + 1;
-              let temp_name = `${thread.student_id.lastname}_${
-                thread.student_id.firstname
+              let temp_name = `${thread.student_id?.lastname}_${
+                thread.student_id?.firstname
               }_${program_name}_${
                 thread.file_type
               }_v${version_number.toString()}${path
@@ -442,8 +442,8 @@ const storage_messagesthread_file_s3 = multerS3({
           });
 
           const version_number = parseInt(version_number_max, 10) + 1;
-          let temp_name = `${thread.student_id.lastname}_${
-            thread.student_id.firstname
+          let temp_name = `${thread.student_id?.lastname}_${
+            thread.student_id?.firstname
           }_${thread.file_type}_v${version_number.toString()}${path.extname(
             file.originalname
           )}`;

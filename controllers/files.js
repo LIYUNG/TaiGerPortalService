@@ -864,7 +864,7 @@ const updateStudentApplicationResultV2 = asyncHandler(
       .populate('agents editors', 'firstname lastname email')
       .populate('applications.programId');
     if (!student) {
-      logger.error('updateStudentApplicationResult: Invalid student Id');
+      logger.error('updateStudentApplicationResultV2: Invalid student Id');
       throw new ErrorResponse(404, 'Invalid student Id');
     }
 
@@ -1100,7 +1100,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
               student_firstname: student.firstname,
               student_lastname: student.lastname,
               udpatedApplication: udpatedApplicationForEmail,
-              result
+              admission: result
             }
           );
         }
@@ -1118,7 +1118,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
               student_firstname: student.firstname,
               student_lastname: student.lastname,
               udpatedApplication: udpatedApplicationForEmail,
-              result
+              admission: result
             }
           );
         }

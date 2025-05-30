@@ -1059,8 +1059,11 @@ const createApplication = asyncHandler(async (req, res, next) => {
     );
   }
 
-  const programIds = student.applications.map(({ programId }) =>
-    programId.toString()
+  const studentApplications = student.applications.map(
+    ({ programId, application_year }) => ({
+      programId: programId.toString(),
+      application_year
+    })
   );
 
   // () TODO: check if the same university accept more than 1 application (different programs)
@@ -1068,8 +1071,14 @@ const createApplication = asyncHandler(async (req, res, next) => {
   // () TODO: or only show warning?
 
   // Create programId array only new for student.
+  const application_year =
+    student.application_preference?.expected_application_date || '<TBD>';
   const new_programIds = program_id_set.filter(
-    (id) => !programIds.includes(id)
+    (id) =>
+      !studentApplications.some(
+        (app) =>
+          app.programId === id && app.application_year === application_year
+      )
   );
 
   // Insert only new programIds for student.
@@ -1077,8 +1086,7 @@ const createApplication = asyncHandler(async (req, res, next) => {
     const application = student.applications.create({
       programId: new mongoose.Types.ObjectId(new_programIds[i])
     });
-    application.application_year =
-      student.application_preference?.expected_application_date || '';
+    application.application_year = application_year;
     let program = program_ids.find(
       ({ _id }) => _id.toString() === new_programIds[i]
     );

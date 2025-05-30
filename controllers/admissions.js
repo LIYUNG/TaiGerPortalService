@@ -137,6 +137,7 @@ const getAdmissions = asyncHandler(async (req, res) => {
           program_name: '$programDetails.program_name',
           semester: '$programDetails.semester',
           degree: '$programDetails.degree',
+          application_year: '$applications.application_year',
           decided: '$applications.decided', // Include specific application fields as needed
           closed: '$applications.closed', // Include specific application fields as needed
           admission: '$applications.admission', // Include specific application fields as needed

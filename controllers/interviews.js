@@ -157,7 +157,22 @@ const getAllInterviews = asyncHandler(async (req, res) => {
     .populate('event_id')
     .lean();
 
+  const interviewSurveys = await req.db
+    .model('InterviewSurveyResponse')
+    .find({ isFinal: true })
+    .lean();
+
   interviews = await addInterviewStatus(req.db, interviews);
+  interviews = interviews.map((interview) => {
+    const surveySubmitted = interviewSurveys.some(
+      (survey) =>
+        survey?.interview_id?.toString() === interview?._id?.toString()
+    );
+    return {
+      ...interview,
+      surveySubmitted: surveySubmitted //? 'Yes' : 'No'
+    };
+  });
   res.status(200).send({ success: true, data: interviews });
 });
 

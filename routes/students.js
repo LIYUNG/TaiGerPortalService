@@ -277,7 +277,7 @@ router
   );
 
 router
-  .route('/:studentId/applications/:program_id')
+  .route('/:studentId/applications/:application_id')
   .delete(
     filter_archiv_user,
     permit(Role.Admin, Role.Manager, Role.Agent),

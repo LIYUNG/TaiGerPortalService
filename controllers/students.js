@@ -1077,6 +1077,8 @@ const createApplication = asyncHandler(async (req, res, next) => {
     const application = student.applications.create({
       programId: new mongoose.Types.ObjectId(new_programIds[i])
     });
+    application.application_year =
+      student.application_preference?.expected_application_date || '';
     let program = program_ids.find(
       ({ _id }) => _id.toString() === new_programIds[i]
     );
@@ -1181,7 +1183,7 @@ const createApplication = asyncHandler(async (req, res, next) => {
   }
   await student.save();
 
-  res.status(201).send({ success: true, data: program_id_set });
+  res.status(201).send({ success: true, data: student.applications });
 
   if (isNotArchiv(student)) {
     await createApplicationToStudentEmail(
@@ -1204,7 +1206,7 @@ const createApplication = asyncHandler(async (req, res, next) => {
 // () TODO email : student notification
 const deleteApplication = asyncHandler(async (req, res, next) => {
   const {
-    params: { studentId, program_id }
+    params: { studentId, application_id }
   } = req;
 
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
@@ -1223,7 +1225,7 @@ const deleteApplication = asyncHandler(async (req, res, next) => {
   }
 
   const application = student.applications.find(
-    ({ programId }) => programId._id.toString() === program_id
+    ({ _id }) => _id.toString() === application_id
   );
   if (!application) {
     logger.error('deleteApplication: Invalid application id');
@@ -1257,7 +1259,7 @@ const deleteApplication = asyncHandler(async (req, res, next) => {
 
       await Documentthread.findByIdAndDelete(messagesThreadId);
       await req.db.model('Student').findOneAndUpdate(
-        { _id: studentId, 'applications.programId': program_id },
+        { _id: studentId, 'applications._id': application_id },
         {
           $pull: {
             'applications.$.doc_modification_thread': {
@@ -1274,7 +1276,7 @@ const deleteApplication = asyncHandler(async (req, res, next) => {
       .findByIdAndUpdate(
         studentId,
         {
-          $pull: { applications: { programId: { _id: program_id } } }
+          $pull: { applications: { _id: application_id } }
         },
         { new: true }
       )

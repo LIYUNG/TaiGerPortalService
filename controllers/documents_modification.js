@@ -32,7 +32,7 @@ const {
 const logger = require('../services/logger');
 const {
   General_Docs,
-  application_deadline_calculator,
+  application_deadline_V2_calculator,
   isNotArchiv,
   CVDeadline_Calculator,
   EDITOR_SCOPE,
@@ -630,7 +630,7 @@ const getMessages = asyncHandler(async (req, res) => {
         app.programId._id.toString() ===
         document_thread.program_id._id.toString()
     );
-    deadline = application_deadline_calculator(student, application);
+    deadline = application_deadline_V2_calculator(application);
   }
   // Find conflict list:
   let conflict_list = [];

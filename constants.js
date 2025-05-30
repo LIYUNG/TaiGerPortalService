@@ -124,28 +124,43 @@ const isNotArchiv = (user) => {
 
 const isArchiv = (user) => !!user.archiv;
 
-const application_deadline_calculator = (student, application) => {
-  if (isProgramSubmitted(application)) {
-    return 'CLOSE';
+const adjustYearForSemester = (year, month, semester) => {
+  if (!semester) return 'Err';
+  if ((semester === 'WS' && month > 9) || (semester === 'SS' && month > 3)) {
+    return year - 1;
   }
-  if (isProgramWithdraw(application)) {
-    return 'WITHDRAW';
-  }
-  const { application_deadline, semester } = application.programId;
+  return year;
+};
 
-  if (!application_deadline) {
-    return 'No Data';
-  }
-  let application_year = '<TBD>';
-  if (
-    student.application_preference &&
-    student.application_preference.expected_application_date !== ''
-  ) {
-    application_year = parseInt(
+const formatApplicationDate = (year, date) => {
+  if (!date) return `${year}-<TBD>`;
+  if (date.toLowerCase().includes('rolling')) return `${year}-Rolling`;
+
+  const [month, day] = date.split('-');
+  return `${year}/${month}/${day}`;
+};
+
+const getApplicationYear = (student) => {
+  if (student.application_preference?.expected_application_date) {
+    return parseInt(
       student.application_preference.expected_application_date,
       10
     );
   }
+  return '<TBD>';
+};
+
+const application_deadline_V2_calculator = (application) => {
+  if (isProgramWithdraw(application)) {
+    return 'WITHDRAW';
+  }
+  const { application_deadline, semester } = application?.programId || {};
+
+  if (!application_deadline) {
+    return 'No Data';
+  }
+  const { application_year } = application;
+
   if (!application_deadline) {
     return `${application_year}-<TBD>`;
   }
@@ -157,27 +172,14 @@ const application_deadline_calculator = (student, application) => {
     application.programId.application_deadline.split('-')[0],
     10
   );
-  // const deadline_day = parseInt(
-  //   application.programId.application_deadline.split('-')[1],
-  //   10
-  // );
-  if (semester === undefined) {
-    return 'Err';
-  }
-  if (semester === 'WS') {
-    if (deadline_month > 9) {
-      application_year -= 1;
-    }
-  }
-  if (semester === 'SS') {
-    if (deadline_month > 3) {
-      application_year -= 1;
-    }
-  }
 
-  return `${application_year}/${
-    application.programId.application_deadline.split('-')[0]
-  }/${application.programId.application_deadline.split('-')[1]}`;
+  const adjusted_application_year = adjustYearForSemester(
+    application_year,
+    deadline_month,
+    semester
+  );
+
+  return formatApplicationDate(adjusted_application_year, application_deadline);
 };
 
 const EDITOR_SCOPE = {
@@ -246,7 +248,7 @@ const is_deadline_within30days_needed = (student) => {
   }
   for (let k = 0; k < student.applications.length; k += 1) {
     const day_diff = differenceInDays(
-      application_deadline_calculator(student, student.applications[k]),
+      application_deadline_V2_calculator(student.applications[k]),
       today
     );
     // TODO: should pack all thread due soon in a student email,
@@ -732,7 +734,7 @@ const unsubmitted_applications_list = (student, user, trigger_days) => {
   const today = new Date();
   for (let i = 0; i < student.applications.length; i += 1) {
     const day_diff = differenceInDays(
-      application_deadline_calculator(student, student.applications[i]),
+      application_deadline_V2_calculator(student.applications[i]),
       today
     );
     if (
@@ -746,8 +748,7 @@ const unsubmitted_applications_list = (student, user, trigger_days) => {
         student.applications[i].programId.school
       } ${
         student.applications[i].programId.program_name
-      }: <b> Deadline ${application_deadline_calculator(
-        student,
+      }: <b> Deadline ${application_deadline_V2_calculator(
         student.applications[i]
       )} </b>
       <ul>
@@ -1329,8 +1330,7 @@ const CVDeadline_Calculator = (student) => {
   const today = new Date();
   for (let i = 0; i < student.applications.length; i += 1) {
     if (isProgramDecided(student.applications[i])) {
-      const application_deadline_temp = application_deadline_calculator(
-        student,
+      const application_deadline_temp = application_deadline_V2_calculator(
         student.applications[i]
       );
       if (application_deadline_temp?.toLowerCase()?.includes('rolling')) {
@@ -1396,7 +1396,7 @@ const cvmlrl_deadline_within30days_escalation_summary = (student) => {
   }
   for (let i = 0; i < student.applications.length; i += 1) {
     const day_diff = differenceInDays(
-      application_deadline_calculator(student, student.applications[i]),
+      application_deadline_V2_calculator(student.applications[i]),
       today
     );
     if (
@@ -1428,7 +1428,7 @@ const cvmlrl_deadline_within30days_escalation_summary = (student) => {
             } ${student.applications[i].programId.program_name} ${
               student.applications[i].doc_modification_thread[j].doc_thread_id
                 .file_type
-            }</a> - deadline ${application_deadline_calculator(
+            }</a> - deadline ${application_deadline_V2_calculator(
               student,
               student.applications[i]
             )} ${day_diff} days left!</li>`;
@@ -1441,7 +1441,7 @@ const cvmlrl_deadline_within30days_escalation_summary = (student) => {
             } ${student.applications[i].programId.program_name} ${
               student.applications[i].doc_modification_thread[j].doc_thread_id
                 .file_type
-            }</a> - deadline ${application_deadline_calculator(
+            }</a> - deadline ${application_deadline_V2_calculator(
               student,
               student.applications[i]
             )} ${day_diff} days left!</li>`;
@@ -1562,7 +1562,7 @@ module.exports = {
   does_editor_have_pending_tasks,
   is_cv_ml_rl_task_response_needed,
   is_cv_ml_rl_reminder_needed,
-  application_deadline_calculator,
+  application_deadline_V2_calculator,
   unsubmitted_applications_summary,
   unsubmitted_applications_escalation_summary,
   cvmlrl_deadline_within30days_escalation_summary,

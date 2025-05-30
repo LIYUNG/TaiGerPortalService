@@ -170,7 +170,7 @@ const getAllInterviews = asyncHandler(async (req, res) => {
     );
     return {
       ...interview,
-      surveySubmitted: surveySubmitted //? 'Yes' : 'No'
+      surveySubmitted: surveySubmitted
     };
   });
   res.status(200).send({ success: true, data: interviews });

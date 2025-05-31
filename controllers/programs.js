@@ -1,7 +1,8 @@
 const {
   Role,
   is_TaiGer_Agent,
-  is_TaiGer_Student
+  is_TaiGer_Student,
+  is_TaiGer_role
 } = require('@taiger-common/core');
 
 const { ErrorResponse } = require('../common/errors');
@@ -184,11 +185,7 @@ const getProgram = asyncHandler(async (req, res) => {
       if (success) {
         logger.info('programs cache set successfully');
       }
-      if (
-        user.role === Role.Admin ||
-        is_TaiGer_Agent(user) ||
-        user.role === Role.Editor
-      ) {
+      if (is_TaiGer_role(user)) {
         const students = await req.db
           .model('Student')
           .find({
@@ -204,6 +201,10 @@ const getProgram = asyncHandler(async (req, res) => {
           .select(
             'firstname lastname applications application_preference.expected_application_date'
           );
+        const applications = await req.db.model('Application').find({
+          programId: req.params.programId,
+          decided: 'O'
+        });
 
         const vc = await req.db
           .model('VC')

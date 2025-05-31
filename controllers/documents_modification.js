@@ -2035,6 +2035,18 @@ const clearEssayWriters = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const getRelevantEssayThreadsV2 = (essayDocumentThreads) => {
+  // filter active student, then see if the essay thread belongs to a decided application
+  const matchingDocuments = [];
+  essayDocumentThreads
+    .filter(
+      (doc) => doc.application_id?.decided === 'O' && !doc.application_id.archiv
+    )
+    .forEach((doc) => matchingDocuments.push(doc));
+
+  return matchingDocuments;
+};
+
 const getRelevantEssayThreads = (essayDocumentThreads) => {
   // filter active student, then see if the essay thread belongs to a decided application
   const matchingDocuments = [];
@@ -2114,6 +2126,75 @@ const getAllActiveEssays = asyncHandler(async (req, res, next) => {
         .lean();
 
       const matchingDocuments = getRelevantEssayThreads(essayDocumentThreads);
+      res.status(200).send({ success: true, data: matchingDocuments });
+    }
+    next();
+    // Handle matched data
+  } catch (error) {
+    logger.error(error);
+    throw new ErrorResponse(403, 'Invalid ThreadId');
+  }
+});
+
+const getAllActiveEssaysV2 = asyncHandler(async (req, res, next) => {
+  try {
+    const { user } = req;
+    if (is_TaiGer_Student(user)) {
+      const essayDocumentThreads = await req.db
+        .model('Documentthread')
+        .find(
+          {
+            student_id: new mongoose.Types.ObjectId(user._id),
+            file_type: 'Essay'
+          },
+          { messages: { $slice: -1 } }
+        )
+        .populate('student_id outsourced_user_id')
+        .populate('application_id', 'application_year decided')
+        .populate({
+          path: 'student_id messages.user_id',
+          select: '-attributes',
+          populate: {
+            path: 'agents',
+            model: 'User'
+          }
+        })
+        .populate('messages.user_id', 'firstname lastname role')
+        .populate(
+          'program_id',
+          'school program_name degree application_deadline semester lang'
+        )
+        .lean();
+      const matchingDocuments = getRelevantEssayThreadsV2(essayDocumentThreads);
+      res.status(200).send({ success: true, data: matchingDocuments });
+    } else if (is_TaiGer_External(user)) {
+      res.status(200).send({ success: true, data: [] });
+    } else {
+      const essayDocumentThreads = await req.db
+        .model('Documentthread')
+        .find(
+          {
+            file_type: 'Essay'
+          },
+          { messages: { $slice: -1 } }
+        )
+        .populate('student_id outsourced_user_id')
+        .populate('application_id', 'application_year decided')
+        .populate({
+          path: 'student_id messages.user_id',
+          populate: {
+            path: 'agents editors',
+            model: 'User'
+          }
+        })
+        .populate('messages.user_id', 'firstname lastname role')
+        .populate(
+          'program_id',
+          'school program_name degree application_deadline semester lang'
+        )
+        .lean();
+
+      const matchingDocuments = getRelevantEssayThreadsV2(essayDocumentThreads);
       res.status(200).send({ success: true, data: matchingDocuments });
     }
     next();
@@ -2286,6 +2367,7 @@ module.exports = {
   handleDeleteProgramThread,
   deleteAMessageInThread,
   getAllActiveEssays,
+  getAllActiveEssaysV2,
   assignEssayWritersToEssayTask,
   clearEssayWriters,
   IgnoreMessageInDocumentThread

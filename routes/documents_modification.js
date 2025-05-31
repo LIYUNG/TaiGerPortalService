@@ -53,7 +53,8 @@ const {
   IgnoreMessageInDocumentThread,
   checkDocumentPattern,
   getMyStudentMetrics,
-  getThreadsByStudent
+  getThreadsByStudent,
+  getAllActiveEssaysV2
 } = require('../controllers/documents_modification');
 const {
   docThreadMultitenant_filter,
@@ -161,6 +162,7 @@ router
     initApplicationMessagesThread
   );
 
+// TODO: remove this route after migration
 router
   .route('/essays/all')
   .get(
@@ -174,6 +176,22 @@ router
       Role.External
     ),
     getAllActiveEssays,
+    logAccess
+  );
+
+router
+  .route('/essays/all/v2')
+  .get(
+    getMessagesRateLimiter,
+    permit(
+      Role.Admin,
+      Role.Manager,
+      Role.Agent,
+      Role.Editor,
+      Role.Student,
+      Role.External
+    ),
+    getAllActiveEssaysV2,
     logAccess
   );
 

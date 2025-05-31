@@ -1,8 +1,9 @@
+const mongoose = require('mongoose');
 const { connectToDatabase } = require('../database');
 
 const db = connectToDatabase('TaiGer');
 
-async function main() {
+async function addApplicationYear() {
   console.log('Starting migration...');
   const startTime = Date.now();
 
@@ -50,4 +51,70 @@ async function main() {
   }
 }
 
-main();
+async function copyApplicationToNewCollection() {
+  console.log('Starting application copy migration...');
+  const startTime = Date.now();
+
+  try {
+    const students = await db.model('Student').find({});
+    console.log(`Found ${students.applications} students to process`);
+
+    let processedCount = 0;
+    let errorCount = 0;
+    const allApplications = [];
+
+    for (const student of students) {
+      try {
+        const applications = student.applications.map((application) => {
+          // Debug log to check the application data
+          console.log('Original application:', {
+            _id: application._id,
+            programId: application.programId,
+            type: typeof application.programId
+          });
+
+          // Ensure programId is properly handled
+          const programId = application.programId
+            ? new mongoose.Types.ObjectId(application.programId)
+            : null;
+
+          return {
+            ...application.toObject(), // Convert to plain object
+            studentId: student._id,
+            programId
+          };
+        });
+
+        allApplications.push(...applications);
+        processedCount += 1;
+
+        if (processedCount % 10 === 0) {
+          console.log(`Processed ${processedCount} students`);
+        }
+      } catch (err) {
+        errorCount += 1;
+        console.error(`Error on student ${student._id}:`, err.message);
+      }
+    }
+
+    if (allApplications.length > 0) {
+      console.log(`Inserting ${allApplications.length} applications...`);
+      await db.model('Application').insertMany(allApplications);
+      console.log('Applications inserted successfully');
+    } else {
+      console.log('No applications to insert');
+    }
+
+    const duration = (Date.now() - startTime) / 1000;
+    console.log('\nMigration Summary:');
+    console.log(`Processed: ${processedCount}`);
+    console.log(`Errors: ${errorCount}`);
+    console.log(`Time: ${duration.toFixed(2)}s`);
+  } catch (error) {
+    console.error('Migration failed:', error);
+    process.exit(1);
+  }
+}
+
+addApplicationYear();
+copyApplicationToNewCollection();

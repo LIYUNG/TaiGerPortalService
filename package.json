@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "migration": "cross-env NODE_ENV=development node migration/addApplicationYearFromPreference.js",
     "start": "cross-env NODE_ENV=production node index.js",
     "prod": "NODE_ENV=production node index.js",
     "dev": "cross-env NODE_ENV=development nodemon --config nodemon.json index.js",

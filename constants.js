@@ -1322,16 +1322,16 @@ const missing_academic_background = (student, user) => {
   return missing_background_fields;
 };
 
-const CVDeadline_Calculator = (student) => {
+const CVDeadline_Calculator = (applications) => {
   let daysLeftMin = 3000;
   let CVDeadline = '';
   let CVDeadlineRolling = '';
   let hasRolling = false;
   const today = new Date();
-  for (let i = 0; i < student.applications.length; i += 1) {
-    if (isProgramDecided(student.applications[i])) {
+  for (let i = 0; i < applications.length; i += 1) {
+    if (isProgramDecided(applications[i])) {
       const application_deadline_temp = application_deadline_V2_calculator(
-        student.applications[i]
+        applications[i]
       );
       if (application_deadline_temp?.toLowerCase()?.includes('rolling')) {
         hasRolling = true;
@@ -1354,11 +1354,14 @@ const CVDeadline_Calculator = (student) => {
   return CVDeadline;
 };
 
-const cvmlrl_deadline_within30days_escalation_summary = (student) => {
+const cvmlrl_deadline_within30days_escalation_summary = (
+  student,
+  applications
+) => {
   const today = new Date();
   let missing_doc_list = '';
   let kk = 0;
-  const CVDeadline = CVDeadline_Calculator(student);
+  const CVDeadline = CVDeadline_Calculator(applications);
   const CV_day_diff = differenceInDays(CVDeadline, today);
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
     if (
@@ -1379,7 +1382,7 @@ const cvmlrl_deadline_within30days_escalation_summary = (student) => {
           ].doc_thread_id._id.toString()}">${
             student.generaldocs_threads[i].doc_thread_id.file_type
           }</a> - deadline ${CVDeadline_Calculator(
-            student
+            applications
           )} ${CV_day_diff} days left!</li>`;
           kk += 1;
         } else {
@@ -1388,7 +1391,7 @@ const cvmlrl_deadline_within30days_escalation_summary = (student) => {
           ].doc_thread_id._id.toString()}">${
             student.generaldocs_threads[i].doc_thread_id.file_type
           }</a> - deadline ${CVDeadline_Calculator(
-            student
+            applications
           )} ${CV_day_diff} days left!</li>`;
         }
       }

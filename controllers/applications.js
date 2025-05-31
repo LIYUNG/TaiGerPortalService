@@ -5,7 +5,6 @@ const {
   isProgramSubmitted,
   is_TaiGer_Student
 } = require('@taiger-common/core');
-const { ErrorResponse } = require('@taiger-common/core');
 const mongoose = require('mongoose');
 
 const { asyncHandler } = require('../middlewares/error-handler');
@@ -21,6 +20,7 @@ const {
   NewMLRLEssayTasksEmail,
   NewMLRLEssayTasksEmailFromTaiGer
 } = require('../services/email');
+const { ErrorResponse } = require('../common/errors');
 
 const getStudentApplications = asyncHandler(async (req, res) => {
   const {
@@ -41,17 +41,14 @@ const getStudentApplications = asyncHandler(async (req, res) => {
     .model('Student')
     .findById(studentId)
     .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
+    .populate('generaldocs_threads.doc_thread_id', '-messages')
     .select('-attributes')
     .lean();
   const applications = await req.db
     .model('Application')
     .find({ studentId })
     .populate('programId')
+    .populate('doc_modification_thread.doc_thread_id', '-messages')
     .lean();
   student.applications = applications;
   res.status(200).send({ success: true, data: student });
@@ -64,11 +61,13 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
     body: { applications, applying_program_count }
   } = req;
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId')
-    .populate('applications', 'doc_modification_thread.doc_thread_id');
+  const student = await req.db.model('Student').findById(studentId);
+
+  const oldApplications = await req.db
+    .model('Application')
+    .find({ studentId })
+    .populate('doc_modification_thread.doc_thread_id', '-messages')
+    .lean();
 
   let new_task_flag = false;
   if (!student) {
@@ -77,10 +76,10 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
   }
   const new_app_decided_idx = [];
   for (let i = 0; i < applications.length; i += 1) {
-    const application_idx = student.applications.findIndex(
+    const application_idx = oldApplications.findIndex(
       (app) => app._id == applications[i]._id
     );
-    const application = student.applications.find(
+    const application = oldApplications.find(
       (app) => app._id == applications[i]._id
     );
     if (!application) {
@@ -133,11 +132,7 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
   const student_updated = await req.db
     .model('Student')
     .findById(studentId)
-    .populate('applications.programId')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
+    .populate('generaldocs_threads.doc_thread_id', '-messages')
     .populate('agents editors', 'firstname lastname email archiv')
     .select('-profile -notification -application_preference')
     .lean();
@@ -253,7 +248,6 @@ const deleteApplication = asyncHandler(async (req, res, next) => {
   //     .model('Student')
   //     .findById(studentId)
   //     .populate('agents editors', 'firstname lastname email')
-  //     .populate('applications.programId')
   //     .populate(
   //       'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id'
   //     )
@@ -275,8 +269,6 @@ const deleteApplication = asyncHandler(async (req, res, next) => {
     .find({ application_id })
     .lean();
 
-  console.log('application', application);
-
   if (!application) {
     logger.error('deleteApplication: Invalid application id');
     throw new ErrorResponse(404, 'Application not found');
@@ -290,8 +282,7 @@ const deleteApplication = asyncHandler(async (req, res, next) => {
       );
       throw new ErrorResponse(
         409,
-        `Some ML/RL/Essay discussion threads are existed and not empty. 
-        Please make sure the non-empty discussion threads are ready to be deleted and delete those thread first and then delete this application.`
+        `Some ML/RL/Essay discussion threads are existed and not empty. Please make sure the non-empty discussion threads are ready to be deleted and delete those thread first and then delete this application.`
       );
     }
   }
@@ -343,6 +334,7 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
   const applications = await req.db
     .model('Application')
     .find({ studentId })
+    .populate('programId', '_id school program_name degree semester')
     .lean();
 
   const programObjectIds = program_id_set.map(
@@ -375,7 +367,7 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
 
   const studentApplications = applications.map(
     ({ programId, application_year }) => ({
-      programId: programId.toString(),
+      programId: programId._id.toString(),
       application_year
     })
   );
@@ -397,118 +389,150 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
 
   // Insert only new programIds for student.
   for (let i = 0; i < new_programIds.length; i += 1) {
-    const application = await req.db.model('Application').create({
-      studentId,
-      programId: new mongoose.Types.ObjectId(new_programIds[i]),
-      application_year
-    });
+    try {
+      const application = await req.db.model('Application').create({
+        studentId,
+        programId: new mongoose.Types.ObjectId(new_programIds[i]),
+        application_year
+      });
 
-    let program = program_ids.find(
-      ({ _id }) => _id.toString() === new_programIds[i]
-    );
+      const program = program_ids.find(
+        ({ _id }) => _id.toString() === new_programIds[i]
+      );
 
-    // check if RL required, if yes, create new thread
-    if (
-      program.rl_required !== undefined &&
-      Number.isInteger(parseInt(program.rl_required, 10)) >= 0
-    ) {
-      // TODO: if no specific requirement,
-      const nrRLrequired = parseInt(program.rl_required, 10);
-      if (Number.isNaN(nrRLrequired)) {
-        logger.error(
-          `createApplication ${new_programIds[i]}: RL required is not a number`
-        );
-      }
-      const Documentthread = req.db.model('Documentthread');
-      const isRLSpecific = program.is_rl_specific;
-      const NoRLSpecificFlag =
-        isRLSpecific === undefined || isRLSpecific === null;
-      // create specific RL tag if flag is false, or no flag and no requirement
+      // check if RL required, if yes, create new thread
       if (
-        isRLSpecific === false ||
-        (NoRLSpecificFlag && !program.rl_requirements)
+        program.rl_required !== undefined &&
+        Number.isInteger(parseInt(program.rl_required, 10)) >= 0
       ) {
-        // check if general RL is created, if not, create ones!
-        const genThreadIds = student.generaldocs_threads.map(
-          (thread) => thread.doc_thread_id
-        );
-        const generalRLcount = await req.db
-          .model('Documentthread')
-          .find({
-            _id: { $in: genThreadIds },
-            file_type: { $regex: /Recommendation_Letter_/ }
-          })
-          .countDocuments();
+        try {
+          // TODO: if no specific requirement,
+          const nrRLrequired = parseInt(program.rl_required, 10);
+          if (Number.isNaN(nrRLrequired)) {
+            logger.error(
+              `createApplication ${new_programIds[i]}: RL required is not a number`
+            );
+          }
+          const Documentthread = req.db.model('Documentthread');
+          const isRLSpecific = program.is_rl_specific;
+          const NoRLSpecificFlag =
+            isRLSpecific === undefined || isRLSpecific === null;
+          // create specific RL tag if flag is false, or no flag and no requirement
+          if (
+            isRLSpecific === false ||
+            (NoRLSpecificFlag && !program.rl_requirements)
+          ) {
+            // check if general RL is created, if not, create ones!
+            const genThreadIds = student.generaldocs_threads.map(
+              (thread) => thread.doc_thread_id
+            );
+            const generalRLcount = await req.db
+              .model('Documentthread')
+              .find({
+                _id: { $in: genThreadIds },
+                file_type: { $regex: /Recommendation_Letter_/ }
+              })
+              .countDocuments();
 
-        if (generalRLcount < nrRLrequired) {
-          // create general RL tasks
-          logger.info('Create general RL tasks!');
-          for (let j = generalRLcount; j < nrRLrequired; j += 1) {
-            const newThread = new Documentthread({
+            if (generalRLcount < nrRLrequired) {
+              // create general RL tasks
+              logger.info('Create general RL tasks!');
+              for (let j = generalRLcount; j < nrRLrequired; j += 1) {
+                const newThread = new Documentthread({
+                  student_id: new mongoose.Types.ObjectId(studentId),
+                  file_type: GENERAL_RLs_CONSTANT[j],
+                  updatedAt: new Date()
+                });
+                const threadEntry = application.doc_modification_thread.create({
+                  doc_thread_id: new mongoose.Types.ObjectId(newThread._id),
+                  updatedAt: new Date(),
+                  createdAt: new Date()
+                });
+
+                student.generaldocs_threads.push(threadEntry);
+                await newThread.save();
+              }
+            }
+          } else {
+            logger.info('Create specific RL tasks!');
+            for (let j = 0; j < nrRLrequired; j += 1) {
+              const newThread = new Documentthread({
+                student_id: new mongoose.Types.ObjectId(studentId),
+                file_type: RLs_CONSTANT[j],
+                application_id: application._id,
+                program_id: new mongoose.Types.ObjectId(new_programIds[i]),
+                updatedAt: new Date()
+              });
+              const threadEntry = application.doc_modification_thread.create({
+                doc_thread_id: newThread._id,
+                updatedAt: new Date(),
+                createdAt: new Date()
+              });
+
+              application.doc_modification_thread.push(threadEntry);
+              await newThread.save();
+              await application.save();
+            }
+          }
+        } catch (error) {
+          logger.error(`Error creating RL threads: ${error.message}`);
+          throw new ErrorResponse(
+            500,
+            'Failed to create recommendation letter threads'
+          );
+        }
+      }
+
+      // Create supplementary form task
+      try {
+        const Documentthread = req.db.model('Documentthread');
+
+        for (const doc of PROGRAM_SPECIFIC_FILETYPE) {
+          if (program[doc.required] === 'yes') {
+            const new_doc_thread = new Documentthread({
               student_id: new mongoose.Types.ObjectId(studentId),
-              file_type: GENERAL_RLs_CONSTANT[j],
+              file_type: doc.fileType,
+              application_id: application._id,
+              program_id: new mongoose.Types.ObjectId(new_programIds[i]),
               updatedAt: new Date()
             });
-            const threadEntry = application.doc_modification_thread.create({
-              doc_thread_id: new mongoose.Types.ObjectId(newThread._id),
+            const temp = application.doc_modification_thread.create({
+              doc_thread_id: new_doc_thread._id,
               updatedAt: new Date(),
               createdAt: new Date()
             });
 
-            student.generaldocs_threads.push(threadEntry);
-            await newThread.save();
+            application.doc_modification_thread.push(temp);
+            await new_doc_thread.save();
+            await application.save();
           }
         }
-      } else {
-        logger.info('Create specific RL tasks!');
-        for (let j = 0; j < nrRLrequired; j += 1) {
-          const newThread = new Documentthread({
-            student_id: new mongoose.Types.ObjectId(studentId),
-            file_type: RLs_CONSTANT[j],
-            application_id: application._id,
-            program_id: new mongoose.Types.ObjectId(new_programIds[i]),
-            updatedAt: new Date()
-          });
-          const threadEntry = application.doc_modification_thread.create({
-            doc_thread_id: newThread._id,
-            updatedAt: new Date(),
-            createdAt: new Date()
-          });
-
-          application.doc_modification_thread.push(threadEntry);
-          await newThread.save();
-        }
+      } catch (error) {
+        logger.error(
+          `Error creating supplementary form threads: ${error.message}`
+        );
+        throw new ErrorResponse(
+          500,
+          'Failed to create supplementary form threads'
+        );
       }
+
+      student.notification.isRead_new_programs_assigned = false;
+    } catch (error) {
+      logger.error(`Error creating application: ${error.message}`);
+      throw new ErrorResponse(500, 'Failed to create application');
     }
-
-    // Create supplementary form task
-    const Documentthread = req.db.model('Documentthread');
-
-    for (const doc of PROGRAM_SPECIFIC_FILETYPE) {
-      if (program[doc.required] === 'yes') {
-        const new_doc_thread = new Documentthread({
-          student_id: new mongoose.Types.ObjectId(studentId),
-          file_type: doc.fileType,
-          application_id: application._id,
-          program_id: new mongoose.Types.ObjectId(new_programIds[i]),
-          updatedAt: new Date()
-        });
-        const temp = application.doc_modification_thread.create({
-          doc_thread_id: new_doc_thread._id,
-          updatedAt: new Date(),
-          createdAt: new Date()
-        });
-
-        application.doc_modification_thread.push(temp);
-        await new_doc_thread.save();
-      }
-    }
-
-    student.notification.isRead_new_programs_assigned = false;
   }
   await student.save();
 
-  res.status(201).send({ success: true, data: [] });
+  const applications_updated = await req.db
+    .model('Application')
+    .find({ studentId })
+    .populate('programId', 'school program_name degree semester')
+    .populate('doc_modification_thread.doc_thread_id', '-messages')
+    .lean();
+
+  res.status(201).send({ success: true, data: applications_updated });
 
   if (isNotArchiv(student)) {
     await createApplicationToStudentEmail(

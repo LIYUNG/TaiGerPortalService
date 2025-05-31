@@ -57,11 +57,13 @@ const applyProgramSchema = (
   db,
   VCModel,
   StudentModel,
+  ApplicationModel,
   DocumentthreadModel,
   surveyInputModel
 ) => {
   programSchema.plugin(handleProgramChanges, {
     StudentModel,
+    ApplicationModel,
     DocumentthreadModel,
     surveyInputModel
   });
@@ -124,6 +126,7 @@ const connectToDatabase = (tenant, uri = null) => {
       connection,
       connection.model('VC'),
       connection.model('Student'),
+      connection.model('Application'),
       connection.model('Documentthread'),
       connection.model('surveyInput')
     );

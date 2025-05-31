@@ -291,16 +291,12 @@ const updateVPDPayment = asyncHandler(async (req, res, next) => {
     body: { isPaid }
   } = req;
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId');
+  const applications = await req.db
+    .model('Application')
+    .find({ studentId })
+    .populate('programId');
 
-  if (!student) {
-    logger.error('updateVPDPayment: Invalid student id!');
-    throw new ErrorResponse(404, 'Student not found');
-  }
-  const app = student.applications.find(
+  const app = applications.find(
     (application) => application.programId._id.toString() === program_id
   );
   if (!app) {
@@ -310,13 +306,13 @@ const updateVPDPayment = asyncHandler(async (req, res, next) => {
 
   app.uni_assist.isPaid = isPaid;
   app.uni_assist.updatedAt = new Date();
-  await student.save();
 
-  const updatedApplication = student.applications.find(
+  await app.save();
+
+  const updatedApplication = applications.find(
     (application) => application.programId._id.toString() === program_id
   );
 
-  // retrieve studentId differently depend on if student or Admin/Agent uploading the file
   res.status(201).send({ success: true, data: updatedApplication });
   next();
 });
@@ -327,16 +323,12 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
     params: { studentId, program_id }
   } = req;
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId');
+  const applications = await req.db
+    .model('Application')
+    .find({ studentId })
+    .populate('programId');
 
-  if (!student) {
-    logger.error('updateVPDFileNecessity: Invalid student id!');
-    throw new ErrorResponse(404, 'Student not found');
-  }
-  const app = student.applications.find(
+  const app = applications.find(
     (application) => application.programId._id.toString() === program_id
   );
   if (!app) {
@@ -351,9 +343,9 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
   }
   app.uni_assist.updatedAt = new Date();
   app.uni_assist.vpd_file_path = '';
-  await student.save();
+  await app.save();
 
-  const updatedApplication = student.applications.find(
+  const updatedApplication = applications.find(
     (application) => application.programId._id.toString() === program_id
   );
 
@@ -369,24 +361,20 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
     params: { studentId, program_id, fileType }
   } = req;
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId');
+  const applications = await req.db
+    .model('Application')
+    .find({ studentId })
+    .populate('programId');
 
-  if (!student) {
-    logger.error('saveVPDFilePath: Invalid student id!');
-    throw new ErrorResponse(404, 'Invalid student id');
-  }
-  const app = student.applications.find(
+  const app = applications.find(
     (application) => application.programId._id.toString() === program_id
   );
   if (!app) {
     app.uni_assist.status = DocumentStatusType.Uploaded;
     app.uni_assist.updatedAt = new Date();
     app.uni_assist.vpd_file_path = req.file.key;
-    await student.save();
-    const updatedApplication = student.applications.find(
+    await app.save();
+    const updatedApplication = applications.find(
       (application) => application.programId._id.toString() === program_id
     );
     res.status(201).send({ success: true, data: updatedApplication });
@@ -404,8 +392,8 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
     app.uni_assist.vpd_paid_confirmation_file_path = req.file.key;
   }
 
-  await student.save();
-  const updatedApplication = student.applications.find(
+  await app.save();
+  const updatedApplication = applications.find(
     (application) => application.programId._id.toString() === program_id
   );
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
@@ -464,14 +452,13 @@ const downloadVPDFile = asyncHandler(async (req, res, next) => {
 
   // AWS S3
   // download the file via aws s3 here
-  const student = await req.db.model('Student').findById(studentId);
-  if (!student) {
-    logger.error('downloadVPDFile: Invalid student id!');
-    throw new ErrorResponse(404, 'Student not found');
-  }
+  const applications = await req.db
+    .model('Application')
+    .find({ studentId })
+    .populate('programId');
 
-  const app = student.applications.find(
-    (application) => application.programId.toString() === program_id
+  const app = applications.find(
+    (application) => application.programId._id.toString() === program_id
   );
   if (!app) {
     logger.error('downloadVPDFile: Invalid app name!');
@@ -1182,20 +1169,12 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
 const deleteVPDFile = asyncHandler(async (req, res, next) => {
   const { studentId, program_id, fileType } = req.params;
 
-  const student = await req.db
-    .model('Student')
-    .findOne({
-      _id: studentId
-    })
-    .populate('applications.programId')
-    .populate('agents editors', 'firstname lastname email');
+  const applications = await req.db
+    .model('Application')
+    .find({ studentId })
+    .populate('programId');
 
-  if (!student) {
-    logger.error(`deleteVPDFile: Invalid student Id ${studentId}`);
-    throw new ErrorResponse(404, 'Invalid student Id');
-  }
-
-  const app = student.applications.find(
+  const app = applications.find(
     (application) => application.programId._id.toString() === program_id
   );
   if (!app) {
@@ -1244,8 +1223,8 @@ const deleteVPDFile = asyncHandler(async (req, res, next) => {
       app.uni_assist.vpd_paid_confirmation_file_path = '';
     }
     app.uni_assist.updatedAt = new Date();
-    student.save();
-    const updatedApplication = student.applications.find(
+    await app.save();
+    const updatedApplication = applications.find(
       (application) => application.programId._id.toString() === program_id
     );
     res.status(200).send({ success: true, data: updatedApplication });

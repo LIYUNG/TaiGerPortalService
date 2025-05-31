@@ -29,10 +29,9 @@ const {
   assignEditorToStudent,
   createApplication,
   ToggleProgramStatus,
-  deleteApplication,
   getAllActiveStudents,
-  getStudentApplications,
-  assignAttributesToStudent
+  assignAttributesToStudent,
+  getStudentsV3
 } = require('../controllers/students');
 const {
   saveProfileFilePath,
@@ -73,6 +72,16 @@ router
     ),
     permission_canAccessStudentDatabase_filter,
     getStudents,
+    logAccess
+  );
+
+router
+  .route('/v3')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    permission_canAccessStudentDatabase_filter,
+    getStudentsV3,
     logAccess
   );
 
@@ -180,16 +189,6 @@ router
 
 router
   .route('/:studentId/applications')
-  .get(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent),
-    permission_canAccessStudentDatabase_filter,
-    validateStudentId,
-    multitenant_filter,
-    getStudentApplications,
-    logAccess
-  )
   .post(
     filter_archiv_user,
     GeneralPOSTRequestRateLimiter,
@@ -273,19 +272,6 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     deleteVPDFile,
-    logAccess
-  );
-
-router
-  .route('/:studentId/applications/:application_id')
-  .delete(
-    filter_archiv_user,
-    permit(Role.Admin, Role.Manager, Role.Agent),
-    permission_canAccessStudentDatabase_filter,
-    validateStudentId,
-    multitenant_filter,
-    InnerTaigerMultitenantFilter,
-    deleteApplication,
     logAccess
   );
 

@@ -35,7 +35,7 @@ const emptyS3Directory = asyncHandler(async (bucket, dir) => {
 });
 
 const createApplicationThread = async (
-  { StudentModel, DocumentthreadModel },
+  { StudentModel, ApplicationModel, DocumentthreadModel },
   studentId,
   programId,
   fileType
@@ -52,17 +52,17 @@ const createApplicationThread = async (
     );
     throw new ErrorResponse(409, 'Document Thread already existed!');
   }
-
-  const student = await StudentModel.findById(studentId).populate(
-    'applications.programId'
+  const student = await StudentModel.findById(studentId);
+  const applications = await ApplicationModel.find({ studentId }).populate(
+    'programId'
   );
 
-  if (!student) {
+  if (!applications) {
     logger.info('initApplicationMessagesThread: Invalid student id!');
     throw new ErrorResponse(404, 'Student not found');
   }
 
-  const appIdx = student.applications.findIndex(
+  const appIdx = applications.findIndex(
     (app) => app.programId._id.toString() === programId.toString()
   );
 
@@ -73,21 +73,21 @@ const createApplicationThread = async (
 
   const newThread = new DocumentthreadModel({
     student_id: studentId,
+    application_id: applications[appIdx]._id,
     file_type: fileType,
     program_id: programId,
     updatedAt: new Date()
   });
 
-  const newAppRecord = student.applications[
-    appIdx
-  ].doc_modification_thread.create({
+  const newAppRecord = applications[appIdx].doc_modification_thread.create({
     doc_thread_id: newThread,
     updatedAt: new Date(),
     createdAt: new Date()
   });
-  student.applications[appIdx].doc_modification_thread.push(newAppRecord);
+  applications[appIdx].doc_modification_thread.push(newAppRecord);
   student.notification.isRead_new_cvmlrl_tasks_created = false;
   await student.save();
+  await applications[appIdx].save();
   await newThread.save();
   return newAppRecord;
 };
@@ -105,14 +105,14 @@ const deleteApplicationThread = async (
   directory = directory.replace(/\\/g, '/');
   emptyS3Directory(AWS_S3_BUCKET_NAME, directory);
 
-  await req.StudentModel.findOneAndUpdate(
+  await req.ApplicationModel.findOneAndUpdate(
     {
-      _id: new mongoose.Types.ObjectId(studentId),
-      'applications.programId': new mongoose.Types.ObjectId(programId)
+      studentId: new mongoose.Types.ObjectId(studentId),
+      programId: new mongoose.Types.ObjectId(programId)
     },
     {
       $pull: {
-        'applications.$.doc_modification_thread': {
+        doc_modification_thread: {
           doc_thread_id: {
             _id: new mongoose.Types.ObjectId(messagesThreadId)
           }
@@ -193,7 +193,7 @@ const handleStudentDelta = asyncHandler(
   async (
     studentId,
     program,
-    { StudentModel, DocumentthreadModel, surveyInputModel }
+    { StudentModel, ApplicationModel, DocumentthreadModel, surveyInputModel }
   ) => {
     const studentDelta = await findStudentDelta(studentId, program, {
       DocumentthreadModel
@@ -202,7 +202,7 @@ const handleStudentDelta = asyncHandler(
     for (let missingDoc of studentDelta.add) {
       try {
         await createApplicationThread(
-          { StudentModel, DocumentthreadModel },
+          { StudentModel, ApplicationModel, DocumentthreadModel },
           missingDoc.studentId.toString(),
           missingDoc.programId.toString(),
           missingDoc.fileType
@@ -225,7 +225,12 @@ const handleStudentDelta = asyncHandler(
       }
       try {
         await deleteApplicationThread(
-          { StudentModel, DocumentthreadModel, surveyInputModel },
+          {
+            ApplicationModel,
+            StudentModel,
+            DocumentthreadModel,
+            surveyInputModel
+          },
           extraDoc.studentId.toString(),
           extraDoc.programId.toString(),
           extraDoc.fileThread._id.toString()
@@ -243,7 +248,10 @@ const handleStudentDelta = asyncHandler(
 );
 
 const handleThreadDelta = asyncHandler(
-  async (program, { StudentModel, DocumentthreadModel, surveyInputModel }) => {
+  async (
+    program,
+    { StudentModel, ApplicationModel, DocumentthreadModel, surveyInputModel }
+  ) => {
     const affectedStudents = await findAffectedStudents(program._id, {
       StudentModel
     });
@@ -251,6 +259,7 @@ const handleThreadDelta = asyncHandler(
       try {
         await handleStudentDelta(studentId, program, {
           StudentModel,
+          ApplicationModel,
           DocumentthreadModel,
           surveyInputModel
         });
@@ -265,7 +274,7 @@ const handleThreadDelta = asyncHandler(
 
 const handleProgramChanges = (
   schema,
-  { StudentModel, DocumentthreadModel, surveyInputModel }
+  { StudentModel, ApplicationModel, DocumentthreadModel, surveyInputModel }
 ) => {
   schema.pre(
     ['findOneAndUpdate', 'updateOne', 'updateMany', 'update'],
@@ -302,6 +311,7 @@ const handleProgramChanges = (
             );
             await handleThreadDelta(updatedDoc, {
               StudentModel,
+              ApplicationModel,
               DocumentthreadModel,
               surveyInputModel
             });

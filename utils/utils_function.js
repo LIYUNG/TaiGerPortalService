@@ -788,10 +788,10 @@ const numStudentYearDistribution = (students) =>
 //   };
 // });
 
-const add_portals_registered_status = (student_input) => {
-  const student = student_input;
-  for (let i = 0; i < student.applications.length; i += 1) {
-    const application = student.applications[i];
+const add_portals_registered_status = (applications) => {
+  const new_applications = [];
+  for (let i = 0; i < applications.length; i += 1) {
+    const application = applications[i];
     if (isProgramDecided(application)) {
       if (application.programId.application_portal_a) {
         if (
@@ -827,8 +827,9 @@ const add_portals_registered_status = (student_input) => {
     }
 
     delete application.portal_credentials;
+    new_applications.push(application);
   }
-  return student;
+  return new_applications;
 };
 
 const MeetingDailyReminderChecker = asyncHandler(async () => {

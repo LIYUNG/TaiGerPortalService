@@ -1,6 +1,7 @@
 const {
   Role,
   is_TaiGer_Agent,
+  is_TaiGer_Editor,
   is_TaiGer_External,
   is_TaiGer_Student
 } = require('@taiger-common/core');
@@ -41,12 +42,23 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
     user,
     params: { studentId }
   } = req;
-
+  const applicationsPromise = req.db
+    .model('Application')
+    .find({ studentId })
+    .populate('programId')
+    .populate({
+      path: 'doc_modification_thread.doc_thread_id',
+      select: 'file_type isFinalVersion updatedAt messages.file',
+      populate: {
+        path: 'messages.user_id',
+        select: 'firstname lastname'
+      }
+    })
+    .lean();
   const studentPromise = req.db
     .model('Student')
     .findById(studentId)
     .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId')
     .populate({
       path: 'generaldocs_threads.doc_thread_id',
       select: 'file_type isFinalVersion updatedAt messages.file',
@@ -55,17 +67,7 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
         select: 'firstname lastname'
       }
     })
-    .populate({
-      path: 'applications.doc_modification_thread.doc_thread_id',
-      select: 'file_type isFinalVersion updatedAt messages.file',
-      populate: {
-        path: 'messages.user_id',
-        select: 'firstname lastname'
-      }
-    })
-    .select(
-      '-taigerai +applications.portal_credentials.application_portal_a.account +applications.portal_credentials.application_portal_a.password +applications.portal_credentials.application_portal_b.account +applications.portal_credentials.application_portal_b.password'
-    )
+    .select('-taigerai')
     .lean();
 
   const base_docs_linkPromise = req.db.model('Basedocumentationslink').find({
@@ -89,18 +91,20 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
       }
     })
     .sort({ createdAt: -1 });
-  const [student, base_docs_link, survey_link, audit] = await Promise.all([
-    studentPromise,
-    base_docs_linkPromise,
-    survey_linkPromise,
-    auditPromise
-  ]);
+  const [student, applications, base_docs_link, survey_link, audit] =
+    await Promise.all([
+      studentPromise,
+      applicationsPromise,
+      base_docs_linkPromise,
+      survey_linkPromise,
+      auditPromise
+    ]);
   // TODO: remove agent notfication for new documents upload
-  const student_new = add_portals_registered_status(student);
+  student.applications = add_portals_registered_status(applications);
 
   res.status(200).send({
     success: true,
-    data: student_new,
+    data: student,
     base_docs_link,
     survey_link,
     audit
@@ -193,6 +197,100 @@ const getAllStudents = asyncHandler(async (req, res, next) => {
   const students = await StudentService.fetchStudents(req);
 
   res.status(200).send({ success: true, data: students });
+  next();
+});
+const getStudentsV3 = asyncHandler(async (req, res, next) => {
+  const { user } = req;
+
+  if (user.role === Role.Admin) {
+    const students = await StudentService.fetchStudents(req, {
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+
+    res.status(200).send({ success: true, data: students });
+  } else if (user.role === Role.Manager) {
+    let students = [];
+    // TODO: depends on manager type
+    if (user.manager_type === ManagerType.Agent) {
+      students = await StudentService.fetchStudents(req, {
+        agents: { $in: user.agents },
+        $or: [{ archiv: { $exists: false } }, { archiv: false }]
+      });
+    }
+    if (user.manager_type === ManagerType.Editor) {
+      students = await StudentService.fetchStudents(req, {
+        editors: { $in: user.editors },
+        $or: [{ archiv: { $exists: false } }, { archiv: false }]
+      });
+    }
+    if (user.manager_type === ManagerType.AgentAndEditor) {
+      students = await StudentService.fetchStudents(req, {
+        $and: [
+          {
+            $or: [
+              { agents: { $in: user.agents } },
+              { editors: { $in: user.editors } }
+            ]
+          },
+          { $or: [{ archiv: { $exists: false } }, { archiv: false }] }
+        ]
+      });
+    }
+    const courses = await req.db
+      .model('Course')
+      .find()
+      .select('-table_data_string')
+      .lean();
+    // Perform the join
+    const studentsWithCourse = students.map((student) => {
+      const matchingItemB = courses.find(
+        (course) => student._id.toString() === course.student_id.toString()
+      );
+      if (matchingItemB) {
+        return { ...student, courses: matchingItemB };
+      } else {
+        return { ...student };
+      }
+    });
+    const students_new = [];
+    for (let j = 0; j < studentsWithCourse.length; j += 1) {
+      students_new.push(add_portals_registered_status(studentsWithCourse[j]));
+    }
+    res.status(200).send({
+      success: true,
+      data: students_new,
+      notification: user.agent_notification
+    });
+  } else if (is_TaiGer_Agent(user)) {
+    const students = await StudentService.fetchStudents(req, {
+      agents: user._id,
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+
+    res.status(200).send({
+      success: true,
+      data: students
+    });
+  } else if (is_TaiGer_Editor(user)) {
+    const permissions = await getPermission(req, user);
+    if (permissions && permissions.canAssignEditors) {
+      const students = await StudentService.fetchSimpleStudents(req, {
+        $or: [{ archiv: { $exists: false } }, { archiv: false }]
+      });
+
+      res.status(200).send({ success: true, data: students });
+    } else {
+      const students = await StudentService.fetchSimpleStudents(req, {
+        editors: user._id,
+        $or: [{ archiv: { $exists: false } }, { archiv: false }]
+      });
+
+      res.status(200).send({ success: true, data: students });
+    }
+  } else {
+    // Guest
+    res.status(200).send({ success: true, data: [user] });
+  }
   next();
 });
 
@@ -349,7 +447,7 @@ const getStudents = asyncHandler(async (req, res, next) => {
       // auditLog,
       notification: user.agent_notification
     });
-  } else if (user.role === Role.Editor) {
+  } else if (is_TaiGer_Editor(user)) {
     const permissions = await getPermission(req, user);
     if (permissions && permissions.canAssignEditors) {
       const students = await req.db
@@ -992,22 +1090,6 @@ const ToggleProgramStatus = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const getStudentApplications = asyncHandler(async (req, res, next) => {
-  const {
-    params: { studentId }
-  } = req;
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .select('applications.programId')
-    .populate('applications.programId', 'school program_name degree semester');
-  if (!student) {
-    logger.error('getStudentApplications: no such student');
-    throw new ErrorResponse(404, 'getStudentApplications: no such student');
-  }
-  res.status(201).send({ success: true, data: student.applications });
-});
-
 // (O) email : student notification
 // (O) auto-create document thread for student: ML,RL,Essay
 // (if applicable, depending on program list)
@@ -1210,98 +1292,12 @@ const createApplication = asyncHandler(async (req, res, next) => {
   next();
 });
 
-// () TODO email : agent notification
-// () TODO email : student notification
-const deleteApplication = asyncHandler(async (req, res, next) => {
-  const {
-    params: { studentId, application_id }
-  } = req;
-
-  // retrieve studentId differently depend on if student or Admin/Agent uploading the file
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id'
-    )
-    .lean();
-  if (!student) {
-    logger.error('deleteApplication: Invalid student id');
-    throw new ErrorResponse(404, 'Student not found');
-  }
-
-  const application = student.applications.find(
-    ({ _id }) => _id.toString() === application_id
-  );
-  if (!application) {
-    logger.error('deleteApplication: Invalid application id');
-    throw new ErrorResponse(404, 'Application not found');
-  }
-  const Documentthread = req.db.model('Documentthread');
-
-  // checking if delete is safe?
-  for (let i = 0; i < application.doc_modification_thread.length; i += 1) {
-    if (
-      application.doc_modification_thread[i].doc_thread_id.messages.length !== 0
-    ) {
-      logger.error(
-        'deleteApplication: Some ML/RL/Essay discussion threads are existed and not empty.'
-      );
-      throw new ErrorResponse(
-        409,
-        `Some ML/RL/Essay discussion threads are existed and not empty. 
-        Please make sure the non-empty discussion threads are ready to be deleted and delete those thread first and then delete this application.`
-      );
-    }
-  }
-  try {
-    // remove uploaded files before remove program in database
-    let messagesThreadId;
-    for (let i = 0; i < application.doc_modification_thread.length; i += 1) {
-      messagesThreadId =
-        application.doc_modification_thread[i].doc_thread_id._id.toString();
-      logger.info('Trying to delete empty threads');
-      // Because there are no non-empty threads. Safe to delete application.
-
-      await Documentthread.findByIdAndDelete(messagesThreadId);
-      await req.db.model('Student').findOneAndUpdate(
-        { _id: studentId, 'applications._id': application_id },
-        {
-          $pull: {
-            'applications.$.doc_modification_thread': {
-              doc_thread_id: { _id: messagesThreadId }
-            }
-          }
-        }
-      );
-    }
-    // TODO: delete VPD
-
-    const student_updated = await req.db
-      .model('Student')
-      .findByIdAndUpdate(
-        studentId,
-        {
-          $pull: { applications: { _id: application_id } }
-        },
-        { new: true }
-      )
-      .populate('applications.programId');
-    res.status(200).send({ success: true, data: student_updated.applications });
-  } catch (err) {
-    logger.error(`Your Application folder not empty! ${err}`);
-    throw new ErrorResponse(500, 'Your Application folder not empty!');
-  }
-  next();
-});
-
 module.exports = {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
   getAllActiveStudents,
   getAllStudents,
+  getStudentsV3,
   getStudents,
   getStudentsAndDocLinks,
   updateStudentsArchivStatus,
@@ -1309,7 +1305,5 @@ module.exports = {
   assignEditorToStudent,
   assignAttributesToStudent,
   ToggleProgramStatus,
-  getStudentApplications,
-  createApplication,
-  deleteApplication
+  createApplication
 };

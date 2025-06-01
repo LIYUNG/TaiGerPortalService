@@ -33,10 +33,13 @@ const getMyStudentsApplications = asyncHandler(async (req, res) => {
   const applications =
     await ApplicationService.getStudentsApplicationsByTaiGerUserId(req, userId);
   // TODO: generalize it!
-  const students = await StudentService.fetchSimpleStudents(req, {
-    agents: { $in: [new mongoose.Types.ObjectId(userId)] },
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  });
+  const students = await StudentService.fetchStudentsWithGeneralThreadsInfo(
+    req,
+    {
+      agents: { $in: [new mongoose.Types.ObjectId(userId)] },
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    }
+  );
   res
     .status(200)
     .send({ success: true, data: { applications, students, user } });

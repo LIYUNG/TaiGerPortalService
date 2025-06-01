@@ -18,7 +18,10 @@ const DocumentThreadService = {
     const threads = await req.db
       .model('Documentthread')
       .find()
-      .populate('messages.user_id', 'firstname lastname email')
+      .populate(
+        'messages.user_id outsourced_user_id',
+        'firstname lastname email'
+      )
       .populate({
         path: 'student_id',
         populate: {
@@ -36,14 +39,18 @@ const DocumentThreadService = {
     // TODO: check if application is decided
     const filteredThreads = threads.filter(
       (thread) =>
-        thread.student_id?.agents.some(
+        (thread.student_id?.agents.some(
           (agent) => agent._id.toString() === userId
         ) ||
-        thread.student_id?.editors.some(
-          (editor) => editor._id.toString() === userId
-        )
-      //   &&
-      // thread?.application_id?.decided === 'O'
+          thread.student_id?.editors.some(
+            (editor) => editor._id.toString() === userId
+          ) ||
+          (thread.file_type === 'Essay' &&
+            thread.outsourced_user_id?.some(
+              (o_user_id) => o_user_id._id.toString() === userId
+            ))) &&
+        (thread?.application_id?.decided === 'O' || !thread?.application_id) &&
+        thread.file_type !== 'Interview'
     );
 
     return filteredThreads;

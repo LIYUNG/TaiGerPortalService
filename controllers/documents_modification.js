@@ -657,9 +657,8 @@ const getMessages = asyncHandler(async (req, res) => {
   // Find conflict list:
   let conflict_list = [];
   if (
-    is_TaiGer_Admin(user) ||
-    is_TaiGer_Agent(user) ||
-    is_TaiGer_Editor(user)
+    document_thread.application_id &&
+    (is_TaiGer_Admin(user) || is_TaiGer_Agent(user) || is_TaiGer_Editor(user))
   ) {
     conflict_list = await req.db
       .model('Application')

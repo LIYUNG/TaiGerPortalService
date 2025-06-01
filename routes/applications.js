@@ -20,13 +20,11 @@ const router = Router();
 
 router.use(protect);
 
-router
-  .route('/application/:application_id')
-  .delete(
-    getMessagesRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    deleteApplication
-  );
+router.route('/application/:application_id').delete(
+  getMessagesRateLimiter,
+  permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor), // TODO: Add multitenant_filter?
+  deleteApplication
+);
 
 router
   .route('/student/:studentId')

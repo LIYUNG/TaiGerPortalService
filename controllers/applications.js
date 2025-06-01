@@ -21,6 +21,7 @@ const {
   NewMLRLEssayTasksEmailFromTaiGer
 } = require('../services/email');
 const { ErrorResponse } = require('../common/errors');
+const ApplicationService = require('../services/applications');
 
 const getStudentApplications = asyncHandler(async (req, res) => {
   const {
@@ -44,12 +45,10 @@ const getStudentApplications = asyncHandler(async (req, res) => {
     .populate('generaldocs_threads.doc_thread_id', '-messages')
     .select('-attributes')
     .lean();
-  const applications = await req.db
-    .model('Application')
-    .find({ studentId })
-    .populate('programId')
-    .populate('doc_modification_thread.doc_thread_id', '-messages')
-    .lean();
+  const applications = await ApplicationService.getApplicationsByStudentId(
+    req,
+    studentId
+  );
   student.applications = applications;
   res.status(200).send({ success: true, data: student });
 });
@@ -242,71 +241,13 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
 
 const deleteApplication = asyncHandler(async (req, res, next) => {
   const { application_id } = req.params;
+  await ApplicationService.deleteApplication(req, application_id);
 
-  // retrieve studentId differently depend on if student or Admin/Agent uploading the file
-  //   const student = await req.db
-  //     .model('Student')
-  //     .findById(studentId)
-  //     .populate('agents editors', 'firstname lastname email')
-  //     .populate(
-  //       'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id'
-  //     )
-  //     .lean();
-  //   if (!student) {
-  //     logger.error('deleteApplication: Invalid student id');
-  //     throw new ErrorResponse(404, 'Student not found');
-  //   }
+  res.status(200).send({
+    success: true,
+    data: { message: 'Application deleted successfully' }
+  });
 
-  const application = await req.db
-    .model('Application')
-    .findById(application_id)
-    .populate('programId')
-    .populate('doc_modification_thread.doc_thread_id')
-    .lean();
-
-  const threads = await req.db
-    .model('Documentthread')
-    .find({ application_id })
-    .lean();
-
-  if (!application) {
-    logger.error('deleteApplication: Invalid application id');
-    throw new ErrorResponse(404, 'Application not found');
-  }
-
-  // checking if delete is safe?
-  for (let i = 0; i < threads.length; i += 1) {
-    if (threads[i].messages.length !== 0) {
-      logger.error(
-        'deleteApplication: Some ML/RL/Essay discussion threads are existed and not empty.'
-      );
-      throw new ErrorResponse(
-        409,
-        `Some ML/RL/Essay discussion threads are existed and not empty. Please make sure the non-empty discussion threads are ready to be deleted and delete those thread first and then delete this application.`
-      );
-    }
-  }
-
-  try {
-    // Only delete threads when all empty
-    const threadIds = threads.map(
-      (thread) => new mongoose.Types.ObjectId(thread._id.toString())
-    );
-    logger.info('Trying to delete empty threads');
-    await req.db.model('Documentthread').deleteMany({
-      _id: { $in: threadIds }
-    });
-    // TODO: delete VPD
-    await req.db.model('Application').findByIdAndDelete(application_id);
-
-    res.status(200).send({
-      success: true,
-      data: { message: 'Application deleted successfully' }
-    });
-  } catch (err) {
-    logger.error(`Your Application folder not empty! ${err}`);
-    throw new ErrorResponse(500, 'Your Application folder not empty!');
-  }
   next();
 });
 

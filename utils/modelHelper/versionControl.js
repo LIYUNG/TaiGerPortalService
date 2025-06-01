@@ -170,21 +170,17 @@ const isCrucialChanges = (changes) => {
 };
 
 const findAffectedStudents = asyncHandler(
-  async (programId, { StudentModel }) => {
+  async (programId, { ApplicationModel }) => {
     // non-archived student has open application for program
-    let students = await StudentModel.find({
-      applications: {
-        $elemMatch: {
-          programId: programId,
-          closed: '-'
-        }
-      },
+    const applications = await ApplicationModel.find({
+      programId,
+      closed: '-',
       archive: { $ne: true }
     })
-      .select('_id')
+      .select('studentId')
       .lean();
 
-    students = students.map((student) => student._id.toString());
+    const students = applications.map((app) => app.studentId.toString());
     return students;
   }
 );
@@ -198,7 +194,7 @@ const handleStudentDelta = asyncHandler(
     const studentDelta = await findStudentDelta(studentId, program, {
       DocumentthreadModel
     });
-
+    console.log('studentDelta', studentDelta);
     for (let missingDoc of studentDelta.add) {
       try {
         await createApplicationThread(
@@ -253,7 +249,7 @@ const handleThreadDelta = asyncHandler(
     { StudentModel, ApplicationModel, DocumentthreadModel, surveyInputModel }
   ) => {
     const affectedStudents = await findAffectedStudents(program._id, {
-      StudentModel
+      ApplicationModel
     });
     for (let studentId of affectedStudents) {
       try {

@@ -22,16 +22,24 @@ const {
 } = require('../services/email');
 const { ErrorResponse } = require('../common/errors');
 const ApplicationService = require('../services/applications');
+const UserService = require('../services/users');
+const StudentService = require('../services/students');
 
 const getMyStudentsApplications = asyncHandler(async (req, res) => {
   const {
     params: { userId }
   } = req;
-
+  const user = await UserService.getUserById(req, userId);
   const applications =
     await ApplicationService.getStudentsApplicationsByTaiGerUserId(req, userId);
-  const students = applications.map((app) => app.studentId);
-  res.status(200).send({ success: true, data: { applications, students } });
+  // TODO: generalize it!
+  const students = await StudentService.fetchSimpleStudents(req, {
+    agents: { $in: [new mongoose.Types.ObjectId(userId)] },
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  });
+  res
+    .status(200)
+    .send({ success: true, data: { applications, students, user } });
 });
 
 const getStudentApplications = asyncHandler(async (req, res) => {

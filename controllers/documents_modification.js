@@ -74,6 +74,15 @@ const getAllCVMLRLOverview = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: students });
 });
 
+const getMyStudentsThreads = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const threads = await DocumentThreadService.getStudentsThreadsByTaiGerUserId(
+    req,
+    userId
+  );
+  res.status(200).send({ success: true, data: threads });
+});
+
 const getSurveyInputDocuments = async (req, studentId, programId, fileType) => {
   const document = await req.db
     .model('surveyInput')
@@ -2352,6 +2361,7 @@ const getMyStudentMetrics = asyncHandler(async (req, res, next) => {
 
 module.exports = {
   getAllCVMLRLOverview,
+  getMyStudentsThreads,
   getSurveyInputs,
   postSurveyInput,
   putSurveyInput,

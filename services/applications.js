@@ -23,7 +23,15 @@ const ApplicationService = {
           select: 'firstname lastname email'
         }
       })
+      .populate({
+        path: 'studentId',
+        populate: {
+          path: 'generaldocs_threads.doc_thread_id',
+          select: '-messages'
+        }
+      })
       .populate('programId')
+      .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
 
     const filteredApplications = applications.filter(

@@ -54,7 +54,8 @@ const {
   checkDocumentPattern,
   getMyStudentMetrics,
   getThreadsByStudent,
-  getAllActiveEssaysV2
+  getAllActiveEssaysV2,
+  getMyStudentsThreads
 } = require('../controllers/documents_modification');
 const {
   docThreadMultitenant_filter,
@@ -90,6 +91,14 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     getMyStudentMetrics,
     logAccess
+  );
+
+router
+  .route('/overview/taiger-user/:userId')
+  .get(
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getMyStudentsThreads
   );
 
 router

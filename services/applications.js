@@ -12,6 +12,28 @@ const ApplicationService = {
     });
     return application;
   },
+  async getStudentsApplicationsByTaiGerUserId(req, userId) {
+    const applications = await req.db
+      .model('Application')
+      .find()
+      .populate({
+        path: 'studentId',
+        populate: {
+          path: 'editors agents',
+          select: 'firstname lastname email'
+        }
+      })
+      .populate('programId')
+      .lean();
+
+    const filteredApplications = applications.filter(
+      (app) =>
+        app.studentId.agents.some((agent) => agent._id.toString() === userId) ||
+        app.studentId.editors.some((editor) => editor._id.toString() === userId)
+    );
+
+    return filteredApplications;
+  },
   async getApplicationsByStudentId(req, studentId) {
     const applications = await req.db
       .model('Application')
@@ -61,7 +83,7 @@ const ApplicationService = {
         );
         throw new ErrorResponse(
           409,
-          `Some ML/RL/Essay discussion threads are existed and not empty. Please make sure the non-empty discussion threads are ready to be deleted and delete those thread first and then delete this application.`
+          'Some ML/RL/Essay discussion threads are existed and not empty. Please make sure the non-empty discussion threads are ready to be deleted and delete those thread first and then delete this application.'
         );
       }
     }

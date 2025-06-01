@@ -11,7 +11,8 @@ const { protect, permit } = require('../middlewares/auth');
 const {
   getStudentApplications,
   deleteApplication,
-  createApplicationV2
+  createApplicationV2,
+  getMyStudentsApplications
 } = require('../controllers/applications');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
@@ -25,6 +26,14 @@ router.route('/application/:application_id').delete(
   permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor), // TODO: Add multitenant_filter?
   deleteApplication
 );
+
+router
+  .route('/taiger-user/:userId')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getMyStudentsApplications
+  );
 
 router
   .route('/student/:studentId')

@@ -83,7 +83,7 @@ const getApplicationDeltaByProgram = asyncHandler(async (req, programId) => {
   const studentDeltaPromises = [];
   const options = { skipCompleted: true };
   for (const student of students) {
-    if (!student.application || student.application.closed !== '-') {
+    if (!student || student.closed !== '-') {
       continue;
     }
     const studentDelta = getStudentDeltas(req, student, program, options);

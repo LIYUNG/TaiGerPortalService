@@ -126,35 +126,34 @@ const getPrograms = asyncHandler(async (req, res) => {
 });
 
 const getStudentsByProgram = asyncHandler(async (req, programId) => {
-  const students = await req.db
-    .model('Student')
+  const applications = await req.db
+    .model('Application')
     .find({
-      applications: {
-        $elemMatch: {
-          programId: programId,
-          decided: 'O'
-        }
+      programId,
+      decided: 'O'
+    })
+    .populate({
+      path: 'studentId',
+      select: 'agents editors firstname lastname',
+      populate: {
+        path: 'agents editors',
+        select: 'firstname lastname'
       }
     })
-    .populate('agents editors', 'firstname')
-    .populate('applications.doc_modification_thread.doc_thread_id', 'file_type')
-    .select(
-      'firstname lastname applications application_preference.expected_application_date'
-    )
     .lean();
 
-  if (!students) {
-    return;
-  }
-
-  students.forEach((student) => {
-    student.application = student.applications.find(
-      (app) => app.programId.toString() === programId.toString()
-    );
-    delete student.applications;
+  const studentSet = new Set();
+  applications.forEach((application) => {
+    studentSet.add({
+      ...application.studentId,
+      application_year: application.application_year,
+      agents: application.studentId.agents,
+      closed: application.closed,
+      admission: application.admission
+    });
   });
 
-  return students;
+  return Array.from(studentSet);
 });
 
 const getProgram = asyncHandler(async (req, res) => {

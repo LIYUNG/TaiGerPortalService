@@ -30,7 +30,6 @@ const {
 
 const {
   getAllCVMLRLOverview,
-  getCVMLRLOverview,
   initGeneralMessagesThread,
   initApplicationMessagesThread,
   getMessages,
@@ -131,14 +130,6 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     surveyMultitenantFilter,
     postSurveyInput
-  );
-
-router
-  .route('/overview')
-  .get(
-    getMessagesRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
-    getCVMLRLOverview
   );
 
 router

@@ -36,8 +36,13 @@ const ApplicationService = {
 
     const filteredApplications = applications.filter(
       (app) =>
-        app.studentId.agents.some((agent) => agent._id.toString() === userId) ||
-        app.studentId.editors.some((editor) => editor._id.toString() === userId)
+        app.studentId.archiv !== true &&
+        (app.studentId.agents.some(
+          (agent) => agent._id.toString() === userId
+        ) ||
+          app.studentId.editors.some(
+            (editor) => editor._id.toString() === userId
+          ))
     );
 
     return filteredApplications;

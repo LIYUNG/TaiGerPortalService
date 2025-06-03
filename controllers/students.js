@@ -36,25 +36,18 @@ const {
 const { getPermission } = require('../utils/queryFunctions');
 const StudentService = require('../services/students');
 const UserQueryBuilder = require('../builders/UserQueryBuilder');
+const ApplicationService = require('../services/applications');
 
 const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const {
     user,
     params: { studentId }
   } = req;
-  const applicationsPromise = req.db
-    .model('Application')
-    .find({ studentId })
-    .populate('programId')
-    .populate({
-      path: 'doc_modification_thread.doc_thread_id',
-      select: 'file_type isFinalVersion updatedAt messages.file',
-      populate: {
-        path: 'messages.user_id',
-        select: 'firstname lastname'
-      }
-    })
-    .lean();
+  const applicationsPromise = ApplicationService.getApplicationsByStudentId(
+    req,
+    studentId
+  );
+
   const studentPromise = req.db
     .model('Student')
     .findById(studentId)
@@ -194,7 +187,7 @@ const getAllStudents = asyncHandler(async (req, res, next) => {
     .withPagination(page, limit)
     .withSort(sortBy, sortOrder)
     .build();
-  const students = await StudentService.fetchStudents(req);
+  const students = await StudentService.fetchStudents(req, filter);
 
   res.status(200).send({ success: true, data: students });
   next();

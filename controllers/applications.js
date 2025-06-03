@@ -3,7 +3,9 @@ const {
   Role,
   isProgramDecided,
   isProgramSubmitted,
-  is_TaiGer_Student
+  is_TaiGer_Student,
+  is_TaiGer_Agent,
+  is_TaiGer_Editor
 } = require('@taiger-common/core');
 const mongoose = require('mongoose');
 
@@ -27,22 +29,30 @@ const StudentService = require('../services/students');
 
 const getMyStudentsApplications = asyncHandler(async (req, res) => {
   const {
+    user,
     params: { userId }
   } = req;
-  const user = await UserService.getUserById(req, userId);
+  const taiGerUser = await UserService.getUserById(req, userId);
+  const studentQuery = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
+
+  if (is_TaiGer_Agent(user)) {
+    studentQuery.agents = user._id.toString();
+  } else if (is_TaiGer_Editor(user)) {
+    studentQuery.editors = user._id.toString();
+  }
   const applications =
     await ApplicationService.getStudentsApplicationsByTaiGerUserId(req, userId);
-  // TODO: generalize it!
+
   const students = await StudentService.fetchStudentsWithGeneralThreadsInfo(
     req,
-    {
-      agents: { $in: [new mongoose.Types.ObjectId(userId)] },
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    }
+    studentQuery
   );
-  res
-    .status(200)
-    .send({ success: true, data: { applications, students, user } });
+  res.status(200).send({
+    success: true,
+    data: { applications, students, user: taiGerUser }
+  });
 });
 
 const getStudentApplications = asyncHandler(async (req, res) => {

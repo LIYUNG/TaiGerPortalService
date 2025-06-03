@@ -1,4 +1,4 @@
-const { isProgramDecided } = require('@taiger-common/core');
+const StudentService = require('./students');
 
 const DocumentThreadService = {
   async getThreadById(req, messagesThreadId) {
@@ -13,6 +13,25 @@ const DocumentThreadService = {
       .populate('program_id')
       .populate('outsourced_user_id', 'firstname lastname role')
       .lean();
+  },
+  async getStudentThreadsByStudentId(req, studentId) {
+    const threads = await req.db
+      .model('Documentthread')
+      .find({ student_id: studentId })
+      .populate(
+        'program_id',
+        'school program_name application_deadline degree semester lang'
+      )
+      .populate('application_id')
+      .lean();
+
+    const filteredThreads = threads.filter(
+      (thread) =>
+        (thread?.application_id?.decided === 'O' || !thread?.application_id) &&
+        thread.file_type !== 'Interview'
+    );
+
+    return filteredThreads;
   },
   async getStudentsThreadsByTaiGerUserId(req, userId) {
     const threads = await req.db
@@ -35,8 +54,7 @@ const DocumentThreadService = {
         'school program_name application_deadline degree semester lang'
       )
       .lean();
-    console.log(threads);
-    // TODO: check if application is decided
+
     const filteredThreads = threads.filter(
       (thread) =>
         (thread.student_id?.agents.some(
@@ -49,6 +67,42 @@ const DocumentThreadService = {
             thread.outsourced_user_id?.some(
               (o_user_id) => o_user_id._id.toString() === userId
             ))) &&
+        (thread?.application_id?.decided === 'O' || !thread?.application_id) &&
+        thread.file_type !== 'Interview'
+    );
+
+    return filteredThreads;
+  },
+  async getAllStudentsThreads(req) {
+    const activeStudentsIds = await StudentService.fetchSimpleStudents(req, {
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+
+    const threads = await req.db
+      .model('Documentthread')
+      .find({
+        student_id: { $in: activeStudentsIds.map((student) => student._id) }
+      })
+      .populate(
+        'messages.user_id outsourced_user_id',
+        'firstname lastname email'
+      )
+      .populate({
+        path: 'student_id',
+        populate: {
+          path: 'editors agents',
+          select: 'firstname lastname email'
+        }
+      })
+      .populate('application_id')
+      .populate(
+        'program_id',
+        'school program_name application_deadline degree semester lang'
+      )
+      .lean();
+
+    const filteredThreads = threads.filter(
+      (thread) =>
         (thread?.application_id?.decided === 'O' || !thread?.application_id) &&
         thread.file_type !== 'Interview'
     );

@@ -64,14 +64,9 @@ const StudentService = require('../services/students');
 const DocumentThreadService = require('../services/documentthreads');
 
 const getAllCVMLRLOverview = asyncHandler(async (req, res) => {
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-  const students = await StudentService.fetchStudentsWithThreadsInfo(
-    req,
-    studentQuery
-  );
-  res.status(200).send({ success: true, data: students });
+  const threads = await DocumentThreadService.getAllStudentsThreads(req);
+
+  res.status(200).send({ success: true, data: threads });
 });
 
 const getMyStudentsThreads = asyncHandler(async (req, res) => {
@@ -223,47 +218,6 @@ const resetSurveyInput = asyncHandler(async (req, res, next) => {
       .populate('program_id')
       .lean();
     informOnSurveyUpdate(req, user, updatedSurvey, thread);
-  }
-});
-
-const getCVMLRLOverview = asyncHandler(async (req, res) => {
-  const { user } = req;
-
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-
-  if (is_TaiGer_Agent(user)) {
-    studentQuery.agents = user._id.toString();
-  } else if (is_TaiGer_Editor(user)) {
-    studentQuery.editors = user._id.toString();
-  }
-
-  if (
-    is_TaiGer_Admin(user) ||
-    is_TaiGer_Agent(user) ||
-    is_TaiGer_Editor(user)
-  ) {
-    const students = await StudentService.fetchStudentsWithThreadsInfo(
-      req,
-      studentQuery
-    );
-    res.status(200).send({ success: true, data: students });
-  } else if (is_TaiGer_Student(user)) {
-    const obj = user.notification; // create object
-    obj.isRead_new_cvmlrl_messsage = true; // set value
-    obj.isRead_new_cvmlrl_tasks_created = true;
-    await req.db
-      .model('Student')
-      .findByIdAndUpdate(user._id.toString(), { notification: obj }, {});
-    const student = await StudentService.fetchStudentByIdWithThreadsInfo(
-      req,
-      user._id
-    );
-    res.status(200).send({ success: true, data: [student] });
-  } else {
-    // Guest
-    res.status(200).send({ success: true, data: [user] });
   }
 });
 
@@ -2277,41 +2231,13 @@ const getActiveThreadsByStudent = (student) => [
   ...(student.generaldocs_threads || [])
 ];
 
-const getActiveThreadsByStudentWithProgramName = (student) => [
-  ...(student.applications
-    .filter((app) => isProgramDecided(app))
-    .flatMap((app) =>
-      app.doc_modification_thread?.map((thread) => ({
-        _id: String(thread.doc_thread_id._id),
-        file_type: thread.doc_thread_id.file_type,
-        isFinalVersion: thread.doc_thread_id.isFinalVersion,
-        messages: thread.doc_thread_id.messages,
-        student_id: String(student._id),
-        updatedAt: thread.doc_thread_id.updatedAt,
-        program_id: app.programId
-      }))
-    ) || []),
-  ...(student.generaldocs_threads?.map((thread) => ({
-    _id: String(thread.doc_thread_id._id),
-    file_type: thread.doc_thread_id.file_type,
-    isFinalVersion: thread.doc_thread_id.isFinalVersion,
-    messages: thread.doc_thread_id.messages,
-    student_id: String(student._id),
-    updatedAt: thread.doc_thread_id.updatedAt,
-    program_id: null
-  })) || [])
-];
-
 const getThreadsByStudent = asyncHandler(async (req, res, next) => {
   const { studentId } = req.params;
 
-  const student = await StudentService.fetchStudentByIdWithThreadsInfo(
+  const threads = await DocumentThreadService.getStudentThreadsByStudentId(
     req,
     studentId
   );
-
-  const threads = getActiveThreadsByStudentWithProgramName(student);
-
   res.status(200).send({
     success: true,
     data: {
@@ -2365,7 +2291,6 @@ module.exports = {
   postSurveyInput,
   putSurveyInput,
   resetSurveyInput,
-  getCVMLRLOverview,
   initGeneralMessagesThread,
   initApplicationMessagesThread,
   getMessages,

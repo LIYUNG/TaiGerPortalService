@@ -18,6 +18,7 @@ const {
 } = require('../common/validation');
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
+const UserService = require('../services/users');
 
 const generateRandomToken = () => crypto.randomBytes(32).toString('hex');
 const hashToken = (token) =>
@@ -126,7 +127,9 @@ const addUser = asyncHandler(async (req, res, next) => {
 });
 
 const getUsers = asyncHandler(async (req, res) => {
-  const users = await req.db.model('User').find({}).lean();
+  const { query } = req;
+  console.log('query', query);
+  const users = await UserService.getUsers(req, query);
   res.status(200).send({ success: true, data: users });
 });
 

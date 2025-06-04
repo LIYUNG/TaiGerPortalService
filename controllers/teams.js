@@ -823,36 +823,6 @@ const getStatistics = asyncHandler(async (req, res) => {
   }
 });
 
-const getAgents = asyncHandler(async (req, res, next) => {
-  const { user } = req;
-  if (user.role === 'Agent') {
-    const permissions = await getPermission(req, user);
-    if (permissions && permissions.canAssignAgents) {
-      const agents = await req.db
-        .model('Agent')
-        .find({
-          $or: [{ archiv: { $exists: false } }, { archiv: false }]
-        })
-        .select('firstname lastname');
-      res.status(200).send({ success: true, data: agents });
-    } else {
-      logger.error('getAgents: no permission');
-      throw new ErrorResponse(
-        403,
-        'You do not have the permission to do this action'
-      );
-    }
-  } else {
-    const agents = await req.db
-      .model('Agent')
-      .find({
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .select('firstname lastname');
-    res.status(200).send({ success: true, data: agents });
-  }
-});
-
 const getSingleAgent = asyncHandler(async (req, res, next) => {
   const { agent_id } = req.params;
 
@@ -899,36 +869,6 @@ const getAgentProfile = asyncHandler(async (req, res, next) => {
     .select('firstname lastname email selfIntroduction officehours timezone');
 
   res.status(200).send({ success: true, data: agent });
-});
-
-const getEditors = asyncHandler(async (req, res, next) => {
-  const { user } = req;
-  if (user.role === Role.Editor) {
-    const permissions = await getPermission(req, user);
-    if (permissions && permissions.canAssignEditors) {
-      const editors = await req.db
-        .model('Editor')
-        .find({
-          $or: [{ archiv: { $exists: false } }, { archiv: false }]
-        })
-        .select('firstname lastname');
-      res.status(200).send({ success: true, data: editors });
-    } else {
-      logger.error('getEditors: no permission');
-      throw new ErrorResponse(
-        403,
-        'You do not have the permission to do this action'
-      );
-    }
-  } else {
-    const editors = await req.db
-      .model('Editor')
-      .find({
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .select('firstname lastname');
-    res.status(200).send({ success: true, data: editors });
-  }
 });
 
 const getSingleEditor = asyncHandler(async (req, res, next) => {
@@ -1023,13 +963,11 @@ const getEssayWriters = asyncHandler(async (req, res, next) => {
 module.exports = {
   getTeamMembers,
   getStatistics,
-  getAgents,
   getResponseIntervalByStudent,
   getResponseTimeByStudent,
   getSingleAgent,
   putAgentProfile,
   getAgentProfile,
-  getEditors,
   getSingleEditor,
   getArchivStudents,
   getEssayWriters,

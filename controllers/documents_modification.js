@@ -62,6 +62,8 @@ const { getPermission } = require('../utils/queryFunctions');
 const { TENANT_SHORT_NAME } = require('../constants/common');
 const StudentService = require('../services/students');
 const DocumentThreadService = require('../services/documentthreads');
+const UserService = require('../services/users');
+const { queryStudent } = require('../utils/helper');
 
 const getActiveThreads = asyncHandler(async (req, res) => {
   const { query } = req;
@@ -76,7 +78,8 @@ const getMyStudentsThreads = asyncHandler(async (req, res) => {
     req,
     userId
   );
-  res.status(200).send({ success: true, data: threads });
+  const user = await UserService.getUserById(req, userId);
+  res.status(200).send({ success: true, data: { threads, user } });
 });
 
 const getSurveyInputDocuments = async (req, studentId, programId, fileType) => {
@@ -2065,20 +2068,13 @@ const isAdminOrAccessAllChat = async (req) => {
 
 const getMyStudents = async (req) => {
   const { user } = req;
-  const studentQuery = {
+  let studentQuery = {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   };
 
   const hasAllChatAccess = await isAdminOrAccessAllChat(req);
   if (!hasAllChatAccess) {
-    if (is_TaiGer_Agent(user)) {
-      studentQuery.agents = user._id.toString();
-    } else if (is_TaiGer_Editor(user)) {
-      studentQuery.editors = user._id.toString();
-    } else {
-      logger.error(`getMyMessages: not ${TENANT_SHORT_NAME} user!`);
-      throw new ErrorResponse(401, `Invalid ${TENANT_SHORT_NAME} user`);
-    }
+    studentQuery = queryStudent(studentQuery, user);
   }
 
   const students = await StudentService.fetchStudentsWithThreadsInfo(

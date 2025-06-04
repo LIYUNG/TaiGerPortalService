@@ -73,16 +73,17 @@ const DocumentThreadService = {
 
     return filteredThreads;
   },
-  async getAllStudentsThreads(req) {
+  async getAllStudentsThreads(req, query) {
+    const queryFilter = { ...query };
     const activeStudentsIds = await StudentService.fetchSimpleStudents(req, {
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     });
-
+    queryFilter.student_id = {
+      $in: activeStudentsIds.map((student) => student._id)
+    };
     const threads = await req.db
       .model('Documentthread')
-      .find({
-        student_id: { $in: activeStudentsIds.map((student) => student._id) }
-      })
+      .find(queryFilter)
       .populate(
         'messages.user_id outsourced_user_id',
         'firstname lastname email'

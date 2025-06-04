@@ -29,7 +29,7 @@ const {
 } = require('../middlewares/file-upload');
 
 const {
-  getAllCVMLRLOverview,
+  getActiveThreads,
   initGeneralMessagesThread,
   initApplicationMessagesThread,
   getMessages,
@@ -46,14 +46,12 @@ const {
   putSurveyInput,
   assignEssayWritersToEssayTask,
   resetSurveyInput,
-  getAllActiveEssays,
   putOriginAuthorConfirmedByStudent,
   putThreadFavorite,
   IgnoreMessageInDocumentThread,
   checkDocumentPattern,
   getMyStudentMetrics,
   getThreadsByStudent,
-  getAllActiveEssaysV2,
   getMyStudentsThreads
 } = require('../controllers/documents_modification');
 const {
@@ -105,7 +103,7 @@ router
   .get(
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getAllCVMLRLOverview
+    getActiveThreads
   );
 
 router
@@ -160,39 +158,6 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     initApplicationMessagesThread
-  );
-
-// TODO: remove this route after migration
-router
-  .route('/essays/all')
-  .get(
-    getMessagesRateLimiter,
-    permit(
-      Role.Admin,
-      Role.Manager,
-      Role.Agent,
-      Role.Editor,
-      Role.Student,
-      Role.External
-    ),
-    getAllActiveEssays,
-    logAccess
-  );
-
-router
-  .route('/essays/all/v2')
-  .get(
-    getMessagesRateLimiter,
-    permit(
-      Role.Admin,
-      Role.Manager,
-      Role.Agent,
-      Role.Editor,
-      Role.Student,
-      Role.External
-    ),
-    getAllActiveEssaysV2,
-    logAccess
   );
 
 router

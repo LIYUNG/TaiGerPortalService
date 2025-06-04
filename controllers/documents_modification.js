@@ -63,8 +63,9 @@ const { TENANT_SHORT_NAME } = require('../constants/common');
 const StudentService = require('../services/students');
 const DocumentThreadService = require('../services/documentthreads');
 
-const getAllCVMLRLOverview = asyncHandler(async (req, res) => {
-  const threads = await DocumentThreadService.getAllStudentsThreads(req);
+const getActiveThreads = asyncHandler(async (req, res) => {
+  const { query } = req;
+  const threads = await DocumentThreadService.getAllStudentsThreads(req, query);
 
   res.status(200).send({ success: true, data: threads });
 });
@@ -2009,7 +2010,7 @@ const getRelevantEssayThreadsV2 = (essayDocumentThreads) => {
   const matchingDocuments = [];
   essayDocumentThreads
     .filter(
-      (doc) => doc.application_id?.decided === 'O' && !doc.application_id.archiv
+      (doc) => doc.application_id?.decided === 'O' && !doc.student_id.archiv
     )
     .forEach((doc) => matchingDocuments.push(doc));
 
@@ -2036,143 +2037,6 @@ const getRelevantEssayThreads = (essayDocumentThreads) => {
     .forEach((doc) => matchingDocuments.push(doc));
   return matchingDocuments;
 };
-
-const getAllActiveEssays = asyncHandler(async (req, res, next) => {
-  try {
-    const { user } = req;
-    if (is_TaiGer_Student(user)) {
-      const essayDocumentThreads = await req.db
-        .model('Documentthread')
-        .find(
-          {
-            student_id: new mongoose.Types.ObjectId(user._id),
-            file_type: 'Essay'
-          },
-          { messages: { $slice: -1 } }
-        )
-        .populate('student_id outsourced_user_id')
-        .populate({
-          path: 'student_id messages.user_id',
-          select: '-attributes',
-          populate: {
-            path: 'agents',
-            model: 'User'
-          }
-        })
-        .populate('messages.user_id', 'firstname lastname role')
-        .populate(
-          'program_id',
-          'school program_name degree application_deadline semester lang'
-        )
-        .lean();
-
-      const matchingDocuments = getRelevantEssayThreads(essayDocumentThreads);
-      res.status(200).send({ success: true, data: matchingDocuments });
-    } else if (is_TaiGer_External(user)) {
-      res.status(200).send({ success: true, data: [] });
-    } else {
-      const essayDocumentThreads = await req.db
-        .model('Documentthread')
-        .find(
-          {
-            file_type: 'Essay'
-          },
-          { messages: { $slice: -1 } }
-        )
-        .populate('student_id outsourced_user_id')
-        .populate({
-          path: 'student_id messages.user_id',
-          populate: {
-            path: 'agents editors',
-            model: 'User'
-          }
-        })
-        .populate('messages.user_id', 'firstname lastname role')
-        .populate(
-          'program_id',
-          'school program_name degree application_deadline semester lang'
-        )
-        .lean();
-
-      const matchingDocuments = getRelevantEssayThreads(essayDocumentThreads);
-      res.status(200).send({ success: true, data: matchingDocuments });
-    }
-    next();
-    // Handle matched data
-  } catch (error) {
-    logger.error(error);
-    throw new ErrorResponse(403, 'Invalid ThreadId');
-  }
-});
-
-const getAllActiveEssaysV2 = asyncHandler(async (req, res, next) => {
-  try {
-    const { user } = req;
-    if (is_TaiGer_Student(user)) {
-      const essayDocumentThreads = await req.db
-        .model('Documentthread')
-        .find(
-          {
-            student_id: new mongoose.Types.ObjectId(user._id),
-            file_type: 'Essay'
-          },
-          { messages: { $slice: -1 } }
-        )
-        .populate('student_id outsourced_user_id')
-        .populate('application_id', 'application_year decided')
-        .populate({
-          path: 'student_id messages.user_id',
-          select: '-attributes',
-          populate: {
-            path: 'agents',
-            model: 'User'
-          }
-        })
-        .populate('messages.user_id', 'firstname lastname role')
-        .populate(
-          'program_id',
-          'school program_name degree application_deadline semester lang'
-        )
-        .lean();
-      const matchingDocuments = getRelevantEssayThreadsV2(essayDocumentThreads);
-      res.status(200).send({ success: true, data: matchingDocuments });
-    } else if (is_TaiGer_External(user)) {
-      res.status(200).send({ success: true, data: [] });
-    } else {
-      const essayDocumentThreads = await req.db
-        .model('Documentthread')
-        .find(
-          {
-            file_type: 'Essay'
-          },
-          { messages: { $slice: -1 } }
-        )
-        .populate('student_id outsourced_user_id')
-        .populate('application_id', 'application_year decided')
-        .populate({
-          path: 'student_id messages.user_id',
-          populate: {
-            path: 'agents editors',
-            model: 'User'
-          }
-        })
-        .populate('messages.user_id', 'firstname lastname role')
-        .populate(
-          'program_id',
-          'school program_name degree application_deadline semester lang'
-        )
-        .lean();
-
-      const matchingDocuments = getRelevantEssayThreadsV2(essayDocumentThreads);
-      res.status(200).send({ success: true, data: matchingDocuments });
-    }
-    next();
-    // Handle matched data
-  } catch (error) {
-    logger.error(error);
-    throw new ErrorResponse(403, 'Invalid ThreadId');
-  }
-});
 
 const IgnoreMessageInDocumentThread = asyncHandler(async (req, res, next) => {
   const {
@@ -2285,7 +2149,7 @@ const getMyStudentMetrics = asyncHandler(async (req, res, next) => {
 });
 
 module.exports = {
-  getAllCVMLRLOverview,
+  getActiveThreads,
   getMyStudentsThreads,
   getSurveyInputs,
   postSurveyInput,
@@ -2307,8 +2171,6 @@ module.exports = {
   handleDeleteGeneralThread,
   handleDeleteProgramThread,
   deleteAMessageInThread,
-  getAllActiveEssays,
-  getAllActiveEssaysV2,
   assignEssayWritersToEssayTask,
   clearEssayWriters,
   IgnoreMessageInDocumentThread

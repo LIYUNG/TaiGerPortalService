@@ -57,10 +57,7 @@ const getExpense = asyncHandler(async (req, res) => {
       })
       .populate('agents editors', 'firstname lastname email')
       .populate('applications.programId')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
+      .populate('generaldocs_threads.doc_thread_id', '-messages')
       .select('-notification')
       .lean();
     // Merge the results
@@ -82,10 +79,7 @@ const getExpense = asyncHandler(async (req, res) => {
       })
       .populate('agents editors', 'firstname lastname email')
       .populate('applications.programId')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
+      .populate('generaldocs_threads.doc_thread_id', '-messages')
       .select('-notification')
       .lean();
     // Merge the results

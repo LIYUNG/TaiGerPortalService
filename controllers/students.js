@@ -3,7 +3,8 @@ const {
   is_TaiGer_Agent,
   is_TaiGer_Editor,
   is_TaiGer_External,
-  is_TaiGer_Student
+  is_TaiGer_Student,
+  is_TaiGer_Admin
 } = require('@taiger-common/core');
 const mongoose = require('mongoose');
 
@@ -443,18 +444,9 @@ const getStudents = asyncHandler(async (req, res, next) => {
   } else if (is_TaiGer_Editor(user)) {
     const permissions = await getPermission(req, user);
     if (permissions && permissions.canAssignEditors) {
-      const students = await req.db
-        .model('Student')
-        .find({
-          $or: [{ archiv: { $exists: false } }, { archiv: false }]
-        })
-        .populate('agents editors', 'firstname lastname email')
-        .populate('applications.programId')
-        .populate(
-          'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-          '-messages'
-        )
-        .select('-notification');
+      const students = await StudentService.fetchStudents(req, {
+        $or: [{ archiv: { $exists: false } }, { archiv: false }]
+      });
 
       res.status(200).send({ success: true, data: students });
     } else {
@@ -638,18 +630,9 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res, next) => {
     } else if (is_TaiGer_Agent(user)) {
       const permissions = await getPermission(req, user);
       if (permissions && permissions.canAssignAgents) {
-        const students = await req.db
-          .model('Student')
-          .find({
-            $or: [{ archiv: { $exists: false } }, { archiv: false }]
-          })
-          .populate('agents editors', 'firstname lastname email')
-          .populate('applications.programId')
-          .populate(
-            'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-            '-messages'
-          )
-          .select('-notification');
+        const students = await StudentService.fetchStudents(req, {
+          $or: [{ archiv: { $exists: false } }, { archiv: false }]
+        });
 
         res.status(200).send({ success: true, data: students });
       } else {
@@ -692,32 +675,29 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res, next) => {
       );
     }
   } else {
-    if (user.role === Role.Admin) {
-      const students = await req.db
-        .model('Student')
-        .find({ archiv: true })
-        .populate('applications.programId agents editors')
-        .lean();
-      res.status(200).send({ success: true, data: students });
-    } else if (is_TaiGer_Agent(user)) {
-      const students = await req.db
-        .model('Student')
-        .find({
-          agents: user._id,
-          archiv: true
-        })
-        .populate('applications.programId agents editors')
-        .lean();
+    if (is_TaiGer_Admin(user)) {
+      const query = { archiv: true };
+      const students = await StudentService.getStudents(req, {
+        filter: query,
+        options: {}
+      });
 
       res.status(200).send({ success: true, data: students });
-    } else if (user.role === Role.Editor) {
-      const students = await req.db
-        .model('Student')
-        .find({
-          editors: user._id,
-          archiv: true
-        })
-        .populate('applications.programId');
+    } else if (is_TaiGer_Agent(user)) {
+      const query = { agents: user._id, archiv: true };
+      const students = await StudentService.getStudents(req, {
+        filter: query,
+        options: {}
+      });
+
+      res.status(200).send({ success: true, data: students });
+    } else if (is_TaiGer_Editor(user)) {
+      const query = { editors: user._id, archiv: true };
+      const students = await StudentService.getStudents(req, {
+        filter: query,
+        options: {}
+      });
+
       res.status(200).send({ success: true, data: students });
     } else {
       // Guest
@@ -1083,208 +1063,6 @@ const ToggleProgramStatus = asyncHandler(async (req, res, next) => {
   next();
 });
 
-// (O) email : student notification
-// (O) auto-create document thread for student: ML,RL,Essay
-// (if applicable, depending on program list)
-// TODO: race condition risk (when send 2 api call concurrently)
-const createApplication = asyncHandler(async (req, res, next) => {
-  const {
-    user,
-    params: { studentId },
-    body: { program_id_set }
-  } = req;
-  // Limit the number of assigning programs
-  const max_application = 20;
-  if (program_id_set.length > max_application) {
-    logger.error(
-      'createApplication: too much program assigned: ',
-      program_id_set.length
-    );
-    throw new ErrorResponse(
-      400,
-      `You assign too many programs to student. Please select max. ${max_application} programs.`
-    );
-  }
-  const student = await req.db.model('Student').findById(studentId);
-  const programObjectIds = program_id_set.map(
-    (id) => new mongoose.Types.ObjectId(id)
-  );
-  const program_ids = await req.db
-    .model('Program')
-    .find({
-      _id: { $in: programObjectIds },
-      $or: [{ isArchiv: { $exists: false } }, { isArchiv: false }]
-    })
-    .lean();
-  if (program_ids.length !== programObjectIds.length) {
-    logger.error('createApplication: some program_ids invalid');
-    throw new ErrorResponse(
-      400,
-      'Some Programs are out-of-date. Please refresh the page.'
-    );
-  }
-  // limit the number in students application.
-  if (student.applications.length + programObjectIds.length > max_application) {
-    logger.error(
-      `${student.firstname} ${student.lastname} has more than ${max_application} programs!`
-    );
-    throw new ErrorResponse(
-      400,
-      `${student.firstname} ${student.lastname} has more than ${max_application} programs!`
-    );
-  }
-
-  const studentApplications = student.applications.map(
-    ({ programId, application_year }) => ({
-      programId: programId.toString(),
-      application_year
-    })
-  );
-
-  // () TODO: check if the same university accept more than 1 application (different programs)
-  // () TODO: differentiate the case of different year / semester?
-  // () TODO: or only show warning?
-
-  // Create programId array only new for student.
-  const application_year =
-    student.application_preference?.expected_application_date || '<TBD>';
-  const new_programIds = program_id_set.filter(
-    (id) =>
-      !studentApplications.some(
-        (app) =>
-          app.programId === id && app.application_year === application_year
-      )
-  );
-
-  // Insert only new programIds for student.
-  for (let i = 0; i < new_programIds.length; i += 1) {
-    const application = student.applications.create({
-      programId: new mongoose.Types.ObjectId(new_programIds[i])
-    });
-    application.application_year = application_year;
-    let program = program_ids.find(
-      ({ _id }) => _id.toString() === new_programIds[i]
-    );
-
-    // check if RL required, if yes, create new thread
-    if (
-      program.rl_required !== undefined &&
-      Number.isInteger(parseInt(program.rl_required)) >= 0
-    ) {
-      // TODO: if no specific requirement,
-      const nrRLrequired = parseInt(program.rl_required);
-      if (isNaN(nrRLrequired)) {
-        logger.error(
-          `createApplication ${new_programIds[i]}: RL required is not a number`
-        );
-      }
-      const Documentthread = req.db.model('Documentthread');
-      const isRLSpecific = program.is_rl_specific;
-      const NoRLSpecificFlag =
-        isRLSpecific === undefined || isRLSpecific === null;
-      // create specific RL tag if flag is false, or no flag and no requirement
-      if (
-        isRLSpecific === false ||
-        (NoRLSpecificFlag && !program.rl_requirements)
-      ) {
-        // check if general RL is created, if not, create ones!
-        const genThreadIds = student.generaldocs_threads.map(
-          (thread) => thread.doc_thread_id
-        );
-        const generalRLcount = await req.db
-          .model('Documentthread')
-          .find({
-            _id: { $in: genThreadIds },
-            file_type: { $regex: /Recommendation_Letter_/ }
-          })
-          .countDocuments();
-
-        if (generalRLcount < nrRLrequired) {
-          // create general RL tasks
-          logger.info('Create general RL tasks!');
-          for (let j = generalRLcount; j < nrRLrequired; j += 1) {
-            const newThread = new Documentthread({
-              student_id: new mongoose.Types.ObjectId(studentId),
-              file_type: GENERAL_RLs_CONSTANT[j],
-              updatedAt: new Date()
-            });
-            const threadEntry = application.doc_modification_thread.create({
-              doc_thread_id: new mongoose.Types.ObjectId(newThread._id),
-              updatedAt: new Date(),
-              createdAt: new Date()
-            });
-
-            student.generaldocs_threads.push(threadEntry);
-            await newThread.save();
-          }
-        }
-      } else {
-        logger.info('Create specific RL tasks!');
-        for (let j = 0; j < nrRLrequired; j += 1) {
-          const newThread = new Documentthread({
-            student_id: new mongoose.Types.ObjectId(studentId),
-            file_type: RLs_CONSTANT[j],
-            program_id: new mongoose.Types.ObjectId(new_programIds[i]),
-            updatedAt: new Date()
-          });
-          const threadEntry = application.doc_modification_thread.create({
-            doc_thread_id: newThread._id,
-            updatedAt: new Date(),
-            createdAt: new Date()
-          });
-
-          application.doc_modification_thread.push(threadEntry);
-          await newThread.save();
-        }
-      }
-    }
-
-    // Create supplementary form task
-    const Documentthread = req.db.model('Documentthread');
-
-    for (const doc of PROGRAM_SPECIFIC_FILETYPE) {
-      if (program[doc.required] === 'yes') {
-        const new_doc_thread = new Documentthread({
-          student_id: new mongoose.Types.ObjectId(studentId),
-          file_type: doc.fileType,
-          program_id: new mongoose.Types.ObjectId(new_programIds[i]),
-          updatedAt: new Date()
-        });
-        const temp = application.doc_modification_thread.create({
-          doc_thread_id: new_doc_thread._id,
-          updatedAt: new Date(),
-          createdAt: new Date()
-        });
-
-        application.doc_modification_thread.push(temp);
-        await new_doc_thread.save();
-      }
-    }
-
-    student.notification.isRead_new_programs_assigned = false;
-    student.applications.push(application);
-  }
-  await student.save();
-
-  res.status(201).send({ success: true, data: student.applications });
-
-  if (isNotArchiv(student)) {
-    await createApplicationToStudentEmail(
-      {
-        firstname: student.firstname,
-        lastname: student.lastname,
-        address: student.email
-      },
-      {
-        agent_firstname: user.firstname,
-        agent_lastname: user.lastname,
-        programs: program_ids
-      }
-    );
-  }
-  next();
-});
-
 module.exports = {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
@@ -1297,6 +1075,5 @@ module.exports = {
   assignAgentToStudent,
   assignEditorToStudent,
   assignAttributesToStudent,
-  ToggleProgramStatus,
-  createApplication
+  ToggleProgramStatus
 };

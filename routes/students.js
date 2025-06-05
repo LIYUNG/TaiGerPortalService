@@ -27,7 +27,6 @@ const {
   updateStudentsArchivStatus,
   assignAgentToStudent,
   assignEditorToStudent,
-  createApplication,
   ToggleProgramStatus,
   getAllActiveStudents,
   assignAttributesToStudent,
@@ -184,20 +183,6 @@ router
     InnerTaigerMultitenantFilter,
     validateStudentId,
     assignAttributesToStudent,
-    logAccess
-  );
-
-router
-  .route('/:studentId/applications')
-  .post(
-    filter_archiv_user,
-    GeneralPOSTRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent),
-    permission_canAccessStudentDatabase_filter,
-    validateStudentId,
-    multitenant_filter,
-    InnerTaigerMultitenantFilter,
-    createApplication,
     logAccess
   );
 

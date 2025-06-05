@@ -102,7 +102,7 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
 
   let new_task_flag = false;
   if (!student) {
-    logger.error('UpdateStudentApplications: Invalid student id');
+    logger.error('updateStudentApplications: Invalid student id');
     throw new ErrorResponse(404, 'Invalid student id');
   }
   const new_app_decided_idx = [];
@@ -114,7 +114,7 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
       (app) => app._id == applications[i]._id
     );
     if (!application) {
-      logger.error('UpdateStudentApplications: Invalid document status');
+      logger.error('updateStudentApplications: Invalid document status');
       throw new ErrorResponse(
         404,
         'Invalid application. Please refresh the page and try updating again.'

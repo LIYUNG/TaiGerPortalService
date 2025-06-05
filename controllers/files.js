@@ -1,10 +1,7 @@
 const path = require('path');
 const {
-  Role,
   DocumentStatusType,
-  is_TaiGer_Student,
-  isProgramSubmitted,
-  isProgramDecided
+  is_TaiGer_Student
 } = require('@taiger-common/core');
 
 const { asyncHandler } = require('../middlewares/error-handler');
@@ -18,11 +15,7 @@ const {
   sendUploadedProfileFilesRemindForAgentEmail,
   sendUploadedVPDRemindForAgentEmail,
   sendChangedProfileFileStatusEmail,
-  UpdateStudentApplicationsEmail,
-  NewMLRLEssayTasksEmail,
-  NewMLRLEssayTasksEmailFromTaiGer,
   AdmissionResultInformEmailToTaiGer
-  // sendSomeReminderEmail,
 } = require('../services/email');
 const { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
 const logger = require('../services/logger');
@@ -649,196 +642,6 @@ const updateProfileDocumentStatus = asyncHandler(async (req, res, next) => {
   }
 });
 
-// () TODO: notification student email works includding tasks if decided
-// (O) notification agent email works
-// () TODO: notification editor email works includding tasks if decided
-const UpdateStudentApplications = asyncHandler(async (req, res, next) => {
-  const {
-    user,
-    params: { studentId },
-    body: { applications, applying_program_count }
-  } = req;
-  // retrieve studentId differently depend on if student or Admin/Agent uploading the file
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId')
-    .populate('applications', 'doc_modification_thread.doc_thread_id');
-
-  let new_task_flag = false;
-  if (!student) {
-    logger.error('UpdateStudentApplications: Invalid student id');
-    throw new ErrorResponse(404, 'Invalid student id');
-  }
-  const new_app_decided_idx = [];
-  for (let i = 0; i < applications.length; i += 1) {
-    const application_idx = student.applications.findIndex(
-      (app) => app._id == applications[i]._id
-    );
-    const application = student.applications.find(
-      (app) => app._id == applications[i]._id
-    );
-    if (!application) {
-      logger.error('UpdateStudentApplications: Invalid document status');
-      throw new ErrorResponse(
-        404,
-        'Invalid application. Please refresh the page and try updating again.'
-      );
-    }
-    if (
-      isProgramDecided(applications[i]) &&
-      application.decided !== applications[i].decided
-    ) {
-      // if applications[i].decided === 'yes', send ML/RL/Essay Tasks link in Email for eidtor, student
-      // Add new tasks and send to email
-      new_app_decided_idx.push(application_idx);
-      if (
-        application.programId.uni_assist &&
-        application.programId.uni_assist.includes('Yes')
-      ) {
-        student.notification.isRead_uni_assist_task_assigned = false;
-      }
-      // add reminder banner
-      student.notification.isRead_new_cvmlrl_tasks_created = false;
-      new_task_flag = true;
-    }
-    application.decided = applications[i].decided;
-    application.closed = applications[i].closed;
-    // TODO: any faster way to query one time and write back once?!
-    if (isProgramSubmitted(application)) {
-      for (let k = 0; k < application.doc_modification_thread.length; k += 1) {
-        application.doc_modification_thread[k].updatedAt = new Date();
-        const document_thread = await req.db
-          .model('Documentthread')
-          .findById(application.doc_modification_thread[k].doc_thread_id);
-        document_thread.isFinalVersion = true;
-        document_thread.updatedAt = new Date();
-        await document_thread.save();
-      }
-    }
-    application.admission = applications[i].admission;
-    application.finalEnrolment = applications[i].finalEnrolment;
-  }
-  if (user.role === Role.Admin) {
-    student.applying_program_count = parseInt(applying_program_count);
-  }
-  await student.save();
-
-  const student_updated = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
-    .populate('agents editors', 'firstname lastname email archiv')
-    .select('-profile -notification -application_preference')
-    .lean();
-
-  res.status(201).send({ success: true, data: student_updated });
-  if (is_TaiGer_Student(user)) {
-    for (let i = 0; i < student_updated.agents.length; i += 1) {
-      if (isNotArchiv(student_updated.agents[i])) {
-        await UpdateStudentApplicationsEmail(
-          {
-            firstname: student_updated.agents[i].firstname,
-            lastname: student_updated.agents[i].lastname,
-            address: student_updated.agents[i].email
-          },
-          {
-            student: student_updated,
-            sender_firstname: student_updated.firstname,
-            sender_lastname: student_updated.lastname,
-            student_applications: student_updated.applications,
-            new_app_decided_idx: new_app_decided_idx
-          }
-        );
-      }
-    }
-    if (isNotArchiv(student_updated)) {
-      await UpdateStudentApplicationsEmail(
-        {
-          firstname: student_updated.firstname,
-          lastname: student_updated.lastname,
-          address: student_updated.email
-        },
-        {
-          student: student_updated,
-          sender_firstname: student_updated.firstname,
-          sender_lastname: student_updated.lastname,
-          student_applications: student_updated.applications,
-          new_app_decided_idx
-        }
-      );
-    }
-
-    if (new_task_flag) {
-      for (let i = 0; i < student_updated.editors.length; i += 1) {
-        if (isNotArchiv(student_updated.editors[i])) {
-          if (isNotArchiv(student_updated)) {
-            await NewMLRLEssayTasksEmail(
-              {
-                firstname: student_updated.editors[i].firstname,
-                lastname: student_updated.editors[i].lastname,
-                address: student_updated.editors[i].email
-              },
-              {
-                sender_firstname: student_updated.firstname,
-                sender_lastname: student_updated.lastname,
-                student_applications: student_updated.applications,
-                new_app_decided_idx: new_app_decided_idx
-              }
-            );
-          }
-        }
-      }
-    }
-  } else {
-    if (isNotArchiv(student_updated)) {
-      await UpdateStudentApplicationsEmail(
-        {
-          firstname: student_updated.firstname,
-          lastname: student_updated.lastname,
-          address: student_updated.email
-        },
-        {
-          student: student_updated,
-          sender_firstname: user.firstname,
-          sender_lastname: user.lastname,
-          student_applications: student_updated.applications,
-          new_app_decided_idx
-        }
-      );
-    }
-
-    if (new_task_flag) {
-      for (let i = 0; i < student_updated.editors.length; i += 1) {
-        if (isNotArchiv(student_updated.editors[i])) {
-          if (isNotArchiv(student_updated)) {
-            await NewMLRLEssayTasksEmailFromTaiGer(
-              {
-                firstname: student_updated.editors[i].firstname,
-                lastname: student_updated.editors[i].lastname,
-                address: student_updated.editors[i].email
-              },
-              {
-                student_firstname: student_updated.firstname,
-                student_lastname: student_updated.lastname,
-                sender_firstname: user.firstname,
-                sender_lastname: user.lastname,
-                student_applications: student_updated.applications,
-                new_app_decided_idx: new_app_decided_idx
-              }
-            );
-          }
-        }
-      }
-    }
-  }
-  next();
-});
-
 const updateStudentApplicationResultV2 = asyncHandler(
   async (req, res, next) => {
     const { studentId, programId } = req.params;
@@ -1307,7 +1110,6 @@ module.exports = {
   downloadProfileFileURL,
   downloadTemplateFile,
   updateProfileDocumentStatus,
-  UpdateStudentApplications,
   updateStudentApplicationResultV2,
   updateStudentApplicationResult,
   deleteProfileFile,

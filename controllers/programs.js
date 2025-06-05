@@ -11,6 +11,8 @@ const logger = require('../services/logger');
 const { one_month_cache } = require('../cache/node-cache');
 const { two_weeks_cache } = require('../cache/node-cache');
 const { PROGRAMS_CACHE } = require('../config');
+const ApplicationService = require('../services/applications');
+const ProgramService = require('../services/programs');
 
 const getDistinctSchoolsAttributes = async (req, res) => {
   try {
@@ -158,24 +160,14 @@ const getStudentsByProgram = asyncHandler(async (req, programId) => {
 
 const getProgram = asyncHandler(async (req, res) => {
   const { user } = req;
-  // prevent student multitenancy
-  if (is_TaiGer_Student(user)) {
-    if (
-      user.applications.findIndex(
-        (app) => app.programId.toString() === req.params.programId
-      ) === -1
-    ) {
-      logger.error('getProgram: Invalid program id in your applications');
-      throw new ErrorResponse(403, 'Invalid program id in your applications');
-    }
-  }
   if (PROGRAMS_CACHE === 'true') {
     const value = one_month_cache.get(req.originalUrl);
     if (value === undefined) {
       // cache miss
-      const program = await req.db
-        .model('Program')
-        .findById(req.params.programId);
+      const program = await ProgramService.getProgramById(
+        req,
+        req.params.programId
+      );
       if (!program) {
         logger.error('getProgram: Invalid program id');
         throw new ErrorResponse(404, 'Program not found');
@@ -228,20 +220,7 @@ const getProgram = asyncHandler(async (req, res) => {
       let students = [];
 
       if (user.role !== Role.External) {
-        students = await req.db
-          .model('Student')
-          .find({
-            applications: {
-              $elemMatch: {
-                programId: req.params.programId,
-                decided: 'O'
-              }
-            }
-          })
-          .populate('agents editors', 'firstname')
-          .select(
-            'firstname lastname applications application_preference.expected_application_date'
-          );
+        students = await getStudentsByProgram(req, req.params.programId);
       }
 
       const vc = await req.db
@@ -282,9 +261,10 @@ const getProgram = asyncHandler(async (req, res) => {
 
     res.send({ success: true, data: program, students, vc });
   } else {
-    const program = await req.db
-      .model('Program')
-      .findById(req.params.programId);
+    const program = await ProgramService.getProgramById(
+      req,
+      req.params.programId
+    );
     if (!program) {
       logger.error('getProgram: Invalid program id');
       throw new ErrorResponse(404, 'Program not found');
@@ -301,7 +281,7 @@ const createProgram = asyncHandler(async (req, res) => {
   new_program.program_name = new_program.program_name.trim();
   new_program.updatedAt = new Date();
   new_program.whoupdated = `${user.firstname} ${user.lastname}`;
-  const programs = await req.db.model('Program').find({
+  const programs = await ProgramService.getPrograms(req, {
     school: new_program.school,
     program_name: new_program.program_name,
     degree: new_program.degree,
@@ -367,6 +347,10 @@ const updateProgram = asyncHandler(async (req, res) => {
 
 const deleteProgram = asyncHandler(async (req, res) => {
   // All students including archived
+  const applications = await ApplicationService.getApplicationsByProgramId(
+    req,
+    req.params.programId
+  );
   const students = await req.db
     .model('Student')
     .find({
@@ -379,7 +363,7 @@ const deleteProgram = asyncHandler(async (req, res) => {
     .select('firstname lastname applications.programId')
     .lean();
   // Check if anyone applied this program
-  if (students.length === 0) {
+  if (applications.length === 0) {
     logger.info('it can be safely deleted!');
 
     await req.db
@@ -397,10 +381,14 @@ const deleteProgram = asyncHandler(async (req, res) => {
   } else {
     logger.error('it can not be deleted!');
     logger.error('The following students have these programs!');
-    logger.error(
-      students.map((std) => `${std.firstname} ${std.lastname}`).join(', ')
+    const students_names = students
+      .map((std) => `${std.firstname} ${std.lastname}`)
+      .join(', ');
+    logger.error(students_names);
+    throw new ErrorResponse(
+      403,
+      `This program can not be deleted! ${students_names} are applying or considering this program.`
     );
-    throw new ErrorResponse(403, 'This program can not be deleted!');
   }
   res.status(200).send({ success: true });
   if (students.length === 0) {

@@ -47,14 +47,22 @@ const ApplicationService = {
 
     return filteredApplications;
   },
-  async getApplicationsByStudentId(req, studentId) {
+  async getApplications(req, filter) {
     const applications = await req.db
       .model('Application')
-      .find({ studentId })
+      .find(filter)
       .populate('programId')
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
 
+    return applications;
+  },
+  async getApplicationsByStudentId(req, studentId) {
+    const applications = await this.getApplications(req, { studentId });
+    return applications;
+  },
+  async getApplicationsByProgramId(req, programId) {
+    const applications = await this.getApplications(req, { programId });
     return applications;
   },
   async getApplicationById(req, applicationId) {

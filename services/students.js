@@ -34,7 +34,7 @@ const StudentService = {
     return req.db
       .model('Student')
       .find(filter)
-      .populate('agents editors', 'firstname lastname email')
+      .populate('agents editors', 'firstname lastname email archiv')
       .select('-notification')
       .lean();
   },
@@ -54,6 +54,13 @@ const StudentService = {
       .sort(options.sort)
       .skip(options.skip)
       .limit(options.limit)
+      .lean();
+  },
+  async getStudentById(req, id) {
+    return req.db
+      .model('Student')
+      .findById(id)
+      .populate('agents editors', 'firstname lastname email')
       .lean();
   },
   async fetchStudentsWithThreadsInfo(req, filter) {

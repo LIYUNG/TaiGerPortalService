@@ -128,14 +128,13 @@ const addUser = asyncHandler(async (req, res, next) => {
 
 const getUsers = asyncHandler(async (req, res) => {
   const { query } = req;
-  console.log('query', query);
   const users = await UserService.getUsers(req, query);
   res.status(200).send({ success: true, data: users });
 });
 
 const getUser = asyncHandler(async (req, res) => {
   const { user_id } = req.params;
-  const user = await req.db.model('User').findById(user_id).lean();
+  const user = await UserService.getUserById(req, user_id);
 
   res.status(200).send({ success: true, data: user });
 });

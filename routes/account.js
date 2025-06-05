@@ -24,7 +24,6 @@ const {
   deleteTemplate,
   uploadTemplate,
   downloadTemplateFile,
-  UpdateStudentApplications,
   removeNotification,
   removeAgentNotification,
   getMyAcademicBackground,
@@ -79,18 +78,6 @@ router
     DownloadTemplateRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     downloadTemplateFile,
-    logAccess
-  );
-
-router
-  .route('/applications/:studentId')
-  .put(
-    filter_archiv_user,
-    GeneralPUTRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
-    multitenant_filter,
-    InnerTaigerMultitenantFilter,
-    UpdateStudentApplications,
     logAccess
   );
 

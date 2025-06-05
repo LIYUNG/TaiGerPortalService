@@ -4,7 +4,8 @@ const { Role } = require('@taiger-common/core');
 const {
   GeneralGETRequestRateLimiter,
   getMessagesRateLimiter,
-  postMessagesImageRateLimiter
+  postMessagesImageRateLimiter,
+  GeneralPUTRequestRateLimiter
 } = require('../middlewares/rate_limiter');
 const { protect, permit } = require('../middlewares/auth');
 
@@ -12,10 +13,15 @@ const {
   getStudentApplications,
   deleteApplication,
   createApplicationV2,
-  getMyStudentsApplications
+  getMyStudentsApplications,
+  updateStudentApplications
 } = require('../controllers/applications');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
+const {
+  InnerTaigerMultitenantFilter
+} = require('../middlewares/InnerTaigerMultitenantFilter');
+const { logAccess } = require('../utils/log/log');
 
 const router = Router();
 
@@ -41,6 +47,16 @@ router
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     getStudentApplications
+  )
+  .put(
+    // TODO: not implemented yet (UI dependent!)
+    filter_archiv_user,
+    GeneralPUTRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
+    multitenant_filter,
+    InnerTaigerMultitenantFilter,
+    updateStudentApplications,
+    logAccess
   )
   .post(
     filter_archiv_user,

@@ -45,7 +45,7 @@ router
   .route('/student/:studentId')
   .get(
     GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     getStudentApplications
   )
   .put(

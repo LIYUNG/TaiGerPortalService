@@ -43,7 +43,7 @@ const StudentService = {
       .model('Student')
       .find(filter)
       .populate('generaldocs_threads.doc_thread_id', '-messages')
-      .populate('editors agents', 'firstname lastname')
+      .populate('editors agents', 'firstname lastname email archiv')
       .lean();
   },
   async getStudents(req, { filter = {}, options = {} }) {
@@ -61,6 +61,7 @@ const StudentService = {
       .model('Student')
       .findById(id)
       .populate('agents editors', 'firstname lastname email archiv')
+      .populate('generaldocs_threads.doc_thread_id', '-messages')
       .lean();
   },
   async updateStudentById(req, id, update) {

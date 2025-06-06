@@ -77,6 +77,9 @@ const getStudentApplications = asyncHandler(async (req, res) => {
     studentId
   );
   student.applications = applications;
+  if (user.role === Role.Student) {
+    delete student.attributes;
+  }
   res.status(200).send({ success: true, data: student });
 });
 

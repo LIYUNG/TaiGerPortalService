@@ -38,6 +38,7 @@ const { getPermission } = require('../utils/queryFunctions');
 const StudentService = require('../services/students');
 const UserQueryBuilder = require('../builders/UserQueryBuilder');
 const ApplicationService = require('../services/applications');
+const InterviewService = require('../services/interviews');
 
 const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const {
@@ -460,54 +461,44 @@ const getStudents = asyncHandler(async (req, res, next) => {
   } else if (is_TaiGer_External(user)) {
     res.status(200).send({ success: true, data: [] });
   } else if (is_TaiGer_Student(user)) {
-    const studentPromise = req.db
-      .model('Student')
-      .findById(user._id.toString())
-      .populate('applications.programId')
-      .populate('agents editors', '-students')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
-      .select(
-        '-attributes +applications.portal_credentials.application_portal_a.account +applications.portal_credentials.application_portal_a.password +applications.portal_credentials.application_portal_b.account +applications.portal_credentials.application_portal_b.password'
-      )
-      .lean();
+    const studentPromise = StudentService.fetchSimpleStudents(req, {
+      _id: user._id.toString()
+    });
 
-    const interviewsPromise = req.db
-      .model('Interview')
-      .find({
-        student_id: user._id.toString()
-      })
-      .populate('trainer_id', 'firstname lastname email')
-      .populate('event_id')
-      .lean();
+    const applicationsPromise = ApplicationService.getApplicationsByStudentId(
+      req,
+      user._id.toString()
+    );
 
-    const [student, interviews] = await Promise.all([
+    const interviewsPromise = InterviewService.getInterviewsByStudentId(
+      req,
+      user._id.toString()
+    );
+
+    const [student, applications, interviews] = await Promise.all([
       studentPromise,
+      applicationsPromise,
       interviewsPromise
     ]);
 
     if (interviews) {
-      for (let i = 0; i < student.applications?.length; i += 1) {
+      for (let i = 0; i < applications?.length; i += 1) {
         if (
           interviews.some(
             (interview) =>
               interview.program_id.toString() ===
-              student.applications[i].programId._id.toString()
+              applications[i].programId._id.toString()
           )
         ) {
           const interview_temp = interviews.find(
             (interview) =>
               interview.program_id.toString() ===
-              student.applications[i].programId._id.toString()
+              applications[i].programId._id.toString()
           );
-          student.applications[i].interview_status = interview_temp.status;
-          student.applications[i].interview_trainer_id =
-            interview_temp.trainer_id;
-          student.applications[i].interview_training_event =
-            interview_temp.event_id;
-          student.applications[i].interview_id = interview_temp._id.toString();
+          applications[i].interview_status = interview_temp.status;
+          applications[i].interview_trainer_id = interview_temp.trainer_id;
+          applications[i].interview_training_event = interview_temp.event_id;
+          applications[i].interview_id = interview_temp._id.toString();
         }
       }
     }
@@ -536,38 +527,22 @@ const getStudents = asyncHandler(async (req, res, next) => {
 const getStudentsAndDocLinks = asyncHandler(async (req, res, next) => {
   const { user } = req;
   if (user.role === Role.Admin) {
-    const students = await req.db
-      .model('Student')
-      .find({
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .populate('agents', 'firstname lastname email')
-      .select('firstname firstname_chinese lastname lastname_chinese profile')
-      .lean();
+    const students = await StudentService.fetchSimpleStudents(req, {
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
     res.status(200).send({ success: true, data: students, base_docs_link: {} });
   } else if (is_TaiGer_Agent(user)) {
-    const students = await req.db
-      .model('Student')
-      .find({
-        agents: user._id,
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .populate('agents', 'firstname lastname email')
-      .select('firstname firstname_chinese lastname lastname_chinese profile')
-      .lean();
+    const students = await StudentService.fetchSimpleStudents(req, {
+      agents: user._id,
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
 
-    // res.status(200).send({ success: true, data: students, base_docs_link });
     res.status(200).send({ success: true, data: students, base_docs_link: {} });
   } else if (user.role === Role.Editor) {
-    const students = await req.db
-      .model('Student')
-      .find({
-        editors: user._id,
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .populate('agents', 'firstname lastname email')
-      .select('firstname firstname_chinese lastname lastname_chinese profile')
-      .select('-notification');
+    const students = await StudentService.fetchSimpleStudents(req, {
+      editors: user._id,
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
     const base_docs_link = await req.db.model('Basedocumentationslink').find({
       category: 'base-documents'
     });
@@ -576,14 +551,13 @@ const getStudentsAndDocLinks = asyncHandler(async (req, res, next) => {
   } else if (is_TaiGer_Student(user)) {
     const obj = user.notification; // create object
     obj['isRead_base_documents_rejected'] = true; // set value
-    await req.db
-      .model('Student')
-      .findByIdAndUpdate(user._id.toString(), { notification: obj }, {});
-    const student = await req.db
-      .model('Student')
-      .findById(user._id.toString())
-      .select('firstname firstname_chinese lastname lastname_chinese profile')
-      .lean();
+    const student = await StudentService.updateStudentById(
+      req,
+      user._id.toString(),
+      {
+        notification: obj
+      }
+    );
 
     const base_docs_link = await req.db.model('Basedocumentationslink').find({
       category: 'base-documents'
@@ -607,17 +581,9 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res, next) => {
   } = req;
 
   // TODO: data validation for isArchived and studentId
-  const student = await req.db
-    .model('Student')
-    .findByIdAndUpdate(
-      studentId,
-      {
-        archiv: isArchived
-      },
-      { new: true, strict: false }
-    )
-    .populate('agents editors', 'firstname lastname email')
-    .lean();
+  const student = await StudentService.updateStudentById(req, studentId, {
+    archiv: isArchived
+  });
 
   if (isArchived) {
     // return dashboard students
@@ -725,11 +691,7 @@ const assignAgentToStudent = asyncHandler(async (req, res, next) => {
     }
 
     // Fetch the student
-    const student = await req.db
-      .model('Student')
-      .findById(studentId)
-      .populate('agents', 'firstname lastname email archiv role')
-      .lean();
+    const student = await StudentService.getStudentById(req, studentId);
     if (!student) {
       return res
         .status(404)
@@ -752,26 +714,14 @@ const assignAgentToStudent = asyncHandler(async (req, res, next) => {
         added: addedAgents,
         removed: removedAgents
       });
-      await req.db.model('Student').findByIdAndUpdate(
-        studentId,
-        {
-          'notification.isRead_new_agent_assigned': false,
-          agents: updatedAgentIds
-        },
-        {}
-      );
+      await StudentService.updateStudentById(req, studentId, {
+        'notification.isRead_new_agent_assigned': false,
+        agents: updatedAgentIds
+      });
     }
 
     // Populate the updated student data
-    const studentUpdated = await req.db
-      .model('Student')
-      .findById(studentId)
-      .populate('applications.programId agents editors')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
-      .lean(); // Optional: Use lean for better performance
+    const studentUpdated = await StudentService.getStudentById(req, studentId);
 
     res.status(200).json({ success: true, data: studentUpdated });
 
@@ -879,11 +829,7 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
     }
 
     // Fetch the student
-    const student = await req.db
-      .model('Student')
-      .findById(studentId)
-      .populate('editors', 'firstname lastname email')
-      .lean();
+    const student = await StudentService.getStudentById(req, studentId);
     if (!student) {
       return res
         .status(404)
@@ -906,26 +852,14 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
         added: addedEditors,
         removed: removedEditors
       });
-      await req.db.model('Student').findByIdAndUpdate(
-        studentId,
-        {
-          'notification.isRead_new_agent_assigned': false,
-          editors: updatedEditorIds
-        },
-        {}
-      );
+      await StudentService.updateStudentById(req, studentId, {
+        'notification.isRead_new_agent_assigned': false,
+        editors: updatedEditorIds
+      });
     }
 
     // Populate the updated student data
-    const studentUpdated = await req.db
-      .model('Student')
-      .findById(studentId)
-      .populate('applications.programId agents editors')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
-      .lean(); // Optional: Use lean for better performance
+    const studentUpdated = await StudentService.getStudentById(req, studentId);
 
     res.status(200).json({ success: true, data: studentUpdated });
 
@@ -1013,53 +947,13 @@ const assignAttributesToStudent = asyncHandler(async (req, res, next) => {
     body: attributesId
   } = req;
 
-  await req.db
-    .model('Student')
-    .findByIdAndUpdate(studentId, { attributes: attributesId }, {});
+  await StudentService.updateStudentById(req, studentId, {
+    attributes: attributesId
+  });
 
-  const student_upated = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId agents editors')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
-    .lean();
+  const student_upated = await StudentService.getStudentById(req, studentId);
 
   res.status(200).send({ success: true, data: student_upated });
-  next();
-});
-
-const ToggleProgramStatus = asyncHandler(async (req, res, next) => {
-  const {
-    params: { studentId, program_id }
-  } = req;
-
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId agents editors')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    );
-  if (!student) {
-    logger.error('ToggleProgramStatus: Invalid student id');
-    throw new ErrorResponse(404, 'Student not found');
-  }
-
-  const application = student.applications.find(
-    ({ programId }) => programId._id.toString() === program_id
-  );
-  if (!application) {
-    logger.error('ToggleProgramStatus: Invalid application id');
-    throw new ErrorResponse(404, 'Application not found');
-  }
-  application.closed = application.closed === 'O' ? '-' : 'O';
-  await student.save();
-
-  res.status(201).send({ success: true, data: student });
   next();
 });
 
@@ -1074,6 +968,5 @@ module.exports = {
   updateStudentsArchivStatus,
   assignAgentToStudent,
   assignEditorToStudent,
-  assignAttributesToStudent,
-  ToggleProgramStatus
+  assignAttributesToStudent
 };

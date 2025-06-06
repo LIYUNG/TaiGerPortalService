@@ -15,7 +15,7 @@ const StudentService = {
     return req.db
       .model('Student')
       .find(filter)
-      .populate('agents editors', 'firstname lastname email')
+      .populate('agents editors', 'firstname lastname email archiv')
       .populate('applications.programId')
       .populate(
         'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
@@ -50,7 +50,7 @@ const StudentService = {
     return req.db
       .model('User')
       .find(filter)
-      .populate('agents editors', 'firstname lastname email')
+      .populate('agents editors', 'firstname lastname email archiv')
       .sort(options.sort)
       .skip(options.skip)
       .limit(options.limit)
@@ -60,7 +60,14 @@ const StudentService = {
     return req.db
       .model('Student')
       .findById(id)
-      .populate('agents editors', 'firstname lastname email')
+      .populate('agents editors', 'firstname lastname email archiv')
+      .lean();
+  },
+  async updateStudentById(req, id, update) {
+    return req.db
+      .model('Student')
+      .findByIdAndUpdate(id, update, { new: true })
+      .populate('agents editors', 'firstname lastname email archiv')
       .lean();
   },
   async fetchStudentsWithThreadsInfo(req, filter) {
@@ -80,7 +87,7 @@ const StudentService = {
           select: 'firstname lastname'
         }
       })
-      .populate('editors agents', 'firstname lastname')
+      .populate('editors agents', 'firstname lastname archiv')
       .select(
         'applications generaldocs_threads firstname lastname application_preference attributes'
       )

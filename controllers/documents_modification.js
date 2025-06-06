@@ -64,6 +64,7 @@ const StudentService = require('../services/students');
 const DocumentThreadService = require('../services/documentthreads');
 const UserService = require('../services/users');
 const { queryStudent } = require('../utils/helper');
+const ApplicationService = require('../services/applications');
 
 const getActiveThreads = asyncHandler(async (req, res) => {
   const { query } = req;
@@ -107,18 +108,16 @@ const getSurveyInputs = asyncHandler(async (req, res, next) => {
   const {
     params: { messagesThreadId }
   } = req;
-  const threadDocument = await req.db
-    .model('Documentthread')
-    .findById(messagesThreadId)
-    .populate('student_id', 'firstname lastname email')
-    .populate('program_id', 'school program_name degree lang')
-    .lean();
+  const threadDocument = await DocumentThreadService.getThreadById(
+    req,
+    messagesThreadId
+  );
 
   if (!threadDocument) {
     logger.error(
       `getSurveyInputs: Invalid message thread id! (${messagesThreadId})`
     );
-    throw new ErrorResponse(400, 'Invalid message thread id');
+    throw new ErrorResponse(404, 'Message thread not found');
   }
 
   const surveyDocument = await getSurveyInputDocuments(
@@ -341,17 +340,12 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   );
   res.status(200).send({ success: true, data: newAppRecord });
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('agents editors', 'firstname lastname email archiv')
-    .lean();
+  const student = await StudentService.getStudentById(req, studentId);
 
-  const applications = await req.db
-    .model('Application')
-    .findById(studentId)
-    .populate('programId')
-    .lean();
+  const applications = await ApplicationService.getApplicationsByStudentId(
+    req,
+    studentId
+  );
 
   const program = applications.find(
     (app) => app.programId._id.toString() === program_id
@@ -432,30 +426,23 @@ const putThreadFavorite = asyncHandler(async (req, res, next) => {
     user,
     params: { messagesThreadId }
   } = req;
-  const thread = await req.db
-    .model('Documentthread')
-    .findById(messagesThreadId);
+  const thread = await DocumentThreadService.getThreadById(
+    req,
+    messagesThreadId
+  );
   if (!thread) {
     logger.error('putThreadFavorite: Invalid message thread id!');
     throw new ErrorResponse(404, 'Thread not found');
   }
 
   if (thread.flag_by_user_id?.includes(user._id.toString())) {
-    await req.db.model('Documentthread').findByIdAndUpdate(
-      messagesThreadId,
-      {
-        $pull: { flag_by_user_id: user._id.toString() } // Remove user id if already present
-      },
-      {}
-    );
+    await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+      $pull: { flag_by_user_id: user._id.toString() }
+    });
   } else {
-    await req.db.model('Documentthread').findByIdAndUpdate(
-      messagesThreadId,
-      {
-        $addToSet: { flag_by_user_id: user._id.toString() } // Add user id if not already present
-      },
-      {}
-    );
+    await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+      $addToSet: { flag_by_user_id: user._id.toString() }
+    });
   }
 
   res.status(200).send({
@@ -1364,16 +1351,14 @@ const putOriginAuthorConfirmedByStudent = asyncHandler(async (req, res) => {
     body: { checked }
   } = req;
 
-  const document_thread = await req.db
-    .model('Documentthread')
-    .findByIdAndUpdate(
-      messagesThreadId,
-      {
-        isOriginAuthorDeclarationConfirmedByStudent: checked,
-        isOriginAuthorDeclarationConfirmedByStudentTimestamp: new Date()
-      },
-      { new: true }
-    );
+  const document_thread = await DocumentThreadService.updateThreadById(
+    req,
+    messagesThreadId,
+    {
+      isOriginAuthorDeclarationConfirmedByStudent: checked,
+      isOriginAuthorDeclarationConfirmedByStudentTimestamp: new Date()
+    }
+  );
 
   if (!document_thread) {
     logger.error(
@@ -1768,7 +1753,7 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
     }
   }
   // Don't need so delete in S3 , will delete by garbage collector
-  await req.db.model('Documentthread').findByIdAndUpdate(messagesThreadId, {
+  await DocumentThreadService.updateThreadById(req, messagesThreadId, {
     $pull: {
       messages: { _id: messageId }
     }

@@ -26,6 +26,7 @@ const { ErrorResponse } = require('../common/errors');
 const ApplicationService = require('../services/applications');
 const UserService = require('../services/users');
 const StudentService = require('../services/students');
+const DocumentThreadService = require('../services/documentthreads');
 
 const getMyStudentsApplications = asyncHandler(async (req, res) => {
   const {
@@ -66,17 +67,11 @@ const getStudentApplications = asyncHandler(async (req, res) => {
   if (user.role === Role.Student) {
     const obj = user.notification; // create object
     obj['isRead_new_programs_assigned'] = true; // set value
-    await req.db
-      .model('Student')
-      .findByIdAndUpdate(user._id.toString(), { notification: obj }, {});
+    await StudentService.updateStudentById(req, user._id.toString(), {
+      notification: obj
+    });
   }
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('agents editors', 'firstname lastname email')
-    .populate('generaldocs_threads.doc_thread_id', '-messages')
-    .select('-attributes')
-    .lean();
+  const student = await StudentService.getStudentById(req, studentId);
   const applications = await ApplicationService.getApplicationsByStudentId(
     req,
     studentId
@@ -85,6 +80,7 @@ const getStudentApplications = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: student });
 });
 
+// TODO: application query updated not working, to be tested
 const updateStudentApplications = asyncHandler(async (req, res, next) => {
   const {
     user,
@@ -92,13 +88,12 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
     body: { applications, applying_program_count }
   } = req;
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
-  const student = await req.db.model('Student').findById(studentId);
+  const student = await StudentService.getStudentById(req, studentId);
 
-  const oldApplications = await req.db
-    .model('Application')
-    .find({ studentId })
-    .populate('doc_modification_thread.doc_thread_id', '-messages')
-    .lean();
+  const oldApplications = await ApplicationService.getApplicationsByStudentId(
+    req,
+    studentId
+  );
 
   let new_task_flag = false;
   if (!student) {
@@ -140,16 +135,21 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
     }
     application.decided = applications[i].decided;
     application.closed = applications[i].closed;
-    // TODO: any faster way to query one time and write back once?!
+
     if (isProgramSubmitted(application)) {
       for (let k = 0; k < application.doc_modification_thread.length; k += 1) {
         application.doc_modification_thread[k].updatedAt = new Date();
-        const document_thread = await req.db
-          .model('Documentthread')
-          .findById(application.doc_modification_thread[k].doc_thread_id);
-        document_thread.isFinalVersion = true;
-        document_thread.updatedAt = new Date();
-        await document_thread.save();
+        await DocumentThreadService.updateThread(
+          req,
+          {
+            application_id: application._id,
+            student_id: student._id
+          },
+          {
+            isFinalVersion: true,
+            updatedAt: new Date()
+          }
+        );
       }
     }
     application.admission = applications[i].admission;
@@ -160,13 +160,7 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
   }
   await student.save();
 
-  const student_updated = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('generaldocs_threads.doc_thread_id', '-messages')
-    .populate('agents editors', 'firstname lastname email archiv')
-    .select('-profile -notification -application_preference')
-    .lean();
+  const student_updated = await StudentService.getStudentById(req, studentId);
 
   res.status(201).send({ success: true, data: student_updated });
   if (is_TaiGer_Student(user)) {

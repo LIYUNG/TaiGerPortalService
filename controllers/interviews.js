@@ -22,6 +22,7 @@ const { isNotArchiv } = require('../constants');
 const { getPermission } = require('../utils/queryFunctions');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
 const { userChangesHelperFunction } = require('../utils/utils_function');
+const StudentService = require('../services/students');
 
 const PrecheckInterview = asyncHandler(async (req, interview_id) => {
   const precheck_interview = await req.db
@@ -697,12 +698,7 @@ const createInterview = asyncHandler(async (req, res) => {
     params: { program_id, studentId },
     body: payload
   } = req;
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId')
-    .populate('agents editors', 'firstname lastname email')
-    .lean();
+  const student = await StudentService.getStudentById(req, studentId);
   if (!student) {
     logger.info('createInterview: Invalid student id!');
     throw new ErrorResponse(400, 'Invalid student id');

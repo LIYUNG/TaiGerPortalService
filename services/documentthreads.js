@@ -122,6 +122,18 @@ const DocumentThreadService = {
       .populate('program_id')
       .populate('outsourced_user_id', 'firstname lastname role')
       .lean();
+  },
+  async updateThreadById(req, threadId, payload) {
+    return req.db
+      .model('Documentthread')
+      .findByIdAndUpdate(threadId, payload, { new: true })
+      .lean();
+  },
+  async updateThread(req, filter, payload) {
+    return req.db
+      .model('Documentthread')
+      .findOneAndUpdate(filter, payload, { new: true })
+      .lean();
   }
 };
 

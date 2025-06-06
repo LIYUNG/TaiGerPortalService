@@ -134,7 +134,8 @@ router
   .route('/student-threads/:studentId')
   .get(
     getMessagesRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    multitenant_filter,
     getThreadsByStudent
   );
 

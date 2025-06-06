@@ -47,22 +47,27 @@ const ApplicationService = {
 
     return filteredApplications;
   },
-  async getApplications(req, filter) {
-    const applications = await req.db
+  getApplications(req, filter) {
+    return req.db
       .model('Application')
       .find(filter)
       .populate('programId')
-      .populate('doc_modification_thread.doc_thread_id', '-messages')
-      .lean();
-
-    return applications;
+      .populate('doc_modification_thread.doc_thread_id', '-messages');
   },
   async getApplicationsByStudentId(req, studentId) {
-    const applications = await this.getApplications(req, { studentId });
+    const applications = await this.getApplications(req, { studentId }).lean();
+    return applications;
+  },
+  async getApplicationsWithCredentialsByStudentId(req, studentId) {
+    const applications = await this.getApplications(req, { studentId })
+      .select(
+        '+portal_credentials.application_portal_a.account +portal_credentials.application_portal_b.account +portal_credentials.application_portal_a.password +portal_credentials.application_portal_b.password'
+      )
+      .lean();
     return applications;
   },
   async getApplicationsByProgramId(req, programId) {
-    const applications = await this.getApplications(req, { programId });
+    const applications = await this.getApplications(req, { programId }).lean();
     return applications;
   },
   async getApplicationById(req, applicationId) {
@@ -71,12 +76,13 @@ const ApplicationService = {
       .findById(applicationId);
     return application;
   },
-  async updateApplication(req) {
-    const { applicationId } = req.params;
-    const { programId } = req.body;
-    await req.db.model('Application').findByIdAndUpdate(applicationId, {
-      programId
-    });
+  async updateApplication(req, filter, payload) {
+    const application = await req.db
+      .model('Application')
+      .findOneAndUpdate(filter, payload, { new: true })
+      .populate('programId')
+      .lean();
+    return application;
   },
   async deleteApplication(req, application_id) {
     const application = await req.db

@@ -108,7 +108,12 @@ async function copyApplicationToNewCollection() {
   const startTime = Date.now();
 
   try {
-    const students = await db.model('Student').find({});
+    const students = await db
+      .model('Student')
+      .find({})
+      .select(
+        '+applications.portal_credentials.application_portal_a.account +applications.portal_credentials.application_portal_b.account +applications.portal_credentials.application_portal_a.password +applications.portal_credentials.application_portal_b.password'
+      );
     console.log(`Found ${students.applications} students to process`);
 
     let processedCount = 0;

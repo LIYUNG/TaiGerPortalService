@@ -1,9 +1,7 @@
-const path = require('path');
 const { is_TaiGer_Student } = require('@taiger-common/core');
-
-const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
+const StudentService = require('../services/students');
+const ApplicationService = require('../services/applications');
 
 const getStudentUniAssist = asyncHandler(async (req, res) => {
   const {
@@ -18,17 +16,15 @@ const getStudentUniAssist = asyncHandler(async (req, res) => {
       .findByIdAndUpdate(user._id.toString(), { notification: obj }, {});
   }
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
-    .select('-attributes')
-    .lean();
+  const student = await StudentService.getStudentById(req, studentId);
+  const applications = await ApplicationService.getApplicationsByStudentId(
+    req,
+    studentId
+  );
+  student.applications = applications;
+  if (is_TaiGer_Student(user)) {
+    delete student.attributes;
+  }
   res.status(200).send({ success: true, data: student });
 });
 

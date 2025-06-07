@@ -142,6 +142,63 @@ const StudentService = {
         }
       },
       {
+        $unwind: {
+          path: '$generaldocs_threads',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: 'documentthreads',
+          localField: 'generaldocs_threads.doc_thread_id',
+          foreignField: '_id',
+          as: 'generaldocs_threads.doc_thread_id'
+        }
+      },
+      {
+        $addFields: {
+          'generaldocs_threads.doc_thread_id': {
+            $arrayElemAt: ['$generaldocs_threads.doc_thread_id', 0]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: '$_id',
+          generaldocs_threads: { $push: '$generaldocs_threads' },
+          applications: { $first: '$applications' },
+          agents: { $first: '$agents' },
+          editors: { $first: '$editors' },
+          root: { $first: '$$ROOT' }
+        }
+      },
+      {
+        $addFields: {
+          generaldocs_threads: {
+            $filter: {
+              input: '$generaldocs_threads',
+              as: 'thread',
+              cond: { $ne: ['$$thread', {}] }
+            }
+          }
+        }
+      },
+      {
+        $replaceRoot: {
+          newRoot: {
+            $mergeObjects: [
+              '$root',
+              {
+                generaldocs_threads: '$generaldocs_threads',
+                applications: '$applications',
+                agents: '$agents',
+                editors: '$editors'
+              }
+            ]
+          }
+        }
+      },
+      {
         $addFields: {
           hasApplications: { $gt: [{ $size: '$applications' }, 0] }
         }
@@ -172,15 +229,21 @@ const StudentService = {
                 applications: { $push: '$applications' },
                 agents: { $first: '$agents' },
                 editors: { $first: '$editors' },
-                studentData: { $first: '$$ROOT' }
+                generaldocs_threads: { $first: '$generaldocs_threads' },
+                root: { $first: '$$ROOT' }
               }
             },
             {
               $replaceRoot: {
                 newRoot: {
                   $mergeObjects: [
-                    '$studentData',
-                    { applications: '$applications' }
+                    '$root',
+                    {
+                      applications: '$applications',
+                      agents: '$agents',
+                      editors: '$editors',
+                      generaldocs_threads: '$generaldocs_threads'
+                    }
                   ]
                 }
               }

@@ -215,7 +215,7 @@ const getDecidedApplicationsTasks = asyncHandler(async (req) => {
           _id: '$program._id',
           application_deadline: '$program.application_deadline'
         },
-        application_year: '$application_preference.expected_application_date'
+        application_year: '$applications.application_year'
       }
     }
   ]);

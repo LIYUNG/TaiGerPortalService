@@ -15,7 +15,8 @@ const {
   createApplicationV2,
   getMyStudentsApplications,
   updateStudentApplications,
-  getActiveStudentsApplications
+  getActiveStudentsApplications,
+  updateApplication
 } = require('../controllers/applications');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
@@ -41,6 +42,14 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     getActiveStudentsApplications
   );
+
+router.route('/student/:studentId/:application_id').put(
+  getMessagesRateLimiter,
+  permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor), // TODO: Add multitenant_filter?
+  multitenant_filter,
+  InnerTaigerMultitenantFilter,
+  updateApplication
+);
 
 router
   .route('/taiger-user/:userId')

@@ -286,6 +286,18 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const updateApplication = asyncHandler(async (req, res, next) => {
+  const { application_id } = req.params;
+  const payload = req.body;
+  const application = await ApplicationService.updateApplication(
+    req,
+    { _id: application_id },
+    payload
+  );
+  res.status(200).send({ success: true, data: application });
+  next();
+});
+
 const deleteApplication = asyncHandler(async (req, res, next) => {
   const { application_id } = req.params;
   await ApplicationService.deleteApplication(req, application_id);
@@ -545,5 +557,6 @@ module.exports = {
   getActiveStudentsApplications,
   getStudentApplications,
   updateStudentApplications,
+  updateApplication,
   createApplicationV2
 };

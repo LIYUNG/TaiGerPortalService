@@ -2085,9 +2085,7 @@ const getThreadsByStudent = asyncHandler(async (req, res, next) => {
   );
   res.status(200).send({
     success: true,
-    data: {
-      threads
-    }
+    data: { threads }
   });
 
   next();

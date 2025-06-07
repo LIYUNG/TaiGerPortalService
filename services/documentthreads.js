@@ -18,13 +18,11 @@ const DocumentThreadService = {
     const threads = await req.db
       .model('Documentthread')
       .find({ student_id: studentId })
-      .select(
-        '+portal_credentials.application_portal_a +applications.portal_credentials.application_portal_b'
-      )
       .populate(
         'program_id',
         'school program_name application_deadline degree semester lang'
       )
+      .populate('student_id', 'firstname lastname')
       .populate('application_id')
       .populate('messages.user_id', 'firstname lastname')
       .populate('outsourced_user_id', 'firstname lastname')

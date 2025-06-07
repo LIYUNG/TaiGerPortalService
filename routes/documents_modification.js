@@ -298,7 +298,7 @@ router
   );
 
 router
-  .route('/:messagesThreadId/:program_id/:studentId')
+  .route('/:messagesThreadId/:application_id/:studentId')
   .delete(
     filter_archiv_user,
     GeneralDELETERequestRateLimiter,

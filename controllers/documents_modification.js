@@ -732,8 +732,6 @@ const postMessages = asyncHandler(async (req, res) => {
         doc_thread_id.toString() === document_thread._id.toString()
     );
     if (doc_thread) {
-      if (is_TaiGer_Student(user)) {
-      }
       if (!is_TaiGer_Student(user)) {
         student.notification.isRead_new_cvmlrl_messsage = false;
       }
@@ -1372,7 +1370,7 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
   const {
     user,
     params: { messagesThreadId, studentId },
-    body: { program_id, application_id }
+    body: { application_id }
   } = req;
 
   const document_thread = await req.db
@@ -1646,7 +1644,7 @@ const handleDeleteGeneralThread = asyncHandler(async (req, res) => {
 // (-) TODO email : notification
 const handleDeleteProgramThread = asyncHandler(async (req, res) => {
   const {
-    params: { messagesThreadId, program_id, studentId }
+    params: { messagesThreadId, application_id, studentId }
   } = req;
 
   const to_be_delete_thread = await req.db
@@ -1663,17 +1661,35 @@ const handleDeleteProgramThread = asyncHandler(async (req, res) => {
     throw new ErrorResponse(404, 'Student not found');
   }
 
-  await deleteApplicationThread(
+  // Before delete the thread, please delete all of the files in the thread!!
+  // Delete folder
+  let directory = path.join(studentId, messagesThreadId);
+  logger.info('Trying to delete message thread and folder');
+  directory = directory.replace(/\\/g, '/');
+  emptyS3Directory(AWS_S3_BUCKET_NAME, directory);
+
+  await req.db.model('Application').findOneAndUpdate(
     {
-      ApplicationModel: req.db.model('Application'),
-      StudentModel: req.db.model('Student'),
-      DocumentthreadModel: req.db.model('Documentthread'),
-      surveyInputModel: req.db.model('surveyInput')
+      _id: new mongoose.Types.ObjectId(application_id)
     },
-    studentId,
-    program_id,
-    messagesThreadId
+    {
+      $pull: {
+        doc_modification_thread: {
+          doc_thread_id: {
+            _id: new mongoose.Types.ObjectId(messagesThreadId)
+          }
+        }
+      }
+    }
   );
+  const thread = await req.db
+    .model('Documentthread')
+    .findByIdAndDelete(messagesThreadId);
+  await req.db.model('surveyInput').deleteOne({
+    studentId,
+    programId: new mongoose.Types.ObjectId(to_be_delete_thread.program_id),
+    fileType: thread.file_type
+  });
   res.status(200).send({ success: true });
 });
 
@@ -1933,44 +1949,10 @@ const clearEssayWriters = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const getRelevantEssayThreadsV2 = (essayDocumentThreads) => {
-  // filter active student, then see if the essay thread belongs to a decided application
-  const matchingDocuments = [];
-  essayDocumentThreads
-    .filter(
-      (doc) => doc.application_id?.decided === 'O' && !doc.student_id.archiv
-    )
-    .forEach((doc) => matchingDocuments.push(doc));
-
-  return matchingDocuments;
-};
-
-const getRelevantEssayThreads = (essayDocumentThreads) => {
-  // filter active student, then see if the essay thread belongs to a decided application
-  const matchingDocuments = [];
-  essayDocumentThreads
-    .filter((doc) => doc.student_id && !doc.student_id.archiv)
-    .filter((doc) => {
-      const docIdStr = doc._id?.toString();
-      const { applications } = doc.student_id;
-      const decidedApplications = applications.filter(isProgramDecided);
-      const threadIds = decidedApplications.flatMap(
-        (app) =>
-          app.doc_modification_thread?.map((thread) =>
-            thread.doc_thread_id?.toString()
-          ) || []
-      );
-      return threadIds.includes(docIdStr);
-    })
-    .forEach((doc) => matchingDocuments.push(doc));
-  return matchingDocuments;
-};
-
 const IgnoreMessageInDocumentThread = asyncHandler(async (req, res, next) => {
   const {
-    params: { messagesThreadId, messageId, ignoreMessageState }
+    params: { messageId, ignoreMessageState }
   } = req;
-  const { message } = req.body;
   const thread = await req.db
     .model('Documentthread')
     .updateOne(

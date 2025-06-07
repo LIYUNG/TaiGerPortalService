@@ -99,6 +99,19 @@ const StudentService = {
       },
       {
         $lookup: {
+          from: 'courses',
+          localField: '_id',
+          foreignField: 'student_id',
+          as: 'courses'
+        }
+      },
+      {
+        $addFields: {
+          courses: { $arrayElemAt: ['$courses', 0] }
+        }
+      },
+      {
+        $lookup: {
           from: 'users',
           let: { agentIds: '$agents' },
           pipeline: [
@@ -169,6 +182,7 @@ const StudentService = {
           applications: { $first: '$applications' },
           agents: { $first: '$agents' },
           editors: { $first: '$editors' },
+          courses: { $first: '$courses' },
           root: { $first: '$$ROOT' }
         }
       },
@@ -192,7 +206,8 @@ const StudentService = {
                 generaldocs_threads: '$generaldocs_threads',
                 applications: '$applications',
                 agents: '$agents',
-                editors: '$editors'
+                editors: '$editors',
+                courses: '$courses'
               }
             ]
           }

@@ -56,7 +56,6 @@ const getExpense = asyncHandler(async (req, res) => {
         $or: [{ archiv: { $exists: false } }, { archiv: false }]
       })
       .populate('agents editors', 'firstname lastname email')
-      .populate('applications.programId')
       .populate('generaldocs_threads.doc_thread_id', '-messages')
       .select('-notification')
       .lean();
@@ -78,7 +77,6 @@ const getExpense = asyncHandler(async (req, res) => {
         $or: [{ archiv: { $exists: false } }, { archiv: false }]
       })
       .populate('agents editors', 'firstname lastname email')
-      .populate('applications.programId')
       .populate('generaldocs_threads.doc_thread_id', '-messages')
       .select('-notification')
       .lean();

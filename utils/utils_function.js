@@ -724,7 +724,7 @@ const numStudentYearDistribution = (students) =>
 //   });
 //   const students = await Student.find()
 //     .populate('agents editors', 'firstname lastname')
-//     .populate('applications.programId')
+//     .populate('')
 //     .populate(
 //       'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
 //       '-messages'

@@ -73,7 +73,9 @@ const ApplicationService = {
   async getApplicationById(req, applicationId) {
     const application = await req.db
       .model('Application')
-      .findById(applicationId);
+      .findById(applicationId)
+      .populate('programId')
+      .populate('doc_modification_thread.doc_thread_id', '-messages');
     return application;
   },
   async updateApplication(req, filter, payload) {

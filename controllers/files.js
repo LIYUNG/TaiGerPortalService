@@ -133,8 +133,7 @@ const saveProfileFilePath = asyncHandler(async (req, res, next) => {
   const student = await req.db
     .model('Student')
     .findById(studentId)
-    .populate('agents editors', 'firstname lastname email archiv')
-    .populate('applications.programId');
+    .populate('agents editors', 'firstname lastname email archiv');
   if (!student) {
     logger.error(`saveProfileFilePath: Invalid student id ${studentId}`);
     throw new ErrorResponse(404, 'student id not found');
@@ -580,7 +579,6 @@ const updateProfileDocumentStatus = asyncHandler(async (req, res, next) => {
     .findOne({
       _id: studentId
     })
-    .populate('applications.programId')
     .populate('agents editors', 'firstname lastname email');
   if (!student) {
     logger.error(

@@ -575,18 +575,12 @@ const getMessages = asyncHandler(async (req, res) => {
     .find({ studentId: document_thread.student_id._id.toString() })
     .populate('programId');
 
-  const studentPromise = req.db
-    .model('Student')
-    .findById(document_thread.student_id._id.toString())
-    .populate('applications.programId');
-  const [agents, editors, applications, student, threadAuditLog] =
-    await Promise.all([
-      agentsPromise,
-      editorsPromise,
-      applicationsPromise,
-      studentPromise,
-      threadAuditLogPromise
-    ]);
+  const [agents, editors, applications, threadAuditLog] = await Promise.all([
+    agentsPromise,
+    editorsPromise,
+    applicationsPromise,
+    threadAuditLogPromise
+  ]);
 
   let deadline = 'x';
   if (General_Docs.includes(document_thread.file_type)) {
@@ -1378,20 +1372,13 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
   const {
     user,
     params: { messagesThreadId, studentId },
-    body: { program_id }
+    body: { program_id, application_id }
   } = req;
 
   const document_thread = await req.db
     .model('Documentthread')
     .findById(messagesThreadId);
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId generaldocs_threads.doc_thread_id')
-    .populate(
-      'applications.doc_modification_thread.doc_thread_id',
-      'file_type updatedAt'
-    );
+  const student = await StudentService.getStudentById(req, studentId);
   if (!document_thread) {
     logger.error('SetStatusMessagesThread: Invalid message thread id');
     throw new ErrorResponse(404, 'Thread not found');
@@ -1400,18 +1387,14 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
     logger.error('SetStatusMessagesThread: Invalid student id');
     throw new ErrorResponse(404, 'Student not found');
   }
-  const applications = await req.db
-    .model('Application')
-    .find({ studentId })
-    .populate('programId', '_id school program_name degree semester')
-    .populate('doc_modification_thread.doc_thread_id', '-messages')
-    .lean();
 
   let isFinalVersionBefore;
   let isFinalVersionAfter;
-  if (program_id) {
-    const student_application = applications.find(
-      (application) => application.programId._id.toString() === program_id
+  console.log('application_id', application_id);
+  if (application_id) {
+    const student_application = await ApplicationService.getApplicationById(
+      req,
+      application_id
     );
     if (!student_application) {
       logger.error('SetStatusMessagesThread: application not found');
@@ -1426,11 +1409,12 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
       throw new ErrorResponse(404, 'Thread not found');
     }
     isFinalVersionBefore = application_thread.isFinalVersion;
-    application_thread.isFinalVersion = !application_thread.isFinalVersion;
+    application_thread.isFinalVersion = !isFinalVersionBefore;
     application_thread.updatedAt = new Date();
-    document_thread.isFinalVersion = application_thread.isFinalVersion;
+    document_thread.isFinalVersion = !isFinalVersionBefore;
     isFinalVersionAfter = application_thread.isFinalVersion;
     document_thread.updatedAt = new Date();
+    await student_application.save();
     await document_thread.save();
 
     res.status(200).send({
@@ -1506,20 +1490,19 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
     // Wait for all email promises to be resolved
     await Promise.all(emailPromises);
   } else {
-    const generaldocs_thread = student.generaldocs_threads.find(
-      (thread) => thread.doc_thread_id._id == messagesThreadId
+    isFinalVersionBefore = document_thread.isFinalVersion;
+    await req.db.model('Student').findOneAndUpdate(
+      { _id: studentId, 'generaldocs_threads.doc_thread_id': messagesThreadId },
+      {
+        'generaldocs_threads.$.isFinalVersion': !isFinalVersionBefore,
+        'generaldocs_threads.$.updatedAt': new Date()
+      },
+      {}
     );
-    if (!generaldocs_thread) {
-      logger.error('SetStatusMessagesThread: generaldoc thread not found');
-      throw new ErrorResponse(404, 'Thread not found');
-    }
-    isFinalVersionBefore = generaldocs_thread.isFinalVersion;
-    generaldocs_thread.isFinalVersion = !generaldocs_thread.isFinalVersion;
-    generaldocs_thread.updatedAt = new Date();
-    document_thread.isFinalVersion = generaldocs_thread.isFinalVersion;
+    document_thread.isFinalVersion = !isFinalVersionBefore;
     isFinalVersionAfter = document_thread.isFinalVersion;
     document_thread.updatedAt = new Date();
-    await Promise.all([document_thread.save(), student.save()]);
+    await document_thread.save();
 
     res.status(200).send({
       success: true,
@@ -1814,26 +1797,10 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
       .json({ success: false, message: 'Invalid input data.' });
   }
 
-  const essayDocumentThreads = await req.db
-    .model('Documentthread')
-    .findById(messagesThreadId)
-    .populate(
-      'student_id outsourced_user_id',
-      'firstname lastname email role archiv'
-    )
-    .populate({
-      path: 'student_id',
-      populate: {
-        path: 'agents',
-        model: 'User'
-      }
-    })
-    .populate(
-      'program_id',
-      'school program_name degree semester application_deadline'
-    )
-    .select('-messages')
-    .lean();
+  const essayDocumentThreads = await DocumentThreadService.getThreadById(
+    req,
+    messagesThreadId
+  );
 
   if (!essayDocumentThreads) {
     return res
@@ -1860,50 +1827,23 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
       added: addedEditors,
       removed: removedEditors
     });
-    await req.db.model('Documentthread').findByIdAndUpdate(
-      messagesThreadId,
-      {
-        outsourced_user_id: updatedEditorIds.map(
-          (id) => new mongoose.Types.ObjectId(id)
-        )
-      },
-      {}
-    );
+    await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+      outsourced_user_id: updatedEditorIds.map(
+        (id) => new mongoose.Types.ObjectId(id)
+      )
+    });
   }
 
   const studentId = essayDocumentThreads.student_id;
-  const student = await req.db.model('Student').findById(studentId);
-  const student_upated = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId agents editors')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
-    .lean();
+  const student_upated = await StudentService.getStudentById(req, studentId);
 
-  const essayDocumentThreads_Updated = await req.db
-    .model('Documentthread')
-    .findById(messagesThreadId)
-    .populate('student_id outsourced_user_id')
-    .populate({
-      path: 'student_id',
-      populate: {
-        path: 'agents',
-        model: 'User'
-      }
-    })
-    .populate(
-      'program_id',
-      'school program_name degree semester application_deadline'
-    )
-    .select('-messages')
-    .lean();
+  const essayDocumentThreads_Updated =
+    await DocumentThreadService.getThreadById(req, messagesThreadId);
+
   res.status(200).send({ success: true, data: essayDocumentThreads_Updated });
 
   for (let i = 0; i < toBeInformedEditors.length; i += 1) {
-    if (isNotArchiv(student)) {
+    if (isNotArchiv(student_upated)) {
       if (isNotArchiv(toBeInformedEditors[i])) {
         await informEssayWriterNewEssayEmail(
           {
@@ -1912,9 +1852,9 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
             address: toBeInformedEditors[i].email
           },
           {
-            std_firstname: student.firstname,
-            std_lastname: student.lastname,
-            std_id: student._id.toString(),
+            std_firstname: student_upated.firstname,
+            std_lastname: student_upated.lastname,
+            std_id: student_upated._id.toString(),
             thread_id: essayDocumentThreads._id.toString(),
             file_type: essayDocumentThreads.file_type,
             program: essayDocumentThreads.program_id
@@ -1925,7 +1865,7 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
   }
   // TODO: inform Agent for assigning editor.
   for (let i = 0; i < student_upated.agents.length; i += 1) {
-    if (isNotArchiv(student)) {
+    if (isNotArchiv(student_upated)) {
       if (isNotArchiv(student_upated.agents[i])) {
         await informAgentEssayAssignedEmail(
           {
@@ -1934,9 +1874,9 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
             address: student_upated.agents[i].email
           },
           {
-            std_firstname: student.firstname,
-            std_lastname: student.lastname,
-            std_id: student._id.toString(),
+            std_firstname: student_upated.firstname,
+            std_lastname: student_upated.lastname,
+            std_id: student_upated._id.toString(),
             thread_id: essayDocumentThreads._id.toString(),
             file_type: essayDocumentThreads.file_type,
             essay_writers: toBeInformedEditors,
@@ -1948,12 +1888,12 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
   }
 
   if (updatedEditors.length !== 0) {
-    if (isNotArchiv(student)) {
+    if (isNotArchiv(student_upated)) {
       await informStudentTheirEssayWriterEmail(
         {
-          firstname: student.firstname,
-          lastname: student.lastname,
-          address: student.email
+          firstname: student_upated.firstname,
+          lastname: student_upated.lastname,
+          address: student_upated.email
         },
         {
           program: essayDocumentThreads.program_id,
@@ -1967,7 +1907,7 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
 
   req.audit = {
     performedBy: user._id,
-    targetUserId: student._id, // Change this if you have a different target user ID
+    targetUserId: student_upated._id, // Change this if you have a different target user ID
     targetDocumentThreadId: messagesThreadId,
     action: 'update', // Action performed
     field: 'essay writer', // Field that was updated (if applicable)

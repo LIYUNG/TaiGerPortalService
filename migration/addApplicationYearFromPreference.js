@@ -51,6 +51,13 @@ async function addApplicationYear() {
   }
 }
 
+async function deleteAllApplicationsFromStudents() {
+  const result = await db
+    .model('Student')
+    .updateMany({}, { $unset: { applications: null } });
+  return result;
+}
+
 async function addApplicationIdinThread() {
   console.log('Starting document thread migration...');
   const startTime = Date.now();
@@ -169,6 +176,7 @@ async function copyApplicationToNewCollection() {
     console.log(`Time: ${duration.toFixed(2)}s`);
 
     await addApplicationIdinThread();
+    await deleteAllApplicationsFromStudents();
   } catch (error) {
     console.error('Migration failed:', error);
     process.exit(1);

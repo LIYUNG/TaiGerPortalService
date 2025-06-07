@@ -30,7 +30,6 @@ const DocumentThreadService = require('../services/documentthreads');
 
 const getMyStudentsApplications = asyncHandler(async (req, res) => {
   const {
-    user,
     params: { userId }
   } = req;
   const taiGerUser = await UserService.getUserById(req, userId);
@@ -38,10 +37,10 @@ const getMyStudentsApplications = asyncHandler(async (req, res) => {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   };
 
-  if (is_TaiGer_Agent(user)) {
-    studentQuery.agents = user._id.toString();
-  } else if (is_TaiGer_Editor(user)) {
-    studentQuery.editors = user._id.toString();
+  if (is_TaiGer_Agent(taiGerUser)) {
+    studentQuery.agents = taiGerUser._id.toString();
+  } else if (is_TaiGer_Editor(taiGerUser)) {
+    studentQuery.editors = taiGerUser._id.toString();
   }
   const applications =
     await ApplicationService.getStudentsApplicationsByTaiGerUserId(req, userId);
@@ -53,6 +52,25 @@ const getMyStudentsApplications = asyncHandler(async (req, res) => {
   res.status(200).send({
     success: true,
     data: { applications, students, user: taiGerUser }
+  });
+});
+
+const getActiveStudentsApplications = asyncHandler(async (req, res) => {
+  const studentQuery = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
+
+  const applications = await ApplicationService.getActiveStudentsApplications(
+    req
+  );
+
+  const students = await StudentService.fetchStudentsWithGeneralThreadsInfo(
+    req,
+    studentQuery
+  );
+  res.status(200).send({
+    success: true,
+    data: { applications, students }
   });
 });
 
@@ -524,6 +542,7 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
 module.exports = {
   deleteApplication,
   getMyStudentsApplications,
+  getActiveStudentsApplications,
   getStudentApplications,
   updateStudentApplications,
   createApplicationV2

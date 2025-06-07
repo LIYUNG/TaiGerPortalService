@@ -12,7 +12,7 @@ const ApplicationService = {
     });
     return application;
   },
-  async getStudentsApplicationsByTaiGerUserId(req, userId) {
+  async getActiveStudentsApplications(req) {
     const applications = await req.db
       .model('Application')
       .find()
@@ -33,16 +33,18 @@ const ApplicationService = {
       .populate('programId')
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
+    const filteredApplications = applications.filter(
+      (app) => app.studentId.archiv !== true
+    );
+    return filteredApplications;
+  },
+  async getStudentsApplicationsByTaiGerUserId(req, userId) {
+    const applications = await this.getActiveStudentsApplications(req);
 
     const filteredApplications = applications.filter(
       (app) =>
-        app.studentId.archiv !== true &&
-        (app.studentId.agents.some(
-          (agent) => agent._id.toString() === userId
-        ) ||
-          app.studentId.editors.some(
-            (editor) => editor._id.toString() === userId
-          ))
+        app.studentId.agents.some((agent) => agent._id.toString() === userId) ||
+        app.studentId.editors.some((editor) => editor._id.toString() === userId)
     );
 
     return filteredApplications;
@@ -87,12 +89,7 @@ const ApplicationService = {
     return application;
   },
   async deleteApplication(req, application_id) {
-    const application = await req.db
-      .model('Application')
-      .findById(application_id)
-      .populate('programId')
-      .populate('doc_modification_thread.doc_thread_id')
-      .lean();
+    const application = await this.getApplicationById(req, application_id);
 
     if (!application) {
       logger.error('deleteApplication: Invalid application id');

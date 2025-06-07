@@ -532,6 +532,10 @@ const getMessages = asyncHandler(async (req, res) => {
     req,
     messagesThreadId
   );
+  if (!document_thread) {
+    logger.error('getMessages: Invalid message thread id');
+    throw new ErrorResponse(404, 'Thread not found');
+  }
 
   const similarThreads = document_thread?.program_id
     ? await DocumentThreadService.getThreads(req, {

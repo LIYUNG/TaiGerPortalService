@@ -146,38 +146,30 @@ const updateDocumentationHelperLink = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const getMyActiveStudents = asyncHandler(async (req, res, next) => {
+  const { user } = req;
+  const studentQuery = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
+  if (is_TaiGer_Agent(user)) {
+    studentQuery.agents = user._id;
+  } else if (is_TaiGer_Editor(user)) {
+    studentQuery.editors = user._id;
+  }
+
+  const students = await StudentService.getStudentsWithApplications(
+    req,
+    studentQuery
+  );
+  res.status(200).send({ success: true, data: students });
+  next();
+});
+
 const getAllActiveStudents = asyncHandler(async (req, res, next) => {
-  const studentsPromise = StudentService.getStudentsWithApplications(req, {
+  const students = await StudentService.getStudentsWithApplications(req, {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   });
 
-  const coursesPromise = req.db
-    .model('Course')
-    .find()
-    .select('-table_data_string')
-    .lean();
-
-  // Perform the join
-  const [students, courses] = await Promise.all([
-    studentsPromise,
-    coursesPromise
-  ]);
-
-  // const studentsWithCourse = students.map((student) => {
-  //   const matchingItemB = courses.find(
-  //     (course) => student._id.toString() === course.student_id.toString()
-  //   );
-  //   if (matchingItemB) {
-  //     return { ...student, courses: matchingItemB };
-  //   } else {
-  //     return { ...student };
-  //   }
-  // });
-
-  const students_new = [];
-  // for (let j = 0; j < studentsWithCourse.length; j += 1) {
-  //   students_new.push(add_portals_registered_status(studentsWithCourse[j]));
-  // }
   res.status(200).send({ success: true, data: students });
   next();
 });
@@ -961,6 +953,7 @@ module.exports = {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
   getAllActiveStudents,
+  getMyActiveStudents,
   getAllStudents,
   getStudentsV3,
   getStudents,

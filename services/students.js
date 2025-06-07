@@ -16,14 +16,8 @@ const StudentService = {
       .model('Student')
       .find(filter)
       .populate('agents editors', 'firstname lastname email archiv')
-      .populate('applications.programId')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
-      .select(
-        '-notification +applications.portal_credentials.application_portal_a.account +applications.portal_credentials.application_portal_a.password +applications.portal_credentials.application_portal_b.account +applications.portal_credentials.application_portal_b.password'
-      )
+      .populate('generaldocs_threads.doc_thread_id', '-messages')
+      .select('-notification')
       .select('-notification')
       .sort(options.sort)
       .skip(options.skip)
@@ -75,12 +69,8 @@ const StudentService = {
     return req.db
       .model('Student')
       .find(filter)
-      .populate(
-        'applications.programId',
-        'school program_name degree application_deadline semester lang'
-      )
       .populate({
-        path: 'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
+        path: 'generaldocs_threads.doc_thread_id',
         select:
           'file_type flag_by_user_id outsourced_user_id isFinalVersion updatedAt messages.file',
         populate: {
@@ -90,9 +80,130 @@ const StudentService = {
       })
       .populate('editors agents', 'firstname lastname archiv')
       .select(
-        'applications generaldocs_threads firstname lastname application_preference attributes'
+        'generaldocs_threads firstname lastname application_preference attributes'
       )
       .lean();
+  },
+  async getStudentsWithApplications(req, filter) {
+    const students = await req.db.model('Student').aggregate([
+      {
+        $match: filter
+      },
+      {
+        $lookup: {
+          from: 'applications',
+          localField: '_id',
+          foreignField: 'studentId',
+          as: 'applications'
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          let: { agentIds: '$agents' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $in: ['$_id', '$$agentIds'] }
+              }
+            },
+            {
+              $project: {
+                firstname: 1,
+                lastname: 1,
+                email: 1,
+                archiv: 1
+              }
+            }
+          ],
+          as: 'agents'
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          let: { editorIds: '$editors' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $in: ['$_id', '$$editorIds'] }
+              }
+            },
+            {
+              $project: {
+                firstname: 1,
+                lastname: 1,
+                email: 1,
+                archiv: 1
+              }
+            }
+          ],
+          as: 'editors'
+        }
+      },
+      {
+        $addFields: {
+          hasApplications: { $gt: [{ $size: '$applications' }, 0] }
+        }
+      },
+      {
+        $facet: {
+          withApplications: [
+            { $match: { hasApplications: true } },
+            { $unwind: '$applications' },
+            {
+              $lookup: {
+                from: 'programs',
+                localField: 'applications.programId',
+                foreignField: '_id',
+                as: 'applications.program'
+              }
+            },
+            {
+              $addFields: {
+                'applications.programId': {
+                  $arrayElemAt: ['$applications.program', 0]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: '$_id',
+                applications: { $push: '$applications' },
+                agents: { $first: '$agents' },
+                editors: { $first: '$editors' },
+                studentData: { $first: '$$ROOT' }
+              }
+            },
+            {
+              $replaceRoot: {
+                newRoot: {
+                  $mergeObjects: [
+                    '$studentData',
+                    { applications: '$applications' }
+                  ]
+                }
+              }
+            }
+          ],
+          withoutApplications: [{ $match: { hasApplications: false } }]
+        }
+      },
+      {
+        $project: {
+          result: {
+            $concatArrays: ['$withApplications', '$withoutApplications']
+          }
+        }
+      },
+      {
+        $unwind: '$result'
+      },
+      {
+        $replaceRoot: { newRoot: '$result' }
+      }
+    ]);
+    return students;
   }
 };
 

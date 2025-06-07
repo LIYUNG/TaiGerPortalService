@@ -147,7 +147,7 @@ const updateDocumentationHelperLink = asyncHandler(async (req, res, next) => {
 });
 
 const getAllActiveStudents = asyncHandler(async (req, res, next) => {
-  const studentsPromise = StudentService.fetchStudents(req, {
+  const studentsPromise = StudentService.getStudentsWithApplications(req, {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   });
 
@@ -163,22 +163,22 @@ const getAllActiveStudents = asyncHandler(async (req, res, next) => {
     coursesPromise
   ]);
 
-  const studentsWithCourse = students.map((student) => {
-    const matchingItemB = courses.find(
-      (course) => student._id.toString() === course.student_id.toString()
-    );
-    if (matchingItemB) {
-      return { ...student, courses: matchingItemB };
-    } else {
-      return { ...student };
-    }
-  });
+  // const studentsWithCourse = students.map((student) => {
+  //   const matchingItemB = courses.find(
+  //     (course) => student._id.toString() === course.student_id.toString()
+  //   );
+  //   if (matchingItemB) {
+  //     return { ...student, courses: matchingItemB };
+  //   } else {
+  //     return { ...student };
+  //   }
+  // });
 
   const students_new = [];
-  for (let j = 0; j < studentsWithCourse.length; j += 1) {
-    students_new.push(add_portals_registered_status(studentsWithCourse[j]));
-  }
-  res.status(200).send({ success: true, data: students_new });
+  // for (let j = 0; j < studentsWithCourse.length; j += 1) {
+  //   students_new.push(add_portals_registered_status(studentsWithCourse[j]));
+  // }
+  res.status(200).send({ success: true, data: students });
   next();
 });
 

@@ -263,6 +263,10 @@ const deleteUser = asyncHandler(async (req, res) => {
       await req.db.model('Communication').deleteMany({ student_id: user_id });
       logger.info('Chat deleted');
 
+      // delete user applications
+      await req.db.model('Application').deleteMany({ studentId: user_id });
+      logger.info('Applications deleted');
+
       // delete user in database
       await req.db.model('User').findByIdAndDelete(user_id);
       logger.info('studnet deleted');

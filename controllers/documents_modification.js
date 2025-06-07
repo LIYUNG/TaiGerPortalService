@@ -1390,7 +1390,7 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
 
   let isFinalVersionBefore;
   let isFinalVersionAfter;
-  console.log('application_id', application_id);
+
   if (application_id) {
     const student_application = await ApplicationService.getApplicationById(
       req,
@@ -1533,10 +1533,10 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
         {
           editor_firstname: user.firstname,
           editor_lastname: user.lastname,
-          uploaded_documentname: generaldocs_thread.doc_thread_id.file_type,
+          uploaded_documentname: document_thread.file_type,
           uploaded_updatedAt: new Date(),
-          thread_id: generaldocs_thread.doc_thread_id._id?.toString(),
-          isFinalVersion: generaldocs_thread.isFinalVersion
+          thread_id: document_thread._id?.toString(),
+          isFinalVersion: document_thread.isFinalVersion
         }
       );
     }
@@ -1561,10 +1561,10 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
               student_id: student3._id.toString(),
               editor_firstname: user.firstname,
               editor_lastname: user.lastname,
-              thread_id: generaldocs_thread.doc_thread_id._id?.toString(),
-              uploaded_documentname: generaldocs_thread.doc_thread_id.file_type,
+              thread_id: document_thread._id?.toString(),
+              uploaded_documentname: document_thread.file_type,
               uploaded_updatedAt: new Date(),
-              isFinalVersion: generaldocs_thread.isFinalVersion
+              isFinalVersion: document_thread.isFinalVersion
             }
           );
         }

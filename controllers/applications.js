@@ -61,7 +61,8 @@ const getActiveStudentsApplications = asyncHandler(async (req, res) => {
   };
 
   const applications = await ApplicationService.getActiveStudentsApplications(
-    req
+    req,
+    {}
   );
 
   const students = await StudentService.fetchStudentsWithGeneralThreadsInfo(

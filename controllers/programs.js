@@ -1,7 +1,6 @@
 const {
   Role,
   is_TaiGer_Agent,
-  is_TaiGer_Student,
   is_TaiGer_role
 } = require('@taiger-common/core');
 
@@ -177,25 +176,13 @@ const getProgram = asyncHandler(async (req, res) => {
         logger.info('programs cache set successfully');
       }
       if (is_TaiGer_role(user)) {
-        const students = await req.db
-          .model('Student')
-          .find({
-            applications: {
-              $elemMatch: {
-                programId: req.params.programId,
-                decided: 'O',
-                closed: 'O'
-              }
-            }
-          })
-          .populate('agents editors', 'firstname')
-          .select(
-            'firstname lastname applications application_preference.expected_application_date'
-          );
-        const applications = await req.db.model('Application').find({
+        const applications = await ApplicationService.getApplications(req, {
           programId: req.params.programId,
           decided: 'O'
         });
+        const students = applications.map(
+          (application) => application.studentId
+        );
 
         const vc = await req.db
           .model('VC')
@@ -246,7 +233,8 @@ const getProgram = asyncHandler(async (req, res) => {
     if (user.role !== Role.External) {
       students = await getStudentsByProgram(req, req.params.programId);
     }
-    program = await req.db.model('Program').findById(req.params.programId);
+    program = await ProgramService.getProgramById(req, req.params.programId);
+
     if (!program) {
       logger.error('getProgram: Invalid program id');
       throw new ErrorResponse(404, 'Program not found');

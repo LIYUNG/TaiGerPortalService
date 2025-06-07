@@ -2,15 +2,14 @@ const _ = require('lodash');
 const { is_TaiGer_Agent } = require('@taiger-common/core');
 const { Role } = require('@taiger-common/core');
 
-const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
 const { getStudentsByProgram } = require('./programs');
 const { findStudentDeltaGet } = require('../utils/modelHelper/programChange');
-const { getPermission } = require('../utils/queryFunctions');
 const { GenerateResponseTimeByStudent } = require('./response_time');
 const { numStudentYearDistribution } = require('../utils/utils_function');
 const { one_day_cache } = require('../cache/node-cache');
+const StudentService = require('../services/students');
 
 const getActivePrograms = asyncHandler(async (req) => {
   const activePrograms = await req.db.model('User').aggregate([
@@ -313,13 +312,16 @@ const getFileTypeCount = asyncHandler(async (req) => {
 });
 
 const getAgentData = asyncHandler(async (req, agent) => {
-  const agentStudents = await req.db
-    .model('Student')
-    .find({
-      agents: agent._id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .lean();
+  const studentQuery = {
+    agents: agent._id,
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
+
+  const agentStudents = await StudentService.getStudentsWithApplications(
+    req,
+    studentQuery
+  );
+
   const student_num_with_offer = agentStudents.filter((std) =>
     std.applications.some((application) => application.admission === 'O')
   ).length;
@@ -556,19 +558,7 @@ const getStatistics = asyncHandler(async (req, res) => {
       .select('file_type messages.createdAt')
       .lean();
 
-    const studentsPromise = req.db
-      .model('Student')
-      .find()
-      .select(
-        'firstname lastname applications application_preference generaldocs_threads editors agents createdAt'
-      )
-      .populate('agents editors', 'firstname lastname')
-      .populate('applications.programId')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
-      .lean();
+    const studentsPromise = StudentService.getStudentsWithApplications(req, {});
 
     const archivCountPromise = req.db.model('Student').aggregate([
       {

@@ -12,10 +12,10 @@ const ApplicationService = {
     });
     return application;
   },
-  async getActiveStudentsApplications(req) {
+  async getActiveStudentsApplications(req, filter) {
     const applications = await req.db
       .model('Application')
-      .find()
+      .find(filter)
       .populate({
         path: 'studentId',
         populate: {
@@ -39,7 +39,7 @@ const ApplicationService = {
     return filteredApplications;
   },
   async getStudentsApplicationsByTaiGerUserId(req, userId) {
-    const applications = await this.getActiveStudentsApplications(req);
+    const applications = await this.getActiveStudentsApplications(req, {});
 
     const filteredApplications = applications.filter(
       (app) =>
@@ -55,6 +55,22 @@ const ApplicationService = {
       .find(filter)
       .populate('programId')
       .populate('doc_modification_thread.doc_thread_id', '-messages');
+  },
+  async getApplicationsWithStudentDetails(req, filter) {
+    const applications = await req.db
+      .model('Application')
+      .find(filter)
+      .populate('programId')
+      .populate({
+        path: 'studentId',
+        populate: {
+          path: 'editors agents',
+          select: 'firstname lastname email'
+        }
+      })
+      .populate('doc_modification_thread.doc_thread_id', '-messages')
+      .lean();
+    return applications;
   },
   async getApplicationsByStudentId(req, studentId) {
     const applications = await this.getApplications(req, { studentId }).lean();

@@ -2032,7 +2032,9 @@ const getThreadsByStudent = asyncHandler(async (req, res, next) => {
 });
 
 const getMyStudentMetrics = asyncHandler(async (req, res, next) => {
-  const students = await getMyStudents(req);
+  const students = await StudentService.getStudentsWithApplications(req, {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  });
 
   const studentsWithCount = students.map((student) => {
     const studentId = String(student._id);

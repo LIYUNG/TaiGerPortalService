@@ -31,6 +31,7 @@ const usersRouter = require('./users');
 const userlogsRouter = require('./userlogs');
 const widgetsRouter = require('./widget');
 const essayWriterRouter = require('./essay-writers');
+const CRMRouter = require('./CRM');
 
 const router = (app) => {
   const apiRouter = Router();
@@ -64,6 +65,7 @@ const router = (app) => {
   apiRouter.use('/users', usersRouter);
   apiRouter.use('/userlogs', userlogsRouter);
   apiRouter.use('/widgets', widgetsRouter);
+  apiRouter.use('/CRM', CRMRouter);
 
   app.use('/api', apiRouter);
   app.use('/auth', authRouter);

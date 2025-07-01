@@ -1977,24 +1977,6 @@ const isAdminOrAccessAllChat = async (req) => {
   );
 };
 
-const getMyStudents = async (req) => {
-  const { user } = req;
-  let studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-
-  const hasAllChatAccess = await isAdminOrAccessAllChat(req);
-  if (!hasAllChatAccess) {
-    studentQuery = queryStudent(studentQuery, user);
-  }
-
-  const students = await StudentService.fetchStudentsWithThreadsInfo(
-    req,
-    studentQuery
-  );
-  return students;
-};
-
 const getActiveThreadsByStudent = (student) => [
   ...(student.applications
     .filter((app) => isProgramDecided(app))

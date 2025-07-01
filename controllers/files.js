@@ -22,6 +22,7 @@ const logger = require('../services/logger');
 
 const { deleteS3Object } = require('../aws/s3');
 const { getS3Object } = require('../aws/s3');
+const ApplicationService = require('../services/applications');
 
 const getTemplates = asyncHandler(async (req, res, next) => {
   const templates = await req.db.model('Template').find({});
@@ -640,6 +641,7 @@ const updateProfileDocumentStatus = asyncHandler(async (req, res, next) => {
   }
 });
 
+// TODO: not used yet.
 const updateStudentApplicationResultV2 = asyncHandler(
   async (req, res, next) => {
     const { studentId, programId } = req.params;
@@ -788,18 +790,8 @@ const updateStudentApplicationResultV2 = asyncHandler(
 );
 
 const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
-  const { studentId, programId, result } = req.params;
+  const { studentId, applicationId, result } = req.params;
   const { user } = req;
-
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId');
-  if (!student) {
-    logger.error('updateStudentApplicationResult: Invalid student Id');
-    throw new ErrorResponse(404, 'Invalid student Id');
-  }
 
   let updatedStudent;
   if (req.file) {
@@ -810,18 +802,18 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       updatedAt: new Date()
     };
 
-    updatedStudent = await req.db.model('Student').findOneAndUpdate(
-      { _id: studentId, 'applications.programId': programId },
+    updatedStudent = await ApplicationService.updateApplication(
+      req,
       {
-        'applications.$.admission': result,
-        'applications.$.admission_letter': admission_letter_temp
+        _id: applicationId
       },
-      { new: true }
+      {
+        admission: result,
+        admission_letter: admission_letter_temp
+      }
     );
   } else if (result === '-') {
-    const app = student.applications.find(
-      (application) => application.programId?._id.toString() === programId
-    );
+    const app = await ApplicationService.getApplicationById(req, applicationId);
     const file_path = app.admission_letter?.admission_file_path;
     if (file_path && file_path !== '') {
       const fileKey = file_path.replace(/\\/g, '/');
@@ -848,31 +840,46 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       comments: '',
       updatedAt: new Date()
     };
-    updatedStudent = await req.db.model('Student').findOneAndUpdate(
-      { _id: studentId, 'applications.programId': programId },
+    updatedStudent = await ApplicationService.updateApplication(
+      req,
       {
-        'applications.$.admission': result,
-        'applications.$.admission_letter': admission_letter_temp
+        _id: applicationId
       },
-      { new: true }
+      {
+        admission: result,
+        admission_letter: admission_letter_temp
+      }
     );
   } else {
-    updatedStudent = await req.db.model('Student').findOneAndUpdate(
-      { _id: studentId, 'applications.programId': programId },
+    updatedStudent = await ApplicationService.updateApplication(
+      req,
       {
-        'applications.$.admission': result
+        _id: applicationId
       },
-      { new: true }
+      {
+        admission: result
+      }
     );
   }
 
-  const udpatedApplication = updatedStudent.applications.find(
-    (application) => application.programId.toString() === programId
+  const udpatedApplication = await ApplicationService.getApplicationById(
+    req,
+    applicationId
   );
-  const udpatedApplicationForEmail = student.applications.find(
-    (application) => application.programId?.id.toString() === programId
-  );
+  const udpatedApplicationForEmail =
+    await ApplicationService.getApplicationById(req, applicationId);
+
   res.status(200).send({ success: true, data: udpatedApplication });
+
+  const student = await req.db
+    .model('Student')
+    .findById(studentId)
+    .populate('agents editors', 'firstname lastname email');
+  if (!student) {
+    logger.error('updateStudentApplicationResult: Invalid student Id');
+    throw new ErrorResponse(404, 'Invalid student Id');
+  }
+
   if (is_TaiGer_Student(user)) {
     if (result !== '-') {
       for (let i = 0; i < student.agents?.length; i += 1) {

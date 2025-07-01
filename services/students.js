@@ -65,25 +65,6 @@ const StudentService = {
       .populate('agents editors', 'firstname lastname email archiv')
       .lean();
   },
-  async fetchStudentsWithThreadsInfo(req, filter) {
-    return req.db
-      .model('Student')
-      .find(filter)
-      .populate({
-        path: 'generaldocs_threads.doc_thread_id',
-        select:
-          'file_type flag_by_user_id outsourced_user_id isFinalVersion updatedAt messages.file',
-        populate: {
-          path: 'outsourced_user_id messages.user_id',
-          select: 'firstname lastname'
-        }
-      })
-      .populate('editors agents', 'firstname lastname archiv')
-      .select(
-        'generaldocs_threads firstname lastname application_preference attributes'
-      )
-      .lean();
-  },
   async getStudentsWithApplications(req, filter) {
     const students = await req.db.model('Student').aggregate([
       {

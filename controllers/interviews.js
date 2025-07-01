@@ -218,12 +218,10 @@ const getMyInterview = asyncHandler(async (req, res) => {
     }
 
     interviews = await addInterviewStatus(req.db, interviews);
-    const students = await req.db
-      .model('Student')
-      .find(studentFilter)
-      .populate('agents editors', 'firstname lastname email')
-      .populate('applications.programId', 'school program_name degree semester')
-      .lean();
+    const students = await StudentService.getStudentsWithApplications(
+      req,
+      studentFilter
+    );
 
     if (!students) {
       logger.info('getMyInterview: No students found!');

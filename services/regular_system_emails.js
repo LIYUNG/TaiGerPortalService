@@ -32,6 +32,7 @@ const StudentTasksReminderEmail = asyncHandler(async (recipient, payload) => {
 
   const base_documents = base_documents_summary(payload.student);
 
+  // TODO: it shows: "Technische Universität München (TUM) Computational Science and Engineering undefined"
   const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
     payload.student,
     payload.student

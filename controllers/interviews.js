@@ -23,6 +23,7 @@ const { getPermission } = require('../utils/queryFunctions');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
 const { userChangesHelperFunction } = require('../utils/utils_function');
 const StudentService = require('../services/students');
+const ApplicationService = require('../services/applications');
 
 const PrecheckInterview = asyncHandler(async (req, interview_id) => {
   const precheck_interview = await req.db
@@ -230,11 +231,15 @@ const getMyInterview = asyncHandler(async (req, res) => {
 
     res.status(200).send({ success: true, data: interviews, students });
   } else {
-    const student = await req.db
-      .model('Student')
-      .findById(user._id.toString())
-      .populate('applications.programId', 'school program_name degree semester')
-      .lean();
+    const student = await StudentService.getStudentById(
+      req,
+      user._id.toString()
+    );
+    const applications = await ApplicationService.getApplicationsByStudentId(
+      req,
+      user._id.toString()
+    );
+    student.applications = applications;
     if (!student) {
       logger.info('getMyInterview: Student not found!');
       throw new ErrorResponse(400, 'Student not found!');

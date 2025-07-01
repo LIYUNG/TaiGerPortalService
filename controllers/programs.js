@@ -339,17 +339,7 @@ const deleteProgram = asyncHandler(async (req, res) => {
     req,
     req.params.programId
   );
-  const students = await req.db
-    .model('Student')
-    .find({
-      applications: {
-        $elemMatch: {
-          programId: req.params.programId
-        }
-      }
-    })
-    .select('firstname lastname applications.programId')
-    .lean();
+
   // Check if anyone applied this program
   if (applications.length === 0) {
     logger.info('it can be safely deleted!');
@@ -366,25 +356,23 @@ const deleteProgram = asyncHandler(async (req, res) => {
     await req.db
       .model('ProgramRequirement')
       .findOneAndDelete({ programId: { $in: [req.params.programId] } });
-  } else {
-    logger.error('it can not be deleted!');
-    logger.error('The following students have these programs!');
-    const students_names = students
-      .map((std) => `${std.firstname} ${std.lastname}`)
-      .join(', ');
-    logger.error(students_names);
-    throw new ErrorResponse(
-      403,
-      `This program can not be deleted! ${students_names} are applying or considering this program.`
-    );
-  }
-  res.status(200).send({ success: true });
-  if (students.length === 0) {
     await req.db
       .model('Ticket')
       .deleteMany({ program_id: req.params.programId });
     logger.info('Delete Tickets!');
+  } else {
+    logger.error('it can not be deleted!');
+    logger.error('The following students have these programs!');
+    const studentIds = applications
+      .map((application) => application.studentId)
+      .join(', ');
+    logger.error(studentIds);
+    throw new ErrorResponse(
+      403,
+      `This program can not be deleted! ${studentIds} are applying or considering this program.`
+    );
   }
+  res.status(200).send({ success: true });
 });
 
 module.exports = {

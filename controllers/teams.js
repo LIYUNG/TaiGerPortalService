@@ -813,34 +813,6 @@ const getStatistics = asyncHandler(async (req, res) => {
   }
 });
 
-const getSingleAgent = asyncHandler(async (req, res, next) => {
-  const { agent_id } = req.params;
-
-  const agentPromise = req.db
-    .model('Agent')
-    .findById(agent_id)
-    .select('firstname lastname');
-  // query by agents field: student.agents include agent_id
-  const studentsPromise = req.db
-    .model('Student')
-    .find({
-      agents: agent_id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
-    .select('-notification')
-    .lean();
-
-  const [agent, students] = await Promise.all([agentPromise, studentsPromise]);
-
-  res.status(200).send({ success: true, data: { students, agent } });
-});
-
 const putAgentProfile = asyncHandler(async (req, res, next) => {
   const { agent_id } = req.params;
   const agent = await req.db
@@ -861,46 +833,6 @@ const getAgentProfile = asyncHandler(async (req, res, next) => {
   res.status(200).send({ success: true, data: agent });
 });
 
-const getSingleEditor = asyncHandler(async (req, res, next) => {
-  const { editor_id } = req.params;
-  const editorPromise = req.db
-    .model('User')
-    .findById(editor_id)
-    .select('firstname lastname');
-  // query by agents field: student.editors include editor_id
-  const studentsPromise = req.db
-    .model('Student')
-    .find({
-      editors: editor_id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId')
-    .populate({
-      path: 'generaldocs_threads.doc_thread_id',
-      select: 'file_type isFinalVersion updatedAt',
-      populate: {
-        path: 'messages.user_id',
-        select: 'firstname lastname'
-      }
-    })
-    .populate({
-      path: 'applications.doc_modification_thread.doc_thread_id',
-      select: 'file_type isFinalVersion updatedAt',
-      populate: {
-        path: 'messages.user_id',
-        select: 'firstname lastname'
-      }
-    })
-    .select('-notification');
-
-  const [editor, students] = await Promise.all([
-    editorPromise,
-    studentsPromise
-  ]);
-  res.status(200).send({ success: true, data: { students, editor } });
-});
-
 const getArchivStudents = asyncHandler(async (req, res) => {
   const { TaiGerStaffId } = req.params;
   const user = await req.db.model('User').findById(TaiGerStaffId);
@@ -919,7 +851,6 @@ const getArchivStudents = asyncHandler(async (req, res) => {
         archiv: true
       })
       .populate('agents editors', 'firstname lastname')
-      .populate('applications.programId')
       .lean();
 
     res.status(200).send({ success: true, data: students });
@@ -930,8 +861,7 @@ const getArchivStudents = asyncHandler(async (req, res) => {
         editors: TaiGerStaffId,
         archiv: true
       })
-      .populate('agents editors', 'firstname lastname')
-      .populate('applications.programId');
+      .populate('agents editors', 'firstname lastname');
     res.status(200).send({ success: true, data: students });
   } else {
     // Guest
@@ -955,10 +885,8 @@ module.exports = {
   getStatistics,
   getResponseIntervalByStudent,
   getResponseTimeByStudent,
-  getSingleAgent,
   putAgentProfile,
   getAgentProfile,
-  getSingleEditor,
   getArchivStudents,
   getEssayWriters,
   getApplicationDeltas

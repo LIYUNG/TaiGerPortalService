@@ -435,19 +435,40 @@ const putThreadFavorite = asyncHandler(async (req, res, next) => {
     throw new ErrorResponse(404, 'Thread not found');
   }
 
-  if (thread.flag_by_user_id?.includes(user._id.toString())) {
-    await DocumentThreadService.updateThreadById(req, messagesThreadId, {
-      $pull: { flag_by_user_id: user._id.toString() }
-    });
-  } else {
-    await DocumentThreadService.updateThreadById(req, messagesThreadId, {
-      $addToSet: { flag_by_user_id: user._id.toString() }
-    });
-  }
+  // Convert user._id to string for consistent comparison
+  const userIdString = user._id.toString();
 
-  res.status(200).send({
-    success: true
-  });
+  // Check if user ID exists in the flag_by_user_id array (convert ObjectIds to strings for comparison)
+  const isFlagged = thread.flag_by_user_id?.some(
+    (id) => id.toString() === userIdString
+  );
+
+  try {
+    if (isFlagged) {
+      // Remove user from favorites
+      await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+        $pull: { flag_by_user_id: user._id }
+      });
+    } else {
+      // Add user to favorites
+      await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+        $addToSet: { flag_by_user_id: user._id }
+      });
+    }
+
+    res.status(200).send({
+      success: true,
+      data: {
+        isFlagged: !isFlagged // Return the new state
+      }
+    });
+  } catch (error) {
+    logger.error(
+      'putThreadFavorite: Failed to update thread favorite status',
+      error
+    );
+    throw new ErrorResponse(500, 'Failed to update favorite status');
+  }
 });
 
 const checkDocumentPattern = asyncHandler(async (req, res) => {

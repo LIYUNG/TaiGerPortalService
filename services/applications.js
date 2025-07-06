@@ -144,6 +144,81 @@ const ApplicationService = {
   async updateApplicationsBulk(req, updates) {
     const result = await req.db.model('Application').bulkWrite(updates);
     return result;
+  },
+  async getApplicationConflicts(req) {
+    const applicationConflicts = await req.db.model('Application').aggregate([
+      {
+        $match: {
+          decided: 'O',
+          closed: '-',
+          programId: { $ne: null }, // optional: ignore null programIds
+          studentId: { $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: '$programId',
+          studentIds: { $addToSet: '$studentId' }, // avoid duplicates
+          applicationCount: { $sum: 1 }
+        }
+      },
+      {
+        $match: {
+          applicationCount: { $gt: 1 } // optional: only programs with >1 applicant
+        }
+      },
+      // Lookup program info
+      {
+        $lookup: {
+          from: 'programs',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'programInfo'
+        }
+      },
+      {
+        $unwind: '$programInfo'
+      },
+      // Lookup student info
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'studentIds',
+          foreignField: '_id',
+          as: 'students'
+        }
+      },
+      // Project only necessary fields
+      {
+        $project: {
+          _id: 0,
+          programId: '$_id',
+          program: {
+            _id: '$programInfo._id',
+            school: '$programInfo.school',
+            program_name: '$programInfo.program_name',
+            application_deadline: '$programInfo.application_deadline',
+            degree: '$programInfo.degree',
+            semester: '$programInfo.semester'
+          },
+          application_year: '$_id.application_year',
+          applicationCount: 1,
+          students: {
+            $map: {
+              input: '$students',
+              as: 's',
+              in: {
+                _id: '$$s._id',
+                firstname: '$$s.firstname',
+                lastname: '$$s.lastname'
+              }
+            }
+          }
+        }
+      }
+    ]);
+
+    return applicationConflicts;
   }
 };
 

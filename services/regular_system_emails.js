@@ -20,10 +20,6 @@ const {
 const { transporter, sendEmail } = require('./email/configuration');
 const { asyncHandler } = require('../middlewares/error-handler');
 
-const verifySMTPConfig = () => {
-  return transporter.verify();
-};
-
 const StudentTasksReminderEmail = asyncHandler(async (recipient, payload) => {
   const subject = `TaiGer Weekly Reminder: ${recipient.firstname} ${recipient.lastname}`;
   const unsubmitted_applications = unsubmitted_applications_summary(
@@ -60,13 +56,13 @@ ${unsubmitted_applications}
 `; // should be for admin/editor/agent/student
 
   if (
-    survey_not_complete === '' &&
-    unread_cv_ml_rl_thread === '' &&
-    base_documents === '' &&
-    unsubmitted_applications === ''
+    !(
+      survey_not_complete === '' &&
+      unread_cv_ml_rl_thread === '' &&
+      base_documents === '' &&
+      unsubmitted_applications === ''
+    )
   ) {
-    return;
-  } else {
     return sendEmail(recipient, subject, message);
   }
 });
@@ -126,39 +122,22 @@ ${student_i}
 const EditorTasksReminderEmail = asyncHandler(async (recipient, payload) => {
   const subject = `TaiGer Editor Reminder: ${recipient.firstname} ${recipient.lastname}`;
   let student_i = '';
-  let x = 0;
-  for (let i = 0; i < payload.students.length; i += 1) {
-    if (x === 0) {
-      if (
-        is_cv_ml_rl_task_response_needed(payload.students[i], payload.editor)
-      ) {
-        const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
-          payload.students[i],
-          payload.editor
-        );
-        student_i = `
-      <p><b>${payload.students[i].firstname} ${payload.students[i].lastname}</b>,</p>
-      
-      ${unread_cv_ml_rl_thread}
-`;
-        x += 1;
-      }
-    } else {
-      if (
-        is_cv_ml_rl_task_response_needed(payload.students[i], payload.editor)
-      ) {
-        const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
-          payload.students[i],
-          payload.editor
-        );
-        student_i += `
-      <p><b>${payload.students[i].firstname} ${payload.students[i].lastname}</b>,</p>
+  let first = true;
+  payload.students.forEach((student) => {
+    if (is_cv_ml_rl_task_response_needed(student, payload.editor)) {
+      const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
+        student,
+        payload.editor
+      );
+      const studentBlock = `
+      <p><b>${student.firstname} ${student.lastname}</b>,</p>
       
       ${unread_cv_ml_rl_thread}
     `;
-      }
+      student_i += first ? studentBlock : `${studentBlock}`;
+      first = false;
     }
-  }
+  });
 
   const message = `\
 <p>Hi ${recipient.firstname} ${recipient.lastname},</p>
@@ -383,7 +362,6 @@ ${cvmlrl_deadline_soon}
 );
 
 module.exports = {
-  verifySMTPConfig,
   StudentTasksReminderEmail,
   AgentTasksReminderEmail,
   EditorTasksReminderEmail,

@@ -489,9 +489,9 @@ const UrgentTasksReminderEmails = asyncHandler(async () => {
   req.db = connectToDatabase(tenantId);
   req.VCModel = req.db.model('VC');
   const UrgentTaskPromises = [
-    UrgentTasksReminderEmails_Editor_core(req),
-    UrgentTasksReminderEmails_Student_core(req),
-    UrgentTasksReminderEmails_Agent_core(req)
+    // UrgentTasksReminderEmails_Editor_core(req), // TODO: check if this is needed
+    // UrgentTasksReminderEmails_Student_core(req), // TODO: check if this is needed
+    // UrgentTasksReminderEmails_Agent_core(req) // TODO: check if this is needed
   ];
 
   await Promise.all(UrgentTaskPromises);

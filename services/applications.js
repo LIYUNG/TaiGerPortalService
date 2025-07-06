@@ -140,6 +140,10 @@ const ApplicationService = {
     });
     // TODO: delete VPD
     await req.db.model('Application').findByIdAndDelete(application_id);
+  },
+  async updateApplicationsBulk(req, updates) {
+    const result = await req.db.model('Application').bulkWrite(updates);
+    return result;
   }
 };
 

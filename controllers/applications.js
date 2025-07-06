@@ -112,178 +112,135 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
   const student = await StudentService.getStudentById(req, studentId);
 
-  const oldApplications = await ApplicationService.getApplicationsByStudentId(
-    req,
-    studentId
-  );
-
-  let new_task_flag = false;
   if (!student) {
     logger.error('updateStudentApplications: Invalid student id');
     throw new ErrorResponse(404, 'Invalid student id');
   }
-  const new_app_decided_idx = [];
-  for (let i = 0; i < applications.length; i += 1) {
-    const application_idx = oldApplications.findIndex(
-      (app) => app._id == applications[i]._id
-    );
-    const application = oldApplications.find(
-      (app) => app._id == applications[i]._id
-    );
-    if (!application) {
-      logger.error('updateStudentApplications: Invalid document status');
-      throw new ErrorResponse(
-        404,
-        'Invalid application. Please refresh the page and try updating again.'
-      );
-    }
-    if (
-      isProgramDecided(applications[i]) &&
-      application.decided !== applications[i].decided
-    ) {
-      // if applications[i].decided === 'yes',
-      // send ML/RL/Essay Tasks link in Email for eidtor, student
-      // Add new tasks and send to email
-      new_app_decided_idx.push(application_idx);
-      if (
-        application.programId.uni_assist &&
-        application.programId.uni_assist.includes('Yes')
-      ) {
-        student.notification.isRead_uni_assist_task_assigned = false;
-      }
-      // add reminder banner
-      student.notification.isRead_new_cvmlrl_tasks_created = false;
-      new_task_flag = true;
-    }
-    application.decided = applications[i].decided;
-    application.closed = applications[i].closed;
 
-    if (isProgramSubmitted(application)) {
-      for (let k = 0; k < application.doc_modification_thread.length; k += 1) {
-        application.doc_modification_thread[k].updatedAt = new Date();
-        await DocumentThreadService.updateThread(
-          req,
-          {
-            application_id: application._id,
-            student_id: student._id
-          },
-          {
-            isFinalVersion: true,
-            updatedAt: new Date()
-          }
-        );
-      }
-    }
-    application.admission = applications[i].admission;
-    application.finalEnrolment = applications[i].finalEnrolment;
-  }
+  const updates = applications.map((app) => {
+    const update = {
+      decided: app.decided,
+      closed: app.closed,
+      admission: app.admission,
+      finalEnrolment: app.finalEnrolment
+    };
+    return { updateOne: { filter: { _id: app._id }, update } };
+  });
+  const result = await ApplicationService.updateApplicationsBulk(req, updates);
+  logger.info('updateStudentApplications: result', result);
   if (user.role === Role.Admin) {
-    student.applying_program_count = parseInt(applying_program_count, 10);
+    await StudentService.updateStudentById(req, studentId, {
+      applying_program_count: parseInt(applying_program_count, 10)
+    });
   }
-  await student.save();
 
-  const student_updated = await StudentService.getStudentById(req, studentId);
+  const updatedStudent = await StudentService.getStudentById(req, studentId);
+  const newApplications = await ApplicationService.getApplicationsByStudentId(
+    req,
+    studentId
+  );
+  updatedStudent.applications = newApplications;
+  res.status(201).send({ success: true, data: updatedStudent });
+  // TODO: optimize email
+  // if (is_TaiGer_Student(user)) {
+  //   for (let i = 0; i < updatedStudent.agents.length; i += 1) {
+  //     if (isNotArchiv(updatedStudent.agents[i])) {
+  //       await UpdateStudentApplicationsEmail(
+  //         {
+  //           firstname: updatedStudent.agents[i].firstname,
+  //           lastname: updatedStudent.agents[i].lastname,
+  //           address: updatedStudent.agents[i].email
+  //         },
+  //         {
+  //           student: updatedStudent,
+  //           sender_firstname: updatedStudent.firstname,
+  //           sender_lastname: updatedStudent.lastname,
+  //           student_applications: updatedStudent.applications,
+  //           new_app_decided_idx
+  //         }
+  //       );
+  //     }
+  //   }
+  //   if (isNotArchiv(updatedStudent)) {
+  //     await UpdateStudentApplicationsEmail(
+  //       {
+  //         firstname: updatedStudent.firstname,
+  //         lastname: updatedStudent.lastname,
+  //         address: updatedStudent.email
+  //       },
+  //       {
+  //         student: updatedStudent,
+  //         sender_firstname: updatedStudent.firstname,
+  //         sender_lastname: updatedStudent.lastname,
+  //         student_applications: updatedStudent.applications,
+  //         new_app_decided_idx
+  //       }
+  //     );
+  //   }
 
-  res.status(201).send({ success: true, data: student_updated });
-  if (is_TaiGer_Student(user)) {
-    for (let i = 0; i < student_updated.agents.length; i += 1) {
-      if (isNotArchiv(student_updated.agents[i])) {
-        await UpdateStudentApplicationsEmail(
-          {
-            firstname: student_updated.agents[i].firstname,
-            lastname: student_updated.agents[i].lastname,
-            address: student_updated.agents[i].email
-          },
-          {
-            student: student_updated,
-            sender_firstname: student_updated.firstname,
-            sender_lastname: student_updated.lastname,
-            student_applications: student_updated.applications,
-            new_app_decided_idx
-          }
-        );
-      }
-    }
-    if (isNotArchiv(student_updated)) {
-      await UpdateStudentApplicationsEmail(
-        {
-          firstname: student_updated.firstname,
-          lastname: student_updated.lastname,
-          address: student_updated.email
-        },
-        {
-          student: student_updated,
-          sender_firstname: student_updated.firstname,
-          sender_lastname: student_updated.lastname,
-          student_applications: student_updated.applications,
-          new_app_decided_idx
-        }
-      );
-    }
+  //   if (new_task_flag) {
+  //     for (let i = 0; i < updatedStudent.editors.length; i += 1) {
+  //       if (isNotArchiv(updatedStudent.editors[i])) {
+  //         if (isNotArchiv(updatedStudent)) {
+  //           await NewMLRLEssayTasksEmail(
+  //             {
+  //               firstname: updatedStudent.editors[i].firstname,
+  //               lastname: updatedStudent.editors[i].lastname,
+  //               address: updatedStudent.editors[i].email
+  //             },
+  //             {
+  //               sender_firstname: updatedStudent.firstname,
+  //               sender_lastname: updatedStudent.lastname,
+  //               student_applications: updatedStudent.applications,
+  //               new_app_decided_idx
+  //             }
+  //           );
+  //         }
+  //       }
+  //     }
+  //   }
+  // } else {
+  //   if (isNotArchiv(updatedStudent)) {
+  //     await UpdateStudentApplicationsEmail(
+  //       {
+  //         firstname: updatedStudent.firstname,
+  //         lastname: updatedStudent.lastname,
+  //         address: updatedStudent.email
+  //       },
+  //       {
+  //         student: updatedStudent,
+  //         sender_firstname: user.firstname,
+  //         sender_lastname: user.lastname,
+  //         student_applications: updatedStudent.applications,
+  //         new_app_decided_idx
+  //       }
+  //     );
+  //   }
 
-    if (new_task_flag) {
-      for (let i = 0; i < student_updated.editors.length; i += 1) {
-        if (isNotArchiv(student_updated.editors[i])) {
-          if (isNotArchiv(student_updated)) {
-            await NewMLRLEssayTasksEmail(
-              {
-                firstname: student_updated.editors[i].firstname,
-                lastname: student_updated.editors[i].lastname,
-                address: student_updated.editors[i].email
-              },
-              {
-                sender_firstname: student_updated.firstname,
-                sender_lastname: student_updated.lastname,
-                student_applications: student_updated.applications,
-                new_app_decided_idx
-              }
-            );
-          }
-        }
-      }
-    }
-  } else {
-    if (isNotArchiv(student_updated)) {
-      await UpdateStudentApplicationsEmail(
-        {
-          firstname: student_updated.firstname,
-          lastname: student_updated.lastname,
-          address: student_updated.email
-        },
-        {
-          student: student_updated,
-          sender_firstname: user.firstname,
-          sender_lastname: user.lastname,
-          student_applications: student_updated.applications,
-          new_app_decided_idx
-        }
-      );
-    }
-
-    if (new_task_flag) {
-      for (let i = 0; i < student_updated.editors.length; i += 1) {
-        if (isNotArchiv(student_updated.editors[i])) {
-          if (isNotArchiv(student_updated)) {
-            await NewMLRLEssayTasksEmailFromTaiGer(
-              {
-                firstname: student_updated.editors[i].firstname,
-                lastname: student_updated.editors[i].lastname,
-                address: student_updated.editors[i].email
-              },
-              {
-                student_firstname: student_updated.firstname,
-                student_lastname: student_updated.lastname,
-                sender_firstname: user.firstname,
-                sender_lastname: user.lastname,
-                student_applications: student_updated.applications,
-                new_app_decided_idx
-              }
-            );
-          }
-        }
-      }
-    }
-  }
+  //   if (new_task_flag) {
+  //     for (let i = 0; i < updatedStudent.editors.length; i += 1) {
+  //       if (isNotArchiv(updatedStudent.editors[i])) {
+  //         if (isNotArchiv(updatedStudent)) {
+  //           await NewMLRLEssayTasksEmailFromTaiGer(
+  //             {
+  //               firstname: updatedStudent.editors[i].firstname,
+  //               lastname: updatedStudent.editors[i].lastname,
+  //               address: updatedStudent.editors[i].email
+  //             },
+  //             {
+  //               student_firstname: updatedStudent.firstname,
+  //               student_lastname: updatedStudent.lastname,
+  //               sender_firstname: user.firstname,
+  //               sender_lastname: user.lastname,
+  //               student_applications: updatedStudent.applications,
+  //               new_app_decided_idx
+  //             }
+  //           );
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
   next();
 });
 

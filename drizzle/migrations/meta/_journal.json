@@ -50,6 +50,20 @@
       "when": 1751723651817,
       "tag": "0006_lethal_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1751813764611,
+      "tag": "0007_greedy_red_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1751816435769,
+      "tag": "0008_curious_galactus",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "transcripts" DROP COLUMN "user_id";

@@ -740,21 +740,21 @@ const postMessages = asyncHandler(async (req, res) => {
   // in student (User) collections.
   const student = await req.db
     .model('Student')
-    .findById(document_thread.student_id)
+    .findById(document_thread2.student_id._id.toString())
     .populate('editors agents', 'firstname lastname email archiv');
   const applications = await req.db
     .model('Application')
-    .find({ studentId: document_thread.student_id._id.toString() })
+    .find({ studentId: document_thread2.student_id._id.toString() })
     .populate('programId');
 
-  if (document_thread.program_id) {
+  if (document_thread2.program_id) {
     const application = applications.find(
       ({ programId }) =>
-        programId._id.toString() === document_thread.program_id._id.toString()
+        programId._id.toString() === document_thread2.program_id._id.toString()
     );
     const doc_thread = application.doc_modification_thread.find(
       ({ doc_thread_id }) =>
-        doc_thread_id.toString() === document_thread._id.toString()
+        doc_thread_id.toString() === document_thread2._id.toString()
     );
     if (doc_thread) {
       if (!is_TaiGer_Student(user)) {
@@ -762,11 +762,12 @@ const postMessages = asyncHandler(async (req, res) => {
       }
       doc_thread.latest_message_left_by_id = user._id.toString();
       doc_thread.updatedAt = new Date();
+      await application.save();
     }
   } else {
     const general_thread = student.generaldocs_threads.find(
       ({ doc_thread_id }) =>
-        doc_thread_id.toString() === document_thread._id.toString()
+        doc_thread_id.toString() === document_thread2._id.toString()
     );
     if (general_thread) {
       if (is_TaiGer_Student(user)) {

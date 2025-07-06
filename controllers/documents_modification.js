@@ -4,7 +4,6 @@ const {
   Role,
   is_TaiGer_Agent,
   is_TaiGer_Editor,
-  is_TaiGer_External,
   is_TaiGer_Admin,
   is_TaiGer_Student,
   isProgramDecided
@@ -48,7 +47,6 @@ const {
 const { AWS_S3_BUCKET_NAME, API_ORIGIN } = require('../config');
 const { deleteS3Objects } = require('../aws/s3');
 const {
-  deleteApplicationThread,
   createApplicationThread,
   emptyS3Directory
 } = require('../utils/modelHelper/versionControl');
@@ -59,11 +57,9 @@ const {
 } = require('../utils/utils_function');
 const { getS3Object } = require('../aws/s3');
 const { getPermission } = require('../utils/queryFunctions');
-const { TENANT_SHORT_NAME } = require('../constants/common');
 const StudentService = require('../services/students');
 const DocumentThreadService = require('../services/documentthreads');
 const UserService = require('../services/users');
-const { queryStudent } = require('../utils/helper');
 const ApplicationService = require('../services/applications');
 
 const getActiveThreads = asyncHandler(async (req, res) => {
@@ -438,7 +434,8 @@ const putThreadFavorite = asyncHandler(async (req, res, next) => {
   // Convert user._id to string for consistent comparison
   const userIdString = user._id.toString();
 
-  // Check if user ID exists in the flag_by_user_id array (convert ObjectIds to strings for comparison)
+  // Check if user ID exists in the flag_by_user_id array
+  // (convert ObjectIds to strings for comparison)
   const isFlagged = thread.flag_by_user_id?.some(
     (id) => id.toString() === userIdString
   );
@@ -665,6 +662,7 @@ const postImageInThread = asyncHandler(async (req, res) => {
 });
 
 // (O) notification email works
+// TODO: need to refactor! using Service layer.
 const postMessages = asyncHandler(async (req, res) => {
   const {
     user,

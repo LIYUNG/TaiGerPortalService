@@ -58,11 +58,7 @@ const {
   docThreadMultitenant_filter,
   surveyMultitenantFilter
 } = require('../middlewares/documentThreadMultitenantFilter');
-const {
-  permission_canAssignEditor_filter,
-  permission_canAssignAgent_filter,
-  permission_canAccessStudentDatabase_filter
-} = require('../middlewares/permission-filter');
+
 const { logAccess } = require('../utils/log/log');
 const { editorIdsBodyFilter } = require('../middlewares/editorIdsBodyFilter');
 const {

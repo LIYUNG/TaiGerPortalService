@@ -49,10 +49,10 @@ const {
 // });
 
 const launch = async () => {
-  console.log('AWS_LOG_GROUP' + process.env.AWS_LOG_GROUP);
-  console.log('PORT' + process.env.PORT);
-  console.log('AWS_S3_BUCKET_NAME' + process.env.AWS_S3_BUCKET_NAME);
-  console.log('PORT' + process.env.PORT);
+  console.log(`AWS_LOG_GROUP: ${process.env.AWS_LOG_GROUP}`);
+  console.log(`PORT: ${process.env.PORT}`);
+  console.log(`AWS_S3_BUCKET_NAME: ${process.env.AWS_S3_BUCKET_NAME}`);
+  console.log(`PORT: ${process.env.PORT}`);
   if (isDev()) {
     if (
       AWS_S3_BUCKET_NAME.includes('production') ||

@@ -18,7 +18,6 @@ const {
 
 const {
   StudentTasksReminderEmail,
-  AgentTasksReminderEmail,
   EditorTasksReminderEmail,
   StudentApplicationsDeadline_Within30Days_DailyReminderEmail,
   StudentCVMLRLEssay_NoReplyAfter3Days_DailyReminderEmail,
@@ -207,36 +206,6 @@ const TasksReminderEmails_Editor_core = asyncHandler(async (req) => {
   logger.info('Editor reminder email sent');
 });
 
-const TasksReminderEmails_Agent_core = asyncHandler(async (req) => {
-  // Only inform active student
-  // TODO: deactivate or change email frequency (default 1 week.)
-  const agents = await req.db.model('Agent').find();
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-  for (let j = 0; j < agents.length; j += 1) {
-    studentQuery.agents = agents[j]._id;
-    const agent_students = await StudentService.getStudentsWithApplications(
-      req,
-      studentQuery
-    );
-
-    if (agent_students.length > 0) {
-      if (isNotArchiv(agents[j])) {
-        AgentTasksReminderEmail(
-          {
-            firstname: agents[j].firstname,
-            lastname: agents[j].lastname,
-            address: agents[j].email
-          },
-          { students: agent_students, agent: agents[j] }
-        );
-      }
-    }
-  }
-  logger.info('Agent reminder email sent');
-});
-
 const TasksReminderEmails_Student_core = asyncHandler(async (req) => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
@@ -270,7 +239,6 @@ const TasksReminderEmails = asyncHandler(async () => {
   req.VCModel = req.db.model('VC');
   await TasksReminderEmails_Editor_core(req);
   await TasksReminderEmails_Student_core(req);
-  await TasksReminderEmails_Agent_core(req);
 });
 
 const UrgentTasksReminderEmails_Student_core = asyncHandler(async (req) => {

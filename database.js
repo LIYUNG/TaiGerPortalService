@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const { MONGODB_URI } = require('./config');
+const { drizzle } = require('drizzle-orm/neon-http');
+const { MONGODB_URI, POSTGRES_URI } = require('./config');
 const {
   UserSchema,
   Agent,
@@ -138,8 +139,11 @@ const disconnectFromDatabase = async (tenant) => {
   }
 };
 
+const postgresDb = drizzle(POSTGRES_URI);
+
 module.exports = {
   mongoDb,
+  postgresDb,
   tenantDb,
   connections,
   connectToDatabase,

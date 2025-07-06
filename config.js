@@ -31,6 +31,7 @@ module.exports = {
   TENANT_ID: env('TENANT_ID', 'TaiGer'),
   // TODO: remove some of the default values
   MONGODB_URI: env('MONGODB_URI', 'mongodb://localhost:27017/TaiGer'),
+  POSTGRES_URI: env('POSTGRES_URI', 'postgresql://localhost:5432/TaiGer'),
   JWT_SECRET: env('JWT_SECRET', 'topsecret'),
   JWT_EXPIRE: env('JWT_EXPIRE', '1hr'),
   PROGRAMS_CACHE: env('PROGRAMS_CACHE', false),
@@ -84,5 +85,6 @@ module.exports = {
     'AWS_TRANSCRIPT_ANALYSER_APIG_URL',
     'https://beta.course.taigerconsultancy-portal.com/analyze'
   ),
-  OPENAI_API_KEY: env('OPENAI_API_KEY', '')
+  OPENAI_API_KEY: env('OPENAI_API_KEY', ''),
+  FIREFILES_API_TOKEN: env('FIREFILES_API_TOKEN', '')
 };

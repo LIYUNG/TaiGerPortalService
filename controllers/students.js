@@ -22,18 +22,11 @@ const {
   informStudentTheirAgentEmail,
   informEditorNewStudentEmail,
   informStudentTheirEditorEmail,
-  createApplicationToStudentEmail,
   informAgentStudentAssignedEmail,
   informAgentManagerNewStudentEmail
 } = require('../services/email');
 
-const {
-  GENERAL_RLs_CONSTANT,
-  RLs_CONSTANT,
-  isNotArchiv,
-  ManagerType,
-  PROGRAM_SPECIFIC_FILETYPE
-} = require('../constants');
+const { isNotArchiv, ManagerType } = require('../constants');
 const { getPermission } = require('../utils/queryFunctions');
 const StudentService = require('../services/students');
 const UserQueryBuilder = require('../builders/UserQueryBuilder');
@@ -186,98 +179,18 @@ const getAllStudents = asyncHandler(async (req, res, next) => {
   res.status(200).send({ success: true, data: students });
   next();
 });
+
 const getStudentsV3 = asyncHandler(async (req, res, next) => {
-  const { user } = req;
+  const { editors, agents } = req.query;
+  const { filter } = new UserQueryBuilder()
+    .withEditors(editors)
+    .withAgents(agents)
+    .withArchiv(false)
+    .build();
 
-  if (user.role === Role.Admin) {
-    const students = await StudentService.fetchStudents(req, {
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    });
+  const students = await StudentService.fetchStudents(req, filter);
 
-    res.status(200).send({ success: true, data: students });
-  } else if (user.role === Role.Manager) {
-    let students = [];
-    // TODO: depends on manager type
-    if (user.manager_type === ManagerType.Agent) {
-      students = await StudentService.fetchStudents(req, {
-        agents: { $in: user.agents },
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      });
-    }
-    if (user.manager_type === ManagerType.Editor) {
-      students = await StudentService.fetchStudents(req, {
-        editors: { $in: user.editors },
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      });
-    }
-    if (user.manager_type === ManagerType.AgentAndEditor) {
-      students = await StudentService.fetchStudents(req, {
-        $and: [
-          {
-            $or: [
-              { agents: { $in: user.agents } },
-              { editors: { $in: user.editors } }
-            ]
-          },
-          { $or: [{ archiv: { $exists: false } }, { archiv: false }] }
-        ]
-      });
-    }
-    const courses = await req.db
-      .model('Course')
-      .find()
-      .select('-table_data_string')
-      .lean();
-    // Perform the join
-    const studentsWithCourse = students.map((student) => {
-      const matchingItemB = courses.find(
-        (course) => student._id.toString() === course.student_id.toString()
-      );
-      if (matchingItemB) {
-        return { ...student, courses: matchingItemB };
-      } else {
-        return { ...student };
-      }
-    });
-    const students_new = [];
-    for (let j = 0; j < studentsWithCourse.length; j += 1) {
-      students_new.push(add_portals_registered_status(studentsWithCourse[j]));
-    }
-    res.status(200).send({
-      success: true,
-      data: students_new,
-      notification: user.agent_notification
-    });
-  } else if (is_TaiGer_Agent(user)) {
-    const students = await StudentService.fetchStudents(req, {
-      agents: user._id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    });
-
-    res.status(200).send({
-      success: true,
-      data: students
-    });
-  } else if (is_TaiGer_Editor(user)) {
-    const permissions = await getPermission(req, user);
-    if (permissions && permissions.canAssignEditors) {
-      const students = await StudentService.fetchSimpleStudents(req, {
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      });
-
-      res.status(200).send({ success: true, data: students });
-    } else {
-      const students = await StudentService.fetchSimpleStudents(req, {
-        editors: user._id,
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      });
-
-      res.status(200).send({ success: true, data: students });
-    }
-  } else {
-    // Guest
-    res.status(200).send({ success: true, data: [user] });
-  }
+  res.status(200).send({ success: true, data: students });
   next();
 });
 

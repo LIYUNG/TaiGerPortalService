@@ -5,6 +5,29 @@ class UserQueryBuilder extends BaseQueryBuilder {
     super();
   }
 
+  withArchiv(archiv) {
+    if (archiv) {
+      this.query.archiv = archiv;
+    } else {
+      this.query.$or = [{ archiv: { $exists: false } }, { archiv: false }];
+    }
+    return this;
+  }
+
+  withEditors(editors) {
+    if (editors) {
+      this.query.editors = editors;
+    }
+    return this;
+  }
+
+  withAgents(agents) {
+    if (agents) {
+      this.query.agents = agents;
+    }
+    return this;
+  }
+
   withChatRoomId(chatRoomId) {
     if (chatRoomId) {
       this.query.chatRoomId = chatRoomId;

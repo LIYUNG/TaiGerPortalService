@@ -28,6 +28,15 @@ class UserQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
+  withNeedEditor(needEditor) {
+    if (needEditor || needEditor === 'true') {
+      this.query.needEditor = needEditor;
+    } else if (needEditor === false || needEditor === 'false') {
+      this.query.needEditor = false;
+    }
+    return this;
+  }
+
   withChatRoomId(chatRoomId) {
     if (chatRoomId) {
       this.query.chatRoomId = chatRoomId;

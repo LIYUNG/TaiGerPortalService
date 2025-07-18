@@ -26,7 +26,6 @@ const { ErrorResponse } = require('../common/errors');
 const ApplicationService = require('../services/applications');
 const UserService = require('../services/users');
 const StudentService = require('../services/students');
-const DocumentThreadService = require('../services/documentthreads');
 
 const getMyStudentsApplications = asyncHandler(async (req, res) => {
   const {

@@ -10,6 +10,10 @@ const { GenerateResponseTimeByStudent } = require('./response_time');
 const { numStudentYearDistribution } = require('../utils/utils_function');
 const { one_day_cache } = require('../cache/node-cache');
 const StudentService = require('../services/students');
+const UserQueryBuilder = require('../builders/UserQueryBuilder');
+const InterviewQueryBuilder = require('../builders/InterviewQueryBuilder');
+const InterviewService = require('../services/interviews');
+const DocumentThreadService = require('../services/documentthreads');
 
 const getActivePrograms = asyncHandler(async (req) => {
   const activePrograms = await req.db.model('User').aggregate([
@@ -880,6 +884,48 @@ const getEssayWriters = asyncHandler(async (req, res, next) => {
   res.status(200).send({ success: true, data: editors });
 });
 
+const getTasksOverview = asyncHandler(async (req, res, next) => {
+  const { filter: noAgentsfilter } = new UserQueryBuilder()
+    .withArchiv(false)
+    .withAgents({ $exists: true, $size: 0 })
+    .build();
+  const { filter: noEditorsfilter } = new UserQueryBuilder()
+    .withArchiv(false)
+    .withEditors({ $exists: true, $size: 0 })
+    .withNeedEditor(true)
+    .build();
+  const { filter: noTrainerInInterviewsfilter } = new InterviewQueryBuilder()
+    .withIsClosed(false)
+    .withTrainerId({ $exists: true, $size: 0 })
+    .build();
+
+  const [
+    noAgentsStudents,
+    noEditorsStudents,
+    noTrainerInInterviewsStudents,
+    noEssayWritersEssays
+  ] = await Promise.all([
+    StudentService.fetchStudents(req, noAgentsfilter),
+    StudentService.fetchStudents(req, noEditorsfilter),
+    InterviewService.getInterviews(req, noTrainerInInterviewsfilter),
+    DocumentThreadService.getAllStudentsThreads(req, {
+      isFinalVersion: false,
+      file_type: 'Essay',
+      outsourced_user_id: { $exists: true, $size: 0 }
+    })
+  ]);
+
+  res.status(200).send({
+    success: true,
+    data: {
+      noAgentsStudents: noAgentsStudents?.length || 0,
+      noEditorsStudents: noEditorsStudents?.length || 0,
+      noTrainerInInterviewsStudents: noTrainerInInterviewsStudents?.length || 0,
+      noEssayWritersEssays: noEssayWritersEssays?.length || 0
+    }
+  });
+});
+
 module.exports = {
   getTeamMembers,
   getStatistics,
@@ -889,5 +935,6 @@ module.exports = {
   getAgentProfile,
   getArchivStudents,
   getEssayWriters,
-  getApplicationDeltas
+  getApplicationDeltas,
+  getTasksOverview
 };

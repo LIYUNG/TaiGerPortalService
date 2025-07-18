@@ -517,7 +517,7 @@ const getResponseIntervalByStudent = asyncHandler(async (req, res) => {
 });
 
 const getResponseTimeByStudent = asyncHandler(async (req, res) => {
-  const studentId = req.params.studentId;
+  const { studentId } = req.params;
   const responseTimeRecords = await req.db
     .model('ResponseTime')
     .find({ student_id: studentId });
@@ -926,6 +926,16 @@ const getTasksOverview = asyncHandler(async (req, res, next) => {
   });
 });
 
+const getIsManager = asyncHandler(async (req, res, next) => {
+  const permission = await req.db.model('Permission').findOne({
+    user_id: req.user._id
+  });
+
+  const isManager = permission?.canAssignAgents || permission?.canAssignEditors;
+
+  res.status(200).send({ success: true, data: { isManager } });
+});
+
 module.exports = {
   getTeamMembers,
   getStatistics,
@@ -936,5 +946,6 @@ module.exports = {
   getArchivStudents,
   getEssayWriters,
   getApplicationDeltas,
-  getTasksOverview
+  getTasksOverview,
+  getIsManager
 };

@@ -11,7 +11,8 @@ const {
   getResponseIntervalByStudent,
   getResponseTimeByStudent,
   getArchivStudents,
-  getTasksOverview
+  getTasksOverview,
+  getIsManager
 } = require('../controllers/teams');
 const {
   permission_canAccessStudentDatabase_filter
@@ -31,6 +32,15 @@ router
     GeneralGETRequestRateLimiter,
     permission_canAccessStudentDatabase_filter,
     getStatistics
+  );
+
+router
+  .route('/is-manager')
+  .get(
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permit(Role.Agent, Role.Editor),
+    getIsManager
   );
 
 router

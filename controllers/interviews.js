@@ -151,9 +151,20 @@ const addInterviewStatus = async (db, interviews) => {
 };
 
 const getAllInterviews = asyncHandler(async (req, res) => {
+  const { isClosed, trainer_id, no_trainer } = req.query;
+  const filter = {};
+  if (isClosed) {
+    filter.isClosed = isClosed;
+  }
+  if (no_trainer || no_trainer === 'true') {
+    filter.trainer_id = { $size: 0 };
+  } else if (trainer_id) {
+    filter.trainer_id = trainer_id;
+  }
+
   let interviews = await req.db
     .model('Interview')
-    .find()
+    .find(filter)
     .populate('student_id trainer_id', 'firstname lastname email')
     .populate('program_id', 'school program_name degree semester')
     .populate('event_id')

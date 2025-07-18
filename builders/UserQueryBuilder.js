@@ -6,9 +6,9 @@ class UserQueryBuilder extends BaseQueryBuilder {
   }
 
   withArchiv(archiv) {
-    if (archiv) {
-      this.query.archiv = archiv;
-    } else {
+    if (archiv === true || archiv === 'true') {
+      this.query.archiv = true;
+    } else if (archiv === false || archiv === 'false') {
       this.query.$or = [{ archiv: { $exists: false } }, { archiv: false }];
     }
     return this;

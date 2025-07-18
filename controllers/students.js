@@ -181,11 +181,11 @@ const getAllStudents = asyncHandler(async (req, res, next) => {
 });
 
 const getStudentsV3 = asyncHandler(async (req, res, next) => {
-  const { editors, agents } = req.query;
+  const { editors, agents, archiv } = req.query;
   const { filter } = new UserQueryBuilder()
     .withEditors(editors)
     .withAgents(agents)
-    .withArchiv(false)
+    .withArchiv(archiv)
     .build();
 
   const students = await StudentService.fetchStudents(req, filter);

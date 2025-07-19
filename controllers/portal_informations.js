@@ -2,23 +2,21 @@ const _ = require('lodash');
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
+const ApplicationService = require('../services/applications');
+const StudentService = require('../services/students');
 
 const getPortalCredentials = asyncHandler(async (req, res) => {
   const {
     params: { studentId }
   } = req;
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate(
-      'applications.programId',
-      'school program_name semester degree application_portal_a application_portal_b application_portal_a_instructions application_portal_b_instructions'
-    )
-    .select(
-      'firstname lastname agents editors applications.decided applications.portal_credentials.application_portal_a applications.portal_credentials.application_portal_b'
-    )
-    .lean();
+  const student = await StudentService.getStudentById(req, studentId);
+  const applications =
+    await ApplicationService.getApplicationsWithCredentialsByStudentId(
+      req,
+      studentId
+    );
+  student.applications = applications;
   res.status(200).send({
     success: true,
     data: {
@@ -35,29 +33,33 @@ const getPortalCredentials = asyncHandler(async (req, res) => {
 });
 
 const createPortalCredentials = asyncHandler(async (req, res) => {
-  const { studentId, programId } = req.params;
+  const { applicationId } = req.params;
   const credentials = req.body;
-  const student = await req.db.model('Student').findById(studentId);
-  const application = student.applications.find(
-    (appli) => appli.programId.toString() === programId
+  const application = await ApplicationService.updateApplication(
+    req,
+    {
+      _id: applicationId
+    },
+    {
+      portal_credentials: {
+        application_portal_a: {
+          account: credentials.account_portal_a,
+          password: credentials.password_portal_a
+        },
+        application_portal_b: {
+          account: credentials.account_portal_b,
+          password: credentials.password_portal_b
+        }
+      }
+    }
   );
+
   if (!application) {
     logger.error('createPortalCredentials: Application not found');
     throw new ErrorResponse(400, 'Application not found');
   }
-  const portal_credentials = {
-    application_portal_a: {
-      account: credentials.account_portal_a,
-      password: credentials.password_portal_a
-    },
-    application_portal_b: {
-      account: credentials.account_portal_b,
-      password: credentials.password_portal_b
-    }
-  };
-  application.portal_credentials = portal_credentials;
-  await student.save();
-  return res.send({ success: true, data: student });
+
+  return res.send({ success: true, data: application });
 });
 
 module.exports = {

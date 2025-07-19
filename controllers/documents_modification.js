@@ -4,7 +4,6 @@ const {
   Role,
   is_TaiGer_Agent,
   is_TaiGer_Editor,
-  is_TaiGer_External,
   is_TaiGer_Admin,
   is_TaiGer_Student,
   isProgramDecided
@@ -32,7 +31,7 @@ const {
 const logger = require('../services/logger');
 const {
   General_Docs,
-  application_deadline_calculator,
+  application_deadline_V2_calculator,
   isNotArchiv,
   CVDeadline_Calculator,
   EDITOR_SCOPE,
@@ -48,7 +47,6 @@ const {
 const { AWS_S3_BUCKET_NAME, API_ORIGIN } = require('../config');
 const { deleteS3Objects } = require('../aws/s3');
 const {
-  deleteApplicationThread,
   createApplicationThread,
   emptyS3Directory
 } = require('../utils/modelHelper/versionControl');
@@ -59,19 +57,26 @@ const {
 } = require('../utils/utils_function');
 const { getS3Object } = require('../aws/s3');
 const { getPermission } = require('../utils/queryFunctions');
-const { TENANT_SHORT_NAME } = require('../constants/common');
 const StudentService = require('../services/students');
 const DocumentThreadService = require('../services/documentthreads');
+const UserService = require('../services/users');
+const ApplicationService = require('../services/applications');
 
-const getAllCVMLRLOverview = asyncHandler(async (req, res) => {
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-  const students = await StudentService.fetchStudentsWithThreadsInfo(
+const getActiveThreads = asyncHandler(async (req, res) => {
+  const { query } = req;
+  const threads = await DocumentThreadService.getAllStudentsThreads(req, query);
+
+  res.status(200).send({ success: true, data: threads });
+});
+
+const getMyStudentsThreads = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const threads = await DocumentThreadService.getStudentsThreadsByTaiGerUserId(
     req,
-    studentQuery
+    userId
   );
-  res.status(200).send({ success: true, data: students });
+  const user = await UserService.getUserById(req, userId);
+  res.status(200).send({ success: true, data: { threads, user } });
 });
 
 const getSurveyInputDocuments = async (req, studentId, programId, fileType) => {
@@ -99,18 +104,16 @@ const getSurveyInputs = asyncHandler(async (req, res, next) => {
   const {
     params: { messagesThreadId }
   } = req;
-  const threadDocument = await req.db
-    .model('Documentthread')
-    .findById(messagesThreadId)
-    .populate('student_id', 'firstname lastname email')
-    .populate('program_id', 'school program_name degree lang')
-    .lean();
+  const threadDocument = await DocumentThreadService.getThreadById(
+    req,
+    messagesThreadId
+  );
 
   if (!threadDocument) {
     logger.error(
       `getSurveyInputs: Invalid message thread id! (${messagesThreadId})`
     );
-    throw new ErrorResponse(400, 'Invalid message thread id');
+    throw new ErrorResponse(404, 'Message thread not found');
   }
 
   const surveyDocument = await getSurveyInputDocuments(
@@ -214,47 +217,6 @@ const resetSurveyInput = asyncHandler(async (req, res, next) => {
       .populate('program_id')
       .lean();
     informOnSurveyUpdate(req, user, updatedSurvey, thread);
-  }
-});
-
-const getCVMLRLOverview = asyncHandler(async (req, res) => {
-  const { user } = req;
-
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-
-  if (is_TaiGer_Agent(user)) {
-    studentQuery.agents = user._id.toString();
-  } else if (is_TaiGer_Editor(user)) {
-    studentQuery.editors = user._id.toString();
-  }
-
-  if (
-    is_TaiGer_Admin(user) ||
-    is_TaiGer_Agent(user) ||
-    is_TaiGer_Editor(user)
-  ) {
-    const students = await StudentService.fetchStudentsWithThreadsInfo(
-      req,
-      studentQuery
-    );
-    res.status(200).send({ success: true, data: students });
-  } else if (is_TaiGer_Student(user)) {
-    const obj = user.notification; // create object
-    obj.isRead_new_cvmlrl_messsage = true; // set value
-    obj.isRead_new_cvmlrl_tasks_created = true;
-    await req.db
-      .model('Student')
-      .findByIdAndUpdate(user._id.toString(), { notification: obj }, {});
-    const student = await StudentService.fetchStudentByIdWithThreadsInfo(
-      req,
-      user._id
-    );
-    res.status(200).send({ success: true, data: [student] });
-  } else {
-    // Guest
-    res.status(200).send({ success: true, data: [user] });
   }
 });
 
@@ -365,6 +327,7 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   const newAppRecord = await createApplicationThread(
     {
       StudentModel: req.db.model('Student'),
+      ApplicationModel: req.db.model('Application'),
       DocumentthreadModel: req.db.model('Documentthread')
     },
     studentId,
@@ -373,14 +336,14 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   );
   res.status(200).send({ success: true, data: newAppRecord });
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId')
-    .populate('agents editors', 'firstname lastname email archiv')
-    .lean();
+  const student = await StudentService.getStudentById(req, studentId);
 
-  const program = student.applications.find(
+  const applications = await ApplicationService.getApplicationsByStudentId(
+    req,
+    studentId
+  );
+
+  const program = applications.find(
     (app) => app.programId._id.toString() === program_id
   )?.programId;
   const Essay_Writer_Scope = Object.keys(ESSAY_WRITER_SCOPE);
@@ -459,35 +422,50 @@ const putThreadFavorite = asyncHandler(async (req, res, next) => {
     user,
     params: { messagesThreadId }
   } = req;
-  const thread = await req.db
-    .model('Documentthread')
-    .findById(messagesThreadId);
+  const thread = await DocumentThreadService.getThreadById(
+    req,
+    messagesThreadId
+  );
   if (!thread) {
     logger.error('putThreadFavorite: Invalid message thread id!');
     throw new ErrorResponse(404, 'Thread not found');
   }
 
-  if (thread.flag_by_user_id?.includes(user._id.toString())) {
-    await req.db.model('Documentthread').findByIdAndUpdate(
-      messagesThreadId,
-      {
-        $pull: { flag_by_user_id: user._id.toString() } // Remove user id if already present
-      },
-      {}
-    );
-  } else {
-    await req.db.model('Documentthread').findByIdAndUpdate(
-      messagesThreadId,
-      {
-        $addToSet: { flag_by_user_id: user._id.toString() } // Add user id if not already present
-      },
-      {}
-    );
-  }
+  // Convert user._id to string for consistent comparison
+  const userIdString = user._id.toString();
 
-  res.status(200).send({
-    success: true
-  });
+  // Check if user ID exists in the flag_by_user_id array
+  // (convert ObjectIds to strings for comparison)
+  const isFlagged = thread.flag_by_user_id?.some(
+    (id) => id.toString() === userIdString
+  );
+
+  try {
+    if (isFlagged) {
+      // Remove user from favorites
+      await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+        $pull: { flag_by_user_id: user._id }
+      });
+    } else {
+      // Add user to favorites
+      await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+        $addToSet: { flag_by_user_id: user._id }
+      });
+    }
+
+    res.status(200).send({
+      success: true,
+      data: {
+        isFlagged: !isFlagged // Return the new state
+      }
+    });
+  } catch (error) {
+    logger.error(
+      'putThreadFavorite: Failed to update thread favorite status',
+      error
+    );
+    throw new ErrorResponse(500, 'Failed to update favorite status');
+  }
 });
 
 const checkDocumentPattern = asyncHandler(async (req, res) => {
@@ -572,6 +550,10 @@ const getMessages = asyncHandler(async (req, res) => {
     req,
     messagesThreadId
   );
+  if (!document_thread) {
+    logger.error('getMessages: Invalid message thread id');
+    throw new ErrorResponse(404, 'Thread not found');
+  }
 
   const similarThreads = document_thread?.program_id
     ? await DocumentThreadService.getThreads(req, {
@@ -610,52 +592,44 @@ const getMessages = asyncHandler(async (req, res) => {
       _id: document_thread.student_id.editors
     })
     .select('firstname lastname');
-  const studentPromise = req.db
-    .model('Student')
-    .findById(document_thread.student_id._id.toString())
-    .populate('applications.programId');
-  const [agents, editors, student, threadAuditLog] = await Promise.all([
+  const applicationsPromise = req.db
+    .model('Application')
+    .find({ studentId: document_thread.student_id._id.toString() })
+    .populate('programId');
+
+  const [agents, editors, applications, threadAuditLog] = await Promise.all([
     agentsPromise,
     editorsPromise,
-    studentPromise,
+    applicationsPromise,
     threadAuditLogPromise
   ]);
 
   let deadline = 'x';
   if (General_Docs.includes(document_thread.file_type)) {
-    deadline = CVDeadline_Calculator(student);
+    deadline = CVDeadline_Calculator(applications);
   } else {
-    const application = student.applications.find(
+    const application = applications.find(
       (app) =>
         app.programId._id.toString() ===
         document_thread.program_id._id.toString()
     );
-    deadline = application_deadline_calculator(student, application);
+    deadline = application_deadline_V2_calculator(application);
   }
   // Find conflict list:
   let conflict_list = [];
   if (
-    is_TaiGer_Admin(user) ||
-    is_TaiGer_Agent(user) ||
-    is_TaiGer_Editor(user)
+    document_thread.application_id &&
+    (is_TaiGer_Admin(user) || is_TaiGer_Agent(user) || is_TaiGer_Editor(user))
   ) {
     conflict_list = await req.db
-      .model('Student')
+      .model('Application')
       .find({
-        _id: { $ne: document_thread.student_id._id.toString() },
-        applications: {
-          $elemMatch: {
-            programId: document_thread.program_id?._id.toString(),
-            decided: 'O'
-          }
-        },
-        'application_preference.expected_application_date':
-          document_thread.student_id?.application_preference
-            ?.expected_application_date
+        studentId: { $ne: document_thread.student_id._id.toString() },
+        programId: document_thread.program_id?._id.toString(),
+        decided: 'O',
+        application_year: document_thread.application_id.application_year
       })
-      .select(
-        'firstname lastname applications application_preference.expected_application_date'
-      );
+      .populate('studentId', 'firstname lastname');
   }
 
   res.status(200).send({
@@ -688,6 +662,7 @@ const postImageInThread = asyncHandler(async (req, res) => {
 });
 
 // (O) notification email works
+// TODO: need to refactor! using Service layer.
 const postMessages = asyncHandler(async (req, res) => {
   const {
     user,
@@ -763,32 +738,34 @@ const postMessages = asyncHandler(async (req, res) => {
   // in student (User) collections.
   const student = await req.db
     .model('Student')
-    .findById(document_thread.student_id)
-    .populate('applications.programId')
+    .findById(document_thread2.student_id._id.toString())
     .populate('editors agents', 'firstname lastname email archiv');
+  const applications = await req.db
+    .model('Application')
+    .find({ studentId: document_thread2.student_id._id.toString() })
+    .populate('programId');
 
-  if (document_thread.program_id) {
-    const application = student.applications.find(
+  if (document_thread2.program_id) {
+    const application = applications.find(
       ({ programId }) =>
-        programId._id.toString() === document_thread.program_id._id.toString()
+        programId._id.toString() === document_thread2.program_id._id.toString()
     );
     const doc_thread = application.doc_modification_thread.find(
       ({ doc_thread_id }) =>
-        doc_thread_id.toString() === document_thread._id.toString()
+        doc_thread_id.toString() === document_thread2._id.toString()
     );
     if (doc_thread) {
-      if (is_TaiGer_Student(user)) {
-      }
       if (!is_TaiGer_Student(user)) {
         student.notification.isRead_new_cvmlrl_messsage = false;
       }
       doc_thread.latest_message_left_by_id = user._id.toString();
       doc_thread.updatedAt = new Date();
+      await application.save();
     }
   } else {
     const general_thread = student.generaldocs_threads.find(
       ({ doc_thread_id }) =>
-        doc_thread_id.toString() === document_thread._id.toString()
+        doc_thread_id.toString() === document_thread2._id.toString()
     );
     if (general_thread) {
       if (is_TaiGer_Student(user)) {
@@ -1390,16 +1367,14 @@ const putOriginAuthorConfirmedByStudent = asyncHandler(async (req, res) => {
     body: { checked }
   } = req;
 
-  const document_thread = await req.db
-    .model('Documentthread')
-    .findByIdAndUpdate(
-      messagesThreadId,
-      {
-        isOriginAuthorDeclarationConfirmedByStudent: checked,
-        isOriginAuthorDeclarationConfirmedByStudentTimestamp: new Date()
-      },
-      { new: true }
-    );
+  const document_thread = await DocumentThreadService.updateThreadById(
+    req,
+    messagesThreadId,
+    {
+      isOriginAuthorDeclarationConfirmedByStudent: checked,
+      isOriginAuthorDeclarationConfirmedByStudentTimestamp: new Date()
+    }
+  );
 
   if (!document_thread) {
     logger.error(
@@ -1419,20 +1394,13 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
   const {
     user,
     params: { messagesThreadId, studentId },
-    body: { program_id }
+    body: { application_id }
   } = req;
 
   const document_thread = await req.db
     .model('Documentthread')
     .findById(messagesThreadId);
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId generaldocs_threads.doc_thread_id')
-    .populate(
-      'applications.doc_modification_thread.doc_thread_id',
-      'file_type updatedAt'
-    );
+  const student = await StudentService.getStudentById(req, studentId);
   if (!document_thread) {
     logger.error('SetStatusMessagesThread: Invalid message thread id');
     throw new ErrorResponse(404, 'Thread not found');
@@ -1444,9 +1412,11 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
 
   let isFinalVersionBefore;
   let isFinalVersionAfter;
-  if (program_id) {
-    const student_application = student.applications.find(
-      (application) => application.programId._id.toString() === program_id
+
+  if (application_id) {
+    const student_application = await ApplicationService.getApplicationById(
+      req,
+      application_id
     );
     if (!student_application) {
       logger.error('SetStatusMessagesThread: application not found');
@@ -1461,12 +1431,13 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
       throw new ErrorResponse(404, 'Thread not found');
     }
     isFinalVersionBefore = application_thread.isFinalVersion;
-    application_thread.isFinalVersion = !application_thread.isFinalVersion;
+    application_thread.isFinalVersion = !isFinalVersionBefore;
     application_thread.updatedAt = new Date();
-    document_thread.isFinalVersion = application_thread.isFinalVersion;
+    document_thread.isFinalVersion = !isFinalVersionBefore;
     isFinalVersionAfter = application_thread.isFinalVersion;
     document_thread.updatedAt = new Date();
-    await Promise.all([document_thread.save(), student.save()]);
+    await student_application.save();
+    await document_thread.save();
 
     res.status(200).send({
       success: true,
@@ -1541,20 +1512,19 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
     // Wait for all email promises to be resolved
     await Promise.all(emailPromises);
   } else {
-    const generaldocs_thread = student.generaldocs_threads.find(
-      (thread) => thread.doc_thread_id._id == messagesThreadId
+    isFinalVersionBefore = document_thread.isFinalVersion;
+    await req.db.model('Student').findOneAndUpdate(
+      { _id: studentId, 'generaldocs_threads.doc_thread_id': messagesThreadId },
+      {
+        'generaldocs_threads.$.isFinalVersion': !isFinalVersionBefore,
+        'generaldocs_threads.$.updatedAt': new Date()
+      },
+      {}
     );
-    if (!generaldocs_thread) {
-      logger.error('SetStatusMessagesThread: generaldoc thread not found');
-      throw new ErrorResponse(404, 'Thread not found');
-    }
-    isFinalVersionBefore = generaldocs_thread.isFinalVersion;
-    generaldocs_thread.isFinalVersion = !generaldocs_thread.isFinalVersion;
-    generaldocs_thread.updatedAt = new Date();
-    document_thread.isFinalVersion = generaldocs_thread.isFinalVersion;
+    document_thread.isFinalVersion = !isFinalVersionBefore;
     isFinalVersionAfter = document_thread.isFinalVersion;
     document_thread.updatedAt = new Date();
-    await Promise.all([document_thread.save(), student.save()]);
+    await document_thread.save();
 
     res.status(200).send({
       success: true,
@@ -1585,10 +1555,10 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
         {
           editor_firstname: user.firstname,
           editor_lastname: user.lastname,
-          uploaded_documentname: generaldocs_thread.doc_thread_id.file_type,
+          uploaded_documentname: document_thread.file_type,
           uploaded_updatedAt: new Date(),
-          thread_id: generaldocs_thread.doc_thread_id._id?.toString(),
-          isFinalVersion: generaldocs_thread.isFinalVersion
+          thread_id: document_thread._id?.toString(),
+          isFinalVersion: document_thread.isFinalVersion
         }
       );
     }
@@ -1613,10 +1583,10 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
               student_id: student3._id.toString(),
               editor_firstname: user.firstname,
               editor_lastname: user.lastname,
-              thread_id: generaldocs_thread.doc_thread_id._id?.toString(),
-              uploaded_documentname: generaldocs_thread.doc_thread_id.file_type,
+              thread_id: document_thread._id?.toString(),
+              uploaded_documentname: document_thread.file_type,
               uploaded_updatedAt: new Date(),
-              isFinalVersion: generaldocs_thread.isFinalVersion
+              isFinalVersion: document_thread.isFinalVersion
             }
           );
         }
@@ -1698,7 +1668,7 @@ const handleDeleteGeneralThread = asyncHandler(async (req, res) => {
 // (-) TODO email : notification
 const handleDeleteProgramThread = asyncHandler(async (req, res) => {
   const {
-    params: { messagesThreadId, program_id, studentId }
+    params: { messagesThreadId, application_id, studentId }
   } = req;
 
   const to_be_delete_thread = await req.db
@@ -1715,16 +1685,35 @@ const handleDeleteProgramThread = asyncHandler(async (req, res) => {
     throw new ErrorResponse(404, 'Student not found');
   }
 
-  await deleteApplicationThread(
+  // Before delete the thread, please delete all of the files in the thread!!
+  // Delete folder
+  let directory = path.join(studentId, messagesThreadId);
+  logger.info('Trying to delete message thread and folder');
+  directory = directory.replace(/\\/g, '/');
+  emptyS3Directory(AWS_S3_BUCKET_NAME, directory);
+
+  await req.db.model('Application').findOneAndUpdate(
     {
-      StudentModel: req.db.model('Student'),
-      DocumentthreadModel: req.db.model('Documentthread'),
-      surveyInputModel: req.db.model('surveyInput')
+      _id: new mongoose.Types.ObjectId(application_id)
     },
-    studentId,
-    program_id,
-    messagesThreadId
+    {
+      $pull: {
+        doc_modification_thread: {
+          doc_thread_id: {
+            _id: new mongoose.Types.ObjectId(messagesThreadId)
+          }
+        }
+      }
+    }
   );
+  const thread = await req.db
+    .model('Documentthread')
+    .findByIdAndDelete(messagesThreadId);
+  await req.db.model('surveyInput').deleteOne({
+    studentId,
+    programId: new mongoose.Types.ObjectId(to_be_delete_thread.program_id),
+    fileType: thread.file_type
+  });
   res.status(200).send({ success: true });
 });
 
@@ -1787,7 +1776,7 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
     }
   }
   // Don't need so delete in S3 , will delete by garbage collector
-  await req.db.model('Documentthread').findByIdAndUpdate(messagesThreadId, {
+  await DocumentThreadService.updateThreadById(req, messagesThreadId, {
     $pull: {
       messages: { _id: messageId }
     }
@@ -1801,45 +1790,37 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
     .findById(messagesThreadId);
 
   const student = await req.db.model('Student').findById(thread.student_id);
-  const application = student.applications.find((app) =>
+  const applications = await req.db
+    .model('Application')
+    .find({ studentId: thread.student_id })
+    .lean();
+
+  const application = applications.find((app) =>
     app.doc_modification_thread.some(
       (thr) => thr.doc_thread_id.toString() === messagesThreadId
     )
   );
-  if (!application) {
-    const t = student.generaldocs_threads.find(
-      (tt) => tt.doc_thread_id.toString() === messagesThreadId
-    );
-    if (t) {
-      if (updated_thread.messages.length > 0) {
-        t.latest_message_left_by_id =
-          updated_thread.messages[
-            updated_thread.messages.length - 1
-          ].user_id.toString();
-        t.updatedAt =
-          updated_thread.messages[updated_thread.messages.length - 1].updatedAt;
-      } else {
-        t.latest_message_left_by_id = '';
-      }
-    }
-  } else {
-    const t = application.doc_modification_thread.find(
-      (tt) => tt.doc_thread_id.toString() === messagesThreadId
-    );
-    if (t) {
-      if (updated_thread.messages.length > 0) {
-        t.latest_message_left_by_id =
-          updated_thread.messages[
-            updated_thread.messages.length - 1
-          ].user_id.toString();
-        t.updatedAt =
-          updated_thread.messages[updated_thread.messages.length - 1].updatedAt;
-      } else {
-        t.latest_message_left_by_id = '';
-      }
+
+  const t = !application
+    ? student.generaldocs_threads.find(
+        (tt) => tt.doc_thread_id.toString() === messagesThreadId
+      )
+    : application.doc_modification_thread.find(
+        (tt) => tt.doc_thread_id.toString() === messagesThreadId
+      );
+  if (t) {
+    if (updated_thread.messages.length > 0) {
+      t.latest_message_left_by_id =
+        updated_thread.messages[
+          updated_thread.messages.length - 1
+        ].user_id.toString();
+      t.updatedAt =
+        updated_thread.messages[updated_thread.messages.length - 1].updatedAt;
+    } else {
+      t.latest_message_left_by_id = '';
     }
   }
-  await student.save();
+  await t.save();
 });
 
 const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
@@ -1856,26 +1837,10 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
       .json({ success: false, message: 'Invalid input data.' });
   }
 
-  const essayDocumentThreads = await req.db
-    .model('Documentthread')
-    .findById(messagesThreadId)
-    .populate(
-      'student_id outsourced_user_id',
-      'firstname lastname email role archiv'
-    )
-    .populate({
-      path: 'student_id',
-      populate: {
-        path: 'agents',
-        model: 'User'
-      }
-    })
-    .populate(
-      'program_id',
-      'school program_name degree semester application_deadline'
-    )
-    .select('-messages')
-    .lean();
+  const essayDocumentThreads = await DocumentThreadService.getThreadById(
+    req,
+    messagesThreadId
+  );
 
   if (!essayDocumentThreads) {
     return res
@@ -1902,50 +1867,23 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
       added: addedEditors,
       removed: removedEditors
     });
-    await req.db.model('Documentthread').findByIdAndUpdate(
-      messagesThreadId,
-      {
-        outsourced_user_id: updatedEditorIds.map(
-          (id) => new mongoose.Types.ObjectId(id)
-        )
-      },
-      {}
-    );
+    await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+      outsourced_user_id: updatedEditorIds.map(
+        (id) => new mongoose.Types.ObjectId(id)
+      )
+    });
   }
 
   const studentId = essayDocumentThreads.student_id;
-  const student = await req.db.model('Student').findById(studentId);
-  const student_upated = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId agents editors')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
-    .lean();
+  const student_upated = await StudentService.getStudentById(req, studentId);
 
-  const essayDocumentThreads_Updated = await req.db
-    .model('Documentthread')
-    .findById(messagesThreadId)
-    .populate('student_id outsourced_user_id')
-    .populate({
-      path: 'student_id',
-      populate: {
-        path: 'agents',
-        model: 'User'
-      }
-    })
-    .populate(
-      'program_id',
-      'school program_name degree semester application_deadline'
-    )
-    .select('-messages')
-    .lean();
+  const essayDocumentThreads_Updated =
+    await DocumentThreadService.getThreadById(req, messagesThreadId);
+
   res.status(200).send({ success: true, data: essayDocumentThreads_Updated });
 
   for (let i = 0; i < toBeInformedEditors.length; i += 1) {
-    if (isNotArchiv(student)) {
+    if (isNotArchiv(student_upated)) {
       if (isNotArchiv(toBeInformedEditors[i])) {
         await informEssayWriterNewEssayEmail(
           {
@@ -1954,9 +1892,9 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
             address: toBeInformedEditors[i].email
           },
           {
-            std_firstname: student.firstname,
-            std_lastname: student.lastname,
-            std_id: student._id.toString(),
+            std_firstname: student_upated.firstname,
+            std_lastname: student_upated.lastname,
+            std_id: student_upated._id.toString(),
             thread_id: essayDocumentThreads._id.toString(),
             file_type: essayDocumentThreads.file_type,
             program: essayDocumentThreads.program_id
@@ -1967,7 +1905,7 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
   }
   // TODO: inform Agent for assigning editor.
   for (let i = 0; i < student_upated.agents.length; i += 1) {
-    if (isNotArchiv(student)) {
+    if (isNotArchiv(student_upated)) {
       if (isNotArchiv(student_upated.agents[i])) {
         await informAgentEssayAssignedEmail(
           {
@@ -1976,9 +1914,9 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
             address: student_upated.agents[i].email
           },
           {
-            std_firstname: student.firstname,
-            std_lastname: student.lastname,
-            std_id: student._id.toString(),
+            std_firstname: student_upated.firstname,
+            std_lastname: student_upated.lastname,
+            std_id: student_upated._id.toString(),
             thread_id: essayDocumentThreads._id.toString(),
             file_type: essayDocumentThreads.file_type,
             essay_writers: toBeInformedEditors,
@@ -1990,12 +1928,12 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
   }
 
   if (updatedEditors.length !== 0) {
-    if (isNotArchiv(student)) {
+    if (isNotArchiv(student_upated)) {
       await informStudentTheirEssayWriterEmail(
         {
-          firstname: student.firstname,
-          lastname: student.lastname,
-          address: student.email
+          firstname: student_upated.firstname,
+          lastname: student_upated.lastname,
+          address: student_upated.email
         },
         {
           program: essayDocumentThreads.program_id,
@@ -2009,7 +1947,7 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
 
   req.audit = {
     performedBy: user._id,
-    targetUserId: student._id, // Change this if you have a different target user ID
+    targetUserId: student_upated._id, // Change this if you have a different target user ID
     targetDocumentThreadId: messagesThreadId,
     action: 'update', // Action performed
     field: 'essay writer', // Field that was updated (if applicable)
@@ -2035,100 +1973,10 @@ const clearEssayWriters = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const getRelevantEssayThreads = (essayDocumentThreads) => {
-  // filter active student, then see if the essay thread belongs to a decided application
-  const matchingDocuments = [];
-  essayDocumentThreads
-    .filter((doc) => doc.student_id && !doc.student_id.archiv)
-    .filter((doc) => {
-      const docIdStr = doc._id?.toString();
-      const { applications } = doc.student_id;
-      const decidedApplications = applications.filter(isProgramDecided);
-      const threadIds = decidedApplications.flatMap(
-        (app) =>
-          app.doc_modification_thread?.map((thread) =>
-            thread.doc_thread_id?.toString()
-          ) || []
-      );
-      return threadIds.includes(docIdStr);
-    })
-    .forEach((doc) => matchingDocuments.push(doc));
-  return matchingDocuments;
-};
-
-const getAllActiveEssays = asyncHandler(async (req, res, next) => {
-  try {
-    const { user } = req;
-    if (is_TaiGer_Student(user)) {
-      const essayDocumentThreads = await req.db
-        .model('Documentthread')
-        .find(
-          {
-            student_id: new mongoose.Types.ObjectId(user._id),
-            file_type: 'Essay'
-          },
-          { messages: { $slice: -1 } }
-        )
-        .populate('student_id outsourced_user_id')
-        .populate({
-          path: 'student_id messages.user_id',
-          select: '-attributes',
-          populate: {
-            path: 'agents',
-            model: 'User'
-          }
-        })
-        .populate('messages.user_id', 'firstname lastname role')
-        .populate(
-          'program_id',
-          'school program_name degree application_deadline semester lang'
-        )
-        .lean();
-
-      const matchingDocuments = getRelevantEssayThreads(essayDocumentThreads);
-      res.status(200).send({ success: true, data: matchingDocuments });
-    } else if (is_TaiGer_External(user)) {
-      res.status(200).send({ success: true, data: [] });
-    } else {
-      const essayDocumentThreads = await req.db
-        .model('Documentthread')
-        .find(
-          {
-            file_type: 'Essay'
-          },
-          { messages: { $slice: -1 } }
-        )
-        .populate('student_id outsourced_user_id')
-        .populate({
-          path: 'student_id messages.user_id',
-          populate: {
-            path: 'agents editors',
-            model: 'User'
-          }
-        })
-        .populate('messages.user_id', 'firstname lastname role')
-        .populate(
-          'program_id',
-          'school program_name degree application_deadline semester lang'
-        )
-        .lean();
-
-      const matchingDocuments = getRelevantEssayThreads(essayDocumentThreads);
-      res.status(200).send({ success: true, data: matchingDocuments });
-    }
-    next();
-    // Handle matched data
-  } catch (error) {
-    logger.error(error);
-    throw new ErrorResponse(403, 'Invalid ThreadId');
-  }
-});
-
 const IgnoreMessageInDocumentThread = asyncHandler(async (req, res, next) => {
   const {
-    params: { messagesThreadId, messageId, ignoreMessageState }
+    params: { messageId, ignoreMessageState }
   } = req;
-  const { message } = req.body;
   const thread = await req.db
     .model('Documentthread')
     .updateOne(
@@ -2149,31 +1997,6 @@ const isAdminOrAccessAllChat = async (req) => {
   );
 };
 
-const getMyStudents = async (req) => {
-  const { user } = req;
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-
-  const hasAllChatAccess = await isAdminOrAccessAllChat(req);
-  if (!hasAllChatAccess) {
-    if (is_TaiGer_Agent(user)) {
-      studentQuery.agents = user._id.toString();
-    } else if (is_TaiGer_Editor(user)) {
-      studentQuery.editors = user._id.toString();
-    } else {
-      logger.error(`getMyMessages: not ${TENANT_SHORT_NAME} user!`);
-      throw new ErrorResponse(401, `Invalid ${TENANT_SHORT_NAME} user`);
-    }
-  }
-
-  const students = await StudentService.fetchStudentsWithThreadsInfo(
-    req,
-    studentQuery
-  );
-  return students;
-};
-
 const getActiveThreadsByStudent = (student) => [
   ...(student.applications
     .filter((app) => isProgramDecided(app))
@@ -2181,53 +2004,25 @@ const getActiveThreadsByStudent = (student) => [
   ...(student.generaldocs_threads || [])
 ];
 
-const getActiveThreadsByStudentWithProgramName = (student) => [
-  ...(student.applications
-    .filter((app) => isProgramDecided(app))
-    .flatMap((app) =>
-      app.doc_modification_thread?.map((thread) => ({
-        _id: String(thread.doc_thread_id._id),
-        file_type: thread.doc_thread_id.file_type,
-        isFinalVersion: thread.doc_thread_id.isFinalVersion,
-        messages: thread.doc_thread_id.messages,
-        student_id: String(student._id),
-        updatedAt: thread.doc_thread_id.updatedAt,
-        program_id: app.programId
-      }))
-    ) || []),
-  ...(student.generaldocs_threads?.map((thread) => ({
-    _id: String(thread.doc_thread_id._id),
-    file_type: thread.doc_thread_id.file_type,
-    isFinalVersion: thread.doc_thread_id.isFinalVersion,
-    messages: thread.doc_thread_id.messages,
-    student_id: String(student._id),
-    updatedAt: thread.doc_thread_id.updatedAt,
-    program_id: null
-  })) || [])
-];
-
 const getThreadsByStudent = asyncHandler(async (req, res, next) => {
   const { studentId } = req.params;
 
-  const student = await StudentService.fetchStudentByIdWithThreadsInfo(
+  const threads = await DocumentThreadService.getStudentThreadsByStudentId(
     req,
     studentId
   );
-
-  const threads = getActiveThreadsByStudentWithProgramName(student);
-
   res.status(200).send({
     success: true,
-    data: {
-      threads
-    }
+    data: { threads }
   });
 
   next();
 });
 
 const getMyStudentMetrics = asyncHandler(async (req, res, next) => {
-  const students = await getMyStudents(req);
+  const students = await StudentService.getStudentsWithApplications(req, {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  });
 
   const studentsWithCount = students.map((student) => {
     const studentId = String(student._id);
@@ -2263,12 +2058,12 @@ const getMyStudentMetrics = asyncHandler(async (req, res, next) => {
 });
 
 module.exports = {
-  getAllCVMLRLOverview,
+  getActiveThreads,
+  getMyStudentsThreads,
   getSurveyInputs,
   postSurveyInput,
   putSurveyInput,
   resetSurveyInput,
-  getCVMLRLOverview,
   initGeneralMessagesThread,
   initApplicationMessagesThread,
   getMessages,
@@ -2285,7 +2080,6 @@ module.exports = {
   handleDeleteGeneralThread,
   handleDeleteProgramThread,
   deleteAMessageInThread,
-  getAllActiveEssays,
   assignEssayWritersToEssayTask,
   clearEssayWriters,
   IgnoreMessageInDocumentThread

@@ -26,7 +26,6 @@ const updateUserPermission = asyncHandler(async (req, res) => {
   // TODO: delete permission cache!
 
   res.status(200).send({ success: true, data: permissions });
-  // TODO: email inform user
   // Email inform user, the updated status
   updatePermissionNotificationEmail(
     {

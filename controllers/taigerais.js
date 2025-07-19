@@ -12,6 +12,7 @@ const { openAIClient, OpenAiModel } = require('../services/openai');
 const { generalMLPrompt } = require('../prompt/ml_prompt');
 const { FILE_MAPPING_TABLE } = require('../constants');
 const { generalRLPrompt } = require('../prompt/rl_prompt');
+const ApplicationService = require('../services/applications');
 
 const pageSize = 3;
 
@@ -100,11 +101,10 @@ const TaiGerAiChat = asyncHandler(async (req, res, next) => {
     .sort({ createdAt: -1 }) // 0: latest!
     .limit(pageSize)
     .lean(); // show only first y limit items after skip.
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId')
-    .lean();
+  const applications = await ApplicationService.getApplicationsByStudentId(
+    req,
+    studentId
+  );
   const chat = communication_thread?.map((c) => {
     try {
       const messageObj = JSON.parse(c.message);
@@ -180,7 +180,7 @@ const TaiGerAiChat = asyncHandler(async (req, res, next) => {
   Please try to provide the link as reference. These links contain important information for each document that can help student upload the file correctly.
 
   if students ask for their application documents (listed in the following) for their applications, here are their application information, including detailed requirement:
-  The student's application information ${JSON.stringify(student.applications)}
+  The student's application information ${JSON.stringify(applications)}
   1. Motivation Letter (ML) (ML requirement is in conrresponding application.programId.ml_requirement if ml_required is true, means ML is required)
   2. Recommendation letter requirements (RL requirement is in conrresponding application.programId.rl_requirement if rl_required is the number of recommendation letters needed, means RL is required)
   3. Supplementary Form (Supplementary Form requirement is in conrresponding application.programId.supplementary_form_requirements if supplementary_form_required is true, means Supplementary Form is required)

@@ -11,8 +11,8 @@ const {
   getResponseIntervalByStudent,
   getResponseTimeByStudent,
   getArchivStudents,
-  getSingleAgent,
-  getSingleEditor
+  getTasksOverview,
+  getIsManager
 } = require('../controllers/teams');
 const {
   permission_canAccessStudentDatabase_filter
@@ -35,8 +35,23 @@ router
   );
 
 router
-  .route('/')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getTeamMembers);
+  .route('/is-manager')
+  .get(
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permit(Role.Agent, Role.Editor),
+    getIsManager
+  );
+
+router
+  .route('/tasks-overview')
+  .get(
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getTasksOverview
+  );
+
 router
   .route('/response-interval/:studentId')
   .get(
@@ -67,13 +82,5 @@ router
     permission_canAccessStudentDatabase_filter,
     getArchivStudents
   );
-
-router
-  .route('/agents/:agent_id')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getSingleAgent);
-
-router
-  .route('/editors/:editor_id')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getSingleEditor);
 
 module.exports = router;

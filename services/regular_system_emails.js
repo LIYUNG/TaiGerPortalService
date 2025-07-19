@@ -17,12 +17,8 @@ const {
   SURVEY_URL_FOR_AGENT_URL
 } = require('../constants');
 
-const { transporter, sendEmail } = require('./email/configuration');
+const { sendEmail } = require('./email/configuration');
 const { asyncHandler } = require('../middlewares/error-handler');
-
-const verifySMTPConfig = () => {
-  return transporter.verify();
-};
 
 const StudentTasksReminderEmail = asyncHandler(async (recipient, payload) => {
   const subject = `TaiGer Weekly Reminder: ${recipient.firstname} ${recipient.lastname}`;
@@ -32,6 +28,7 @@ const StudentTasksReminderEmail = asyncHandler(async (recipient, payload) => {
 
   const base_documents = base_documents_summary(payload.student);
 
+  // TODO: it shows: "Technische Universität München (TUM) Computational Science and Engineering undefined"
   const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
     payload.student,
     payload.student
@@ -59,105 +56,36 @@ ${unsubmitted_applications}
 `; // should be for admin/editor/agent/student
 
   if (
-    survey_not_complete === '' &&
-    unread_cv_ml_rl_thread === '' &&
-    base_documents === '' &&
-    unsubmitted_applications === ''
+    !(
+      survey_not_complete === '' &&
+      unread_cv_ml_rl_thread === '' &&
+      base_documents === '' &&
+      unsubmitted_applications === ''
+    )
   ) {
-    return;
-  } else {
     return sendEmail(recipient, subject, message);
   }
-});
-
-const AgentTasksReminderEmail = asyncHandler(async (recipient, payload) => {
-  const subject = `TaiGer Agent Reminder: ${recipient.firstname} ${recipient.lastname}`;
-  let student_i = '';
-  for (let i = 0; i < payload.students.length; i += 1) {
-    const base_documents = base_documents_summary(payload.students[i]);
-    const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
-      payload.students[i],
-      payload.agent
-    );
-    // TODO
-    const missing_uni_assist = '';
-    const academic_background_not_complete = missing_academic_background(
-      payload.students[i],
-      payload.agent
-    );
-    const unsubmitted_applications = unsubmitted_applications_summary(
-      payload.students[i]
-    );
-    if (
-      academic_background_not_complete !== '' ||
-      base_documents !== '' ||
-      unread_cv_ml_rl_thread !== '' ||
-      unsubmitted_applications !== ''
-    ) {
-      student_i += `
-      <p><b>${payload.students[i].firstname} ${payload.students[i].lastname}</b>,</p>
-
-      ${academic_background_not_complete}
-
-      ${base_documents}
-      
-      ${unread_cv_ml_rl_thread}
-
-      ${unsubmitted_applications}
-
-`;
-    }
-  }
-
-  const message = `\
-<p>Hi ${recipient.firstname} ${recipient.lastname},</p>
-
-<p>The following is the overview of the current status for your each student:</p>
-
-${student_i}
-
-
-`; // should be for admin/editor/agent/student
-
-  return sendEmail(recipient, subject, message);
 });
 
 const EditorTasksReminderEmail = asyncHandler(async (recipient, payload) => {
   const subject = `TaiGer Editor Reminder: ${recipient.firstname} ${recipient.lastname}`;
   let student_i = '';
-  let x = 0;
-  for (let i = 0; i < payload.students.length; i += 1) {
-    if (x === 0) {
-      if (
-        is_cv_ml_rl_task_response_needed(payload.students[i], payload.editor)
-      ) {
-        const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
-          payload.students[i],
-          payload.editor
-        );
-        student_i = `
-      <p><b>${payload.students[i].firstname} ${payload.students[i].lastname}</b>,</p>
-      
-      ${unread_cv_ml_rl_thread}
-`;
-        x += 1;
-      }
-    } else {
-      if (
-        is_cv_ml_rl_task_response_needed(payload.students[i], payload.editor)
-      ) {
-        const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
-          payload.students[i],
-          payload.editor
-        );
-        student_i += `
-      <p><b>${payload.students[i].firstname} ${payload.students[i].lastname}</b>,</p>
+  let first = true;
+  payload.students.forEach((student) => {
+    if (is_cv_ml_rl_task_response_needed(student, payload.editor)) {
+      const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
+        student,
+        payload.editor
+      );
+      const studentBlock = `
+      <p><b>${student.firstname} ${student.lastname}</b>,</p>
       
       ${unread_cv_ml_rl_thread}
     `;
-      }
+      student_i += first ? studentBlock : `${studentBlock}`;
+      first = false;
     }
-  }
+  });
 
   const message = `\
 <p>Hi ${recipient.firstname} ${recipient.lastname},</p>
@@ -382,9 +310,7 @@ ${cvmlrl_deadline_soon}
 );
 
 module.exports = {
-  verifySMTPConfig,
   StudentTasksReminderEmail,
-  AgentTasksReminderEmail,
   EditorTasksReminderEmail,
   StudentApplicationsDeadline_Within30Days_DailyReminderEmail,
   StudentCourseSelectionReminderEmail,

@@ -1,10 +1,12 @@
 const { Router } = require('express');
 
 const accountRouter = require('./account');
+const applicationsRouter = require('./applications');
 const admissionsRouter = require('./admissions');
 const agentsRouter = require('./agents');
 const allCoursesRouter = require('./allcourses');
 const authRouter = require('./auth');
+const auditRouter = require('./audit');
 const complaintsRouter = require('./complaints');
 const communicationsRouter = require('./communications');
 const coursekewordsRouter = require('./coursekeywords');
@@ -12,7 +14,6 @@ const coursesRouter = require('./courses');
 const documentationsRouter = require('./documentations');
 const docsModiRouter = require('./documents_modification');
 const expensesRouter = require('./expenses');
-const editorsRouter = require('./editors');
 const eventsRouter = require('./events');
 const interviewsRouter = require('./interviews');
 const notesRouter = require('./notes');
@@ -36,11 +37,12 @@ const CRMRouter = require('./crm');
 const router = (app) => {
   const apiRouter = Router();
   apiRouter.use('/account', accountRouter);
+  apiRouter.use('/applications', applicationsRouter);
   apiRouter.use('/student-applications', studentsApplicationRouter);
   apiRouter.use('/students', studentsRouter);
   apiRouter.use('/agents', agentsRouter);
   apiRouter.use('/all-courses', allCoursesRouter);
-  apiRouter.use('/editors', editorsRouter);
+  apiRouter.use('/audit', auditRouter);
   apiRouter.use('/essay-writers', essayWriterRouter);
   apiRouter.use('/admissions', admissionsRouter);
   apiRouter.use('/course-keywords', coursekewordsRouter);
@@ -66,7 +68,6 @@ const router = (app) => {
   apiRouter.use('/userlogs', userlogsRouter);
   apiRouter.use('/widgets', widgetsRouter);
   apiRouter.use('/crm', CRMRouter);
-
   app.use('/api', apiRouter);
   app.use('/auth', authRouter);
 };

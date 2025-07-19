@@ -2,15 +2,18 @@ const _ = require('lodash');
 const { is_TaiGer_Agent } = require('@taiger-common/core');
 const { Role } = require('@taiger-common/core');
 
-const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
 const { getStudentsByProgram } = require('./programs');
 const { findStudentDeltaGet } = require('../utils/modelHelper/programChange');
-const { getPermission } = require('../utils/queryFunctions');
 const { GenerateResponseTimeByStudent } = require('./response_time');
 const { numStudentYearDistribution } = require('../utils/utils_function');
 const { one_day_cache } = require('../cache/node-cache');
+const StudentService = require('../services/students');
+const UserQueryBuilder = require('../builders/UserQueryBuilder');
+const InterviewQueryBuilder = require('../builders/InterviewQueryBuilder');
+const InterviewService = require('../services/interviews');
+const DocumentThreadService = require('../services/documentthreads');
 
 const getActivePrograms = asyncHandler(async (req) => {
   const activePrograms = await req.db.model('User').aggregate([
@@ -83,7 +86,7 @@ const getApplicationDeltaByProgram = asyncHandler(async (req, programId) => {
   const studentDeltaPromises = [];
   const options = { skipCompleted: true };
   for (const student of students) {
-    if (!student.application || student.application.closed !== '-') {
+    if (!student || student.closed !== '-') {
       continue;
     }
     const studentDelta = getStudentDeltas(req, student, program, options);
@@ -215,7 +218,7 @@ const getDecidedApplicationsTasks = asyncHandler(async (req) => {
           _id: '$program._id',
           application_deadline: '$program.application_deadline'
         },
-        application_year: '$application_preference.expected_application_date'
+        application_year: '$applications.application_year'
       }
     }
   ]);
@@ -313,13 +316,16 @@ const getFileTypeCount = asyncHandler(async (req) => {
 });
 
 const getAgentData = asyncHandler(async (req, agent) => {
-  const agentStudents = await req.db
-    .model('Student')
-    .find({
-      agents: agent._id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .lean();
+  const studentQuery = {
+    agents: agent._id,
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
+
+  const agentStudents = await StudentService.getStudentsWithApplications(
+    req,
+    studentQuery
+  );
+
   const student_num_with_offer = agentStudents.filter((std) =>
     std.applications.some((application) => application.admission === 'O')
   ).length;
@@ -511,7 +517,7 @@ const getResponseIntervalByStudent = asyncHandler(async (req, res) => {
 });
 
 const getResponseTimeByStudent = asyncHandler(async (req, res) => {
-  const studentId = req.params.studentId;
+  const { studentId } = req.params;
   const responseTimeRecords = await req.db
     .model('ResponseTime')
     .find({ student_id: studentId });
@@ -556,19 +562,7 @@ const getStatistics = asyncHandler(async (req, res) => {
       .select('file_type messages.createdAt')
       .lean();
 
-    const studentsPromise = req.db
-      .model('Student')
-      .find()
-      .select(
-        'firstname lastname applications application_preference generaldocs_threads editors agents createdAt'
-      )
-      .populate('agents editors', 'firstname lastname')
-      .populate('applications.programId')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
-      .lean();
+    const studentsPromise = StudentService.getStudentsWithApplications(req, {});
 
     const archivCountPromise = req.db.model('Student').aggregate([
       {
@@ -823,64 +817,6 @@ const getStatistics = asyncHandler(async (req, res) => {
   }
 });
 
-const getAgents = asyncHandler(async (req, res, next) => {
-  const { user } = req;
-  if (user.role === 'Agent') {
-    const permissions = await getPermission(req, user);
-    if (permissions && permissions.canAssignAgents) {
-      const agents = await req.db
-        .model('Agent')
-        .find({
-          $or: [{ archiv: { $exists: false } }, { archiv: false }]
-        })
-        .select('firstname lastname');
-      res.status(200).send({ success: true, data: agents });
-    } else {
-      logger.error('getAgents: no permission');
-      throw new ErrorResponse(
-        403,
-        'You do not have the permission to do this action'
-      );
-    }
-  } else {
-    const agents = await req.db
-      .model('Agent')
-      .find({
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .select('firstname lastname');
-    res.status(200).send({ success: true, data: agents });
-  }
-});
-
-const getSingleAgent = asyncHandler(async (req, res, next) => {
-  const { agent_id } = req.params;
-
-  const agentPromise = req.db
-    .model('Agent')
-    .findById(agent_id)
-    .select('firstname lastname');
-  // query by agents field: student.agents include agent_id
-  const studentsPromise = req.db
-    .model('Student')
-    .find({
-      agents: agent_id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
-    .select('-notification')
-    .lean();
-
-  const [agent, students] = await Promise.all([agentPromise, studentsPromise]);
-
-  res.status(200).send({ success: true, data: { students, agent } });
-});
-
 const putAgentProfile = asyncHandler(async (req, res, next) => {
   const { agent_id } = req.params;
   const agent = await req.db
@@ -901,76 +837,6 @@ const getAgentProfile = asyncHandler(async (req, res, next) => {
   res.status(200).send({ success: true, data: agent });
 });
 
-const getEditors = asyncHandler(async (req, res, next) => {
-  const { user } = req;
-  if (user.role === Role.Editor) {
-    const permissions = await getPermission(req, user);
-    if (permissions && permissions.canAssignEditors) {
-      const editors = await req.db
-        .model('Editor')
-        .find({
-          $or: [{ archiv: { $exists: false } }, { archiv: false }]
-        })
-        .select('firstname lastname');
-      res.status(200).send({ success: true, data: editors });
-    } else {
-      logger.error('getEditors: no permission');
-      throw new ErrorResponse(
-        403,
-        'You do not have the permission to do this action'
-      );
-    }
-  } else {
-    const editors = await req.db
-      .model('Editor')
-      .find({
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .select('firstname lastname');
-    res.status(200).send({ success: true, data: editors });
-  }
-});
-
-const getSingleEditor = asyncHandler(async (req, res, next) => {
-  const { editor_id } = req.params;
-  const editorPromise = req.db
-    .model('User')
-    .findById(editor_id)
-    .select('firstname lastname');
-  // query by agents field: student.editors include editor_id
-  const studentsPromise = req.db
-    .model('Student')
-    .find({
-      editors: editor_id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId')
-    .populate({
-      path: 'generaldocs_threads.doc_thread_id',
-      select: 'file_type isFinalVersion updatedAt',
-      populate: {
-        path: 'messages.user_id',
-        select: 'firstname lastname'
-      }
-    })
-    .populate({
-      path: 'applications.doc_modification_thread.doc_thread_id',
-      select: 'file_type isFinalVersion updatedAt',
-      populate: {
-        path: 'messages.user_id',
-        select: 'firstname lastname'
-      }
-    })
-    .select('-notification');
-
-  const [editor, students] = await Promise.all([
-    editorPromise,
-    studentsPromise
-  ]);
-  res.status(200).send({ success: true, data: { students, editor } });
-});
-
 const getArchivStudents = asyncHandler(async (req, res) => {
   const { TaiGerStaffId } = req.params;
   const user = await req.db.model('User').findById(TaiGerStaffId);
@@ -989,7 +855,6 @@ const getArchivStudents = asyncHandler(async (req, res) => {
         archiv: true
       })
       .populate('agents editors', 'firstname lastname')
-      .populate('applications.programId')
       .lean();
 
     res.status(200).send({ success: true, data: students });
@@ -1000,8 +865,7 @@ const getArchivStudents = asyncHandler(async (req, res) => {
         editors: TaiGerStaffId,
         archiv: true
       })
-      .populate('agents editors', 'firstname lastname')
-      .populate('applications.programId');
+      .populate('agents editors', 'firstname lastname');
     res.status(200).send({ success: true, data: students });
   } else {
     // Guest
@@ -1020,18 +884,68 @@ const getEssayWriters = asyncHandler(async (req, res, next) => {
   res.status(200).send({ success: true, data: editors });
 });
 
+const getTasksOverview = asyncHandler(async (req, res, next) => {
+  const { filter: noAgentsfilter } = new UserQueryBuilder()
+    .withArchiv(false)
+    .withAgents({ $exists: true, $size: 0 })
+    .build();
+  const { filter: noEditorsfilter } = new UserQueryBuilder()
+    .withArchiv(false)
+    .withEditors({ $exists: true, $size: 0 })
+    .withNeedEditor(true)
+    .build();
+  const { filter: noTrainerInInterviewsfilter } = new InterviewQueryBuilder()
+    .withIsClosed(false)
+    .withTrainerId({ $exists: true, $size: 0 })
+    .build();
+
+  const [
+    noAgentsStudents,
+    noEditorsStudents,
+    noTrainerInInterviewsStudents,
+    noEssayWritersEssays
+  ] = await Promise.all([
+    StudentService.fetchStudents(req, noAgentsfilter),
+    StudentService.fetchStudents(req, noEditorsfilter),
+    InterviewService.getInterviews(req, noTrainerInInterviewsfilter),
+    DocumentThreadService.getAllStudentsThreads(req, {
+      isFinalVersion: false,
+      file_type: 'Essay',
+      outsourced_user_id: { $exists: true, $size: 0 }
+    })
+  ]);
+
+  res.status(200).send({
+    success: true,
+    data: {
+      noAgentsStudents: noAgentsStudents?.length || 0,
+      noEditorsStudents: noEditorsStudents?.length || 0,
+      noTrainerInInterviewsStudents: noTrainerInInterviewsStudents?.length || 0,
+      noEssayWritersEssays: noEssayWritersEssays?.length || 0
+    }
+  });
+});
+
+const getIsManager = asyncHandler(async (req, res, next) => {
+  const permission = await req.db.model('Permission').findOne({
+    user_id: req.user._id
+  });
+
+  const isManager = permission?.canAssignAgents || permission?.canAssignEditors;
+
+  res.status(200).send({ success: true, data: { isManager } });
+});
+
 module.exports = {
   getTeamMembers,
   getStatistics,
-  getAgents,
   getResponseIntervalByStudent,
   getResponseTimeByStudent,
-  getSingleAgent,
   putAgentProfile,
   getAgentProfile,
-  getEditors,
-  getSingleEditor,
   getArchivStudents,
   getEssayWriters,
-  getApplicationDeltas
+  getApplicationDeltas,
+  getTasksOverview,
+  getIsManager
 };

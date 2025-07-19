@@ -124,28 +124,33 @@ const isNotArchiv = (user) => {
 
 const isArchiv = (user) => !!user.archiv;
 
-const application_deadline_calculator = (student, application) => {
-  if (isProgramSubmitted(application)) {
-    return 'CLOSE';
+const adjustYearForSemester = (year, month, semester) => {
+  if (!semester) return 'Err';
+  if ((semester === 'WS' && month > 9) || (semester === 'SS' && month > 3)) {
+    return year - 1;
   }
+  return year;
+};
+
+const formatApplicationDate = (year, date) => {
+  if (!date) return `${year}-<TBD>`;
+  if (date.toLowerCase().includes('rolling')) return `${year}-Rolling`;
+
+  const [month, day] = date.split('-');
+  return `${year}/${month}/${day}`;
+};
+
+const application_deadline_V2_calculator = (application) => {
   if (isProgramWithdraw(application)) {
     return 'WITHDRAW';
   }
-  const { application_deadline, semester } = application.programId;
+  const { application_deadline, semester } = application?.programId || {};
 
   if (!application_deadline) {
     return 'No Data';
   }
-  let application_year = '<TBD>';
-  if (
-    student.application_preference &&
-    student.application_preference.expected_application_date !== ''
-  ) {
-    application_year = parseInt(
-      student.application_preference.expected_application_date,
-      10
-    );
-  }
+  const { application_year } = application;
+
   if (!application_deadline) {
     return `${application_year}-<TBD>`;
   }
@@ -157,27 +162,14 @@ const application_deadline_calculator = (student, application) => {
     application.programId.application_deadline.split('-')[0],
     10
   );
-  // const deadline_day = parseInt(
-  //   application.programId.application_deadline.split('-')[1],
-  //   10
-  // );
-  if (semester === undefined) {
-    return 'Err';
-  }
-  if (semester === 'WS') {
-    if (deadline_month > 9) {
-      application_year -= 1;
-    }
-  }
-  if (semester === 'SS') {
-    if (deadline_month > 3) {
-      application_year -= 1;
-    }
-  }
 
-  return `${application_year}/${
-    application.programId.application_deadline.split('-')[0]
-  }/${application.programId.application_deadline.split('-')[1]}`;
+  const adjusted_application_year = adjustYearForSemester(
+    application_year,
+    deadline_month,
+    semester
+  );
+
+  return formatApplicationDate(adjusted_application_year, application_deadline);
 };
 
 const EDITOR_SCOPE = {
@@ -246,7 +238,7 @@ const is_deadline_within30days_needed = (student) => {
   }
   for (let k = 0; k < student.applications.length; k += 1) {
     const day_diff = differenceInDays(
-      application_deadline_calculator(student, student.applications[k]),
+      application_deadline_V2_calculator(student.applications[k]),
       today
     );
     // TODO: should pack all thread due soon in a student email,
@@ -301,29 +293,24 @@ const does_editor_have_pending_tasks = (students, editor) => {
   for (let i = 0; i < students.length; i += 1) {
     // check CV tasks
     for (let j = 0; j < students[i].generaldocs_threads.length; j += 1) {
+      const thread = students[i].generaldocs_threads[j];
       if (
-        !students[i].generaldocs_threads[j].isFinalVersion &&
-        students[i].generaldocs_threads[j].latest_message_left_by_id !== '' &&
-        students[i].generaldocs_threads[j].latest_message_left_by_id !==
-          editor._id.toString()
+        !thread.isFinalVersion &&
+        thread.latest_message_left_by_id !== '' &&
+        thread.latest_message_left_by_id !== editor._id.toString()
       ) {
         return true;
       }
     }
     for (let k = 0; k < students[i].applications.length; k += 1) {
-      if (isProgramDecided(students[i].applications[k])) {
-        for (
-          let j = 0;
-          j < students[i].applications[k].doc_modification_thread.length;
-          j += 1
-        ) {
+      const app = students[i].applications[k];
+      if (isProgramDecided(app)) {
+        for (let j = 0; j < app.doc_modification_thread.length; j += 1) {
           if (
-            !students[i].applications[k].doc_modification_thread[j]
-              .isFinalVersion &&
-            students[i].applications[k].doc_modification_thread[j]
-              .latest_message_left_by_id !== '' &&
-            students[i].applications[k].doc_modification_thread[j]
-              .latest_message_left_by_id !== editor._id.toString()
+            !app.doc_modification_thread[j].isFinalVersion &&
+            app.doc_modification_thread[j].latest_message_left_by_id !== '' &&
+            app.doc_modification_thread[j].latest_message_left_by_id !==
+              editor._id.toString()
           ) {
             return true;
           }
@@ -336,60 +323,51 @@ const does_editor_have_pending_tasks = (students, editor) => {
 
 const is_cv_ml_rl_task_response_needed = (student, user) => {
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
+    const thread = student.generaldocs_threads[i];
     if (is_TaiGer_Editor(user)) {
       if (
-        !student.generaldocs_threads[i].isFinalVersion &&
-        student.generaldocs_threads[i].latest_message_left_by_id !== '' &&
-        student.generaldocs_threads[i].latest_message_left_by_id !==
-          user._id.toString()
+        !thread.isFinalVersion &&
+        thread.latest_message_left_by_id !== '' &&
+        thread.latest_message_left_by_id !== user._id.toString()
       ) {
         return true;
       }
     } else if (is_TaiGer_Student(user)) {
       if (
-        !student.generaldocs_threads[i].isFinalVersion &&
-        student.generaldocs_threads[i].latest_message_left_by_id !==
-          user._id.toString()
+        !thread.isFinalVersion &&
+        thread.latest_message_left_by_id !== user._id.toString()
       ) {
         return true;
       }
     } else if (is_TaiGer_Agent(user)) {
-      if (!student.generaldocs_threads[i].isFinalVersion) {
+      if (!thread.isFinalVersion) {
         return true;
       }
     }
   }
   for (let i = 0; i < student.applications.length; i += 1) {
-    if (isProgramDecided(student.applications[i])) {
-      for (
-        let j = 0;
-        j < student.applications[i].doc_modification_thread.length;
-        j += 1
-      ) {
+    const app = student.applications[i];
+    if (isProgramDecided(app)) {
+      for (let j = 0; j < app.doc_modification_thread.length; j += 1) {
         if (is_TaiGer_Editor(user)) {
           if (
-            !student.applications[i].doc_modification_thread[j]
-              .isFinalVersion &&
-            student.applications[i].doc_modification_thread[j]
-              .latest_message_left_by_id !== '' &&
-            student.applications[i].doc_modification_thread[j]
-              .latest_message_left_by_id !== user._id.toString()
+            !app.doc_modification_thread[j].isFinalVersion &&
+            app.doc_modification_thread[j].latest_message_left_by_id !== '' &&
+            app.doc_modification_thread[j].latest_message_left_by_id !==
+              user._id.toString()
           ) {
             return true;
           }
         } else if (is_TaiGer_Student(user)) {
           if (
-            !student.applications[i].doc_modification_thread[j]
-              .isFinalVersion &&
-            student.applications[i].doc_modification_thread[j]
-              .latest_message_left_by_id !== user._id.toString()
+            !app.doc_modification_thread[j].isFinalVersion &&
+            app.doc_modification_thread[j].latest_message_left_by_id !==
+              user._id.toString()
           ) {
             return true;
           }
         } else if (is_TaiGer_Agent(user)) {
-          if (
-            !student.applications[i].doc_modification_thread[j].isFinalVersion
-          ) {
+          if (!app.doc_modification_thread[j].isFinalVersion) {
             return true;
           }
         }
@@ -402,76 +380,61 @@ const is_cv_ml_rl_task_response_needed = (student, user) => {
 const is_cv_ml_rl_reminder_needed = (student, user, trigger_days) => {
   const today = new Date();
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
-    const day_diff = differenceInDays(
-      today,
-      student.generaldocs_threads[i].updatedAt
-    );
+    const thread = student.generaldocs_threads[i];
+    const day_diff = differenceInDays(today, thread.updatedAt);
     if (is_TaiGer_Editor(user)) {
       if (
-        !student.generaldocs_threads[i].isFinalVersion &&
-        student.generaldocs_threads[i].latest_message_left_by_id !== '' &&
-        student.generaldocs_threads[i].latest_message_left_by_id !==
-          user._id.toString() &&
+        !thread.isFinalVersion &&
+        thread.latest_message_left_by_id !== '' &&
+        thread.latest_message_left_by_id !== user._id.toString() &&
         day_diff > trigger_days
       ) {
         return true;
       }
     } else if (is_TaiGer_Student(user)) {
       if (
-        !student.generaldocs_threads[i].isFinalVersion &&
-        student.generaldocs_threads[i].latest_message_left_by_id !==
-          user._id.toString() &&
+        !thread.isFinalVersion &&
+        thread.latest_message_left_by_id !== user._id.toString() &&
         day_diff > trigger_days
       ) {
         return true;
       }
     } else if (is_TaiGer_Agent(user)) {
-      if (
-        !student.generaldocs_threads[i].isFinalVersion &&
-        day_diff > trigger_days
-      ) {
+      if (!thread.isFinalVersion && day_diff > trigger_days) {
         return true;
       }
     }
   }
   for (let i = 0; i < student.applications.length; i += 1) {
-    if (isProgramDecided(student.applications[i])) {
-      for (
-        let j = 0;
-        j < student.applications[i].doc_modification_thread.length;
-        j += 1
-      ) {
+    const app = student.applications[i];
+    if (isProgramDecided(app)) {
+      for (let j = 0; j < app.doc_modification_thread.length; j += 1) {
         const day_diff_2 = differenceInDays(
           today,
-          student.applications[i].doc_modification_thread[j].doc_thread_id
-            .updatedAt
+          app.doc_modification_thread[j].doc_thread_id.updatedAt
         );
         if (is_TaiGer_Editor(user)) {
           if (
-            !student.applications[i].doc_modification_thread[j]
-              .isFinalVersion &&
-            student.applications[i].doc_modification_thread[j]
-              .latest_message_left_by_id !== '' &&
-            student.applications[i].doc_modification_thread[j]
-              .latest_message_left_by_id !== user._id.toString() &&
+            !app.doc_modification_thread[j].isFinalVersion &&
+            app.doc_modification_thread[j].latest_message_left_by_id !== '' &&
+            app.doc_modification_thread[j].latest_message_left_by_id !==
+              user._id.toString() &&
             day_diff_2 > trigger_days
           ) {
             return true;
           }
         } else if (is_TaiGer_Student(user)) {
           if (
-            !student.applications[i].doc_modification_thread[j]
-              .isFinalVersion &&
-            student.applications[i].doc_modification_thread[j]
-              .latest_message_left_by_id !== user._id.toString() &&
+            !app.doc_modification_thread[j].isFinalVersion &&
+            app.doc_modification_thread[j].latest_message_left_by_id !==
+              user._id.toString() &&
             day_diff_2 > trigger_days
           ) {
             return true;
           }
         } else if (is_TaiGer_Agent(user)) {
           if (
-            !student.applications[i].doc_modification_thread[j]
-              .isFinalVersion &&
+            !app.doc_modification_thread[j].isFinalVersion &&
             day_diff_2 > trigger_days
           ) {
             return true;
@@ -487,19 +450,20 @@ const unsubmitted_applications_summary = (student) => {
   let unsubmitted_applications = '';
   let x = 0;
   for (let i = 0; i < student.applications.length; i += 1) {
+    const app = student.applications[i];
     if (
-      isProgramDecided(student.applications[i]) &&
-      !isProgramSubmitted(student.applications[i]) &&
-      !isProgramWithdraw(student.applications[i])
+      isProgramDecided(app) &&
+      !isProgramSubmitted(app) &&
+      !isProgramWithdraw(app)
     ) {
       if (x === 0) {
         unsubmitted_applications = `
         The following program(s) are not submitted yet: 
         <ul>
-        <li>${student.applications[i].programId.school} ${student.applications[i].programId.program_name}</li>`;
+        <li>${app.programId.school} ${app.programId.program_name}</li>`;
         x += 1;
       } else {
-        unsubmitted_applications += `<li>${student.applications[i].programId.school} - ${student.applications[i].programId.program_name}</li>`;
+        unsubmitted_applications += `<li>${app.programId.school} - ${app.programId.program_name}</li>`;
       }
     }
   }
@@ -696,7 +660,7 @@ const ml_essay_escalation_agent_single_program_list = (application) => {
   return missing_doc_list;
 };
 
-const ml_essay_escalation_agent_list = (student, user, trigger_days) => {
+const ml_essay_escalation_agent_list = (student) => {
   let missing_doc_list = '';
 
   for (let i = 0; i < student.applications.length; i += 1) {
@@ -727,31 +691,27 @@ const cv_ml_rl_escalation_summary = (student, user, trigger_days) => {
   return missing_doc_list;
 };
 
-const unsubmitted_applications_list = (student, user, trigger_days) => {
+const unsubmitted_applications_list = (student) => {
   let unsubmitted_applications_li = '';
   const today = new Date();
   for (let i = 0; i < student.applications.length; i += 1) {
+    const app = student.applications[i];
     const day_diff = differenceInDays(
-      application_deadline_calculator(student, student.applications[i]),
+      application_deadline_V2_calculator(app),
       today
     );
     if (
-      isProgramDecided(student.applications[i]) &&
-      !isProgramSubmitted(student.applications[i]) &&
-      !isProgramWithdraw(student.applications[i]) &&
+      isProgramDecided(app) &&
+      !isProgramSubmitted(app) &&
+      !isProgramWithdraw(app) &&
       day_diff < parseInt(ESCALATION_DEADLINE_DAYS_TRIGGER, 10) &&
       day_diff > -30
     ) {
-      unsubmitted_applications_li += `<li>${
-        student.applications[i].programId.school
-      } ${
-        student.applications[i].programId.program_name
-      }: <b> Deadline ${application_deadline_calculator(
-        student,
-        student.applications[i]
-      )} </b>
+      unsubmitted_applications_li += `<li>${app.programId.school} ${
+        app.programId.program_name
+      }: <b> Deadline ${application_deadline_V2_calculator(app)} </b>
       <ul>
-      ${ml_essay_escalation_agent_single_program_list(student.applications[i])}
+      ${ml_essay_escalation_agent_single_program_list(app)}
       </ul>
       </li>
       `;
@@ -769,7 +729,7 @@ const unsubmitted_applications_escalation_summary = (
   unsubmitted_applications = `
         The following program(s) are not submitted yet and very close to <b>deadline</b>: 
         <ul>
-        ${unsubmitted_applications_list(student, user, trigger_days)}
+        ${unsubmitted_applications_list(student)}
         </ul>
         <ul>
         ${cv_rl_escalation_agent_list(student, user, trigger_days)}
@@ -815,7 +775,7 @@ const cv_ml_rl_editor_escalation_summary = (student, user, trigger_days) => {
         The following documents are idle for a while, please <b>inform</b> student / editor as soon as possible:
         <ul>
         ${cv_rl_escalation_agent_list(student, user, trigger_days)}
-        ${ml_essay_escalation_agent_list(student, user, trigger_days)}
+        ${ml_essay_escalation_agent_list(student)}
         </ul>`;
   }
 
@@ -899,101 +859,81 @@ const cv_ml_rl_unfinished_summary = (student, user) => {
   }
 
   for (let i = 0; i < student.applications.length; i += 1) {
-    if (isProgramDecided(student.applications[i])) {
-      for (
-        let j = 0;
-        j < student.applications[i].doc_modification_thread.length;
-        j += 1
-      ) {
+    const app = student.applications[i];
+    if (isProgramDecided(app)) {
+      for (let j = 0; j < app.doc_modification_thread.length; j += 1) {
         if (is_TaiGer_Editor(user)) {
           if (
-            !student.applications[i].doc_modification_thread[j]
-              .isFinalVersion &&
-            student.applications[i].doc_modification_thread[j]
-              .latest_message_left_by_id !== '' &&
-            student.applications[i].doc_modification_thread[j]
-              .latest_message_left_by_id !== user._id.toString()
+            // TODO: filter non-editor scope files
+            !app.doc_modification_thread[j].isFinalVersion &&
+            app.doc_modification_thread[j].latest_message_left_by_id !== '' &&
+            app.doc_modification_thread[j].latest_message_left_by_id !==
+              user._id.toString()
           ) {
+            const docThread = app.doc_modification_thread[j].doc_thread_id;
+            const threadUrl = `${THREAD_URL}/${docThread._id}`;
+            const programInfo = `${app.programId.school} ${app.programId.program_name} ${docThread.file_type}`;
+            const listItem = `<li><a href="${threadUrl}">${programInfo}</a></li>`;
+
             if (kk === 0) {
               missing_doc_list = `
-        The following documents are waiting for your response, please <b>reply</b> it as soon as possible:
-        <ul>
-        <li><a href="${THREAD_URL}/${student.applications[
-                i
-              ].doc_modification_thread[j].doc_thread_id._id.toString()}">${
-                student.applications[i].programId.school
-              } ${student.applications[i].programId.program_name} ${
-                student.applications[i].doc_modification_thread[j].doc_thread_id
-                  .file_type
-              }</a></li>`;
+    The following documents are waiting for your response, please <b>reply</b> as soon as possible:
+    <ul>
+      ${listItem}`;
               kk += 1;
             } else {
-              missing_doc_list += `<li><a href="${THREAD_URL}/${student.applications[
-                i
-              ].doc_modification_thread[j].doc_thread_id._id.toString()}">${
-                student.applications[i].programId.school
-              } ${student.applications[i].programId.program_name} ${
-                student.applications[i].doc_modification_thread[j].doc_thread_id
-                  .file_type
-              }</a></li>`;
+              missing_doc_list += listItem;
             }
           }
         } else if (is_TaiGer_Student(user)) {
           if (
-            !student.applications[i].doc_modification_thread[j]
-              .isFinalVersion &&
-            student.applications[i].doc_modification_thread[j]
-              .latest_message_left_by_id !== user._id.toString()
+            !app.doc_modification_thread[j].isFinalVersion &&
+            app.doc_modification_thread[j].latest_message_left_by_id !==
+              user._id.toString()
           ) {
             if (kk === 0) {
               missing_doc_list = `
         The following documents are waiting for your response, please <b>reply</b> it as soon as possible:
         <ul>
-        <li><a href="${THREAD_URL}/${student.applications[
-                i
-              ].doc_modification_thread[j].doc_thread_id._id.toString()}">${
-                student.applications[i].programId.school
-              } ${student.applications[i].programId.program_name} ${
-                student.applications[i].doc_modification_thread[j].doc_thread_id
-                  .file_type
+        <li><a href="${THREAD_URL}/${app.doc_modification_thread[
+                j
+              ].doc_thread_id._id.toString()}">${app.programId.school} ${
+                app.programId.program_name
+              } ${
+                app.doc_modification_thread[j].doc_thread_id.file_type
               }</a></li>`;
               kk += 1;
             } else {
-              missing_doc_list += `<li><a href="${THREAD_URL}/${student.applications[
-                i
-              ].doc_modification_thread[j].doc_thread_id._id.toString()}">${
-                student.applications[i].programId.school
-              } ${student.applications[i].programId.program_name} ${
-                student.applications[i].doc_modification_thread[j].doc_thread_id
-                  .file_type
+              missing_doc_list += `<li><a href="${THREAD_URL}/${app.doc_modification_thread[
+                j
+              ].doc_thread_id._id.toString()}">${app.programId.school} ${
+                app.programId.program_name
+              } ${
+                app.doc_modification_thread[j].doc_thread_id.file_type
               }</a></li>`;
             }
           }
         } else if (is_TaiGer_Agent(user)) {
-          if (
-            !student.applications[i].doc_modification_thread[j].isFinalVersion
-          ) {
+          if (!app.doc_modification_thread[j].isFinalVersion) {
             if (kk === 0) {
               missing_doc_list = `
         The following documents are not finished:
         <ul>
-        <li><a href="${THREAD_URL}/${student.applications[
-                i
-              ].doc_modification_thread[j].doc_thread_id._id.toString()}">${
-                student.applications[i].programId.school
-              } ${student.applications[i].programId.program_name} ${
-                student.applications[i].doc_modification_thread[j].doc_thread_id
-                  .file_type
+        <li><a href="${THREAD_URL}/${app.doc_modification_thread[
+                j
+              ].doc_thread_id._id.toString()}">${app.programId.school} ${
+                app.programId.program_name
+              } ${
+                app.doc_modification_thread[j].doc_thread_id.file_type
               }</a></li>`;
               kk += 1;
             } else {
-              missing_doc_list += `<li><a href="${THREAD_URL}/${student.applications[
-                i
-              ].doc_modification_thread[j].doc_thread_id._id.toString()}">${
-                student.applications[i].programId.school
-              } ${student.applications[i].programId.program_name} ${
-                student.applications[i].doc_modification_thread[j].doc_thread_id
-                  .file_type
+              missing_doc_list += `<li><a href="${THREAD_URL}/${app.doc_modification_thread[
+                j
+              ].doc_thread_id._id.toString()}">${app.programId.school} ${
+                app.programId.program_name
+              } ${
+                app.doc_modification_thread[j].doc_thread_id.file_type
               }</a></li>`;
             }
           }
@@ -1321,18 +1261,16 @@ const missing_academic_background = (student, user) => {
   return missing_background_fields;
 };
 
-const CVDeadline_Calculator = (student) => {
+const CVDeadline_Calculator = (applications) => {
   let daysLeftMin = 3000;
   let CVDeadline = '';
   let CVDeadlineRolling = '';
   let hasRolling = false;
   const today = new Date();
-  for (let i = 0; i < student.applications.length; i += 1) {
-    if (isProgramDecided(student.applications[i])) {
-      const application_deadline_temp = application_deadline_calculator(
-        student,
-        student.applications[i]
-      );
+  for (let i = 0; i < applications.length; i += 1) {
+    if (isProgramDecided(applications[i])) {
+      const app = applications[i];
+      const application_deadline_temp = application_deadline_V2_calculator(app);
       if (application_deadline_temp?.toLowerCase()?.includes('rolling')) {
         hasRolling = true;
         CVDeadlineRolling = application_deadline_temp;
@@ -1354,11 +1292,14 @@ const CVDeadline_Calculator = (student) => {
   return CVDeadline;
 };
 
-const cvmlrl_deadline_within30days_escalation_summary = (student) => {
+const cvmlrl_deadline_within30days_escalation_summary = (
+  student,
+  applications
+) => {
   const today = new Date();
   let missing_doc_list = '';
   let kk = 0;
-  const CVDeadline = CVDeadline_Calculator(student);
+  const CVDeadline = CVDeadline_Calculator(applications);
   const CV_day_diff = differenceInDays(CVDeadline, today);
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
     if (
@@ -1379,7 +1320,7 @@ const cvmlrl_deadline_within30days_escalation_summary = (student) => {
           ].doc_thread_id._id.toString()}">${
             student.generaldocs_threads[i].doc_thread_id.file_type
           }</a> - deadline ${CVDeadline_Calculator(
-            student
+            applications
           )} ${CV_day_diff} days left!</li>`;
           kk += 1;
         } else {
@@ -1388,31 +1329,26 @@ const cvmlrl_deadline_within30days_escalation_summary = (student) => {
           ].doc_thread_id._id.toString()}">${
             student.generaldocs_threads[i].doc_thread_id.file_type
           }</a> - deadline ${CVDeadline_Calculator(
-            student
+            applications
           )} ${CV_day_diff} days left!</li>`;
         }
       }
     }
   }
-  for (let i = 0; i < student.applications.length; i += 1) {
+  for (let i = 0; i < applications.length; i += 1) {
+    const app = applications[i];
     const day_diff = differenceInDays(
-      application_deadline_calculator(student, student.applications[i]),
+      application_deadline_V2_calculator(app),
       today
     );
     if (
-      isProgramDecided(student.applications[i]) &&
-      !isProgramSubmitted(student.applications[i]) &&
+      isProgramDecided(app) &&
+      !isProgramSubmitted(app) &&
       day_diff < parseInt(ESCALATION_DEADLINE_DAYS_TRIGGER, 10) &&
       day_diff > -30
     ) {
-      for (
-        let j = 0;
-        j < student.applications[i].doc_modification_thread.length;
-        j += 1
-      ) {
-        if (
-          !student.applications[i].doc_modification_thread[j].isFinalVersion
-        ) {
+      for (let j = 0; j < app.doc_modification_thread.length; j += 1) {
+        if (!app.doc_modification_thread[j].isFinalVersion) {
           if (kk === 0) {
             missing_doc_list = `
         <b><a href="${STUDENT_PROFILE_FOR_AGENT_URL(student._id.toString())}">${
@@ -1421,29 +1357,25 @@ const cvmlrl_deadline_within30days_escalation_summary = (student) => {
 
         The following documents deadline are close, please <b>make sure</b> to close them as soon as possible:
         <ul>
-        <li><a href="${THREAD_URL}/${student.applications[
-              i
-            ].doc_modification_thread[j].doc_thread_id._id.toString()}">${
-              student.applications[i].programId.school
-            } ${student.applications[i].programId.program_name} ${
-              student.applications[i].doc_modification_thread[j].doc_thread_id
-                .file_type
-            }</a> - deadline ${application_deadline_calculator(
-              student,
-              student.applications[i]
+          <li><a href="${THREAD_URL}/${app.doc_modification_thread[
+              j
+            ].doc_thread_id._id.toString()}">${app.programId.school} ${
+              app.programId.program_name
+            } ${
+              app.doc_modification_thread[j].doc_thread_id.file_type
+            }</a> - deadline ${application_deadline_V2_calculator(
+              app
             )} ${day_diff} days left!</li>`;
             kk += 1;
           } else {
-            missing_doc_list += `<li><a href="${THREAD_URL}/${student.applications[
-              i
-            ].doc_modification_thread[j].doc_thread_id._id.toString()}">${
-              student.applications[i].programId.school
-            } ${student.applications[i].programId.program_name} ${
-              student.applications[i].doc_modification_thread[j].doc_thread_id
-                .file_type
-            }</a> - deadline ${application_deadline_calculator(
-              student,
-              student.applications[i]
+            missing_doc_list += `<li><a href="${THREAD_URL}/${app.doc_modification_thread[
+              j
+            ].doc_thread_id._id.toString()}">${app.programId.school} ${
+              app.programId.program_name
+            } ${
+              app.doc_modification_thread[j].doc_thread_id.file_type
+            }</a> - deadline ${application_deadline_V2_calculator(
+              app
             )} ${day_diff} days left!</li>`;
           }
         }
@@ -1464,16 +1396,17 @@ const base_documents_summary = (student) => {
     object_init[profile_keys_list[i]] = DocumentStatusType.Missing;
   }
   for (let i = 0; i < student.profile.length; i += 1) {
-    if (student.profile[i].status === DocumentStatusType.Uploaded) {
-      object_init[student.profile[i].name] = DocumentStatusType.Uploaded;
-    } else if (student.profile[i].status === DocumentStatusType.Accepted) {
-      object_init[student.profile[i].name] = DocumentStatusType.Accepted;
-    } else if (student.profile[i].status === DocumentStatusType.Rejected) {
-      object_init[student.profile[i].name] = DocumentStatusType.Rejected;
-    } else if (student.profile[i].status === DocumentStatusType.Missing) {
-      object_init[student.profile[i].name] = DocumentStatusType.Missing;
-    } else if (student.profile[i].status === DocumentStatusType.NotNeeded) {
-      object_init[student.profile[i].name] = DocumentStatusType.NotNeeded;
+    const profile = student.profile[i];
+    if (profile.status === DocumentStatusType.Uploaded) {
+      object_init[profile.name] = DocumentStatusType.Uploaded;
+    } else if (profile.status === DocumentStatusType.Accepted) {
+      object_init[profile.name] = DocumentStatusType.Accepted;
+    } else if (profile.status === DocumentStatusType.Rejected) {
+      object_init[profile.name] = DocumentStatusType.Rejected;
+    } else if (profile.status === DocumentStatusType.Missing) {
+      object_init[profile.name] = DocumentStatusType.Missing;
+    } else if (profile.status === DocumentStatusType.NotNeeded) {
+      object_init[profile.name] = DocumentStatusType.NotNeeded;
     }
   }
   let xx = 0;
@@ -1562,7 +1495,7 @@ module.exports = {
   does_editor_have_pending_tasks,
   is_cv_ml_rl_task_response_needed,
   is_cv_ml_rl_reminder_needed,
-  application_deadline_calculator,
+  application_deadline_V2_calculator,
   unsubmitted_applications_summary,
   unsubmitted_applications_escalation_summary,
   cvmlrl_deadline_within30days_escalation_summary,

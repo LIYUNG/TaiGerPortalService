@@ -1,15 +1,11 @@
 // const path = require('path');
-const {
-  ProfileNameType,
-  DocumentStatusType,
-  is_TaiGer_Student,
-  is_TaiGer_Guest
-} = require('@taiger-common/core');
+const { ProfileNameType, DocumentStatusType } = require('@taiger-common/core');
 
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const { updateCredentialsEmail } = require('../services/email');
 const logger = require('../services/logger');
+const UserService = require('../services/users');
 
 // (O) email : self notification
 const updateCredentials = asyncHandler(async (req, res, next) => {
@@ -17,14 +13,14 @@ const updateCredentials = asyncHandler(async (req, res, next) => {
     user,
     body: { credentials }
   } = req;
-  const userExisted = await req.db.model('User').findById(user._id.toString());
+  const userExisted = await UserService.updateUser(req, user._id.toString(), {
+    password: credentials.new_password
+  });
   if (!userExisted) {
     logger.error('updateCredentials: Invalid user');
     throw new ErrorResponse(400, 'Invalid user');
   }
 
-  userExisted.password = credentials.new_password;
-  await userExisted.save();
   res.status(200).send({
     success: true
   });
@@ -57,28 +53,18 @@ const updateOfficehours = asyncHandler(async (req, res, next) => {
 // (O)  email : self notification
 const updateAcademicBackground = asyncHandler(async (req, res, next) => {
   const {
-    user,
     body: { university }
   } = req;
   const { studentId } = req.params;
-  // const { _id } = student;
-  let student_id;
-  if (is_TaiGer_Student(user) || is_TaiGer_Guest(user)) {
-    student_id = user._id.toString();
-  } else {
-    student_id = studentId;
-  }
+
   try {
     university.updatedAt = new Date();
     const updatedStudent = await req.db.model('User').findByIdAndUpdate(
-      student_id,
+      studentId,
       {
         'academic_background.university': university
-        // $addToSet: {
-        //   academic_background: { university: university },
-        // },
       },
-      { upsert: true, new: true }
+      { new: true }
     );
 
     // TODO: update base documents needed or not:
@@ -218,22 +204,14 @@ const updateAcademicBackground = asyncHandler(async (req, res, next) => {
 // (O) email : self notification
 const updateLanguageSkill = asyncHandler(async (req, res, next) => {
   const {
-    user,
     body: { language }
   } = req;
   const { studentId } = req.params;
-  let student_id;
-
-  if (is_TaiGer_Student(user) || is_TaiGer_Guest(user)) {
-    student_id = user._id.toString();
-  } else {
-    student_id = studentId;
-  }
 
   language.updatedAt = new Date();
 
   const updatedStudent = await req.db.model('User').findByIdAndUpdate(
-    student_id,
+    studentId,
     {
       'academic_background.language': language
     },
@@ -314,24 +292,15 @@ const updateLanguageSkill = asyncHandler(async (req, res, next) => {
 const updateApplicationPreferenceSkill = asyncHandler(
   async (req, res, next) => {
     const {
-      user,
       body: { application_preference }
     } = req;
     const { studentId } = req.params;
-    let student_id;
-    if (is_TaiGer_Student(user) || is_TaiGer_Guest(user)) {
-      student_id = user._id;
-    } else {
-      student_id = studentId;
-    }
+
     application_preference.updatedAt = new Date();
-    const updatedStudent = await req.db.model('User').findByIdAndUpdate(
-      student_id,
-      {
-        application_preference
-      },
-      { upsert: true, new: true }
-    );
+    const updatedStudent = await UserService.updateUser(req, studentId, {
+      application_preference
+    });
+
     res.status(200).send({
       success: true,
       data: updatedStudent.application_preference
@@ -347,22 +316,34 @@ const updatePersonalData = asyncHandler(async (req, res, next) => {
     body: { personaldata }
   } = req;
   try {
-    const updatedStudent = await req.db
-      .model('User')
-      .findByIdAndUpdate(user_id, personaldata, {
-        upsert: true,
-        new: true
-      });
+    const updatedStudent = await UserService.updateUser(
+      req,
+      user_id,
+      personaldata
+    );
+    if (!updatedStudent) {
+      logger.error('updatePersonalData: Invalid user');
+      throw new ErrorResponse(400, 'Invalid user');
+    }
+    const {
+      firstname,
+      firstname_chinese,
+      lastname,
+      lastname_chinese,
+      birthday,
+      linkedIn,
+      lineId
+    } = updatedStudent;
     res.status(200).send({
       success: true,
       data: {
-        firstname: updatedStudent.firstname,
-        firstname_chinese: updatedStudent.firstname_chinese,
-        lastname: updatedStudent.lastname,
-        lastname_chinese: updatedStudent.lastname_chinese,
-        birthday: personaldata.birthday,
-        linkedIn: personaldata.linkedIn,
-        lineId: personaldata.lineId
+        firstname,
+        firstname_chinese,
+        lastname,
+        lastname_chinese,
+        birthday,
+        linkedIn,
+        lineId
       }
     });
     next();

@@ -1,9 +1,11 @@
 const fs = require('fs');
 const request = require('supertest');
 const { mockClient } = require('aws-sdk-client-mock');
+const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
 
 const { UPLOAD_PATH } = require('../../config');
-const { connect, closeDatabase, clearDatabase } = require('../fixtures/db');
+const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
 const { Student, UserSchema } = require('../../models/User');
 const { protect, permit } = require('../../middlewares/auth');
@@ -27,8 +29,6 @@ const {
   student2
 } = require('../mock/user');
 const { s3Client } = require('../../aws');
-const { PutObjectCommand } = require('@aws-sdk/client-s3');
-const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { program1, programs } = require('../mock/programs');
 const { disconnectFromDatabase } = require('../../database');
 
@@ -193,126 +193,6 @@ describe('POST /api/students/:id/editors', () => {
     // TODO: verify editors data
     // const updatedEditor = await Editor.findById(editorId).lean();
     // expect(updatedEditor.students.map(String)).toEqual([studentId]);
-  });
-});
-
-// Agent should create applications (programs) to student
-describe('POST /api/students/:studentId/applications', () => {
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
-  });
-  // permission_canAccessStudentDatabase_filter.mockImplementation(
-  //   async (req, res, next) => {
-  //     next();
-  //   }
-  // );
-  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) => {
-    next();
-  });
-
-  it('should create an application for student', async () => {
-    const { _id: studentId } = student;
-    const programs_arr = [];
-    programs.forEach((pro) => {
-      programs_arr.push(pro._id.toString());
-    });
-    const resp = await requestWithSupertest
-      .post(`/api/students/${studentId}/applications`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: programs_arr });
-
-    const {
-      status,
-      body: { success, data }
-    } = resp;
-
-    expect(status).toBe(201);
-    expect(success).toBe(true);
-    expect(data).toMatchObject(programs_arr);
-  });
-});
-
-describe('DELETE /api/students/:studentId/applications/:applicationId', () => {
-  permission_canAccessStudentDatabase_filter.mockImplementation(
-    async (req, res, next) => {
-      next();
-    }
-  );
-  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) => {
-    next();
-  });
-
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
-  });
-  it('should delete an application from student', async () => {
-    const { _id: studentId } = student;
-
-    const resp = await requestWithSupertest
-      .post(`/api/students/${studentId}/applications`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: [program1._id?.toString()] });
-
-    expect(resp.status).toBe(201);
-
-    const resp2 = await requestWithSupertest
-      .delete(
-        `/api/students/${studentId}/applications/${program1._id?.toString()}`
-      )
-      .set('tenantId', TENANT_ID);
-
-    expect(resp2.status).toBe(200);
-    const resp2_std = await requestWithSupertest
-      .get(`/api/students/doc-links/${studentId}`)
-      .set('tenantId', TENANT_ID);
-    expect(resp2_std.body.data.applications).toHaveLength(0);
-  });
-
-  it('deleting an application should fail if one of the threads is none-empty', async () => {
-    const { _id: studentId } = student;
-
-    const resp = await requestWithSupertest
-      .post(`/api/students/${studentId}/applications`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: [program1._id?.toString()] });
-
-    expect(resp.status).toBe(201);
-
-    const resp_std = await requestWithSupertest
-      .get(`/api/students/doc-links/${studentId}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp_std.status).toBe(200);
-    const newStudentData = resp_std.body.data;
-
-    const newApplication = newStudentData.applications.find(
-      (appl) => appl.programId._id?.toString() === program1._id?.toString()
-    );
-    const thread = newApplication.doc_modification_thread.find(
-      (thr) => thr.doc_thread_id.file_type === 'ML'
-    );
-    expect(thread.doc_thread_id.file_type).toBe('ML');
-    const messagesThreadId = thread.doc_thread_id._id?.toString();
-
-    const resp2 = await requestWithSupertest
-      .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .field('message', '{}');
-    expect(resp2.status).toBe(200);
-
-    const resp3 = await requestWithSupertest
-      .delete(
-        `/api/students/${studentId}/applications/${program1._id?.toString()}`
-      )
-      .set('tenantId', TENANT_ID);
-
-    expect(resp3.status).toBe(409);
-    const resp3_std = await requestWithSupertest
-      .get(`/api/students/doc-links/${studentId}`)
-      .set('tenantId', TENANT_ID);
-    expect(resp3_std.body.data.applications).toHaveLength(1);
   });
 });
 

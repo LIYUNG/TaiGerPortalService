@@ -49,10 +49,10 @@ const {
 // });
 
 const launch = async () => {
-  console.log('AWS_LOG_GROUP' + process.env.AWS_LOG_GROUP);
-  console.log('PORT' + process.env.PORT);
-  console.log('AWS_S3_BUCKET_NAME' + process.env.AWS_S3_BUCKET_NAME);
-  console.log('PORT' + process.env.PORT);
+  console.log(`AWS_LOG_GROUP: ${process.env.AWS_LOG_GROUP}`);
+  console.log(`PORT: ${process.env.PORT}`);
+  console.log(`AWS_S3_BUCKET_NAME: ${process.env.AWS_S3_BUCKET_NAME}`);
+  console.log(`PORT: ${process.env.PORT}`);
   if (isDev()) {
     if (
       AWS_S3_BUCKET_NAME.includes('production') ||
@@ -86,10 +86,11 @@ const launch = async () => {
 
   // every Friday, send tasks reminder emails to agents, editor and student
   logger.info(`Reminder period: ${WEEKLY_TASKS_REMINDER_SCHEDULE}`);
-  const job3 = schedule.scheduleJob(
-    WEEKLY_TASKS_REMINDER_SCHEDULE,
-    TasksReminderEmails
-  );
+  // TODO: check if this is needed
+  // const job3 = schedule.scheduleJob(
+  //   WEEKLY_TASKS_REMINDER_SCHEDULE,
+  //   TasksReminderEmails
+  // );
   // TODO: could also manually activate the following (the following is working!)
   // logger.info(`Clean up User deprecated period: ${WEEKLY_TASKS_REMINDER_SCHEDULE}`);
   // const job4 = schedule.scheduleJob(CLEAN_UP_SCHEDULE, UserS3GarbageCollector);
@@ -97,10 +98,11 @@ const launch = async () => {
   // everyday, send emergency tasks (deadline within 1 month)
   // reminder emails to agents, editor and student
 
-  const job4 = schedule.scheduleJob(
-    WEEKLY_TASKS_REMINDER_SCHEDULE,
-    UrgentTasksReminderEmails
-  );
+  // TODO: check if this is needed
+  // const job4 = schedule.scheduleJob(
+  //   WEEKLY_TASKS_REMINDER_SCHEDULE,
+  //   UrgentTasksReminderEmails
+  // );
 
   // Remind Student to select next semester courses 6-7 month, 11-12 month.
   const job7 = schedule.scheduleJob(

@@ -181,7 +181,7 @@ describe('POST /api/document-threads/init/application/:studentId/:programId/:doc
   // TODO: need to simplify mock data.
   it('should create a new ML thread when assigned a new program with ML required', async () => {
     const resp = await requestWithSupertest
-      .post(`/api/students/${studentId}/applications`)
+      .post(`/api/applications/student/${studentId}`)
       .set('tenantId', TENANT_ID)
       .send({ program_id_set: [programId.toString()] });
 

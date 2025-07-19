@@ -4,6 +4,7 @@ const logger = require('../services/logger');
 const { two_month_cache } = require('../cache/node-cache');
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { getS3Object } = require('../aws/s3');
+const ApplicationService = require('../services/applications');
 
 const getProgramApplicationCounts = asyncHandler(async (req) => {
   try {
@@ -84,81 +85,10 @@ const getProgramApplicationCounts = asyncHandler(async (req) => {
 const getAdmissions = asyncHandler(async (req, res) => {
   const [result, applications] = await Promise.all([
     getProgramApplicationCounts(req),
-    req.db.model('Student').aggregate([
-      { $match: { applications: { $ne: [] } } },
-      // Lookup for agents and editors
-      {
-        $lookup: {
-          from: 'users', // Adjust collection name if necessary
-          localField: 'agents',
-          foreignField: '_id',
-          as: 'agents'
-        }
-      },
-      {
-        $lookup: {
-          from: 'users', // Adjust collection name if necessary
-          localField: 'editors',
-          foreignField: '_id',
-          as: 'editors'
-        }
-      },
-      // Unwind applications array to process each application
-      { $unwind: { path: '$applications', preserveNullAndEmptyArrays: false } },
-      { $match: { 'applications.decided': 'O' } },
-      // // Lookup for applications.programId
-      {
-        $lookup: {
-          from: 'programs', // Adjust collection name if necessary
-          localField: 'applications.programId',
-          foreignField: '_id',
-          as: 'applications.programDetails'
-        }
-      },
-      // Add fields for agents, editors, and program details
-      {
-        $addFields: {
-          programDetails: {
-            $arrayElemAt: ['$applications.programDetails', 0]
-          }
-        }
-      },
-      // // Flatten the data structure into application-level objects
-      {
-        $project: {
-          firstname: '$firstname',
-          lastname: '$lastname',
-          firstname_chinese: '$firstname_chinese',
-          lastname_chinese: '$lastname_chinese',
-          email: '$email',
-          application_preference: '$application_preference',
-          programId: '$programDetails._id',
-          school: '$programDetails.school',
-          program_name: '$programDetails.program_name',
-          semester: '$programDetails.semester',
-          degree: '$programDetails.degree',
-          decided: '$applications.decided', // Include specific application fields as needed
-          closed: '$applications.closed', // Include specific application fields as needed
-          admission: '$applications.admission', // Include specific application fields as needed
-          finalEnrolment: '$applications.finalEnrolment', // Include specific application fields as needed
-          admission_letter: '$applications.admission_letter', // Include specific application fields as needed
-          agents: {
-            $map: {
-              input: '$agents',
-              as: 'agent',
-              in: { $concat: ['$$agent.firstname'] }
-            }
-          },
-          editors: {
-            $map: {
-              input: '$editors',
-              as: 'editor',
-              in: { $concat: ['$$editor.firstname'] }
-            }
-          }
-        }
-      }
-    ])
+    ApplicationService.getApplicationsWithStudentDetails(req, {
+      decided: 'O',
+      closed: 'O'
+    })
   ]);
 
   res.status(200).send({

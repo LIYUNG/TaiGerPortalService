@@ -212,7 +212,6 @@ describe('updateCredentials Controller', () => {
 // expect(resp4.body.success).toBe(true);
 
 // var updatedStudent = await Student.findById(studentId)
-//   .populate('applications.programId')
 //   .lean()
 //   .exec();
 // var application = updatedStudent.applications.find(
@@ -377,7 +376,6 @@ describe('updateCredentials Controller', () => {
 //     // expect(resp_dup.body.success).toBe(true);
 
 //     var updatedStudent = await Student.findById(studentId)
-//       .populate('applications.programId')
 //       .lean()
 //       .exec();
 //     var application = updatedStudent.applications.find(
@@ -508,7 +506,6 @@ describe('updateCredentials Controller', () => {
 //     expect(body.success).toBe(true);
 
 //     var updatedStudent = await Student.findById(studentId)
-//       .populate('applications.programId')
 //       .lean()
 //       .exec();
 
@@ -524,7 +521,6 @@ describe('updateCredentials Controller', () => {
 //     );
 
 //     var updated2Student = await Student.findById(studentId)
-//       .populate('applications.programId')
 //       .lean()
 //       .exec();
 

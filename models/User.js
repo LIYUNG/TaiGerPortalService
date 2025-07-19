@@ -27,6 +27,30 @@ UserSchema.pre('save', async function (next) {
   }
 });
 
+// eslint-disable-next-line func-names, consistent-return
+UserSchema.pre('findOneAndUpdate', async function (next) {
+  const update = this.getUpdate();
+
+  // Check if password is being modified
+  if (update.password || (update.$set && update.$set.password)) {
+    try {
+      const newPassword = update.password || update.$set.password;
+      const salt = await bcrypt.genSalt(10);
+      const hashed = await bcrypt.hash(newPassword, salt);
+
+      if (update.password) {
+        update.password = hashed;
+      } else {
+        update.$set.password = hashed;
+      }
+    } catch (err) {
+      return next(err);
+    }
+  }
+
+  next();
+});
+
 // eslint-disable-next-line func-names
 UserSchema.methods.verifyPassword = function (password) {
   const user = this;

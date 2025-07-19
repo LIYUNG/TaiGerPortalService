@@ -23,7 +23,7 @@ const router = Router();
 router.use(protect);
 
 router
-  .route('/:studentId/:programId')
+  .route('/:studentId/:applicationId')
   .post(
     filter_archiv_user,
     GeneralPOSTRequestRateLimiter,

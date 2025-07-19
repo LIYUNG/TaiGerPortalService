@@ -7,6 +7,8 @@ const {
   TicketCreatedAgentEmail,
   TicketResolvedRequesterReminderEmail
 } = require('../services/email');
+const ProgramService = require('../services/programs');
+const StudentService = require('../services/students');
 
 const getTickets = asyncHandler(async (req, res) => {
   const { user } = req;
@@ -49,14 +51,14 @@ const createTicket = asyncHandler(async (req, res) => {
 
   res.status(201).send({ success: true, data: ticket });
 
-  const programPromise = req.db
-    .model('Program')
-    .findById(new_ticket.program_id);
-  const studentPromise = req.db
-    .model('Student')
-    .findById(user._id.toString())
-    .populate('agents', 'firstname lastname email')
-    .lean();
+  const programPromise = ProgramService.getProgramById(
+    req,
+    new_ticket.program_id
+  );
+  const studentPromise = StudentService.getStudentById(
+    req,
+    user._id.toString()
+  );
 
   const [program, student] = await Promise.all([
     programPromise,

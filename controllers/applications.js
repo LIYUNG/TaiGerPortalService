@@ -26,11 +26,18 @@ const { ErrorResponse } = require('../common/errors');
 const ApplicationService = require('../services/applications');
 const UserService = require('../services/users');
 const StudentService = require('../services/students');
+const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
 
 const getMyStudentsApplications = asyncHandler(async (req, res) => {
   const {
     params: { userId }
   } = req;
+  const { decided, closed, admission } = req.query;
+  const { filter: applicationQuery } = new ApplicationQueryBuilder()
+    .withDecided(decided)
+    .withClosed(closed)
+    .withAdmission(admission)
+    .build();
   const taiGerUser = await UserService.getUserById(req, userId);
   const studentQuery = {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
@@ -42,7 +49,11 @@ const getMyStudentsApplications = asyncHandler(async (req, res) => {
     studentQuery.editors = taiGerUser._id.toString();
   }
   const applications =
-    await ApplicationService.getStudentsApplicationsByTaiGerUserId(req, userId);
+    await ApplicationService.getStudentsApplicationsByTaiGerUserId(
+      req,
+      userId,
+      applicationQuery
+    );
 
   const students = await StudentService.fetchStudentsWithGeneralThreadsInfo(
     req,

@@ -38,8 +38,15 @@ const ApplicationService = {
     );
     return filteredApplications;
   },
-  async getStudentsApplicationsByTaiGerUserId(req, userId) {
-    const applications = await this.getActiveStudentsApplications(req, {});
+  async getStudentsApplicationsByTaiGerUserId(
+    req,
+    userId,
+    applicationFilter = {}
+  ) {
+    const applications = await this.getActiveStudentsApplications(
+      req,
+      applicationFilter
+    );
 
     const filteredApplications = applications.filter(
       (app) =>

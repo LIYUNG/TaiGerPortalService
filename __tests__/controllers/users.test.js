@@ -90,10 +90,10 @@ describe('GET /api/users', () => {
 });
 
 // TODO: move below to their own files?
-describe('GET /api/agents', () => {
+describe('GET /api/users?role=Agent', () => {
   it('should return all agents', async () => {
     const resp = await requestWithSupertest
-      .get('/api/agents')
+      .get('/api/users?role=Agent')
       .set('tenantId', TENANT_ID);
     const { success, data } = resp.body;
 
@@ -106,10 +106,10 @@ describe('GET /api/agents', () => {
   });
 });
 
-describe('GET /api/editors', () => {
-  it('should return all editors', async () => {
+describe('GET /api/users?role=Editor', () => {
+  it('should return all editor users', async () => {
     const resp = await requestWithSupertest
-      .get('/api/editors')
+      .get('/api/users?role=Editor')
       .set('tenantId', TENANT_ID);
     const { success, data } = resp.body;
 

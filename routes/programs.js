@@ -28,6 +28,7 @@ const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
 const {
   permission_canModifyProgramList_filter
 } = require('../middlewares/permission-filter');
+const getProgramFilter = require('../middlewares/getProgramFilter');
 
 const router = Router();
 
@@ -77,6 +78,7 @@ router
       Role.External,
       Role.Student
     ),
+    getProgramFilter,
     getProgram
   )
   .put(

@@ -22,6 +22,8 @@ const { isNotArchiv } = require('../constants');
 const { getPermission } = require('../utils/queryFunctions');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
 const { userChangesHelperFunction } = require('../utils/utils_function');
+const StudentService = require('../services/students');
+const ApplicationService = require('../services/applications');
 
 const PrecheckInterview = asyncHandler(async (req, interview_id) => {
   const precheck_interview = await req.db
@@ -149,9 +151,20 @@ const addInterviewStatus = async (db, interviews) => {
 };
 
 const getAllInterviews = asyncHandler(async (req, res) => {
+  const { isClosed, trainer_id, no_trainer } = req.query;
+  const filter = {};
+  if (isClosed) {
+    filter.isClosed = isClosed;
+  }
+  if (no_trainer || no_trainer === 'true') {
+    filter.trainer_id = { $size: 0 };
+  } else if (trainer_id) {
+    filter.trainer_id = trainer_id;
+  }
+
   let interviews = await req.db
     .model('Interview')
-    .find()
+    .find(filter)
     .populate('student_id trainer_id', 'firstname lastname email')
     .populate('program_id', 'school program_name degree semester')
     .populate('event_id')
@@ -217,12 +230,10 @@ const getMyInterview = asyncHandler(async (req, res) => {
     }
 
     interviews = await addInterviewStatus(req.db, interviews);
-    const students = await req.db
-      .model('Student')
-      .find(studentFilter)
-      .populate('agents editors', 'firstname lastname email')
-      .populate('applications.programId', 'school program_name degree semester')
-      .lean();
+    const students = await StudentService.getStudentsWithApplications(
+      req,
+      studentFilter
+    );
 
     if (!students) {
       logger.info('getMyInterview: No students found!');
@@ -231,11 +242,15 @@ const getMyInterview = asyncHandler(async (req, res) => {
 
     res.status(200).send({ success: true, data: interviews, students });
   } else {
-    const student = await req.db
-      .model('Student')
-      .findById(user._id.toString())
-      .populate('applications.programId', 'school program_name degree semester')
-      .lean();
+    const student = await StudentService.getStudentById(
+      req,
+      user._id.toString()
+    );
+    const applications = await ApplicationService.getApplicationsByStudentId(
+      req,
+      user._id.toString()
+    );
+    student.applications = applications;
     if (!student) {
       logger.info('getMyInterview: Student not found!');
       throw new ErrorResponse(400, 'Student not found!');
@@ -712,12 +727,7 @@ const createInterview = asyncHandler(async (req, res) => {
     params: { program_id, studentId },
     body: payload
   } = req;
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('applications.programId')
-    .populate('agents editors', 'firstname lastname email')
-    .lean();
+  const student = await StudentService.getStudentById(req, studentId);
   if (!student) {
     logger.info('createInterview: Invalid student id!');
     throw new ErrorResponse(400, 'Invalid student id');

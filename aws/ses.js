@@ -1,9 +1,10 @@
 const { SES, SendRawEmailCommand } = require('@aws-sdk/client-ses');
 
 const Bottleneck = require('bottleneck/es5');
+const { AWS_REGION } = require('../config');
 
 const ses = new SES({
-  region: 'us-west-2'
+  region: AWS_REGION
 });
 
 const limiter = new Bottleneck({

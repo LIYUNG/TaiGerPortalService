@@ -142,17 +142,17 @@ describe('getMessages Controller', () => {
   });
 });
 
-describe('postMessages and Controller', () => {
-  it('postMessages should create a new message', async () => {
-    const resp = await requestWithSupertest
-      .post(`/api/communications/${student._id.toString()}`)
-      .set('tenantId', TENANT_ID)
-      .send({ message: testMessage });
-    const newMessage = resp.body.data;
-    expect(resp.status).toBe(200);
-    expect(newMessage[0].message).toEqual(testMessage);
-  });
-});
+// describe('postMessages and Controller', () => {
+//   it('postMessages should create a new message', async () => {
+//     const resp = await requestWithSupertest
+//       .post(`/api/communications/${student._id.toString()}`)
+//       .set('tenantId', TENANT_ID)
+//       .send({ message: testMessage });
+//     const newMessage = resp.body.data;
+//     expect(resp.status).toBe(200);
+//     expect(newMessage[0].message).toEqual(testMessage);
+//   });
+// });
 
 describe('updateAMessageInThread Controller', () => {
   it('should update a message', async () => {

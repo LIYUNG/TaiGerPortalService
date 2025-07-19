@@ -1,6 +1,6 @@
 const { BaseQueryBuilder } = require('./BaseQueryBuilder');
 
-class UserQueryBuilder extends BaseQueryBuilder {
+class InterviewQueryBuilder extends BaseQueryBuilder {
   constructor() {
     super();
   }
@@ -26,6 +26,20 @@ class UserQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
+  withIsClosed(isClosed) {
+    if (isClosed) {
+      this.query.isClosed = isClosed;
+    }
+    return this;
+  }
+
+  withTrainerId(trainerId) {
+    if (trainerId) {
+      this.query.trainer_id = trainerId;
+    }
+    return this;
+  }
+
   withoutLimit() {
     delete this.options.limit;
     delete this.options.page;
@@ -40,4 +54,4 @@ class UserQueryBuilder extends BaseQueryBuilder {
   }
 }
 
-module.exports = UserQueryBuilder;
+module.exports = InterviewQueryBuilder;

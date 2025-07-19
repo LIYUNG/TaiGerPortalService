@@ -21,6 +21,8 @@ const { one_month_cache } = require('../cache/node-cache');
 const { deleteS3Objects } = require('../aws/s3');
 const { TENANT_SHORT_NAME } = require('../constants/common');
 const { getS3Object } = require('../aws/s3');
+const CommunicationService = require('../services/communications');
+const StudentService = require('../services/students');
 
 const pageSize = 5;
 
@@ -643,10 +645,7 @@ const postMessages = asyncHandler(async (req, res, next) => {
     .limit(1);
   res.status(200).send({ success: true, data: communication_latest });
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('editors agents', 'firstname lastname email archiv');
+  const student = await StudentService.fetchSimpleStudents(req, studentId);
 
   // inform agent/student
   if (is_TaiGer_Student(user)) {
@@ -694,13 +693,12 @@ const updateAMessageInThread = asyncHandler(async (req, res, next) => {
   } = req;
   const { message } = req.body;
   try {
-    const thread = await req.db
-      .model('Communication')
-      .findByIdAndUpdate(messageId, { message }, { new: true })
-      .populate(
-        'student_id user_id readBy ignoredMessageBy',
-        'firstname lastname role'
-      );
+    const thread = await CommunicationService.updateCommunication(
+      req,
+      messageId,
+      { message }
+    );
+
     if (!thread) {
       logger.error('updateAMessageInThread : Invalid message thread id');
       throw new ErrorResponse(404, 'Thread not found');
@@ -719,7 +717,7 @@ const deleteAMessageInCommunicationThread = asyncHandler(
     const {
       params: { messageId }
     } = req;
-    const msg = await req.db.model('Communication').findById(messageId);
+    const msg = await CommunicationService.getCommunicationById(req, messageId);
 
     // remove chat attachment cache.
     msg.files?.map((file) =>
@@ -762,14 +760,14 @@ const IgnoreMessage = asyncHandler(async (req, res, next) => {
   } = req;
 
   try {
-    await req.db.model('Communication').findByIdAndUpdate(
+    await CommunicationService.updateCommunication(
+      req,
       communication_messageId,
       {
         ignore_message: ignoreMessageState,
         ignoredMessageBy: user._id,
         ignoredMessageUpdatedAt: new Date()
-      },
-      {}
+      }
     );
   } catch (e) {
     logger.error(

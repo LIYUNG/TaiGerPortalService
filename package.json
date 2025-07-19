@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "migration": "cross-env NODE_ENV=development node migration/addApplicationYearFromPreference.js",
     "start": "cross-env NODE_ENV=production node index.js",
     "prod": "NODE_ENV=production node index.js",
     "dev": "cross-env NODE_ENV=development nodemon --config nodemon.json index.js",
@@ -30,7 +31,7 @@
     "@faker-js/faker": "^8.4.1",
     "@neondatabase/serverless": "^1.0.1",
     "@taiger-common/core": "^1.0.10",
-    "@taiger-common/model": "^1.0.25",
+    "@taiger-common/model": "^1.0.29",
     "async": "^3.2.4",
     "axios": "^1.6.7",
     "bcryptjs": "^2.4.3",

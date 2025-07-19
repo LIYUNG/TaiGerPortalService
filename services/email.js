@@ -48,10 +48,6 @@ const {
 } = require('../constants/email');
 const { asyncHandler } = require('../middlewares/error-handler');
 
-const verifySMTPConfig = () => {
-  return transporter.verify();
-};
-
 const sendEventEmail = (
   to,
   subject,
@@ -2775,7 +2771,6 @@ const InterviewSurveyFinishedToTaiGerEmail = asyncHandler(
 );
 
 module.exports = {
-  verifySMTPConfig,
   updateNotificationEmail,
   updatePermissionNotificationEmail,
   deleteTemplateSuccessEmail,

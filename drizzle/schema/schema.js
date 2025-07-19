@@ -7,6 +7,7 @@ const {
   text,
   timestamp
 } = require('drizzle-orm/pg-core');
+const { relations } = require('drizzle-orm');
 
 // Use a dynamic import for nanoid
 const createId = () => import('nanoid').then((mod) => mod.nanoid());
@@ -44,7 +45,12 @@ const meetingTranscripts = pgTable('meeting_transcripts', {
   dateString: varchar('date_string', { length: 32 }),
   summary: jsonb('summary'),
   meetingInfo: jsonb('meeting_info'),
-  leadId: varchar('lead_id', { length: 32 })
+  leadId: varchar('lead_id', { length: 32 }).references(() => leads.id, {
+    onDelete: 'cascade'
+  })
 });
 
-module.exports = { leads, meetingTranscripts };
+module.exports = {
+  leads,
+  meetingTranscripts
+};

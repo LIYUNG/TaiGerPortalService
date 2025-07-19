@@ -25,6 +25,7 @@ const getMeetingSummaries = asyncHandler(async (req, res) => {
 const getCRMLeads = asyncHandler(async (req, res) => {
   const leadsRecords = await postgresDb
     .select({
+      id: leads.id,
       fullName: leads.fullName,
       gender: leads.gender,
       email: leads.email,

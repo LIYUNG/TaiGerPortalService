@@ -3,9 +3,6 @@ const { meetingTranscripts, leads } = require('../drizzle/schema/schema');
 const { postgresDb } = require('../database');
 const { sql } = require('drizzle-orm');
 
-// TODO:
-// - Implement meeting summary schema
-// - Implement the logic to fetch meeting summary & transcripts from Firefiles (currently hardcoded data in MongoDB)
 const getMeetingSummaries = asyncHandler(async (req, res) => {
   const meetingSummaries = await await postgresDb
     .select()

@@ -1,12 +1,17 @@
 const { asyncHandler } = require('../middlewares/error-handler');
 const { meetingTranscripts, leads } = require('../drizzle/schema/schema');
 const { postgresDb } = require('../database');
-const { sql } = require('drizzle-orm');
+const { sql, getTableColumns, eq } = require('drizzle-orm');
 
 const getMeetingSummaries = asyncHandler(async (req, res) => {
   const meetingSummaries = await await postgresDb
-    .select()
+    .select({
+      leadId: leads.id,
+      leadFullName: leads.fullName,
+      ...getTableColumns(meetingTranscripts) // meetingSummaries.*
+    })
     .from(meetingTranscripts)
+    .leftJoin(leads, eq(meetingTranscripts.leadId, leads.id))
     .where(sql`(meeting_info->>'fred_joined')::boolean = true AND
          (meeting_info->>'silent_meeting')::boolean = false AND
          (meeting_info->>'summary_status') != 'skipped'`);

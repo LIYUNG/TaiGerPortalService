@@ -27,6 +27,7 @@ const leads = pgTable('leads', {
   tags: text('tags'),
 
   notes: text('notes'),
+  userId: varchar('user_id', { length: 32 }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });
@@ -42,7 +43,8 @@ const meetingTranscripts = pgTable('meeting_transcripts', {
   date: bigint('date', { mode: 'number' }),
   dateString: varchar('date_string', { length: 32 }),
   summary: jsonb('summary'),
-  meetingInfo: jsonb('meeting_info')
+  meetingInfo: jsonb('meeting_info'),
+  leadId: varchar('lead_id', { length: 32 })
 });
 
 module.exports = { leads, meetingTranscripts };

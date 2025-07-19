@@ -163,7 +163,7 @@ const storage_vpd_s3 = multerS3({
             .model('Program')
             .findById(program_id)
             .then((program) => {
-              const program_name = `${program.school} ${program.program_name}`;
+              const program_name = `${program?.school} ${program?.program_name}`;
               let temp_name = `${student.lastname}_${
                 student.firstname
               }_${program_name}_${fileType}${path.extname(file.originalname)}`;
@@ -267,7 +267,7 @@ const admission_letter_s3 = multerS3({
             .model('Program')
             .findById(programId)
             .then((program) => {
-              const program_name = `${program.school} ${program.program_name} ${program.degree} ${program.semester}`;
+              const program_name = `${program?.school} ${program?.program_name} ${program?.degree} ${program?.semester}`;
               let temp_name = `${student.lastname}_${
                 student.firstname
               }_${program_name}_${admission_status}${path.extname(
@@ -395,7 +395,7 @@ const storage_messagesthread_file_s3 = multerS3({
             .model('Program')
             .findById(thread.program_id)
             .then((program) => {
-              program_name = `${program.school}_${program.program_name}`;
+              program_name = `${program?.school}_${program?.program_name}`;
               let version_number_max = 0;
 
               thread.messages.forEach((message) => {

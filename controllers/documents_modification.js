@@ -61,6 +61,7 @@ const StudentService = require('../services/students');
 const DocumentThreadService = require('../services/documentthreads');
 const UserService = require('../services/users');
 const ApplicationService = require('../services/applications');
+const DocumentthreadQueryBuilder = require('../builders/DocumentthreadQueryBuilder');
 
 const getActiveThreads = asyncHandler(async (req, res) => {
   const { query } = req;
@@ -71,9 +72,14 @@ const getActiveThreads = asyncHandler(async (req, res) => {
 
 const getMyStudentsThreads = asyncHandler(async (req, res) => {
   const { userId } = req.params;
+  const { isFinalVersion } = req.query;
+  const { filter: documentThreadFilter } = new DocumentthreadQueryBuilder()
+    .withIsFinalVersion(isFinalVersion)
+    .build();
   const threads = await DocumentThreadService.getStudentsThreadsByTaiGerUserId(
     req,
-    userId
+    userId,
+    documentThreadFilter
   );
   const user = await UserService.getUserById(req, userId);
   res.status(200).send({ success: true, data: { threads, user } });

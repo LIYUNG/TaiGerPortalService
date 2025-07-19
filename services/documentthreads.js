@@ -36,10 +36,14 @@ const DocumentThreadService = {
 
     return filteredThreads;
   },
-  async getStudentsThreadsByTaiGerUserId(req, userId) {
+  async getStudentsThreadsByTaiGerUserId(
+    req,
+    userId,
+    documentThreadFilter = {}
+  ) {
     const threads = await req.db
       .model('Documentthread')
-      .find()
+      .find(documentThreadFilter)
       .populate(
         'messages.user_id outsourced_user_id',
         'firstname lastname email'
@@ -54,7 +58,7 @@ const DocumentThreadService = {
       .populate('application_id')
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang'
+        'school program_name application_deadline degree semester lang application_start'
       )
       .lean();
 

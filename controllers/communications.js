@@ -352,6 +352,7 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
           firstname_chinese: 1,
           lastname_chinese: 1,
           role: 1,
+          attributes: 1,
           latestCommunication: {
             $arrayElemAt: ['$communications', -1]
           }
@@ -401,6 +402,7 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
           lastname: 1,
           firstname_chinese: 1,
           lastname_chinese: 1,
+          attributes: 1,
           role: 1,
           latestCommunication: {
             $arrayElemAt: ['$communications', -1]

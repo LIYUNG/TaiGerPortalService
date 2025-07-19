@@ -5,7 +5,11 @@ const { GeneralGETRequestRateLimiter } = require('../middlewares/rate_limiter');
 const { protect, permit } = require('../middlewares/auth');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
 
-const { getCRMLeads, getMeetingSummaries } = require('../controllers/crm');
+const {
+  getCRMStats,
+  getCRMLeads,
+  getMeetingSummaries
+} = require('../controllers/crm');
 
 const router = Router();
 
@@ -18,5 +22,9 @@ router
 router
   .route('/meeting-summaries')
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getMeetingSummaries);
+
+router
+  .route('/stats')
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getCRMStats);
 
 module.exports = router;

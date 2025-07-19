@@ -614,10 +614,9 @@ const getMessages = asyncHandler(async (req, res) => {
   if (General_Docs.includes(document_thread.file_type)) {
     deadline = CVDeadline_Calculator(applications);
   } else {
-    const application = applications.find(
-      (app) =>
-        app.programId._id.toString() ===
-        document_thread.program_id._id.toString()
+    const application = await ApplicationService.getApplicationById(
+      req,
+      document_thread.application_id
     );
     deadline = application_deadline_V2_calculator(application);
   }

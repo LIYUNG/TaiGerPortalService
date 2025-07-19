@@ -5,9 +5,11 @@ const {
   doublePrecision,
   bigint,
   text,
-  timestamp
+  timestamp,
+  boolean
 } = require('drizzle-orm/pg-core');
 const { relations } = require('drizzle-orm');
+const { isArchiv } = require('../../constants');
 
 // Use a dynamic import for nanoid
 const createId = () => import('nanoid').then((mod) => mod.nanoid());
@@ -45,6 +47,7 @@ const meetingTranscripts = pgTable('meeting_transcripts', {
   dateString: varchar('date_string', { length: 32 }),
   summary: jsonb('summary'),
   meetingInfo: jsonb('meeting_info'),
+  isArchived: boolean('is_archived').default(false),
   leadId: varchar('lead_id', { length: 32 }).references(() => leads.id, {
     onDelete: 'cascade'
   })

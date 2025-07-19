@@ -24,7 +24,6 @@ const {
   deleteTemplate,
   uploadTemplate,
   downloadTemplateFile,
-  UpdateStudentApplications,
   removeNotification,
   removeAgentNotification,
   getMyAcademicBackground,
@@ -83,18 +82,6 @@ router
   );
 
 router
-  .route('/applications/:studentId')
-  .put(
-    filter_archiv_user,
-    GeneralPUTRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
-    multitenant_filter,
-    InnerTaigerMultitenantFilter,
-    UpdateStudentApplications,
-    logAccess
-  );
-
-router
   .route('/applications/result/v2/:studentId/:programId/:admission')
   .post(
     filter_archiv_user,
@@ -108,7 +95,7 @@ router
   );
 
 router
-  .route('/applications/result/:studentId/:programId/:result')
+  .route('/applications/result/:studentId/:applicationId/:programId/:result')
   .post(
     filter_archiv_user,
     GeneralPUTRequestRateLimiter,

@@ -45,6 +45,7 @@ const { keywordSetSchema } = require('./models/Keywordset');
 const { programRequirementSchema } = require('./models/Programrequirement');
 const { auditSchema } = require('./models/Audit');
 const { allCourseSchema } = require('./models/Allcourse');
+const { applicationSchema } = require('./models/Application');
 
 const connections = {};
 const tenantDb = 'Tenant';
@@ -56,11 +57,13 @@ const applyProgramSchema = (
   db,
   VCModel,
   StudentModel,
+  ApplicationModel,
   DocumentthreadModel,
   surveyInputModel
 ) => {
   programSchema.plugin(handleProgramChanges, {
     StudentModel,
+    ApplicationModel,
     DocumentthreadModel,
     surveyInputModel
   });
@@ -75,6 +78,7 @@ const connectToDatabase = (tenant, uri = null) => {
     connections[tenant] = connection;
 
     connection.model('Allcourse', allCourseSchema);
+    connection.model('Application', applicationSchema);
     connection.model('Audit', auditSchema);
     connection.model('Basedocumentationslink', basedocumentationslinksSchema);
     connection.model('Communication', communicationsSchema);
@@ -122,6 +126,7 @@ const connectToDatabase = (tenant, uri = null) => {
       connection,
       connection.model('VC'),
       connection.model('Student'),
+      connection.model('Application'),
       connection.model('Documentthread'),
       connection.model('surveyInput')
     );

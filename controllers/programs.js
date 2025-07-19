@@ -1,7 +1,7 @@
 const {
   Role,
   is_TaiGer_Agent,
-  is_TaiGer_Student
+  is_TaiGer_role
 } = require('@taiger-common/core');
 
 const { ErrorResponse } = require('../common/errors');
@@ -10,6 +10,8 @@ const logger = require('../services/logger');
 const { one_month_cache } = require('../cache/node-cache');
 const { two_weeks_cache } = require('../cache/node-cache');
 const { PROGRAMS_CACHE } = require('../config');
+const ApplicationService = require('../services/applications');
+const ProgramService = require('../services/programs');
 
 const getDistinctSchoolsAttributes = async (req, res) => {
   try {
@@ -125,57 +127,46 @@ const getPrograms = asyncHandler(async (req, res) => {
 });
 
 const getStudentsByProgram = asyncHandler(async (req, programId) => {
-  const students = await req.db
-    .model('Student')
+  const applications = await req.db
+    .model('Application')
     .find({
-      applications: {
-        $elemMatch: {
-          programId: programId,
-          decided: 'O'
-        }
+      programId,
+      decided: 'O'
+    })
+    .populate({
+      path: 'studentId',
+      select: 'agents editors firstname lastname',
+      populate: {
+        path: 'agents editors',
+        select: 'firstname lastname'
       }
     })
-    .populate('agents editors', 'firstname')
-    .populate('applications.doc_modification_thread.doc_thread_id', 'file_type')
-    .select(
-      'firstname lastname applications application_preference.expected_application_date'
-    )
     .lean();
 
-  if (!students) {
-    return;
-  }
-
-  students.forEach((student) => {
-    student.application = student.applications.find(
-      (app) => app.programId.toString() === programId.toString()
-    );
-    delete student.applications;
+  const studentSet = new Set();
+  applications.forEach((application) => {
+    studentSet.add({
+      ...application.studentId,
+      application_year: application.application_year,
+      agents: application.studentId.agents,
+      closed: application.closed,
+      admission: application.admission
+    });
   });
 
-  return students;
+  return Array.from(studentSet);
 });
 
 const getProgram = asyncHandler(async (req, res) => {
   const { user } = req;
-  // prevent student multitenancy
-  if (is_TaiGer_Student(user)) {
-    if (
-      user.applications.findIndex(
-        (app) => app.programId.toString() === req.params.programId
-      ) === -1
-    ) {
-      logger.error('getProgram: Invalid program id in your applications');
-      throw new ErrorResponse(403, 'Invalid program id in your applications');
-    }
-  }
   if (PROGRAMS_CACHE === 'true') {
     const value = one_month_cache.get(req.originalUrl);
     if (value === undefined) {
       // cache miss
-      const program = await req.db
-        .model('Program')
-        .findById(req.params.programId);
+      const program = await ProgramService.getProgramById(
+        req,
+        req.params.programId
+      );
       if (!program) {
         logger.error('getProgram: Invalid program id');
         throw new ErrorResponse(404, 'Program not found');
@@ -184,26 +175,14 @@ const getProgram = asyncHandler(async (req, res) => {
       if (success) {
         logger.info('programs cache set successfully');
       }
-      if (
-        user.role === Role.Admin ||
-        is_TaiGer_Agent(user) ||
-        user.role === Role.Editor
-      ) {
-        const students = await req.db
-          .model('Student')
-          .find({
-            applications: {
-              $elemMatch: {
-                programId: req.params.programId,
-                decided: 'O',
-                closed: 'O'
-              }
-            }
-          })
-          .populate('agents editors', 'firstname')
-          .select(
-            'firstname lastname applications application_preference.expected_application_date'
-          );
+      if (is_TaiGer_role(user)) {
+        const applications = await ApplicationService.getApplications(req, {
+          programId: req.params.programId,
+          decided: 'O'
+        });
+        const students = applications.map(
+          (application) => application.studentId
+        );
 
         const vc = await req.db
           .model('VC')
@@ -228,20 +207,7 @@ const getProgram = asyncHandler(async (req, res) => {
       let students = [];
 
       if (user.role !== Role.External) {
-        students = await req.db
-          .model('Student')
-          .find({
-            applications: {
-              $elemMatch: {
-                programId: req.params.programId,
-                decided: 'O'
-              }
-            }
-          })
-          .populate('agents editors', 'firstname')
-          .select(
-            'firstname lastname applications application_preference.expected_application_date'
-          );
+        students = await getStudentsByProgram(req, req.params.programId);
       }
 
       const vc = await req.db
@@ -267,7 +233,8 @@ const getProgram = asyncHandler(async (req, res) => {
     if (user.role !== Role.External) {
       students = await getStudentsByProgram(req, req.params.programId);
     }
-    program = await req.db.model('Program').findById(req.params.programId);
+    program = await ProgramService.getProgramById(req, req.params.programId);
+
     if (!program) {
       logger.error('getProgram: Invalid program id');
       throw new ErrorResponse(404, 'Program not found');
@@ -282,9 +249,10 @@ const getProgram = asyncHandler(async (req, res) => {
 
     res.send({ success: true, data: program, students, vc });
   } else {
-    const program = await req.db
-      .model('Program')
-      .findById(req.params.programId);
+    const program = await ProgramService.getProgramById(
+      req,
+      req.params.programId
+    );
     if (!program) {
       logger.error('getProgram: Invalid program id');
       throw new ErrorResponse(404, 'Program not found');
@@ -301,7 +269,7 @@ const createProgram = asyncHandler(async (req, res) => {
   new_program.program_name = new_program.program_name.trim();
   new_program.updatedAt = new Date();
   new_program.whoupdated = `${user.firstname} ${user.lastname}`;
-  const programs = await req.db.model('Program').find({
+  const programs = await ProgramService.getPrograms(req, {
     school: new_program.school,
     program_name: new_program.program_name,
     degree: new_program.degree,
@@ -367,19 +335,13 @@ const updateProgram = asyncHandler(async (req, res) => {
 
 const deleteProgram = asyncHandler(async (req, res) => {
   // All students including archived
-  const students = await req.db
-    .model('Student')
-    .find({
-      applications: {
-        $elemMatch: {
-          programId: req.params.programId
-        }
-      }
-    })
-    .select('firstname lastname applications.programId')
-    .lean();
+  const applications = await ApplicationService.getApplicationsByProgramId(
+    req,
+    req.params.programId
+  );
+
   // Check if anyone applied this program
-  if (students.length === 0) {
+  if (applications.length === 0) {
     logger.info('it can be safely deleted!');
 
     await req.db
@@ -394,21 +356,23 @@ const deleteProgram = asyncHandler(async (req, res) => {
     await req.db
       .model('ProgramRequirement')
       .findOneAndDelete({ programId: { $in: [req.params.programId] } });
-  } else {
-    logger.error('it can not be deleted!');
-    logger.error('The following students have these programs!');
-    logger.error(
-      students.map((std) => `${std.firstname} ${std.lastname}`).join(', ')
-    );
-    throw new ErrorResponse(403, 'This program can not be deleted!');
-  }
-  res.status(200).send({ success: true });
-  if (students.length === 0) {
     await req.db
       .model('Ticket')
       .deleteMany({ program_id: req.params.programId });
     logger.info('Delete Tickets!');
+  } else {
+    logger.error('it can not be deleted!');
+    logger.error('The following students have these programs!');
+    const studentIds = applications
+      .map((application) => application.studentId)
+      .join(', ');
+    logger.error(studentIds);
+    throw new ErrorResponse(
+      403,
+      `This program can not be deleted! ${studentIds} are applying or considering this program.`
+    );
   }
+  res.status(200).send({ success: true });
 });
 
 module.exports = {

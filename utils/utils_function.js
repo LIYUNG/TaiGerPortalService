@@ -2,7 +2,11 @@ const path = require('path');
 const async = require('async');
 const mammoth = require('mammoth');
 const PdfParse = require('pdf-parse');
-const { Role, isProgramDecided } = require('@taiger-common/core');
+const {
+  Role,
+  isProgramDecided,
+  is_TaiGer_Agent
+} = require('@taiger-common/core');
 
 const {
   MeetingReminderEmail,
@@ -14,7 +18,6 @@ const {
 
 const {
   StudentTasksReminderEmail,
-  AgentTasksReminderEmail,
   EditorTasksReminderEmail,
   StudentApplicationsDeadline_Within30Days_DailyReminderEmail,
   StudentCVMLRLEssay_NoReplyAfter3Days_DailyReminderEmail,
@@ -38,6 +41,7 @@ const { AWS_S3_BUCKET_NAME, TENANT_ID } = require('../config');
 const { connectToDatabase } = require('../middlewares/tenantMiddleware');
 const { deleteS3Objects, listS3ObjectsV2 } = require('../aws/s3');
 const { ErrorResponse } = require('../common/errors');
+const StudentService = require('../services/students');
 
 // Tested: redundant image is deleted
 const threadS3GarbageCollector = async (
@@ -170,20 +174,16 @@ const TasksReminderEmails_Editor_core = asyncHandler(async (req) => {
   // TODO: deactivate or change email frequency (default 1 week.)
   const editors = await req.db.model('Editor').find();
 
+  const studentQuery = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
+
   const editorPromises = editors.map(async (editor) => {
-    const editor_students = await req.db
-      .model('Student')
-      .find({
-        editors: editor._id,
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .populate('agents editors', 'firstname lastname email')
-      .populate('applications.programId')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
-      .select('-notification');
+    studentQuery.editors = editor._id;
+    const editor_students = await StudentService.getStudentsWithApplications(
+      req,
+      studentQuery
+    );
 
     if (
       editor_students.length > 0 &&
@@ -206,58 +206,17 @@ const TasksReminderEmails_Editor_core = asyncHandler(async (req) => {
   logger.info('Editor reminder email sent');
 });
 
-const TasksReminderEmails_Agent_core = asyncHandler(async (req) => {
-  // Only inform active student
-  // TODO: deactivate or change email frequency (default 1 week.)
-  const agents = await req.db.model('Agent').find();
-
-  for (let j = 0; j < agents.length; j += 1) {
-    const agent_students = await req.db
-      .model('Student')
-      .find({
-        agents: agents[j]._id,
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .populate('agents editors', 'firstname lastname email')
-      .populate('applications.programId')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
-      .select('-notification')
-      .lean();
-    if (agent_students.length > 0) {
-      if (isNotArchiv(agents[j])) {
-        AgentTasksReminderEmail(
-          {
-            firstname: agents[j].firstname,
-            lastname: agents[j].lastname,
-            address: agents[j].email
-          },
-          { students: agent_students, agent: agents[j] }
-        );
-      }
-    }
-  }
-  logger.info('Agent reminder email sent');
-});
-
 const TasksReminderEmails_Student_core = asyncHandler(async (req) => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
-  const students = await req.db
-    .model('Student')
-    .find({
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
-    .select('-notification')
-    .lean(); // Only active student, not archiv
+  const studentQuery = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
+  // TODO: it shows: "Technische Universität München (TUM) Computational Science and Engineering undefined"
+  const students = await StudentService.getStudentsWithApplications(
+    req,
+    studentQuery
+  );
 
   for (let j = 0; j < students.length; j += 1) {
     StudentTasksReminderEmail(
@@ -280,26 +239,19 @@ const TasksReminderEmails = asyncHandler(async () => {
   req.VCModel = req.db.model('VC');
   await TasksReminderEmails_Editor_core(req);
   await TasksReminderEmails_Student_core(req);
-  await TasksReminderEmails_Agent_core(req);
 });
 
 const UrgentTasksReminderEmails_Student_core = asyncHandler(async (req) => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   const trigger_days = 3;
-  const students = await req.db
-    .model('Student')
-    .find({
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .populate('agents editors', 'firstname lastname email')
-    .populate('applications.programId')
-    .populate(
-      'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-      '-messages'
-    )
-    .select('-notification')
-    .lean(); // Only active student, not archiv
+  const studentQuery = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
+  const students = await StudentService.getStudentsWithApplications(
+    req,
+    studentQuery
+  );
 
   const deadlineReminderPromises = students.map(async (student) => {
     if (is_deadline_within30days_needed(student)) {
@@ -342,21 +294,15 @@ const UrgentTasksReminderEmails_Agent_core = asyncHandler(async (req) => {
   const escalation_trigger_10days = 10;
   const escalation_trigger_3days = 3;
   const agents = await req.db.model('Agent').find();
-
+  const studentQuery = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
   const agentPromises = agents.map(async (agent) => {
-    const agent_students = await req.db
-      .model('Student')
-      .find({
-        agents: agent._id,
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .populate('agents editors', 'firstname lastname email')
-      .populate('applications.programId')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
-      .select('-notification');
+    studentQuery.agents = agent._id;
+    const agent_students = await StudentService.getStudentsWithApplications(
+      req,
+      studentQuery
+    );
     if (agent_students.length > 0) {
       let cv_ml_rl_10days_flag = false;
       let cv_ml_rl_3days_flag = false;
@@ -436,24 +382,19 @@ const UrgentTasksReminderEmails_Editor_core = asyncHandler(async (req) => {
   // TODO: deactivate or change email frequency (default 1 week.)
   const editor_trigger_7days = 7;
   const editor_trigger_3days = 3;
-
+  const studentQuery = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
   const editors = await req.db.model('Editor').find();
 
+  // TODO: it shows: "Technische Universität München (TUM) Computational Science and Engineering undefined"
   // (O): Check if editor no reply (need to response) more than 3 days (Should configurable)
   for (let j = 0; j < editors.length; j += 1) {
-    const editor_students = await req.db
-      .model('Student')
-      .find({
-        editors: editors[j]._id,
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .populate('agents editors', 'firstname lastname email')
-      .populate('applications.programId')
-      .populate(
-        'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
-        '-messages'
-      )
-      .select('-notification');
+    studentQuery.editors = editors[j]._id;
+    const editor_students = await StudentService.getStudentsWithApplications(
+      req,
+      studentQuery
+    );
     if (editor_students.length > 0) {
       let cv_ml_rl_7days_flag = false;
       let cv_ml_rl_3days_flag = false;
@@ -516,9 +457,9 @@ const UrgentTasksReminderEmails = asyncHandler(async () => {
   req.db = connectToDatabase(tenantId);
   req.VCModel = req.db.model('VC');
   const UrgentTaskPromises = [
-    UrgentTasksReminderEmails_Editor_core(req),
-    UrgentTasksReminderEmails_Student_core(req),
-    UrgentTasksReminderEmails_Agent_core(req)
+    // UrgentTasksReminderEmails_Editor_core(req), // TODO: check if this is needed
+    // UrgentTasksReminderEmails_Student_core(req), // TODO: check if this is needed
+    // UrgentTasksReminderEmails_Agent_core(req) // TODO: check if this is needed
   ];
 
   await Promise.all(UrgentTaskPromises);
@@ -724,7 +665,7 @@ const numStudentYearDistribution = (students) =>
 //   });
 //   const students = await Student.find()
 //     .populate('agents editors', 'firstname lastname')
-//     .populate('applications.programId')
+//     .populate('')
 //     .populate(
 //       'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
 //       '-messages'
@@ -788,10 +729,10 @@ const numStudentYearDistribution = (students) =>
 //   };
 // });
 
-const add_portals_registered_status = (student_input) => {
-  const student = student_input;
-  for (let i = 0; i < student.applications.length; i += 1) {
-    const application = student.applications[i];
+const add_portals_registered_status = (applications) => {
+  const new_applications = [];
+  for (let i = 0; i < applications.length; i += 1) {
+    const application = applications[i];
     if (isProgramDecided(application)) {
       if (application.programId.application_portal_a) {
         if (
@@ -827,8 +768,9 @@ const add_portals_registered_status = (student_input) => {
     }
 
     delete application.portal_credentials;
+    new_applications.push(application);
   }
-  return student;
+  return new_applications;
 };
 
 const MeetingDailyReminderChecker = asyncHandler(async () => {

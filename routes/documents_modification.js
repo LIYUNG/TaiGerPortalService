@@ -29,8 +29,7 @@ const {
 } = require('../middlewares/file-upload');
 
 const {
-  getAllCVMLRLOverview,
-  getCVMLRLOverview,
+  getActiveThreads,
   initGeneralMessagesThread,
   initApplicationMessagesThread,
   getMessages,
@@ -47,23 +46,19 @@ const {
   putSurveyInput,
   assignEssayWritersToEssayTask,
   resetSurveyInput,
-  getAllActiveEssays,
   putOriginAuthorConfirmedByStudent,
   putThreadFavorite,
   IgnoreMessageInDocumentThread,
   checkDocumentPattern,
   getMyStudentMetrics,
-  getThreadsByStudent
+  getThreadsByStudent,
+  getMyStudentsThreads
 } = require('../controllers/documents_modification');
 const {
   docThreadMultitenant_filter,
   surveyMultitenantFilter
 } = require('../middlewares/documentThreadMultitenantFilter');
-const {
-  permission_canAssignEditor_filter,
-  permission_canAssignAgent_filter,
-  permission_canAccessStudentDatabase_filter
-} = require('../middlewares/permission-filter');
+
 const { logAccess } = require('../utils/log/log');
 const { editorIdsBodyFilter } = require('../middlewares/editorIdsBodyFilter');
 const {
@@ -92,11 +87,19 @@ router
   );
 
 router
+  .route('/overview/taiger-user/:userId')
+  .get(
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getMyStudentsThreads
+  );
+
+router
   .route('/overview/all')
   .get(
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getAllCVMLRLOverview
+    getActiveThreads
   );
 
 router
@@ -124,18 +127,11 @@ router
   );
 
 router
-  .route('/overview')
-  .get(
-    getMessagesRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
-    getCVMLRLOverview
-  );
-
-router
   .route('/student-threads/:studentId')
   .get(
     getMessagesRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    multitenant_filter,
     getThreadsByStudent
   );
 
@@ -159,22 +155,6 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     initApplicationMessagesThread
-  );
-
-router
-  .route('/essays/all')
-  .get(
-    getMessagesRateLimiter,
-    permit(
-      Role.Admin,
-      Role.Manager,
-      Role.Agent,
-      Role.Editor,
-      Role.Student,
-      Role.External
-    ),
-    getAllActiveEssays,
-    logAccess
   );
 
 router
@@ -314,7 +294,7 @@ router
   );
 
 router
-  .route('/:messagesThreadId/:program_id/:studentId')
+  .route('/:messagesThreadId/:application_id/:studentId')
   .delete(
     filter_archiv_user,
     GeneralDELETERequestRateLimiter,

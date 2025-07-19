@@ -18,6 +18,7 @@ const {
 } = require('../common/validation');
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
+const UserService = require('../services/users');
 
 const generateRandomToken = () => crypto.randomBytes(32).toString('hex');
 const hashToken = (token) =>
@@ -126,13 +127,14 @@ const addUser = asyncHandler(async (req, res, next) => {
 });
 
 const getUsers = asyncHandler(async (req, res) => {
-  const users = await req.db.model('User').find({}).lean();
+  const { query } = req;
+  const users = await UserService.getUsers(req, query);
   res.status(200).send({ success: true, data: users });
 });
 
 const getUser = asyncHandler(async (req, res) => {
   const { user_id } = req.params;
-  const user = await req.db.model('User').findById(user_id).lean();
+  const user = await UserService.getUserById(req, user_id);
 
   res.status(200).send({ success: true, data: user });
 });
@@ -253,6 +255,10 @@ const deleteUser = asyncHandler(async (req, res) => {
       await req.db.model('Documentthread').deleteMany({ student_id: user_id });
       logger.info('Threads deleted');
 
+      // delete user applications
+      await req.db.model('Application').deleteMany({ studentId: user_id });
+      logger.info('Applications deleted');
+
       // Delete course that user has
       await req.db.model('Course').deleteMany({ student_id: user_id });
       logger.info('Courses deleted');
@@ -260,6 +266,26 @@ const deleteUser = asyncHandler(async (req, res) => {
       // delete user chat
       await req.db.model('Communication').deleteMany({ student_id: user_id });
       logger.info('Chat deleted');
+
+      // delete user complaints
+      await req.db.model('Complaint').deleteMany({ requester_id: user_id });
+      logger.info('Complaints deleted');
+
+      // delete user events
+      await req.db.model('Event').deleteMany({ requester_id: user_id });
+      logger.info('Events deleted');
+
+      // delete user interviews
+      await req.db.model('Interview').deleteMany({ student_id: user_id });
+      logger.info('Interviews deleted');
+
+      // delete user survey inputs
+      await req.db.model('surveyInput').deleteMany({ studentId: user_id });
+      logger.info('SurveyInputs deleted');
+
+      // delete user tickets
+      await req.db.model('Ticket').deleteMany({ requester_id: user_id });
+      logger.info('Tickets deleted');
 
       // delete user in database
       await req.db.model('User').findByIdAndDelete(user_id);

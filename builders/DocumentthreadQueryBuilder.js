@@ -6,8 +6,10 @@ class DocumentthreadQueryBuilder extends BaseQueryBuilder {
   }
 
   withIsFinalVersion(isFinalVersion) {
-    if (isFinalVersion) {
-      this.query.isFinalVersion = Boolean(isFinalVersion);
+    if (isFinalVersion === true || isFinalVersion === 'true') {
+      this.query.isFinalVersion = true;
+    } else if (isFinalVersion === false || isFinalVersion === 'false') {
+      this.query.isFinalVersion = false;
     }
     return this;
   }

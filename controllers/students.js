@@ -139,30 +139,18 @@ const updateDocumentationHelperLink = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const getMyActiveStudents = asyncHandler(async (req, res, next) => {
-  const { user } = req;
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-  if (is_TaiGer_Agent(user)) {
-    studentQuery.agents = user._id;
-  } else if (is_TaiGer_Editor(user)) {
-    studentQuery.editors = user._id;
-  }
+const getActiveStudents = asyncHandler(async (req, res, next) => {
+  const { editors, agents, archiv } = req.query;
+  const { filter } = new UserQueryBuilder()
+    .withEditors(editors ? new mongoose.Types.ObjectId(editors) : null)
+    .withAgents(agents ? new mongoose.Types.ObjectId(agents) : null)
+    .withArchiv(archiv)
+    .build();
 
   const students = await StudentService.getStudentsWithApplications(
     req,
-    studentQuery
+    filter
   );
-  res.status(200).send({ success: true, data: students });
-  next();
-});
-
-const getAllActiveStudents = asyncHandler(async (req, res, next) => {
-  const students = await StudentService.getStudentsWithApplications(req, {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  });
-
   res.status(200).send({ success: true, data: students });
   next();
 });
@@ -431,28 +419,20 @@ const getStudents = asyncHandler(async (req, res, next) => {
 
 const getStudentsAndDocLinks = asyncHandler(async (req, res, next) => {
   const { user } = req;
-  if (user.role === Role.Admin) {
-    const students = await StudentService.fetchSimpleStudents(req, {
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    });
-    res.status(200).send({ success: true, data: students, base_docs_link: {} });
-  } else if (is_TaiGer_Agent(user)) {
-    const students = await StudentService.fetchSimpleStudents(req, {
-      agents: user._id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    });
+  const { editors, agents, archiv } = req.query;
+  const { filter } = new UserQueryBuilder()
+    .withEditors(editors)
+    .withAgents(agents)
+    .withArchiv(archiv)
+    .build();
 
+  if (
+    is_TaiGer_Admin(user) ||
+    is_TaiGer_Agent(user) ||
+    is_TaiGer_Editor(user)
+  ) {
+    const students = await StudentService.fetchSimpleStudents(req, filter);
     res.status(200).send({ success: true, data: students, base_docs_link: {} });
-  } else if (user.role === Role.Editor) {
-    const students = await StudentService.fetchSimpleStudents(req, {
-      editors: user._id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    });
-    const base_docs_link = await req.db.model('Basedocumentationslink').find({
-      category: 'base-documents'
-    });
-
-    res.status(200).send({ success: true, data: students, base_docs_link });
   } else if (is_TaiGer_Student(user)) {
     const obj = user.notification; // create object
     obj['isRead_base_documents_rejected'] = true; // set value
@@ -865,8 +845,7 @@ const assignAttributesToStudent = asyncHandler(async (req, res, next) => {
 module.exports = {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
-  getAllActiveStudents,
-  getMyActiveStudents,
+  getActiveStudents,
   getAllStudents,
   getStudentsV3,
   getStudents,

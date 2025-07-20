@@ -30,7 +30,10 @@ const ApplicationService = {
           select: '-messages'
         }
       })
-      .populate('programId')
+      .populate(
+        'programId',
+        'school program_name degree semester lang application_deadline application_start'
+      )
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
     const filteredApplications = applications.filter(
@@ -38,8 +41,15 @@ const ApplicationService = {
     );
     return filteredApplications;
   },
-  async getStudentsApplicationsByTaiGerUserId(req, userId) {
-    const applications = await this.getActiveStudentsApplications(req, {});
+  async getStudentsApplicationsByTaiGerUserId(
+    req,
+    userId,
+    applicationFilter = {}
+  ) {
+    const applications = await this.getActiveStudentsApplications(
+      req,
+      applicationFilter
+    );
 
     const filteredApplications = applications.filter(
       (app) =>
@@ -60,7 +70,10 @@ const ApplicationService = {
     const applications = await req.db
       .model('Application')
       .find(filter)
-      .populate('programId')
+      .populate(
+        'programId',
+        'school program_name degree semester lang application_deadline application_start'
+      )
       .populate({
         path: 'studentId',
         populate: {

@@ -32,14 +32,6 @@ const StudentService = {
       .select('-notification')
       .lean();
   },
-  async fetchStudentsWithGeneralThreadsInfo(req, filter) {
-    return req.db
-      .model('Student')
-      .find(filter)
-      .populate('generaldocs_threads.doc_thread_id', '-messages')
-      .populate('editors agents', 'firstname lastname email archiv')
-      .lean();
-  },
   async getStudents(req, { filter = {}, options = {} }) {
     return req.db
       .model('User')

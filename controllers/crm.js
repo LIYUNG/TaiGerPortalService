@@ -41,10 +41,13 @@ const getLeads = asyncHandler(async (req, res) => {
     .select({
       id: leads.id,
       fullName: leads.fullName,
-      gender: leads.gender,
-      email: leads.email,
-      lineId: leads.lineId,
       source: leads.source,
+      email: leads.email,
+      phone: leads.phone,
+      status: leads.status,
+      intendedStartTime: leads.intendedStartTime,
+      intendedProgramLevel: leads.intendedProgramLevel,
+      intendedDirection: leads.intendedDirection,
       createdAt: leads.createdAt
     })
     .from(leads)

@@ -36,25 +36,6 @@ const getCRMStats = asyncHandler(async (req, res) => {
   });
 });
 
-const getMeetingSummaries = asyncHandler(async (req, res) => {
-  const meetingSummaries = await postgresDb
-    .select({
-      leadId: leads.id,
-      leadFullName: leads.fullName,
-      ...getTableColumns(meetingTranscripts) // meetingSummaries.*
-    })
-    .from(meetingTranscripts)
-    .leftJoin(leads, eq(meetingTranscripts.leadId, leads.id))
-    .where(
-      sql`(meeting_info->>'fred_joined')::boolean = true AND
-         (meeting_info->>'silent_meeting')::boolean = false AND
-         (meeting_info->>'summary_status') != 'skipped' AND
-         is_archived = false`
-    )
-    .orderBy(desc(meetingTranscripts.date));
-  res.status(200).send({ success: true, data: meetingSummaries });
-});
-
 const getLeads = asyncHandler(async (req, res) => {
   const leadsRecords = await postgresDb
     .select({
@@ -93,9 +74,53 @@ const getLead = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: leadRecord[0] });
 });
 
+const getMeetings = asyncHandler(async (req, res) => {
+  const meetingSummaries = await postgresDb
+    .select({
+      leadId: leads.id,
+      leadFullName: leads.fullName,
+      ...getTableColumns(meetingTranscripts) // meetingSummaries.*
+    })
+    .from(meetingTranscripts)
+    .leftJoin(leads, eq(meetingTranscripts.leadId, leads.id))
+    .where(
+      sql`(meeting_info->>'fred_joined')::boolean = true AND
+         (meeting_info->>'silent_meeting')::boolean = false AND
+         (meeting_info->>'summary_status') != 'skipped' AND
+         is_archived = false`
+    )
+    .orderBy(desc(meetingTranscripts.date));
+  res.status(200).send({ success: true, data: meetingSummaries });
+});
+
+const getMeeting = asyncHandler(async (req, res) => {
+  const { meetingId } = req.params;
+
+  if (!meetingId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Meeting ID is required' });
+  }
+
+  const meetingRecord = await postgresDb
+    .select()
+    .from(meetingTranscripts)
+    .where(eq(meetingTranscripts.id, meetingId))
+    .limit(1);
+
+  if (meetingRecord.length === 0) {
+    return res
+      .status(404)
+      .send({ success: false, message: 'Meeting not found' });
+  }
+
+  res.status(200).send({ success: true, data: meetingRecord[0] });
+});
+
 module.exports = {
   getCRMStats,
-  getMeetingSummaries,
   getLeads,
-  getLead
+  getLead,
+  getMeetings,
+  getMeeting
 };

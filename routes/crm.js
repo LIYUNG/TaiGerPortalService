@@ -9,7 +9,8 @@ const {
   getCRMStats,
   getLeads,
   getLead,
-  getMeetingSummaries
+  getMeetings,
+  getMeeting
 } = require('../controllers/crm');
 
 const router = Router();
@@ -25,8 +26,12 @@ router
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLeads);
 
 router
-  .route('/meeting-summaries')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getMeetingSummaries);
+  .route('/meetings/:meetingId')
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getMeeting);
+
+router
+  .route('/meetings')
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getMeetings);
 
 router
   .route('/stats')

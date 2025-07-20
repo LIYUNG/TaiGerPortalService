@@ -39,15 +39,7 @@ const getMyStudentsApplications = asyncHandler(async (req, res) => {
     .withAdmission(admission)
     .build();
   const taiGerUser = await UserService.getUserById(req, userId);
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
 
-  if (is_TaiGer_Agent(taiGerUser)) {
-    studentQuery.agents = taiGerUser._id.toString();
-  } else if (is_TaiGer_Editor(taiGerUser)) {
-    studentQuery.editors = taiGerUser._id.toString();
-  }
   const applications =
     await ApplicationService.getStudentsApplicationsByTaiGerUserId(
       req,
@@ -55,13 +47,9 @@ const getMyStudentsApplications = asyncHandler(async (req, res) => {
       applicationQuery
     );
 
-  const students = await StudentService.fetchStudentsWithGeneralThreadsInfo(
-    req,
-    studentQuery
-  );
   res.status(200).send({
     success: true,
-    data: { applications, students, user: taiGerUser }
+    data: { applications, user: taiGerUser }
   });
 });
 

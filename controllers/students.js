@@ -139,30 +139,18 @@ const updateDocumentationHelperLink = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const getMyActiveStudents = asyncHandler(async (req, res, next) => {
-  const { user } = req;
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-  if (is_TaiGer_Agent(user)) {
-    studentQuery.agents = user._id;
-  } else if (is_TaiGer_Editor(user)) {
-    studentQuery.editors = user._id;
-  }
+const getActiveStudents = asyncHandler(async (req, res, next) => {
+  const { editors, agents, archiv } = req.query;
+  const { filter } = new UserQueryBuilder()
+    .withEditors(editors ? new mongoose.Types.ObjectId(editors) : null)
+    .withAgents(agents ? new mongoose.Types.ObjectId(agents) : null)
+    .withArchiv(archiv)
+    .build();
 
   const students = await StudentService.getStudentsWithApplications(
     req,
-    studentQuery
+    filter
   );
-  res.status(200).send({ success: true, data: students });
-  next();
-});
-
-const getAllActiveStudents = asyncHandler(async (req, res, next) => {
-  const students = await StudentService.getStudentsWithApplications(req, {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  });
-
   res.status(200).send({ success: true, data: students });
   next();
 });
@@ -857,8 +845,7 @@ const assignAttributesToStudent = asyncHandler(async (req, res, next) => {
 module.exports = {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
-  getAllActiveStudents,
-  getMyActiveStudents,
+  getActiveStudents,
   getAllStudents,
   getStudentsV3,
   getStudents,

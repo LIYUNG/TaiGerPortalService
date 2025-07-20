@@ -27,10 +27,9 @@ const {
   updateStudentsArchivStatus,
   assignAgentToStudent,
   assignEditorToStudent,
-  getAllActiveStudents,
   assignAttributesToStudent,
   getStudentsV3,
-  getMyActiveStudents
+  getActiveStudents
 } = require('../controllers/students');
 const {
   saveProfileFilePath,
@@ -85,23 +84,12 @@ router
   );
 
 router
-  .route('/my/active')
+  .route('/active')
   .get(
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getMyActiveStudents,
-    logAccess
-  );
-
-router
-  .route('/all/active')
-  .get(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    permission_canAccessStudentDatabase_filter,
-    getAllActiveStudents,
+    getActiveStudents,
     logAccess
   );
 

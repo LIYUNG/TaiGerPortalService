@@ -431,28 +431,20 @@ const getStudents = asyncHandler(async (req, res, next) => {
 
 const getStudentsAndDocLinks = asyncHandler(async (req, res, next) => {
   const { user } = req;
-  if (user.role === Role.Admin) {
-    const students = await StudentService.fetchSimpleStudents(req, {
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    });
-    res.status(200).send({ success: true, data: students, base_docs_link: {} });
-  } else if (is_TaiGer_Agent(user)) {
-    const students = await StudentService.fetchSimpleStudents(req, {
-      agents: user._id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    });
+  const { editors, agents, archiv } = req.query;
+  const { filter } = new UserQueryBuilder()
+    .withEditors(editors)
+    .withAgents(agents)
+    .withArchiv(archiv)
+    .build();
 
+  if (
+    is_TaiGer_Admin(user) ||
+    is_TaiGer_Agent(user) ||
+    is_TaiGer_Editor(user)
+  ) {
+    const students = await StudentService.fetchSimpleStudents(req, filter);
     res.status(200).send({ success: true, data: students, base_docs_link: {} });
-  } else if (user.role === Role.Editor) {
-    const students = await StudentService.fetchSimpleStudents(req, {
-      editors: user._id,
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    });
-    const base_docs_link = await req.db.model('Basedocumentationslink').find({
-      category: 'base-documents'
-    });
-
-    res.status(200).send({ success: true, data: students, base_docs_link });
   } else if (is_TaiGer_Student(user)) {
     const obj = user.notification; // create object
     obj['isRead_base_documents_rejected'] = true; // set value

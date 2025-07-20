@@ -20,6 +20,8 @@ const {
   decryptCookieMiddleware
 } = require('./middlewares/decryptCookieMiddleware');
 
+const compression = require('compression');
+
 const app = express();
 app.set('trust proxy', 1);
 app.use(helmet.contentSecurityPolicy());
@@ -55,6 +57,7 @@ app.use(tenantMiddleware);
 
 app.use(methodOverride('_method')); // in order to make delete request
 app.use(express.json());
+app.use(compression());
 
 if (isProd()) {
   app.use(httpLogger);

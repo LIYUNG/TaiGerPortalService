@@ -58,6 +58,10 @@ app.use(tenantMiddleware);
 app.use(methodOverride('_method')); // in order to make delete request
 app.use(express.json());
 app.use(compression());
+app.use((req, res, next) => {
+  req.headers['accept-encoding'] = 'gzip';
+  next();
+});
 
 if (isProd()) {
   app.use(httpLogger);

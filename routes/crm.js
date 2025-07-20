@@ -7,7 +7,7 @@ const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
 
 const {
   getCRMStats,
-  getCRMLeads,
+  getLeads,
   getMeetingSummaries
 } = require('../controllers/crm');
 
@@ -17,7 +17,7 @@ router.use(protect, permit(Role.Admin, Role.Agent, Role.Editor));
 
 router
   .route('/leads')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getCRMLeads);
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLeads);
 
 router
   .route('/meeting-summaries')

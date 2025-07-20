@@ -55,7 +55,7 @@ const getMeetingSummaries = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: meetingSummaries });
 });
 
-const getCRMLeads = asyncHandler(async (req, res) => {
+const getLeads = asyncHandler(async (req, res) => {
   const leadsRecords = await postgresDb
     .select({
       id: leads.id,
@@ -74,5 +74,5 @@ const getCRMLeads = asyncHandler(async (req, res) => {
 module.exports = {
   getCRMStats,
   getMeetingSummaries,
-  getCRMLeads
+  getLeads
 };

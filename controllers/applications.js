@@ -66,22 +66,14 @@ const getMyStudentsApplications = asyncHandler(async (req, res) => {
 });
 
 const getActiveStudentsApplications = asyncHandler(async (req, res) => {
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-
   const applications = await ApplicationService.getActiveStudentsApplications(
     req,
     {}
   );
 
-  const students = await StudentService.fetchStudentsWithGeneralThreadsInfo(
-    req,
-    studentQuery
-  );
   res.status(200).send({
     success: true,
-    data: { applications, students }
+    data: applications
   });
 });
 

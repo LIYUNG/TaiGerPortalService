@@ -66,7 +66,8 @@ const getCRMLeads = asyncHandler(async (req, res) => {
       source: leads.source,
       createdAt: leads.createdAt
     })
-    .from(leads);
+    .from(leads)
+    .orderBy(desc(leads.createdAt));
   res.status(200).send({ success: true, data: leadsRecords });
 });
 

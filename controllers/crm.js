@@ -71,8 +71,31 @@ const getLeads = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: leadsRecords });
 });
 
+const getLead = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  const leadRecord = await postgresDb
+    .select()
+    .from(leads)
+    .where(eq(leads.id, leadId))
+    .limit(1);
+
+  if (leadRecord.length === 0) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  res.status(200).send({ success: true, data: leadRecord[0] });
+});
+
 module.exports = {
   getCRMStats,
   getMeetingSummaries,
-  getLeads
+  getLeads,
+  getLead
 };

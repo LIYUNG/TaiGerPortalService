@@ -8,12 +8,17 @@ const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
 const {
   getCRMStats,
   getLeads,
+  getLead,
   getMeetingSummaries
 } = require('../controllers/crm');
 
 const router = Router();
 
 router.use(protect, permit(Role.Admin, Role.Agent, Role.Editor));
+
+router
+  .route('/leads/:leadId')
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLead);
 
 router
   .route('/leads')

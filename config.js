@@ -85,6 +85,5 @@ module.exports = {
     'AWS_TRANSCRIPT_ANALYSER_APIG_URL',
     'https://beta.course.taigerconsultancy-portal.com/analyze'
   ),
-  OPENAI_API_KEY: env('OPENAI_API_KEY', ''),
-  FIREFILES_API_TOKEN: env('FIREFILES_API_TOKEN', '')
+  OPENAI_API_KEY: env('OPENAI_API_KEY', '')
 };

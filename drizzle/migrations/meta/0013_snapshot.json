@@ -200,12 +200,8 @@
           "name": "meeting_transcripts_lead_id_leads_id_fk",
           "tableFrom": "meeting_transcripts",
           "tableTo": "leads",
-          "columnsFrom": [
-            "lead_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["lead_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

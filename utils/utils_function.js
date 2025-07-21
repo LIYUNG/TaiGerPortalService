@@ -920,32 +920,27 @@ function CalculateInterval(message1, message2) {
 }
 
 const GroupCommunicationByStudent = asyncHandler(async (req) => {
-  try {
-    const communications = await req.db
-      .model('Communication')
-      .find()
-      .populate('student_id user_id', 'firstname lastname email archiv')
-      .lean();
-    const groupCommunication = communications.reduce((acc, communication) => {
-      const student = communication.student_id;
+  const communications = await req.db
+    .model('Communication')
+    .find()
+    .populate('student_id user_id', 'firstname lastname email archiv')
+    .lean();
+  const groupCommunication = communications.reduce((acc, communication) => {
+    const student = communication.student_id;
 
-      if (student && !student.archiv) {
-        const studentId = student._id.toString();
+    if (student && !student.archiv) {
+      const studentId = student._id.toString();
 
-        if (!acc[studentId]) {
-          acc[studentId] = [communication];
-        } else {
-          acc[studentId].push(communication);
-        }
+      if (!acc[studentId]) {
+        acc[studentId] = [communication];
+      } else {
+        acc[studentId].push(communication);
       }
+    }
 
-      return acc;
-    }, {});
-    return groupCommunication;
-  } catch (error) {
-    logger.error('error grouping communications');
-    return null;
-  }
+    return acc;
+  }, {});
+  return groupCommunication;
 });
 
 const CreateIntervalMessageOperation = (student_id, msg1, msg2) => {
@@ -1183,7 +1178,7 @@ const FetchStudentsForDocumentThreads = asyncHandler(async (req, filter) =>
     .find(filter)
     .populate('agents editors', 'firstname lastname email')
     .populate({
-      path: 'generaldocs_threads.doc_thread_id applications.doc_modification_thread.doc_thread_id',
+      path: 'generaldocs_threads.doc_thread_id',
       populate: {
         path: 'messages',
         populate: {
@@ -1195,7 +1190,7 @@ const FetchStudentsForDocumentThreads = asyncHandler(async (req, filter) =>
     .lean()
 );
 
-const FindIntervalInDocumentThreadAndSave = asyncHandler(async (req) => {
+const FindIntervalInDocumentThreadAndSave = async (req) => {
   try {
     // calculate active student only
     const students = await FetchStudentsForDocumentThreads(req, {
@@ -1214,17 +1209,18 @@ const FindIntervalInDocumentThreadAndSave = asyncHandler(async (req) => {
         logger.error('Error retrieving general docs', e);
       }
 
-      try {
-        for (const application of student.applications) {
-          for (const doc_thread_id of application.doc_modification_thread) {
-            const thread = doc_thread_id.doc_thread_id;
-            const threadBulkOps = ProcessThread(thread);
-            bulkOps.push(...threadBulkOps);
-          }
-        }
-      } catch (e) {
-        logger.error('Error retrieving application docs', e);
-      }
+      // TODO:deprecated. use Application model instead
+      // try {
+      //   for (const application of student.applications) {
+      //     for (const doc_thread_id of application.doc_modification_thread) {
+      //       const thread = doc_thread_id.doc_thread_id;
+      //       const threadBulkOps = ProcessThread(thread);
+      //       bulkOps.push(...threadBulkOps);
+      //     }
+      //   }
+      // } catch (e) {
+      //   logger.error('Error retrieving application docs', e);
+      // }
     }
 
     if (bulkOps.length > 0) {
@@ -1237,7 +1233,7 @@ const FindIntervalInDocumentThreadAndSave = asyncHandler(async (req) => {
   } catch (error) {
     logger.error('Error in FindIntervalInDocumentThreadAndSave:', error);
   }
-});
+};
 
 const GroupIntervals = asyncHandler(async (req) => {
   try {
@@ -1290,82 +1286,89 @@ const patternMatched = async (fileBuffer, extension, patterns) => {
   return lowerCasePatterns.some((pattern) => text.includes(pattern));
 };
 
-const CalculateAverageResponseTimeAndSave = asyncHandler(async (req) => {
-  const [studentGroupInterval, documentThreadGroupInterval] =
-    await GroupIntervals(req);
-  const calculateAndSaveAverage = async (groupInterval, idKey) => {
-    try {
-      const bulkOps = [];
+const CalculateAverageResponseTimeAndSave = async (req) => {
+  try {
+    const [studentGroupInterval, documentThreadGroupInterval] =
+      await GroupIntervals(req);
+    const calculateAndSaveAverage = async (groupInterval, idKey) => {
+      try {
+        const bulkOps = [];
 
-      // Prepare the bulk operations
-      for (const key in groupInterval) {
-        const intervals = groupInterval[key];
-        const total = intervals.reduce(
-          (sum, interval) => sum + interval.interval,
-          0
-        );
-        const final_avg = (total / intervals.length).toFixed(2);
+        // Prepare the bulk operations
+        for (const key in groupInterval) {
+          const intervals = groupInterval[key];
+          const total = intervals.reduce(
+            (sum, interval) => sum + interval.interval,
+            0
+          );
+          const final_avg = (total / intervals.length).toFixed(2);
 
-        const singleInterval = intervals[0];
-        const intervalType = singleInterval.interval_type;
+          const singleInterval = intervals[0];
+          const intervalType = singleInterval.interval_type;
 
-        const query = {
-          [`${idKey}`]: key.toString(),
-          interval_type: intervalType
-        };
-        let update;
-        if (idKey === 'thread_id') {
-          update = {
-            $set: {
-              intervalAvg: final_avg,
-              updatedAt: new Date()
-            },
-            $setOnInsert: {
-              student_id: singleInterval.thread_id.student_id?.toString(),
-              [`${idKey}`]: key.toString(),
-              interval_type: intervalType
-            }
+          const query = {
+            [`${idKey}`]: key.toString(),
+            interval_type: intervalType
           };
-        } else {
-          update = {
-            $set: {
-              intervalAvg: final_avg,
-              updatedAt: new Date()
-            },
-            $setOnInsert: {
-              [`${idKey}`]: key.toString(),
-              interval_type: intervalType
+          let update;
+          if (idKey === 'thread_id') {
+            update = {
+              $set: {
+                intervalAvg: final_avg,
+                updatedAt: new Date()
+              },
+              $setOnInsert: {
+                student_id: singleInterval.thread_id.student_id?.toString(),
+                [`${idKey}`]: key.toString(),
+                interval_type: intervalType
+              }
+            };
+          } else {
+            update = {
+              $set: {
+                intervalAvg: final_avg,
+                updatedAt: new Date()
+              },
+              $setOnInsert: {
+                [`${idKey}`]: key.toString(),
+                interval_type: intervalType
+              }
+            };
+          }
+
+          bulkOps.push({
+            updateOne: {
+              filter: query,
+              update,
+              upsert: true
             }
-          };
+          });
         }
 
-        bulkOps.push({
-          updateOne: {
-            filter: query,
-            update,
-            upsert: true
-          }
-        });
+        // Execute bulk operations
+        if (bulkOps.length > 0) {
+          const result = await req.db.model('ResponseTime').bulkWrite(bulkOps);
+          logger.info(
+            'calculateAndSaveAverage: Bulk operation result:',
+            result
+          );
+        }
+      } catch (err) {
+        logger.error(
+          `Error calculating and saving average response time for ${idKey}:`,
+          err
+        );
       }
+    };
 
-      // Execute bulk operations
-      if (bulkOps.length > 0) {
-        const result = await req.db.model('ResponseTime').bulkWrite(bulkOps);
-        logger.info('calculateAndSaveAverage: Bulk operation result:', result);
-      }
-    } catch (err) {
-      logger.error(
-        `Error calculating and saving average response time for ${idKey}:`,
-        err
-      );
-    }
-  };
+    await calculateAndSaveAverage(studentGroupInterval, 'student_id');
+    await calculateAndSaveAverage(documentThreadGroupInterval, 'thread_id');
+  } catch (error) {
+    logger.error('Error in CalculateAverageResponseTimeAndSave:', error);
+  }
+};
 
-  await calculateAndSaveAverage(studentGroupInterval, 'student_id');
-  await calculateAndSaveAverage(documentThreadGroupInterval, 'thread_id');
-});
-
-const DailyCalculateAverageResponseTime = asyncHandler(async () => {
+const DailyCalculateAverageResponseTime = async () => {
   const tenantId = TENANT_ID;
   const req = {};
   req.db = connectToDatabase(tenantId);
@@ -1373,47 +1376,51 @@ const DailyCalculateAverageResponseTime = asyncHandler(async () => {
   await FindIntervalInCommunicationsAndSave(req);
   await FindIntervalInDocumentThreadAndSave(req);
   await CalculateAverageResponseTimeAndSave(req);
-});
+};
 
-const DailyInterviewSurveyChecker = asyncHandler(async () => {
-  // TODO: find today meeting and send email reminder (only once)
-  const currentDate = new Date();
-  const twentyFourHoursAgo = new Date(currentDate);
-  twentyFourHoursAgo.setHours(currentDate.getHours() - 24);
-  // interviews took place within last 24 hours
-  const tenantId = TENANT_ID;
-  const req = {};
-  req.db = connectToDatabase(tenantId);
-  req.VCModel = req.db.model('VC');
-  const interviewTookPlacedToday = await req.db
-    .model('Interview')
-    .find({
-      interview_date: {
-        $gte: twentyFourHoursAgo.toISOString(),
-        $lt: currentDate
-      }
-    })
-    .populate('student_id', 'firstname lastname email')
-    .populate('program_id', 'school program_name degree semester')
-    .lean();
+const DailyInterviewSurveyChecker = async () => {
+  try {
+    // TODO: find today meeting and send email reminder (only once)
+    const currentDate = new Date();
+    const twentyFourHoursAgo = new Date(currentDate);
+    twentyFourHoursAgo.setHours(currentDate.getHours() - 24);
+    // interviews took place within last 24 hours
+    const tenantId = TENANT_ID;
+    const req = {};
+    req.db = connectToDatabase(tenantId);
+    req.VCModel = req.db.model('VC');
+    const interviewTookPlacedToday = await req.db
+      .model('Interview')
+      .find({
+        interview_date: {
+          $gte: twentyFourHoursAgo.toISOString(),
+          $lt: currentDate
+        }
+      })
+      .populate('student_id', 'firstname lastname email')
+      .populate('program_id', 'school program_name degree semester')
+      .lean();
 
-  // send interview survey request email
-  interviewTookPlacedToday?.map((interview) =>
-    InterviewSurveyRequestEmail(
-      {
-        firstname: interview.student_id.firstname,
-        lastname: interview.student_id.lastname,
-        address: interview.student_id.email
-      },
-      { interview }
-    )
-  );
-});
+    // send interview survey request email
+    interviewTookPlacedToday?.map((interview) =>
+      InterviewSurveyRequestEmail(
+        {
+          firstname: interview.student_id.firstname,
+          lastname: interview.student_id.lastname,
+          address: interview.student_id.email
+        },
+        { interview }
+      )
+    );
+  } catch (error) {
+    logger.error('Error in DailyInterviewSurveyChecker:', error);
+  }
+};
 
 // every day reminder
 // TODO: (O)no trainer, no date.
-const NoInterviewTrainerOrTrainingDateDailyReminderChecker = asyncHandler(
-  async () => {
+const NoInterviewTrainerOrTrainingDateDailyReminderChecker = async () => {
+  try {
     const currentDate = new Date();
     const currentDateString = currentDate.toISOString().split('T')[0]; // Converts to 'YYYY-MM-DD' format
 
@@ -1475,8 +1482,13 @@ const NoInterviewTrainerOrTrainingDateDailyReminderChecker = asyncHandler(
       await Promise.all(sendEmailPromises);
       logger.info('No interviewer tasks reminder sent.');
     }
+  } catch (error) {
+    logger.error(
+      'Error in NoInterviewTrainerOrTrainingDateDailyReminderChecker:',
+      error
+    );
   }
-);
+};
 
 const userChangesHelperFunction = async (req, newUserIds, existingUsers) => {
   const newUserIdsArr = Object.keys(newUserIds);

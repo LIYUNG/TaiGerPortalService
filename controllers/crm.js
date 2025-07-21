@@ -2,11 +2,61 @@ const { asyncHandler } = require('../middlewares/error-handler');
 const { meetingTranscripts, leads } = require('../drizzle/schema/schema');
 const { postgresDb } = require('../database');
 const { sql, getTableColumns, eq, gte, desc } = require('drizzle-orm');
+const { post } = require('../routes/account');
 
 const getCRMStats = asyncHandler(async (req, res) => {
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-  const [meetingCountResult, leadCountResult] = await Promise.all([
+  const leadWeeks = postgresDb.$with('lead_weeks').as(
+    postgresDb
+      .select({
+        year: sql`EXTRACT(YEAR FROM ${leads.createdAt})::int`.as('year'),
+        week: sql`EXTRACT(WEEK FROM ${leads.createdAt})::int`.as('week')
+      })
+      .from(leads)
+  );
+
+  const meetingWeeks = postgresDb.$with('meeting_weeks').as(
+    postgresDb
+      .select({
+        year: sql`EXTRACT(YEAR FROM to_timestamp(${meetingTranscripts.date} / 1000))::int`.as(
+          'year'
+        ),
+        week: sql`EXTRACT(WEEK FROM to_timestamp(${meetingTranscripts.date} / 1000))::int`.as(
+          'week'
+        )
+      })
+      .from(meetingTranscripts)
+  );
+
+  const [
+    leadsCountByDate,
+    meetingCountByDate,
+    meetingCountResult,
+    leadCountResult
+  ] = await Promise.all([
+    postgresDb
+      .with(leadWeeks)
+      .select({
+        week: sql`year::text || '-' || LPAD(week::text, 2, '0')`
+          .mapWith(String)
+          .as('week'),
+        count: sql`COUNT(*)`.mapWith(Number).as('count')
+      })
+      .from(leadWeeks)
+      .groupBy(sql`year, week`)
+      .orderBy(sql`year, week`),
+    postgresDb
+      .with(meetingWeeks)
+      .select({
+        week: sql`year::text || '-' || LPAD(week::text, 2, '0')`
+          .mapWith(String)
+          .as('week'),
+        count: sql`COUNT(*)`.mapWith(Number).as('count')
+      })
+      .from(meetingWeeks)
+      .groupBy(sql`year, week`)
+      .orderBy(sql`year, week`),
     postgresDb
       .select({
         totalCount: sql`count(*)`.mapWith(Number),
@@ -31,7 +81,9 @@ const getCRMStats = asyncHandler(async (req, res) => {
       totalMeetingCount: meetingCountResult[0].totalCount,
       recentMeetingCount: meetingCountResult[0].recentCount,
       totalLeadCount: leadCountResult[0].totalCount,
-      recentLeadCount: leadCountResult[0].recentCount
+      recentLeadCount: leadCountResult[0].recentCount,
+      leadsCountByDate: leadsCountByDate,
+      meetingCountByDate: meetingCountByDate
     }
   });
 });

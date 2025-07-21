@@ -4,9 +4,21 @@ const { postgresDb } = require('../database');
 const { sql, getTableColumns, eq, gte, desc } = require('drizzle-orm');
 const { post } = require('../routes/account');
 
+/**
+ * Retrieves CRM statistics including weekly counts and total/recent counts for leads and meetings.
+ *
+ * - Aggregates leads and meetings by week and year.
+ * - Calculates total and recent (last 7 days) counts for leads and meetings.
+ * - Responds with a JSON object containing the aggregated statistics.
+ *
+ * @async
+ * @function getCRMStats
+ * @returns {Promise<void>} Sends a JSON response with CRM statistics.
+ */
 const getCRMStats = asyncHandler(async (req, res) => {
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
+  // CTEs extracting year and week from leads.createdAt and meetingTranscripts.date timestamps.
   const leadWeeks = postgresDb.$with('lead_weeks').as(
     postgresDb
       .select({
@@ -15,7 +27,6 @@ const getCRMStats = asyncHandler(async (req, res) => {
       })
       .from(leads)
   );
-
   const meetingWeeks = postgresDb.$with('meeting_weeks').as(
     postgresDb
       .select({

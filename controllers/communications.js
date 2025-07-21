@@ -203,9 +203,11 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
       })
       .sort({ createdAt: -1 })
       .lean();
+    const readBy = latestMessage?.readBy?.map((id) => id.toString()) || [];
+
     return res.status(200).send({
       success: true,
-      data: latestMessage.readBy?.includes(user._id.toString()) ? 0 : 1
+      data: readBy?.includes(user._id.toString()) ? 0 : 1
     });
   }
   if (

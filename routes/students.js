@@ -23,7 +23,6 @@ const {
   updateDocumentationHelperLink,
   getStudentsAndDocLinks,
   getStudents,
-  getAllStudents,
   updateStudentsArchivStatus,
   assignAgentToStudent,
   assignEditorToStudent,
@@ -90,17 +89,6 @@ router
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     getActiveStudents,
-    logAccess
-  );
-
-router
-  .route('/all')
-  .get(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    permission_canAccessStudentDatabase_filter,
-    getAllStudents,
     logAccess
   );
 

@@ -155,19 +155,6 @@ const getActiveStudents = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const getAllStudents = asyncHandler(async (req, res, next) => {
-  const { page, limit, sortBy, sortOrder } = req.query;
-  const { filter, options } = new UserQueryBuilder()
-    .withRole(Role.Student)
-    .withPagination(page, limit)
-    .withSort(sortBy, sortOrder)
-    .build();
-  const students = await StudentService.fetchStudents(req, filter);
-
-  res.status(200).send({ success: true, data: students });
-  next();
-});
-
 const getStudentsV3 = asyncHandler(async (req, res, next) => {
   const { editors, agents, archiv } = req.query;
   const { filter } = new UserQueryBuilder()
@@ -846,7 +833,6 @@ module.exports = {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
   getActiveStudents,
-  getAllStudents,
   getStudentsV3,
   getStudents,
   getStudentsAndDocLinks,

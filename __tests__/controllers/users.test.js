@@ -122,21 +122,6 @@ describe('GET /api/users?role=Editor', () => {
   });
 });
 
-describe('GET /api/students/all', () => {
-  it('should return all students', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/students/all')
-      .set('tenantId', TENANT_ID);
-    const { success, data } = resp.body;
-    expect(resp.status).toBe(200);
-    expect(success).toBe(true);
-
-    const studentIds = students.map(({ _id }) => _id).sort();
-    const receivedIds = data.map(({ _id }) => _id).sort();
-    expect(receivedIds).toEqual(studentIds);
-  });
-});
-
 describe('POST /api/users/:id', () => {
   it('should update user role', async () => {
     const { _id } = users[3];

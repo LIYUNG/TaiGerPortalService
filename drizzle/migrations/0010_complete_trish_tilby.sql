@@ -1,0 +1,1 @@
+ALTER TABLE "meeting_transcripts" ADD COLUMN "lead_id" varchar(32);

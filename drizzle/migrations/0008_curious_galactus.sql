@@ -1,0 +1,1 @@
+ALTER TABLE "transcripts" RENAME TO "meeting_transcripts";

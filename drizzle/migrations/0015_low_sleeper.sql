@@ -1,0 +1,1 @@
+ALTER TABLE "leads" RENAME COLUMN "program_level" TO "intended_program_level";

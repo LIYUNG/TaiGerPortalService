@@ -13,7 +13,6 @@ const decryptCookieMiddleware = asyncHandler((req, res, next) => {
   }
   const payload = jwt.decode(token);
   req.decryptedToken = payload; // Attach decrypted payload to the request object
-  logger.info(`decode ${JSON.stringify(payload)}`);
   next();
 });
 

@@ -169,67 +169,75 @@ const threadS3GarbageCollector = async (
   }
 };
 
-const TasksReminderEmails_Editor_core = asyncHandler(async (req) => {
+const TasksReminderEmails_Editor_core = async (req) => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
-  const editors = await req.db.model('Editor').find();
+  try {
+    const editors = await req.db.model('Editor').find();
 
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
+    const studentQuery = {
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    };
 
-  const editorPromises = editors.map(async (editor) => {
-    studentQuery.editors = editor._id;
-    const editor_students = await StudentService.getStudentsWithApplications(
+    const editorPromises = editors.map(async (editor) => {
+      studentQuery.editors = editor._id;
+      const editor_students = await StudentService.getStudentsWithApplications(
+        req,
+        studentQuery
+      );
+
+      if (
+        editor_students.length > 0 &&
+        does_editor_have_pending_tasks(editor_students, editor) &&
+        isNotArchiv(editor)
+      ) {
+        await EditorTasksReminderEmail(
+          {
+            firstname: editor.firstname,
+            lastname: editor.lastname,
+            address: editor.email
+          },
+          { students: editor_students, editor }
+        );
+      }
+    });
+
+    await Promise.all(editorPromises);
+
+    logger.info('Editor reminder email sent');
+  } catch (error) {
+    logger.error('Error in TasksReminderEmails_Editor_core:', error);
+  }
+};
+
+const TasksReminderEmails_Student_core = async (req) => {
+  // Only inform active student
+  // TODO: deactivate or change email frequency (default 1 week.)
+  try {
+    const studentQuery = {
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    };
+    // TODO: it shows: "Technische Universität München (TUM) Computational Science and Engineering undefined"
+    const students = await StudentService.getStudentsWithApplications(
       req,
       studentQuery
     );
 
-    if (
-      editor_students.length > 0 &&
-      does_editor_have_pending_tasks(editor_students, editor) &&
-      isNotArchiv(editor)
-    ) {
-      await EditorTasksReminderEmail(
+    for (let j = 0; j < students.length; j += 1) {
+      StudentTasksReminderEmail(
         {
-          firstname: editor.firstname,
-          lastname: editor.lastname,
-          address: editor.email
+          firstname: students[j].firstname,
+          lastname: students[j].lastname,
+          address: students[j].email
         },
-        { students: editor_students, editor }
+        { student: students[j] }
       );
     }
-  });
-
-  await Promise.all(editorPromises);
-
-  logger.info('Editor reminder email sent');
-});
-
-const TasksReminderEmails_Student_core = asyncHandler(async (req) => {
-  // Only inform active student
-  // TODO: deactivate or change email frequency (default 1 week.)
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-  // TODO: it shows: "Technische Universität München (TUM) Computational Science and Engineering undefined"
-  const students = await StudentService.getStudentsWithApplications(
-    req,
-    studentQuery
-  );
-
-  for (let j = 0; j < students.length; j += 1) {
-    StudentTasksReminderEmail(
-      {
-        firstname: students[j].firstname,
-        lastname: students[j].lastname,
-        address: students[j].email
-      },
-      { student: students[j] }
-    );
+    logger.info('Student reminder email sent');
+  } catch (error) {
+    logger.error('Error in TasksReminderEmails_Student_core:', error);
   }
-  logger.info('Student reminder email sent');
-});
+};
 
 // Weekly called.
 const TasksReminderEmails = asyncHandler(async () => {
@@ -241,217 +249,231 @@ const TasksReminderEmails = asyncHandler(async () => {
   await TasksReminderEmails_Student_core(req);
 });
 
-const UrgentTasksReminderEmails_Student_core = asyncHandler(async (req) => {
+const UrgentTasksReminderEmails_Student_core = async (req) => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
-  const trigger_days = 3;
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-  const students = await StudentService.getStudentsWithApplications(
-    req,
-    studentQuery
-  );
-
-  const deadlineReminderPromises = students.map(async (student) => {
-    if (is_deadline_within30days_needed(student)) {
-      logger.info(`Escalate: ${student.firstname} ${student.lastname}`);
-      await StudentApplicationsDeadline_Within30Days_DailyReminderEmail(
-        {
-          firstname: student.firstname,
-          lastname: student.lastname,
-          address: student.email
-        },
-        { student, trigger_days }
-      );
-      logger.info(
-        `Daily urgent emails sent to ${student.firstname} ${student.lastname}`
-      );
-    }
-
-    if (is_cv_ml_rl_reminder_needed(student, student, trigger_days)) {
-      logger.info(`Escalate: ${student.firstname} ${student.lastname}`);
-      await StudentCVMLRLEssay_NoReplyAfter3Days_DailyReminderEmail(
-        {
-          firstname: student.firstname,
-          lastname: student.lastname,
-          address: student.email
-        },
-        { student, trigger_days }
-      );
-      logger.info(
-        `Daily2 urgent emails sent to ${student.firstname} ${student.lastname}`
-      );
-    }
-  });
-
-  await Promise.all(deadlineReminderPromises);
-});
-
-const UrgentTasksReminderEmails_Agent_core = asyncHandler(async (req) => {
-  // Only inform active student
-  // TODO: deactivate or change email frequency (default 1 week.)
-  const escalation_trigger_10days = 10;
-  const escalation_trigger_3days = 3;
-  const agents = await req.db.model('Agent').find();
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-  const agentPromises = agents.map(async (agent) => {
-    studentQuery.agents = agent._id;
-    const agent_students = await StudentService.getStudentsWithApplications(
+  try {
+    const trigger_days = 3;
+    const studentQuery = {
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    };
+    const students = await StudentService.getStudentsWithApplications(
       req,
       studentQuery
     );
-    if (agent_students.length > 0) {
-      let cv_ml_rl_10days_flag = false;
-      let cv_ml_rl_3days_flag = false;
-      let deadline_within30days_flag = false;
-      for (let x = 0; x < agent_students.length; x += 1) {
-        deadline_within30days_flag |= is_deadline_within30days_needed(
-          agent_students[x]
-        );
-        cv_ml_rl_10days_flag |= is_cv_ml_rl_reminder_needed(
-          agent_students[x],
-          agent,
-          escalation_trigger_10days
-        );
-        cv_ml_rl_3days_flag |= is_cv_ml_rl_reminder_needed(
-          agent_students[x],
-          agent,
-          escalation_trigger_3days
-        );
-      }
-      const promises = [];
-      if (deadline_within30days_flag && cv_ml_rl_3days_flag) {
-        logger.info(`Escalate: ${agent.firstname} ${agent.lastname}`);
-        promises.push(
-          AgentApplicationsDeadline_Within30Days_DailyReminderEmail(
-            {
-              firstname: agent.firstname,
-              lastname: agent.lastname,
-              address: agent.email
-            },
-            {
-              students: agent_students,
-              agent,
-              trigger_days: escalation_trigger_3days
-            }
-          ),
-          AgentCVMLRLEssay_NoReplyAfterXDays_DailyReminderEmail(
-            {
-              firstname: agent.firstname,
-              lastname: agent.lastname,
-              address: agent.email
-            },
-            {
-              students: agent_students,
-              agent,
-              trigger_days: escalation_trigger_3days
-            }
-          )
+
+    const deadlineReminderPromises = students.map(async (student) => {
+      if (is_deadline_within30days_needed(student)) {
+        logger.info(`Escalate: ${student.firstname} ${student.lastname}`);
+        await StudentApplicationsDeadline_Within30Days_DailyReminderEmail(
+          {
+            firstname: student.firstname,
+            lastname: student.lastname,
+            address: student.email
+          },
+          { student, trigger_days }
         );
         logger.info(
-          `Deadline urgent emails sent to ${agent.firstname} ${agent.lastname}`
-        );
-      } else if (cv_ml_rl_10days_flag) {
-        promises.push(
-          AgentCVMLRLEssay_NoReplyAfterXDays_DailyReminderEmail(
-            {
-              firstname: agent.firstname,
-              lastname: agent.lastname,
-              address: agent.email
-            },
-            {
-              students: agent_students,
-              agent,
-              trigger_days: escalation_trigger_10days
-            }
-          )
+          `Daily urgent emails sent to ${student.firstname} ${student.lastname}`
         );
       }
-      await Promise.all(promises);
-    }
-  });
 
-  await Promise.all(agentPromises);
-});
+      if (is_cv_ml_rl_reminder_needed(student, student, trigger_days)) {
+        logger.info(`Escalate: ${student.firstname} ${student.lastname}`);
+        await StudentCVMLRLEssay_NoReplyAfter3Days_DailyReminderEmail(
+          {
+            firstname: student.firstname,
+            lastname: student.lastname,
+            address: student.email
+          },
+          { student, trigger_days }
+        );
+        logger.info(
+          `Daily2 urgent emails sent to ${student.firstname} ${student.lastname}`
+        );
+      }
+    });
 
-const UrgentTasksReminderEmails_Editor_core = asyncHandler(async (req) => {
+    await Promise.all(deadlineReminderPromises);
+  } catch (error) {
+    logger.error('Error in UrgentTasksReminderEmails_Student_core:', error);
+  }
+};
+
+const UrgentTasksReminderEmails_Agent_core = async (req) => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
-  const editor_trigger_7days = 7;
-  const editor_trigger_3days = 3;
-  const studentQuery = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-  const editors = await req.db.model('Editor').find();
-
-  // TODO: it shows: "Technische Universität München (TUM) Computational Science and Engineering undefined"
-  // (O): Check if editor no reply (need to response) more than 3 days (Should configurable)
-  for (let j = 0; j < editors.length; j += 1) {
-    studentQuery.editors = editors[j]._id;
-    const editor_students = await StudentService.getStudentsWithApplications(
-      req,
-      studentQuery
-    );
-    if (editor_students.length > 0) {
-      let cv_ml_rl_7days_flag = false;
-      let cv_ml_rl_3days_flag = false;
-      let deadline_within30days_flag = false;
-      for (let x = 0; x < editor_students.length; x += 1) {
-        deadline_within30days_flag |= is_deadline_within30days_needed(
-          editor_students[x]
-        );
-        cv_ml_rl_7days_flag |= is_cv_ml_rl_reminder_needed(
-          editor_students[x],
-          editors[j],
-          editor_trigger_7days
-        );
-        cv_ml_rl_3days_flag |= is_cv_ml_rl_reminder_needed(
-          editor_students[x],
-          editors[j],
-          editor_trigger_3days
-        );
+  try {
+    const escalation_trigger_10days = 10;
+    const escalation_trigger_3days = 3;
+    const agents = await req.db.model('Agent').find();
+    const studentQuery = {
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    };
+    const agentPromises = agents.map(async (agent) => {
+      studentQuery.agents = agent._id;
+      const agent_students = await StudentService.getStudentsWithApplications(
+        req,
+        studentQuery
+      );
+      if (agent_students.length > 0) {
+        let cv_ml_rl_10days_flag = false;
+        let cv_ml_rl_3days_flag = false;
+        let deadline_within30days_flag = false;
+        for (let x = 0; x < agent_students.length; x += 1) {
+          deadline_within30days_flag |= is_deadline_within30days_needed(
+            agent_students[x]
+          );
+          cv_ml_rl_10days_flag |= is_cv_ml_rl_reminder_needed(
+            agent_students[x],
+            agent,
+            escalation_trigger_10days
+          );
+          cv_ml_rl_3days_flag |= is_cv_ml_rl_reminder_needed(
+            agent_students[x],
+            agent,
+            escalation_trigger_3days
+          );
+        }
+        const promises = [];
+        if (deadline_within30days_flag && cv_ml_rl_3days_flag) {
+          logger.info(`Escalate: ${agent.firstname} ${agent.lastname}`);
+          promises.push(
+            AgentApplicationsDeadline_Within30Days_DailyReminderEmail(
+              {
+                firstname: agent.firstname,
+                lastname: agent.lastname,
+                address: agent.email
+              },
+              {
+                students: agent_students,
+                agent,
+                trigger_days: escalation_trigger_3days
+              }
+            ),
+            AgentCVMLRLEssay_NoReplyAfterXDays_DailyReminderEmail(
+              {
+                firstname: agent.firstname,
+                lastname: agent.lastname,
+                address: agent.email
+              },
+              {
+                students: agent_students,
+                agent,
+                trigger_days: escalation_trigger_3days
+              }
+            )
+          );
+          logger.info(
+            `Deadline urgent emails sent to ${agent.firstname} ${agent.lastname}`
+          );
+        } else if (cv_ml_rl_10days_flag) {
+          promises.push(
+            AgentCVMLRLEssay_NoReplyAfterXDays_DailyReminderEmail(
+              {
+                firstname: agent.firstname,
+                lastname: agent.lastname,
+                address: agent.email
+              },
+              {
+                students: agent_students,
+                agent,
+                trigger_days: escalation_trigger_10days
+              }
+            )
+          );
+        }
+        await Promise.all(promises);
       }
+    });
 
-      if (deadline_within30days_flag) {
-        if (cv_ml_rl_3days_flag) {
+    await Promise.all(agentPromises);
+  } catch (error) {
+    logger.error('Error in UrgentTasksReminderEmails_Agent_core:', error);
+  }
+};
+
+const UrgentTasksReminderEmails_Editor_core = async (req) => {
+  // Only inform active student
+  // TODO: deactivate or change email frequency (default 1 week.)
+  try {
+    const editor_trigger_7days = 7;
+    const editor_trigger_3days = 3;
+    const studentQuery = {
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    };
+    const editors = await req.db.model('Editor').find();
+
+    // TODO: it shows: "Technische Universität München (TUM) Computational Science and Engineering undefined"
+    // (O): Check if editor no reply (need to response) more than 3 days (Should configurable)
+    for (let j = 0; j < editors.length; j += 1) {
+      studentQuery.editors = editors[j]._id;
+      const editor_students = await StudentService.getStudentsWithApplications(
+        req,
+        studentQuery
+      );
+      if (editor_students.length > 0) {
+        let cv_ml_rl_7days_flag = false;
+        let cv_ml_rl_3days_flag = false;
+        let deadline_within30days_flag = false;
+        for (let x = 0; x < editor_students.length; x += 1) {
+          deadline_within30days_flag |= is_deadline_within30days_needed(
+            editor_students[x]
+          );
+          cv_ml_rl_7days_flag |= is_cv_ml_rl_reminder_needed(
+            editor_students[x],
+            editors[j],
+            editor_trigger_7days
+          );
+          cv_ml_rl_3days_flag |= is_cv_ml_rl_reminder_needed(
+            editor_students[x],
+            editors[j],
+            editor_trigger_3days
+          );
+        }
+
+        if (deadline_within30days_flag) {
+          if (cv_ml_rl_3days_flag) {
+            logger.info(
+              `Escalate: ${editors[j].firstname} ${editors[j].lastname}`
+            );
+            EditorCVMLRLEssayDeadline_Within30Days_DailyReminderEmail(
+              {
+                firstname: editors[j].firstname,
+                lastname: editors[j].lastname,
+                address: editors[j].email
+              },
+              { students: editor_students }
+            );
+            logger.info(
+              `Daily urgent emails sent to ${editors[j].firstname} ${editors[j].lastname}`
+            );
+          }
+        } else if (cv_ml_rl_7days_flag) {
           logger.info(
             `Escalate: ${editors[j].firstname} ${editors[j].lastname}`
           );
-          EditorCVMLRLEssayDeadline_Within30Days_DailyReminderEmail(
+          await EditorCVMLRLEssay_NoReplyAfter7Days_DailyReminderEmail(
             {
               firstname: editors[j].firstname,
               lastname: editors[j].lastname,
               address: editors[j].email
             },
-            { students: editor_students }
-          );
-          logger.info(
-            `Daily urgent emails sent to ${editors[j].firstname} ${editors[j].lastname}`
+            {
+              students: editor_students,
+              editor: editors[j],
+              trigger_days: editor_trigger_7days
+            }
           );
         }
-      } else if (cv_ml_rl_7days_flag) {
-        logger.info(`Escalate: ${editors[j].firstname} ${editors[j].lastname}`);
-        await EditorCVMLRLEssay_NoReplyAfter7Days_DailyReminderEmail(
-          {
-            firstname: editors[j].firstname,
-            lastname: editors[j].lastname,
-            address: editors[j].email
-          },
-          {
-            students: editor_students,
-            editor: editors[j],
-            trigger_days: editor_trigger_7days
-          }
-        );
       }
     }
+  } catch (error) {
+    logger.error('Error in UrgentTasksReminderEmails_Editor_core:', error);
   }
-});
+};
 
-const UrgentTasksReminderEmails = asyncHandler(async () => {
+const UrgentTasksReminderEmails = async () => {
   const tenantId = TENANT_ID;
   const req = {};
   req.db = connectToDatabase(tenantId);
@@ -463,12 +485,11 @@ const UrgentTasksReminderEmails = asyncHandler(async () => {
   ];
 
   await Promise.all(UrgentTaskPromises);
-});
+};
 
-const NextSemesterCourseSelectionStudentReminderEmails = asyncHandler(
-  async (req) => {
-    // Only inform active student
-
+const NextSemesterCourseSelectionStudentReminderEmails = async (req) => {
+  // Only inform active student
+  try {
     const studentsWithCourses = await req.db.model('Student').aggregate([
       {
         $match: {
@@ -511,12 +532,17 @@ const NextSemesterCourseSelectionStudentReminderEmails = asyncHandler(
         }
       }
     }
+  } catch (error) {
+    logger.error(
+      'Error in NextSemesterCourseSelectionStudentReminderEmails:',
+      error
+    );
   }
-);
+};
 
-const NextSemesterCourseSelectionAgentReminderEmails = asyncHandler(
-  async () => {
-    // Only inform active student
+const NextSemesterCourseSelectionAgentReminderEmails = async () => {
+  // Only inform active student
+  try {
     const tenantId = TENANT_ID;
     const req = {};
     req.db = connectToDatabase(tenantId);
@@ -604,10 +630,15 @@ const NextSemesterCourseSelectionAgentReminderEmails = asyncHandler(
         }
       }
     }
+  } catch (error) {
+    logger.error(
+      'Error in NextSemesterCourseSelectionAgentReminderEmails:',
+      error
+    );
   }
-);
+};
 
-const NextSemesterCourseSelectionReminderEmails = asyncHandler(async () => {
+const NextSemesterCourseSelectionReminderEmails = async () => {
   const tenantId = TENANT_ID;
 
   const req = {};
@@ -615,7 +646,7 @@ const NextSemesterCourseSelectionReminderEmails = asyncHandler(async () => {
   req.VCModel = req.db.model('VC');
   await NextSemesterCourseSelectionStudentReminderEmails(req);
   // await NextSemesterCourseSelectionAgentReminderEmails();
-});
+};
 
 const numStudentYearDistribution = (students) =>
   students.reduce((acc, student) => {
@@ -773,145 +804,156 @@ const add_portals_registered_status = (applications) => {
   return new_applications;
 };
 
-const MeetingDailyReminderChecker = asyncHandler(async () => {
-  const currentDate = new Date();
-  const twentyFourHoursLater = new Date(currentDate);
-  twentyFourHoursLater.setHours(currentDate.getHours() + 24);
+const MeetingDailyReminderChecker = async () => {
+  try {
+    const currentDate = new Date();
+    const twentyFourHoursLater = new Date(currentDate);
+    twentyFourHoursLater.setHours(currentDate.getHours() + 24);
 
-  const tenantId = TENANT_ID;
-  const req = {};
-  req.db = connectToDatabase(tenantId);
-  req.VCModel = req.db.model('VC'); // Only future meeting within 24 hours, not past
-  const upcomingEvents = await req.db
-    .model('Event')
-    .find({
-      $and: [
-        {
-          end: {
-            $gte: currentDate,
-            $lt: twentyFourHoursLater
-          }
-        },
-        { isConfirmedReceiver: true },
-        { isConfirmedRequester: true }
-      ]
-    })
-    .populate('requester_id receiver_id', 'firstname lastname email');
-  if (upcomingEvents) {
-    for (let j = 0; j < upcomingEvents.length; j += 1) {
-      if (upcomingEvents.event_type === 'Interview') {
-        // eslint-disable-next-line no-await-in-loop
-        await InterviewTrainingReminderEmail(
+    const tenantId = TENANT_ID;
+    const req = {};
+    req.db = connectToDatabase(tenantId);
+    req.VCModel = req.db.model('VC'); // Only future meeting within 24 hours, not past
+    const upcomingEvents = await req.db
+      .model('Event')
+      .find({
+        $and: [
           {
-            firstname: upcomingEvents[j].requester_id[0].firstname,
-            lastname: upcomingEvents[j].requester_id[0].lastname,
-            address: upcomingEvents[j].requester_id[0].email
+            end: {
+              $gte: currentDate,
+              $lt: twentyFourHoursLater
+            }
           },
-          {
-            event: upcomingEvents[j]
-          }
-        );
-        await InterviewTrainingReminderEmail(
-          {
-            firstname: upcomingEvents[j].receiver_id[0].firstname,
-            lastname: upcomingEvents[j].receiver_id[0].lastname,
-            address: upcomingEvents[j].receiver_id[0].email
-          },
-          {
-            event: upcomingEvents[j]
-          }
-        );
-      } else {
-        // eslint-disable-next-line no-await-in-loop
-        await MeetingReminderEmail(
-          {
-            firstname: upcomingEvents[j].requester_id[0].firstname,
-            lastname: upcomingEvents[j].requester_id[0].lastname,
-            address: upcomingEvents[j].requester_id[0].email
-          },
-          {
-            event: upcomingEvents[j]
-          }
-        );
-        await MeetingReminderEmail(
-          {
-            firstname: upcomingEvents[j].receiver_id[0].firstname,
-            lastname: upcomingEvents[j].receiver_id[0].lastname,
-            address: upcomingEvents[j].receiver_id[0].email
-          },
-          {
-            event: upcomingEvents[j]
-          }
-        );
+          { isConfirmedReceiver: true },
+          { isConfirmedRequester: true }
+        ]
+      })
+      .populate('requester_id receiver_id', 'firstname lastname email');
+    if (upcomingEvents) {
+      for (let j = 0; j < upcomingEvents.length; j += 1) {
+        if (upcomingEvents.event_type === 'Interview') {
+          // eslint-disable-next-line no-await-in-loop
+          await InterviewTrainingReminderEmail(
+            {
+              firstname: upcomingEvents[j].requester_id[0].firstname,
+              lastname: upcomingEvents[j].requester_id[0].lastname,
+              address: upcomingEvents[j].requester_id[0].email
+            },
+            {
+              event: upcomingEvents[j]
+            }
+          );
+          await InterviewTrainingReminderEmail(
+            {
+              firstname: upcomingEvents[j].receiver_id[0].firstname,
+              lastname: upcomingEvents[j].receiver_id[0].lastname,
+              address: upcomingEvents[j].receiver_id[0].email
+            },
+            {
+              event: upcomingEvents[j]
+            }
+          );
+        } else {
+          // eslint-disable-next-line no-await-in-loop
+          await MeetingReminderEmail(
+            {
+              firstname: upcomingEvents[j].requester_id[0].firstname,
+              lastname: upcomingEvents[j].requester_id[0].lastname,
+              address: upcomingEvents[j].requester_id[0].email
+            },
+            {
+              event: upcomingEvents[j]
+            }
+          );
+          await MeetingReminderEmail(
+            {
+              firstname: upcomingEvents[j].receiver_id[0].firstname,
+              lastname: upcomingEvents[j].receiver_id[0].lastname,
+              address: upcomingEvents[j].receiver_id[0].email
+            },
+            {
+              event: upcomingEvents[j]
+            }
+          );
+        }
       }
+      logger.info('Meeting attendees reminded');
     }
-    logger.info('Meeting attendees reminded');
+  } catch (error) {
+    logger.error('Error in MeetingDailyReminderChecker:', error);
   }
-});
+};
 
 // every day reminder
-const UnconfirmedMeetingDailyReminderChecker = asyncHandler(async () => {
-  const currentDate = new Date();
+const UnconfirmedMeetingDailyReminderChecker = async () => {
+  try {
+    const currentDate = new Date();
 
-  // Only future meeting within 24 hours, not past
-  const tenantId = TENANT_ID;
-  const req = {};
-  req.db = connectToDatabase(tenantId);
-  req.VCModel = req.db.model('VC');
-  const upcomingEvents = await req.db
-    .model('Event')
-    .find({
-      $and: [
-        {
-          end: {
-            $gte: currentDate
+    // Only future meeting within 24 hours, not past
+    const tenantId = TENANT_ID;
+    const req = {};
+    req.db = connectToDatabase(tenantId);
+    req.VCModel = req.db.model('VC');
+    const upcomingEvents = await req.db
+      .model('Event')
+      .find({
+        $and: [
+          {
+            end: {
+              $gte: currentDate
+            }
+          },
+          {
+            $or: [
+              { isConfirmedReceiver: false },
+              { isConfirmedRequester: false }
+            ]
           }
-        },
-        {
-          $or: [{ isConfirmedReceiver: false }, { isConfirmedRequester: false }]
+        ]
+      })
+      .populate('requester_id receiver_id', 'firstname lastname role email');
+    if (upcomingEvents) {
+      for (let j = 0; j < upcomingEvents.length; j += 1) {
+        if (!upcomingEvents[j].isConfirmedRequester) {
+          UnconfirmedMeetingReminderEmail(
+            {
+              firstname: upcomingEvents[j].requester_id[0].firstname,
+              lastname: upcomingEvents[j].requester_id[0].lastname,
+              address: upcomingEvents[j].requester_id[0].email
+            },
+            {
+              event: upcomingEvents[j],
+              firstname: upcomingEvents[j].receiver_id[0].firstname,
+              lastname: upcomingEvents[j].receiver_id[0].lastname,
+              id: upcomingEvents[j].requester_id[0]._id.toString(),
+              role: upcomingEvents[j].requester_id[0].role
+            }
+          );
         }
-      ]
-    })
-    .populate('requester_id receiver_id', 'firstname lastname role email');
-  if (upcomingEvents) {
-    for (let j = 0; j < upcomingEvents.length; j += 1) {
-      if (!upcomingEvents[j].isConfirmedRequester) {
-        UnconfirmedMeetingReminderEmail(
-          {
-            firstname: upcomingEvents[j].requester_id[0].firstname,
-            lastname: upcomingEvents[j].requester_id[0].lastname,
-            address: upcomingEvents[j].requester_id[0].email
-          },
-          {
-            event: upcomingEvents[j],
-            firstname: upcomingEvents[j].receiver_id[0].firstname,
-            lastname: upcomingEvents[j].receiver_id[0].lastname,
-            id: upcomingEvents[j].requester_id[0]._id.toString(),
-            role: upcomingEvents[j].requester_id[0].role
-          }
-        );
-      }
-      if (!upcomingEvents[j].isConfirmedReceiver) {
-        UnconfirmedMeetingReminderEmail(
-          {
-            firstname: upcomingEvents[j].receiver_id[0].firstname,
-            lastname: upcomingEvents[j].receiver_id[0].lastname,
-            address: upcomingEvents[j].receiver_id[0].email
-          },
-          {
-            event: upcomingEvents[j],
-            firstname: upcomingEvents[j].requester_id[0].firstname,
-            lastname: upcomingEvents[j].requester_id[0].lastname,
-            id: upcomingEvents[j].receiver_id[0]._id.toString(),
-            role: upcomingEvents[j].receiver_id[0].role
-          }
-        );
+        if (!upcomingEvents[j].isConfirmedReceiver) {
+          UnconfirmedMeetingReminderEmail(
+            {
+              firstname: upcomingEvents[j].receiver_id[0].firstname,
+              lastname: upcomingEvents[j].receiver_id[0].lastname,
+              address: upcomingEvents[j].receiver_id[0].email
+            },
+            {
+              event: upcomingEvents[j],
+              firstname: upcomingEvents[j].requester_id[0].firstname,
+              lastname: upcomingEvents[j].requester_id[0].lastname,
+              id: upcomingEvents[j].receiver_id[0]._id.toString(),
+              role: upcomingEvents[j].receiver_id[0].role
+            }
+          );
+        }
       }
     }
-  }
 
-  logger.info('Unconfirmed Meeting attendee reminded');
-});
+    logger.info('Unconfirmed Meeting attendee reminded');
+  } catch (error) {
+    logger.error('Error in UnconfirmedMeetingDailyReminderChecker:', error);
+  }
+};
 
 function CalculateInterval(message1, message2) {
   const intervalInDay =
@@ -919,29 +961,33 @@ function CalculateInterval(message1, message2) {
   return parseFloat(intervalInDay.toFixed(4));
 }
 
-const GroupCommunicationByStudent = asyncHandler(async (req) => {
-  const communications = await req.db
-    .model('Communication')
-    .find()
-    .populate('student_id user_id', 'firstname lastname email archiv')
-    .lean();
-  const groupCommunication = communications.reduce((acc, communication) => {
-    const student = communication.student_id;
+const GroupCommunicationByStudent = async (req) => {
+  try {
+    const communications = await req.db
+      .model('Communication')
+      .find()
+      .populate('student_id user_id', 'firstname lastname email archiv')
+      .lean();
+    const groupCommunication = communications.reduce((acc, communication) => {
+      const student = communication.student_id;
 
-    if (student && !student.archiv) {
-      const studentId = student._id.toString();
+      if (student && !student.archiv) {
+        const studentId = student._id.toString();
 
-      if (!acc[studentId]) {
-        acc[studentId] = [communication];
-      } else {
-        acc[studentId].push(communication);
+        if (!acc[studentId]) {
+          acc[studentId] = [communication];
+        } else {
+          acc[studentId].push(communication);
+        }
       }
-    }
 
-    return acc;
-  }, {});
-  return groupCommunication;
-});
+      return acc;
+    }, {});
+    return groupCommunication;
+  } catch (error) {
+    logger.error('Error in GroupCommunicationByStudent:', error);
+  }
+};
 
 const CreateIntervalMessageOperation = (student_id, msg1, msg2) => {
   const intervalValue = CalculateInterval(msg1, msg2);
@@ -1120,7 +1166,7 @@ const ProcessThread = (thread) => {
   return bulkOps;
 };
 
-const FindIntervalInCommunicationsAndSave = asyncHandler(async (req) => {
+const FindIntervalInCommunicationsAndSave = async (req) => {
   try {
     // TODO: active student's message only (should already done, please check GroupCommunicationByStudent)
     const groupCommunication = await GroupCommunicationByStudent(req);
@@ -1141,7 +1187,7 @@ const FindIntervalInCommunicationsAndSave = asyncHandler(async (req) => {
   } catch (error) {
     logger.error('Error finding valid interval:', error);
   }
-});
+};
 
 const CreateIntervalOperation = (thread, msg1, msg2) => {
   const intervalValue = CalculateInterval(msg1, msg2);
@@ -1172,7 +1218,7 @@ const CreateIntervalOperation = (thread, msg1, msg2) => {
   };
 };
 
-const FetchStudentsForDocumentThreads = asyncHandler(async (req, filter) =>
+const FetchStudentsForDocumentThreads = async (req, filter) =>
   req.db
     .model('Student')
     .find(filter)
@@ -1187,8 +1233,7 @@ const FetchStudentsForDocumentThreads = asyncHandler(async (req, filter) =>
         }
       }
     })
-    .lean()
-);
+    .lean();
 
 const FindIntervalInDocumentThreadAndSave = async (req) => {
   try {
@@ -1235,7 +1280,7 @@ const FindIntervalInDocumentThreadAndSave = async (req) => {
   }
 };
 
-const GroupIntervals = asyncHandler(async (req) => {
+const GroupIntervals = async (req) => {
   try {
     const intervals = await req.db
       .model('Interval')
@@ -1263,7 +1308,7 @@ const GroupIntervals = asyncHandler(async (req) => {
     logger.error('Error grouping communications:', error);
     return null;
   }
-});
+};
 
 const patternMatched = async (fileBuffer, extension, patterns) => {
   const lowerCasePatterns = patterns.map((pattern) => pattern.toLowerCase());

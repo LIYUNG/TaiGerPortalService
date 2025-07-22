@@ -1,8 +1,7 @@
 const { asyncHandler } = require('../middlewares/error-handler');
 const { meetingTranscripts, leads } = require('../drizzle/schema/schema');
 const { postgresDb } = require('../database');
-const { sql, getTableColumns, eq, gte, desc } = require('drizzle-orm');
-const { post } = require('../routes/account');
+const { sql, getTableColumns, eq, desc } = require('drizzle-orm');
 
 /**
  * Retrieves CRM statistics including weekly counts and total/recent counts for leads and meetings.
@@ -22,18 +21,19 @@ const getCRMStats = asyncHandler(async (req, res) => {
   const leadWeeks = postgresDb.$with('lead_weeks').as(
     postgresDb
       .select({
-        year: sql`EXTRACT(YEAR FROM ${leads.createdAt})::int`.as('year'),
-        week: sql`EXTRACT(WEEK FROM ${leads.createdAt})::int`.as('week')
+        year: sql`EXTRACT(YEAR FROM ${leads.createdAt})`.as('year'),
+        week: sql`EXTRACT(WEEK FROM ${leads.createdAt})`.as('week'),
+        userId: leads.userId
       })
       .from(leads)
   );
   const meetingWeeks = postgresDb.$with('meeting_weeks').as(
     postgresDb
       .select({
-        year: sql`EXTRACT(YEAR FROM to_timestamp(${meetingTranscripts.date} / 1000))::int`.as(
+        year: sql`EXTRACT(YEAR FROM to_timestamp(${meetingTranscripts.date} / 1000))`.as(
           'year'
         ),
-        week: sql`EXTRACT(WEEK FROM to_timestamp(${meetingTranscripts.date} / 1000))::int`.as(
+        week: sql`EXTRACT(WEEK FROM to_timestamp(${meetingTranscripts.date} / 1000))`.as(
           'week'
         )
       })
@@ -49,10 +49,11 @@ const getCRMStats = asyncHandler(async (req, res) => {
     postgresDb
       .with(leadWeeks)
       .select({
-        week: sql`year::text || '-' || LPAD(week::text, 2, '0')`
-          .mapWith(String)
-          .as('week'),
-        count: sql`COUNT(*)`.mapWith(Number).as('count')
+        week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
+        count: sql`COUNT(*)`.mapWith(Number),
+        closedCount: sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(
+          Number
+        )
       })
       .from(leadWeeks)
       .groupBy(sql`year, week`)
@@ -60,10 +61,8 @@ const getCRMStats = asyncHandler(async (req, res) => {
     postgresDb
       .with(meetingWeeks)
       .select({
-        week: sql`year::text || '-' || LPAD(week::text, 2, '0')`
-          .mapWith(String)
-          .as('week'),
-        count: sql`COUNT(*)`.mapWith(Number).as('count')
+        week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
+        count: sql`COUNT(*)`.mapWith(Number)
       })
       .from(meetingWeeks)
       .groupBy(sql`year, week`)
@@ -81,7 +80,10 @@ const getCRMStats = asyncHandler(async (req, res) => {
         totalCount: sql`count(*)`.mapWith(Number),
         recentCount: sql`count(*) FILTER (WHERE created_at >= ${new Date(
           sevenDaysAgo
-        )})`.mapWith(Number)
+        )})`.mapWith(Number),
+        closedCount: sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(
+          Number
+        )
       })
       .from(leads)
   ]);
@@ -89,10 +91,12 @@ const getCRMStats = asyncHandler(async (req, res) => {
   res.status(200).send({
     success: true,
     data: {
-      totalMeetingCount: meetingCountResult[0].totalCount,
-      recentMeetingCount: meetingCountResult[0].recentCount,
       totalLeadCount: leadCountResult[0].totalCount,
       recentLeadCount: leadCountResult[0].recentCount,
+      closedLeadCount: leadCountResult[0].closedCount,
+      totalMeetingCount: meetingCountResult[0].totalCount,
+      recentMeetingCount: meetingCountResult[0].recentCount,
+
       leadsCountByDate: leadsCountByDate,
       meetingCountByDate: meetingCountByDate
     }

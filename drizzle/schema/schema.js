@@ -33,7 +33,7 @@ const leads = pgTable('leads', {
 
   // Internal Tracking
   source: varchar('source', { length: 100 }),
-  status: varchar('status', { length: 50 }).default('new'),
+  status: varchar('status', { length: 50 }).default('open'),
   tags: text('tags'),
   notes: text('notes'),
   userId: varchar('user_id', { length: 32 }),

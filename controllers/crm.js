@@ -187,10 +187,47 @@ const getMeeting = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: meetingRecord[0] });
 });
 
+const updateMeeting = asyncHandler(async (req, res) => {
+  const { meetingId } = req.params;
+  const updateData = req.body;
+
+  if (!meetingId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Meeting ID is required' });
+  }
+
+  if (!updateData || Object.keys(updateData).length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Update data is required' });
+  }
+
+  // Perform the update directly
+  const updatedMeeting = await postgresDb
+    .update(meetingTranscripts)
+    .set(updateData)
+    .where(eq(meetingTranscripts.id, meetingId))
+    .returning();
+
+  if (updatedMeeting.length === 0) {
+    return res
+      .status(404)
+      .send({ success: false, message: 'Meeting not found' });
+  }
+
+  res.status(200).send({
+    success: true,
+    message: 'Meeting updated successfully',
+    data: updatedMeeting[0]
+  });
+});
+
 module.exports = {
   getCRMStats,
   getLeads,
   getLead,
   getMeetings,
-  getMeeting
+  getMeeting,
+  updateMeeting
 };

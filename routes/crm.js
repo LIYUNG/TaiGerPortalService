@@ -1,7 +1,10 @@
 const { Router } = require('express');
 const { Role } = require('@taiger-common/core');
 
-const { GeneralGETRequestRateLimiter } = require('../middlewares/rate_limiter');
+const {
+  GeneralGETRequestRateLimiter,
+  GeneralPUTRequestRateLimiter
+} = require('../middlewares/rate_limiter');
 const { protect, permit } = require('../middlewares/auth');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
 
@@ -10,7 +13,8 @@ const {
   getLeads,
   getLead,
   getMeetings,
-  getMeeting
+  getMeeting,
+  updateMeeting
 } = require('../controllers/crm');
 
 const router = Router();
@@ -27,7 +31,8 @@ router
 
 router
   .route('/meetings/:meetingId')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getMeeting);
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getMeeting)
+  .put(filter_archiv_user, GeneralPUTRequestRateLimiter, updateMeeting);
 
 router
   .route('/meetings')

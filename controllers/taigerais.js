@@ -90,7 +90,6 @@ const TaiGerAiChat = asyncHandler(async (req, res, next) => {
     user,
     params: { studentId }
   } = req;
-  const { prompt } = req.body;
 
   const communication_thread = await req.db
     .model('Communication')

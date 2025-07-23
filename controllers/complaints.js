@@ -292,7 +292,18 @@ const updateComplaint = asyncHandler(async (req, res) => {
     logger.info('cleanup files');
     const collection = 'Complaint';
     const userFolder = 'requester_id';
-    await threadS3GarbageCollector(req, collection, userFolder, ticketId);
+    try {
+      await threadS3GarbageCollector(req, collection, userFolder, ticketId);
+    } catch (error) {
+      logger.error('Failed to cleanup complaint files:', {
+        error: error?.message,
+        stack: error?.stack,
+        ticketId,
+        collection,
+        userFolder
+      });
+      // Don't throw the error to avoid breaking the main flow
+    }
     // inform student
     if (isNotArchiv(updatedComplaint.requester_id)) {
       complaintResolvedRequesterReminderEmail(

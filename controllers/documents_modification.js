@@ -1453,15 +1453,27 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
     });
     if (document_thread.isFinalVersion) {
       // cleanup
-      logger.info('cleanup prgraom thread');
+      logger.info('cleanup program thread');
       const collection = 'Documentthread';
       const userFolder = 'student_id';
-      await threadS3GarbageCollector(
-        req,
-        collection,
-        userFolder,
-        messagesThreadId
-      );
+      try {
+        await threadS3GarbageCollector(
+          req,
+          collection,
+          userFolder,
+          messagesThreadId
+        );
+      } catch (error) {
+        logger.error('Failed to cleanup program thread files:', {
+          error: error?.message,
+          stack: error?.stack,
+          threadId: messagesThreadId,
+          studentId,
+          applicationId: application_id,
+          fileType: document_thread.file_type
+        });
+        // Don't throw the error to avoid breaking the main flow
+      }
     }
     if (isNotArchiv(student)) {
       await sendSetAsFinalProgramSpecificFileForStudentEmail(
@@ -1543,12 +1555,23 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
       logger.info('cleanup cv');
       const collection = 'Documentthread';
       const userFolder = 'student_id';
-      await threadS3GarbageCollector(
-        req,
-        collection,
-        userFolder,
-        messagesThreadId
-      );
+      try {
+        await threadS3GarbageCollector(
+          req,
+          collection,
+          userFolder,
+          messagesThreadId
+        );
+      } catch (error) {
+        logger.error('Failed to cleanup CV thread files:', {
+          error: error?.message,
+          stack: error?.stack,
+          threadId: messagesThreadId,
+          studentId,
+          fileType: document_thread.file_type
+        });
+        // Don't throw the error to avoid breaking the main flow
+      }
     }
     if (isNotArchiv(student)) {
       await sendSetAsFinalGeneralFileForStudentEmail(

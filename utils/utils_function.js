@@ -74,6 +74,14 @@ const threadS3GarbageCollector = async (
     const thread_id = ticket._id.toString();
     const user_id = ticket[userFolder].toString();
     const message_a = ticket.messages;
+
+    logger.info('Garbage collection context:', {
+      threadId: thread_id,
+      userId: user_id,
+      messageCount: message_a?.length || 0,
+      collection,
+      userFolder
+    });
     let directory_img = path.join(user_id, thread_id, 'img');
     directory_img = directory_img.replace(/\\/g, '/');
     let directory_files = path.join(user_id, thread_id);
@@ -86,11 +94,21 @@ const threadS3GarbageCollector = async (
       bucketName: AWS_S3_BUCKET_NAME,
       Prefix: `${directory_files}/`
     };
-    const listedObjectsPublic = await listS3ObjectsV2(listParamsPublic);
+    let listedObjectsPublic;
+    let listedObjectsPublic_files;
 
-    const listedObjectsPublic_files = await listS3ObjectsV2(
-      listParamsPublic_files
-    );
+    try {
+      listedObjectsPublic = await listS3ObjectsV2(listParamsPublic);
+      listedObjectsPublic_files = await listS3ObjectsV2(listParamsPublic_files);
+    } catch (s3Error) {
+      logger.error('Failed to list S3 objects:', {
+        error: s3Error?.message,
+        stack: s3Error?.stack,
+        listParamsPublic,
+        listParamsPublic_files
+      });
+      throw s3Error;
+    }
 
     if (listedObjectsPublic_files.Contents.length > 0) {
       listedObjectsPublic_files.Contents.forEach((Obj2) => {
@@ -100,11 +118,10 @@ const threadS3GarbageCollector = async (
         }
         for (let i = 0; i < message_a.length; i += 1) {
           const file_name = Obj2.Key.split('/')[2];
-          for (let k = 0; k < message_a[i].file.length; k += 1) {
-            if (
-              file_name === 'img' ||
-              message_a[i].file[k].path.includes(file_name)
-            ) {
+          const messageFiles = message_a[i]?.file || [];
+          for (let k = 0; k < messageFiles.length; k += 1) {
+            const filePath = messageFiles[k]?.path || '';
+            if (file_name === 'img' || filePath.includes(file_name)) {
               file_found = true;
               break;
             }
@@ -120,7 +137,10 @@ const threadS3GarbageCollector = async (
       });
     }
 
-    if (listedObjectsPublic.Contents.length > 0) {
+    logger.info('listedObjectsPublic', {
+      listedObjectsPublic
+    });
+    if (listedObjectsPublic.Contents?.length > 0) {
       listedObjectsPublic.Contents.forEach((Obj) => {
         let file_found = false;
         if (message_a.length === 0) {
@@ -128,7 +148,8 @@ const threadS3GarbageCollector = async (
         }
         for (let i = 0; i < message_a.length; i += 1) {
           const file_name = Obj.Key.split('/')[3];
-          if (message_a[i].message.includes(file_name)) {
+          const messageContent = message_a[i]?.message || '';
+          if (messageContent.includes(file_name)) {
             file_found = true;
             break;
           }
@@ -164,8 +185,14 @@ const threadS3GarbageCollector = async (
       logger.info('No files to be deleted for threads.');
     }
   } catch (e) {
-    logger.error(e);
-    logger.error('Error during garbage collection.');
+    logger.error('Error during garbage collection:', {
+      error: e,
+      message: e?.message,
+      stack: e?.stack,
+      threadId: ThreadId,
+      collection,
+      userFolder
+    });
   }
 };
 

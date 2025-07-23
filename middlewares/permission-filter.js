@@ -99,7 +99,7 @@ const permission_canUseTaiGerAI_filter = asyncHandler(
   async (req, res, next) => {
     const { user } = req;
     const permission = await getPermission(req, user);
-    if (!permission?.canUseTaiGerAI) {
+    if (!is_TaiGer_Admin(user) && !permission?.canUseTaiGerAI) {
       logger.warn('permissions denied: permission_canUseTaiGerAI_filter');
       throw new ErrorResponse(403, 'Permission denied: Operation forbidden.');
     }

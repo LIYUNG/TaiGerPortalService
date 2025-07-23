@@ -23,6 +23,7 @@
     ]
   },
   "dependencies": {
+    "@aws-crypto/sha256-browser": "^5.2.0",
     "@aws-sdk/client-s3": "^3.665.0",
     "@aws-sdk/client-ses": "^3.665.0",
     "@aws-sdk/client-sts": "^3.665.0",

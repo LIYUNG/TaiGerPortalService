@@ -115,9 +115,12 @@ const getLeads = asyncHandler(async (req, res) => {
       intendedStartTime: leads.intendedStartTime,
       intendedProgramLevel: leads.intendedProgramLevel,
       intendedDirection: leads.intendedDirection,
+      meetingCount: sql`COUNT(${meetingTranscripts.id})`.mapWith(Number),
       createdAt: leads.createdAt
     })
     .from(leads)
+    .leftJoin(meetingTranscripts, eq(leads.id, meetingTranscripts.leadId))
+    .groupBy(leads.id)
     .orderBy(desc(leads.createdAt));
   res.status(200).send({ success: true, data: leadsRecords });
 });

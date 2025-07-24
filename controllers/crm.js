@@ -175,8 +175,7 @@ const getMeetings = asyncHandler(async (req, res) => {
     .where(
       sql`(meeting_info->>'fred_joined')::boolean = true AND
          (meeting_info->>'silent_meeting')::boolean = false AND
-         (meeting_info->>'summary_status') != 'skipped' AND
-         is_archived = false`
+         (meeting_info->>'summary_status') != 'skipped'`
     )
     .orderBy(desc(meetingTranscripts.date));
   res.status(200).send({ success: true, data: meetingSummaries });

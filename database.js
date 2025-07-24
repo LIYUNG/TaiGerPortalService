@@ -9,6 +9,7 @@ const {
   Admin,
   Guest
 } = require('./models/User');
+const postgresSchema = require('./drizzle/schema/schema.js');
 const { EventSchema } = require('./models/Event');
 const { documentThreadsSchema } = require('./models/Documentthread');
 const { programSchema } = require('./models/Program');
@@ -144,7 +145,7 @@ const disconnectFromDatabase = async (tenant) => {
   }
 };
 
-const postgresDb = drizzle(POSTGRES_URI);
+const postgresDb = drizzle(POSTGRES_URI, { schema: postgresSchema });
 
 module.exports = {
   mongoDb,

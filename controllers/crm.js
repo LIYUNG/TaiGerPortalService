@@ -1,5 +1,5 @@
 const { asyncHandler } = require('../middlewares/error-handler');
-const { meetingTranscripts, leads } = require('../drizzle/schema/schema.js');
+const { leads, meetingTranscripts } = require('../drizzle/schema/schema.js');
 const { postgresDb } = require('../database');
 const { sql, getTableColumns, eq, desc } = require('drizzle-orm');
 
@@ -132,35 +132,35 @@ const getLead = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Lead ID is required' });
   }
 
-  const leadRecord = await postgresDb
-    .select({
-      ...getTableColumns(leads), // Get all columns from leads table
-      meetings: sql`
-        COALESCE(
-          JSON_AGG(
-            JSON_BUILD_OBJECT(
-              'id', ${meetingTranscripts.id},
-              'title', ${meetingTranscripts.title},
-              'date', ${meetingTranscripts.date},
-              'summary', ${meetingTranscripts.summary}
-            ) 
-            ORDER BY ${meetingTranscripts.date} DESC
-          ) FILTER (WHERE ${meetingTranscripts.id} IS NOT NULL),
-          '[]'::json
-        )
-      `.as('meetings')
-    })
-    .from(leads)
-    .leftJoin(meetingTranscripts, eq(leads.id, meetingTranscripts.leadId))
-    .where(eq(leads.id, leadId))
-    .groupBy(leads.id)
-    .limit(1);
+  const leadRecord = await postgresDb.query.leads.findFirst({
+    where: eq(leads.id, leadId),
+    with: {
+      meetingTranscripts: {
+        orderBy: desc(meetingTranscripts.date),
+        columns: {
+          id: true,
+          title: true,
+          date: true,
+          summary: true
+        }
+      }
+    }
+  });
 
-  if (leadRecord.length === 0) {
+  if (!leadRecord) {
     return res.status(404).send({ success: false, message: 'Lead not found' });
   }
 
-  res.status(200).send({ success: true, data: leadRecord[0] });
+  // Rename meetingTranscripts to meetings to match your existing API structure
+  const { meetingTranscripts: meetings, ...leadData } = leadRecord;
+
+  res.status(200).send({
+    success: true,
+    data: {
+      ...leadData,
+      meetings
+    }
+  });
 });
 
 const getMeetings = asyncHandler(async (req, res) => {

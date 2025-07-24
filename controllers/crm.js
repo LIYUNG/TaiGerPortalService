@@ -1,5 +1,5 @@
 const { asyncHandler } = require('../middlewares/error-handler');
-const { meetingTranscripts, leads } = require('../drizzle/schema/schema');
+const { meetingTranscripts, leads } = require('../drizzle/schema/schema.js');
 const { postgresDb } = require('../database');
 const { sql, getTableColumns, eq, desc } = require('drizzle-orm');
 
@@ -133,9 +133,27 @@ const getLead = asyncHandler(async (req, res) => {
   }
 
   const leadRecord = await postgresDb
-    .select()
+    .select({
+      ...getTableColumns(leads), // Get all columns from leads table
+      meetings: sql`
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', ${meetingTranscripts.id},
+              'title', ${meetingTranscripts.title},
+              'date', ${meetingTranscripts.date},
+              'summary', ${meetingTranscripts.summary}
+            ) 
+            ORDER BY ${meetingTranscripts.date} DESC
+          ) FILTER (WHERE ${meetingTranscripts.id} IS NOT NULL),
+          '[]'::json
+        )
+      `.as('meetings')
+    })
     .from(leads)
+    .leftJoin(meetingTranscripts, eq(leads.id, meetingTranscripts.leadId))
     .where(eq(leads.id, leadId))
+    .groupBy(leads.id)
     .limit(1);
 
   if (leadRecord.length === 0) {

@@ -51,9 +51,8 @@ const getCRMStats = asyncHandler(async (req, res) => {
       .select({
         week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
         count: sql`COUNT(*)`.mapWith(Number),
-        closedCount: sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(
-          Number
-        )
+        convertedCount:
+          sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(Number)
       })
       .from(leadWeeks)
       .groupBy(sql`year, week`)
@@ -81,9 +80,8 @@ const getCRMStats = asyncHandler(async (req, res) => {
         recentCount: sql`count(*) FILTER (WHERE created_at >= ${new Date(
           sevenDaysAgo
         )})`.mapWith(Number),
-        closedCount: sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(
-          Number
-        )
+        convertedCount:
+          sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(Number)
       })
       .from(leads)
   ]);
@@ -93,7 +91,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
     data: {
       totalLeadCount: leadCountResult[0].totalCount,
       recentLeadCount: leadCountResult[0].recentCount,
-      closedLeadCount: leadCountResult[0].closedCount,
+      convertedLeadCount: leadCountResult[0].convertedCount,
       totalMeetingCount: meetingCountResult[0].totalCount,
       recentMeetingCount: meetingCountResult[0].recentCount,
 

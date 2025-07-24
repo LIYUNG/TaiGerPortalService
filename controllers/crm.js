@@ -163,6 +163,40 @@ const getLead = asyncHandler(async (req, res) => {
   });
 });
 
+const updateLead = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+  const updateData = req.body;
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'lead ID is required' });
+  }
+
+  if (!updateData || Object.keys(updateData).length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Update data is required' });
+  }
+
+  // Perform the update directly
+  const updatedLead = await postgresDb
+    .update(leads)
+    .set(updateData)
+    .where(eq(leads.id, leadId))
+    .returning();
+
+  if (updatedLead.length === 0) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  res.status(200).send({
+    success: true,
+    message: 'Lead updated successfully',
+    data: updatedLead[0]
+  });
+});
+
 const getMeetings = asyncHandler(async (req, res) => {
   const meetingSummaries = await postgresDb
     .select({
@@ -245,6 +279,7 @@ module.exports = {
   getCRMStats,
   getLeads,
   getLead,
+  updateLead,
   getMeetings,
   getMeeting,
   updateMeeting

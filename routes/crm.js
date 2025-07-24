@@ -12,6 +12,7 @@ const {
   getCRMStats,
   getLeads,
   getLead,
+  updateLead,
   getMeetings,
   getMeeting,
   updateMeeting
@@ -23,7 +24,8 @@ router.use(protect, permit(Role.Admin, Role.Agent, Role.Editor));
 
 router
   .route('/leads/:leadId')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLead);
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLead)
+  .put(filter_archiv_user, GeneralPUTRequestRateLimiter, updateLead);
 
 router
   .route('/leads')

@@ -19,7 +19,6 @@ const {
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
 const UserService = require('../services/users');
-const { ne } = require('drizzle-orm');
 
 const generateRandomToken = () => crypto.randomBytes(32).toString('hex');
 const hashToken = (token) =>

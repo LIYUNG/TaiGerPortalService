@@ -6,10 +6,10 @@ const {
   bigint,
   text,
   timestamp,
-  boolean
+  boolean,
+  vector
 } = require('drizzle-orm/pg-core');
 const { relations } = require('drizzle-orm');
-const { isArchiv } = require('../../constants');
 
 // Use a dynamic import for nanoid
 const createId = () => import('nanoid').then((mod) => mod.nanoid());
@@ -33,7 +33,7 @@ const leads = pgTable('leads', {
 
   // Internal Tracking
   source: varchar('source', { length: 100 }),
-  status: varchar('status', { length: 50 }).default('new'),
+  status: varchar('status', { length: 50 }).default('open'),
   tags: text('tags'),
   notes: text('notes'),
   userId: varchar('user_id', { length: 32 }),
@@ -102,7 +102,32 @@ const meetingTranscripts = pgTable('meeting_transcripts', {
   })
 });
 
+const leadsRelations = relations(leads, ({ many }) => ({
+  meetingTranscripts: many(meetingTranscripts)
+}));
+
+const meetingTranscriptsRelations = relations(
+  meetingTranscripts,
+  ({ one }) => ({
+    lead: one(leads, {
+      fields: [meetingTranscripts.leadId],
+      references: [leads.id]
+    })
+  })
+);
+
+const studentEmbeddings = pgTable('student_embeddings', {
+  mongoId: text('mongo_id').primaryKey().notNull(),
+  embedding: vector('embedding', { dimensions: 3072 }),
+  createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+  text: text(),
+  fullName: text('full_name')
+});
+
 module.exports = {
   leads,
-  meetingTranscripts
+  meetingTranscripts,
+  leadsRelations,
+  meetingTranscriptsRelations,
+  studentEmbeddings
 };

@@ -19,6 +19,7 @@ const {
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
 const UserService = require('../services/users');
+const { ne } = require('drizzle-orm');
 
 const generateRandomToken = () => crypto.randomBytes(32).toString('hex');
 const hashToken = (token) =>
@@ -97,7 +98,8 @@ const addUser = asyncHandler(async (req, res, next) => {
     .create({ userId: newUser._id, value: hashToken(activationToken) });
 
   const users = await req.db.model('User').find({}).lean();
-  res.status(201).send({ success: true, data: users });
+  // TODO: to be improved, only return the new user. Need to check dependency in frontend
+  res.status(201).send({ success: true, data: users, newUser: newUser._id });
 
   await sendInvitationEmail(
     { firstname, lastname, address: email },

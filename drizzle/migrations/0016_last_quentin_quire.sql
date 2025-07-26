@@ -1,0 +1,1 @@
+ALTER TABLE "leads" ALTER COLUMN "status" SET DEFAULT 'open';

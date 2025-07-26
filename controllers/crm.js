@@ -225,8 +225,13 @@ const getMeeting = asyncHandler(async (req, res) => {
   }
 
   const meetingRecord = await postgresDb
-    .select()
+    .select({
+      leadId: leads.id,
+      leadFullName: leads.fullName,
+      ...getTableColumns(meetingTranscripts) // meetingSummaries.*
+    })
     .from(meetingTranscripts)
+    .leftJoin(leads, eq(meetingTranscripts.leadId, leads.id))
     .where(eq(meetingTranscripts.id, meetingId))
     .limit(1);
 

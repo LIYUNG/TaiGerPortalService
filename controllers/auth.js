@@ -1,10 +1,16 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const { default: axios } = require('axios');
 
-const { JWT_SECRET, JWT_EXPIRE } = require('../config');
+const {
+  JWT_SECRET,
+  JWT_EXPIRE,
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
+  GOOGLE_REDIRECT_URL
+} = require('../config');
 const { ErrorResponse } = require('../common/errors');
 const logger = require('../services/logger');
-
 const {
   fieldsValidation,
   checkUserFirstname,
@@ -20,6 +26,8 @@ const {
   sendPasswordResetEmail,
   sendAccountActivationConfirmationEmail
 } = require('../services/email');
+const UserService = require('../services/users');
+const { fetchUserFromIdToken } = require('../utils/helper');
 
 const generateAuthToken = (user, tenantId) => {
   const payload = { id: user._id, tenantId };
@@ -241,6 +249,48 @@ const resetPassword = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true });
 });
 
+const thirdAuth = asyncHandler(async (req, res, next) => {
+  const code = req.body?.code;
+  const oauthRequest = {
+    url: new URL('https://oauth2.googleapis.com/token'),
+    params: {
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: GOOGLE_REDIRECT_URL
+    }
+  };
+  const oauthResponse = await axios.post(oauthRequest.url.toString(), null, {
+    params: oauthRequest.params
+  });
+  const oauthResponseData = oauthResponse.data;
+  const payload = await fetchUserFromIdToken(oauthResponseData?.id_token);
+  if (!payload) {
+    throw new ErrorResponse(400, 'Invalid Google Token');
+  }
+  const { email, name, picture } = payload;
+  const account = await UserService.getUserByEmail(req, email);
+  if (!account) {
+    throw new ErrorResponse(400, 'User not found');
+  }
+  const user = await UserService.getUserByEmail(req, email);
+
+  const jwtToken = generateAuthToken(user, req.tenantId);
+
+  res
+    .cookie('x-auth', jwtToken, {
+      httpOnly: true,
+      sameSite: 'none',
+      secure: true
+    })
+    .status(200)
+    .json({
+      success: true,
+      data: user
+    });
+});
+
 module.exports = {
   signup,
   login,
@@ -249,5 +299,6 @@ module.exports = {
   activateAccount,
   resendActivation,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  thirdAuth
 };

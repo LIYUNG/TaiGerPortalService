@@ -10,7 +10,6 @@ const {
   HTTPS_KEY,
   HTTPS_CERT,
   HTTPS_CA,
-  HTTPS_PORT,
   CLEAN_UP_SCHEDULE,
   WEEKLY_TASKS_REMINDER_SCHEDULE,
   DAILY_TASKS_REMINDER_SCHEDULE,
@@ -49,7 +48,6 @@ const {
 // });
 
 const launch = async () => {
-  console.log(`AWS_LOG_GROUP: ${process.env.AWS_LOG_GROUP}`);
   console.log(`PORT: ${process.env.PORT}`);
   console.log(`AWS_S3_BUCKET_NAME: ${process.env.AWS_S3_BUCKET_NAME}`);
   console.log(`PORT: ${process.env.PORT}`);
@@ -180,9 +178,9 @@ const launch = async () => {
       logger.info(`HTTPS_KEY: ${HTTPS_KEY}`);
     }
 
-    https.createServer(httpsOption, app).listen(HTTPS_PORT, () => {
+    https.createServer(httpsOption, app).listen(PORT, () => {
       logger.info(
-        `Example app listening on port ${HTTPS_PORT} ! Go to https://localhost:${HTTPS_PORT}/`
+        `Example app listening on port ${PORT} ! Go to https://localhost:${PORT}/`
       );
     });
   }

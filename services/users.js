@@ -13,6 +13,10 @@ const UserService = {
       .findByIdAndUpdate(userId, payload, { new: true })
       .lean();
     return user;
+  },
+  async getUserByEmail(req, email) {
+    const user = await req.db.model('User').findOne({ email }).lean();
+    return user;
   }
 };
 

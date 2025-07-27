@@ -373,13 +373,9 @@
         "meeting_transcripts_lead_id_leads_id_fk": {
           "name": "meeting_transcripts_lead_id_leads_id_fk",
           "tableFrom": "meeting_transcripts",
-          "columnsFrom": [
-            "lead_id"
-          ],
+          "columnsFrom": ["lead_id"],
           "tableTo": "leads",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "cascade"
         }

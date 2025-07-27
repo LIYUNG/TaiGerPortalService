@@ -18,7 +18,8 @@ const {
   activateAccount,
   resendActivation,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  thirdAuth
 } = require('../controllers/auth');
 
 const router = Router();
@@ -42,5 +43,7 @@ router.post(
 router.post('/forgot-password', forgotPasswordRateLimiter, forgotPassword);
 
 router.post('/reset-password', resetPasswordRateLimiter, resetPassword);
+
+router.post('/oauth/google/callback', loginRateLimiter, thirdAuth);
 
 module.exports = router;

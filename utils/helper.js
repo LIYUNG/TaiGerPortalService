@@ -1,4 +1,6 @@
 const { is_TaiGer_Agent, is_TaiGer_Editor } = require('@taiger-common/core');
+const { oauthClient } = require('../google/oauth');
+const { GOOGLE_CLIENT_ID } = require('../config');
 
 const queryStudent = (q, user) => {
   const query = { ...q };
@@ -10,4 +12,13 @@ const queryStudent = (q, user) => {
   return query;
 };
 
-module.exports = { queryStudent };
+const fetchUserFromIdToken = async (idToken) => {
+  const ticket = await oauthClient.verifyIdToken({
+    idToken,
+    audience: GOOGLE_CLIENT_ID
+  });
+  const payload = ticket.getPayload();
+  return payload;
+};
+
+module.exports = { queryStudent, fetchUserFromIdToken };

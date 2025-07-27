@@ -22,7 +22,6 @@ module.exports = {
   isTest,
   isDev,
   PORT: env('PORT', 3000),
-  HTTPS_PORT: env('HTTPS_PORT', 3000),
   HTTPS_KEY: env('HTTPS_KEY', './cert/selfsigned.key'),
   HTTPS_CERT: env('HTTPS_CERT', './cert/selfsigned.pem'),
   HTTPS_CA: env('HTTPS_CA', './cert/selfsigned.pem'),
@@ -76,7 +75,6 @@ module.exports = {
   AWS_S3_ACCESS_KEY: env('AWS_S3_ACCESS_KEY', ''),
   AWS_S3_PUBLIC_BUCKET_NAME: env('AWS_S3_PUBLIC_BUCKET_NAME', ''),
   AWS_S3_BUCKET_NAME: env('AWS_S3_BUCKET_NAME', ''),
-  AWS_LOG_GROUP: env('AWS_LOG_GROUP', 'taiger-portal-dev'),
   AWS_TRANSCRIPT_ANALYSER_ROLE: env(
     'AWS_TRANSCRIPT_ANALYSER_ROLE',
     'arn:aws:iam::669131042313:role/transcript-analyzer-role-beta'
@@ -85,5 +83,8 @@ module.exports = {
     'AWS_TRANSCRIPT_ANALYSER_APIG_URL',
     'https://beta.course.taigerconsultancy-portal.com/analyze'
   ),
-  OPENAI_API_KEY: env('OPENAI_API_KEY', '')
+  OPENAI_API_KEY: env('OPENAI_API_KEY', ''),
+  GOOGLE_CLIENT_ID: env('GOOGLE_CLIENT_ID', ''),
+  GOOGLE_CLIENT_SECRET: env('GOOGLE_CLIENT_SECRET', ''),
+  GOOGLE_REDIRECT_URL: env('GOOGLE_REDIRECT_URL', '')
 };

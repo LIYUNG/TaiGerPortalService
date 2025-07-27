@@ -110,7 +110,7 @@ const threadS3GarbageCollector = async (
       throw s3Error;
     }
 
-    if (listedObjectsPublic_files.Contents.length > 0) {
+    if (listedObjectsPublic_files.Contents?.length > 0) {
       listedObjectsPublic_files.Contents.forEach((Obj2) => {
         let file_found = false;
         if (message_a.length === 0) {

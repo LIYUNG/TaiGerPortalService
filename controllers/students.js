@@ -87,6 +87,11 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
       survey_linkPromise,
       auditPromise
     ]);
+  if (!student) {
+    return res
+      .status(404)
+      .send({ success: false, message: 'Student not found' });
+  }
   // TODO: remove agent notfication for new documents upload
   student.applications = add_portals_registered_status(applications);
 

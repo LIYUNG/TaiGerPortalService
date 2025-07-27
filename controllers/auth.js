@@ -29,9 +29,9 @@ const {
 const UserService = require('../services/users');
 const { fetchUserFromIdToken } = require('../utils/helper');
 
-const generateAuthToken = (user, tenantId) => {
+const generateAuthToken = (user, tenantId, expiresIn = JWT_EXPIRE) => {
   const payload = { id: user._id, tenantId };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRE });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
 };
 
 const generateRandomToken = () => crypto.randomBytes(32).toString('hex');
@@ -81,7 +81,7 @@ const signup = asyncHandler(async (req, res) => {
 
 const login = (req, res) => {
   const { user } = req;
-  const token = generateAuthToken(user, req.tenantId);
+  const token = generateAuthToken(user, req.tenantId, JWT_EXPIRE);
   res
     .cookie('x-auth', token, { httpOnly: true, sameSite: 'none', secure: true })
     .status(200)
@@ -97,7 +97,7 @@ const logout = (req, res) => {
 
 const verify = (req, res) => {
   const { user } = req;
-  const token = generateAuthToken(user, req.tenantId);
+  const token = generateAuthToken(user, req.tenantId, JWT_EXPIRE);
   user.attributes = [];
   res
     .cookie('x-auth', token, { httpOnly: true, sameSite: 'none', secure: true })
@@ -139,7 +139,7 @@ const activateAccount = asyncHandler(async (req, res) => {
     );
 
   await token.deleteOne();
-  const authToken = generateAuthToken(user, req.tenantId);
+  const authToken = generateAuthToken(user, req.tenantId, JWT_EXPIRE);
   res
     .cookie('x-auth', authToken, {
       httpOnly: true,
@@ -276,7 +276,7 @@ const thirdAuth = asyncHandler(async (req, res, next) => {
   }
   const user = await UserService.getUserByEmail(req, email);
 
-  const jwtToken = generateAuthToken(user, req.tenantId);
+  const jwtToken = generateAuthToken(user, req.tenantId, '30d');
 
   res
     .cookie('x-auth', jwtToken, {

@@ -270,11 +270,10 @@ const thirdAuth = asyncHandler(async (req, res, next) => {
     throw new ErrorResponse(400, 'Invalid Google Token');
   }
   const { email, name, picture } = payload;
-  const account = await UserService.getUserByEmail(req, email);
-  if (!account) {
+  const user = await UserService.getUserByEmail(req, email);
+  if (!user) {
     throw new ErrorResponse(400, 'User not found');
   }
-  const user = await UserService.getUserByEmail(req, email);
 
   const jwtToken = generateAuthToken(user, req.tenantId, '30d');
 
@@ -289,6 +288,12 @@ const thirdAuth = asyncHandler(async (req, res, next) => {
       success: true,
       data: user
     });
+
+  if (!user.isAccountActivated) {
+    await UserService.updateUser(req, user._id.toString(), {
+      isAccountActivated: true
+    });
+  }
 });
 
 module.exports = {

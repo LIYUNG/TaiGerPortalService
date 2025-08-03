@@ -913,8 +913,11 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
       }
     ]);
 
-    console.log('Interviews:', interviews);
-    // interviews = await addInterviewStatus(req.db, interviews);
+    interviews = await addInterviewStatus(req.db, interviews);
+    interviews = interviews.sort((a, b) => {
+      return new Date(b.interview_date) - new Date(a.interview_date);
+    });
+
     res
       .status(200)
       .send({ success: true, data: interviews, count: interviews.length });

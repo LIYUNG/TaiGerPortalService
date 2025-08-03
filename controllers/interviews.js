@@ -862,14 +862,59 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
   }
 
   try {
-    let interviews = await req.db
-      .model('Interview')
-      .find({ program_id: programId })
-      .populate('student_id', 'firstname lastname email')
-      .populate('trainer_id', 'firstname lastname email') // This will populate an array of trainers
-      .lean();
+    let interviews = await req.db.model('Interview').aggregate([
+      {
+        $match: {
+          program_id: mongoose.Types.ObjectId.createFromHexString(programId)
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          student_id: 1,
+          trainer_id: 1,
+          interview_date: 1,
+          event_id: 1,
+          status: 1,
+          isClosed: 1
+        }
+      },
+      {
+        $lookup: {
+          from: 'interviewsurveyresponses', // Collection name in MongoDB
+          localField: '_id',
+          foreignField: 'interview_id',
+          as: 'surveyResponses'
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'student_id',
+          foreignField: '_id',
+          as: 'student_id',
+          pipeline: [{ $project: { firstname: 1, lastname: 1, email: 1 } }]
+        }
+      },
+      {
+        $lookup: {
+          from: 'users', // Assuming trainers are in users collection
+          localField: 'trainer_id',
+          foreignField: '_id',
+          as: 'trainer_id',
+          pipeline: [{ $project: { firstname: 1, lastname: 1, email: 1 } }]
+        }
+      },
+      {
+        $unwind: {
+          path: '$student_id',
+          preserveNullAndEmptyArrays: true
+        }
+      }
+    ]);
 
-    interviews = await addInterviewStatus(req.db, interviews);
+    console.log('Interviews:', interviews);
+    // interviews = await addInterviewStatus(req.db, interviews);
     res
       .status(200)
       .send({ success: true, data: interviews, count: interviews.length });

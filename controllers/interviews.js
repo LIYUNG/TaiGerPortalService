@@ -867,9 +867,6 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
       .find({ program_id: programId })
       .populate('student_id', 'firstname lastname email')
       .populate('trainer_id', 'firstname lastname email') // This will populate an array of trainers
-      .populate('program_id', 'school program_name degree semester')
-      .populate('event_id')
-      .populate('thread_id')
       .lean();
 
     interviews = await addInterviewStatus(req.db, interviews);
@@ -896,8 +893,6 @@ const getInterviewsByStudentId = asyncHandler(async (req, res) => {
       .populate('student_id', 'firstname lastname email')
       .populate('trainer_id', 'firstname lastname email') // This will populate an array of trainers
       .populate('program_id', 'school program_name degree semester')
-      .populate('event_id')
-      .populate('thread_id')
       .lean();
 
     interviews = await addInterviewStatus(req.db, interviews);

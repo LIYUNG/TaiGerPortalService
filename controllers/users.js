@@ -2,6 +2,7 @@ const _ = require('lodash');
 const crypto = require('crypto');
 const generator = require('generate-password');
 const { Role } = require('@taiger-common/core');
+const mongoose = require('mongoose');
 
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
@@ -19,6 +20,7 @@ const {
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
 const UserService = require('../services/users');
+const UserQueryBuilder = require('../builders/UserQueryBuilder');
 
 const generateRandomToken = () => crypto.randomBytes(32).toString('hex');
 const hashToken = (token) =>
@@ -128,8 +130,15 @@ const addUser = asyncHandler(async (req, res, next) => {
 });
 
 const getUsers = asyncHandler(async (req, res) => {
-  const { query } = req;
-  const users = await UserService.getUsers(req, query);
+  const { agents, editors, archiv, role } = req.query;
+  const { filter } = new UserQueryBuilder()
+    .withEditors(editors ? new mongoose.Types.ObjectId(editors) : null)
+    .withAgents(agents ? new mongoose.Types.ObjectId(agents) : null)
+    .withArchiv(archiv)
+    .withRole(role)
+    .build();
+
+  const users = await UserService.getUsers(req, filter);
   res.status(200).send({ success: true, data: users });
 });
 

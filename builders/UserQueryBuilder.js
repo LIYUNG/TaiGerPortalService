@@ -37,13 +37,6 @@ class UserQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withChatRoomId(chatRoomId) {
-    if (chatRoomId) {
-      this.query.chatRoomId = chatRoomId;
-    }
-    return this;
-  }
-
   withRole(role) {
     if (role) {
       this.query.role = role;

@@ -1,1 +1,0 @@
-ALTER TABLE "lead_similar_users" DROP CONSTRAINT "lead_similar_users_lead_id_mongo_id_pk";

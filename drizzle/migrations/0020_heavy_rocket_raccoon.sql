@@ -1,1 +1,0 @@
-ALTER TABLE "lead_similar_users" ADD CONSTRAINT "lead_similar_users_lead_id_mongo_id_pk" PRIMARY KEY("lead_id","mongo_id");

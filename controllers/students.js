@@ -160,6 +160,18 @@ const getActiveStudents = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const getStudentsByIds = asyncHandler(async (req, res, next) => {
+  const { ids } = req.query;
+  const idsArray = ids
+    .split(',')
+    .map((id) => mongoose.Types.ObjectId.createFromHexString(id));
+  const students = await StudentService.getStudentsWithApplications(req, {
+    _id: { $in: idsArray }
+  });
+  res.status(200).send({ success: true, data: students });
+  next();
+});
+
 const getStudentsV3 = asyncHandler(async (req, res, next) => {
   const { editors, agents, archiv } = req.query;
   const { filter } = new UserQueryBuilder()
@@ -840,6 +852,7 @@ module.exports = {
   getActiveStudents,
   getStudentsV3,
   getStudents,
+  getStudentsByIds,
   getStudentsAndDocLinks,
   updateStudentsArchivStatus,
   assignAgentToStudent,

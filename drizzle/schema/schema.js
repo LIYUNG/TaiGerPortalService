@@ -1,7 +1,11 @@
 const { leads } = require('./leads');
 const { meetingTranscripts } = require('./meetingTranscripts');
 const { studentEmbeddings } = require('./studentEmbeddings');
-const { leadsRelations, meetingTranscriptsRelations } = require('./relations');
+const {
+  leadsRelations,
+  meetingTranscriptsRelations,
+  leadSimilarUsersRelations
+} = require('./relations');
 const { leadSimilarUsers } = require('./leadSimilarUsers');
 
 module.exports = {
@@ -10,5 +14,6 @@ module.exports = {
   studentEmbeddings,
   leadSimilarUsers,
   leadsRelations,
-  meetingTranscriptsRelations
+  meetingTranscriptsRelations,
+  leadSimilarUsersRelations
 };

@@ -6,7 +6,7 @@ const leadSimilarUsers = pgTable(
   {
     leadId: text('lead_id')
       .notNull()
-      .references(() => leads.id, { onDelete: 'cascade' }),
+      .references(() => leads.id, { onDelete: 'cascade' }), // Ensure this reference is correct
     mongoId: text('mongo_id').notNull(),
     reason: varchar('reason', { length: 255 }).notNull()
   },

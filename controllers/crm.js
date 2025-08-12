@@ -143,6 +143,13 @@ const getLead = asyncHandler(async (req, res) => {
           date: true,
           summary: true
         }
+      },
+      leadSimilarUsers: {
+        columns: {
+          leadId: true,
+          mongoId: true,
+          reason: true
+        }
       }
     }
   });

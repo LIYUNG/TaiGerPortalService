@@ -146,7 +146,6 @@ const getLead = asyncHandler(async (req, res) => {
       },
       leadSimilarUsers: {
         columns: {
-          leadId: true,
           mongoId: true,
           reason: true
         }

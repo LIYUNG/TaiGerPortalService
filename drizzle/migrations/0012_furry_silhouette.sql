@@ -1,1 +1,0 @@
-ALTER TABLE "meeting_transcripts" ADD CONSTRAINT "meeting_transcripts_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE cascade ON UPDATE no action;

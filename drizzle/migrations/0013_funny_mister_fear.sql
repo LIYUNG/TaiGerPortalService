@@ -1,1 +1,0 @@
-ALTER TABLE "meeting_transcripts" ADD COLUMN "is_archived" boolean DEFAULT false;

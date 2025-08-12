@@ -23,6 +23,7 @@ const {
   updateDocumentationHelperLink,
   getStudentsAndDocLinks,
   getStudents,
+  getStudentsByIds,
   updateStudentsArchivStatus,
   assignAgentToStudent,
   assignEditorToStudent,
@@ -79,6 +80,16 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
     getStudentsV3,
+    logAccess
+  );
+
+router
+  .route('/batch')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    permission_canAccessStudentDatabase_filter,
+    getStudentsByIds,
     logAccess
   );
 

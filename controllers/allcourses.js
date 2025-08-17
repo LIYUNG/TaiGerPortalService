@@ -5,7 +5,7 @@ const getCourses = asyncHandler(async (req, res) => {
   const courses = await req.db
     .model('Allcourse')
     .find()
-    .populate('updatedBy', 'firstname lastname')
+    .populate('updatedBy', 'firstname lastname pictureUrl')
     .lean();
   res.status(200).send({ success: true, data: courses });
 });
@@ -16,7 +16,7 @@ const getCourse = asyncHandler(async (req, res) => {
   const course = await req.db
     .model('Allcourse')
     .findById(courseId)
-    .populate('updatedBy', 'firstname lastname');
+    .populate('updatedBy', 'firstname lastname pictureUrl');
 
   if (!course) {
     return res
@@ -62,7 +62,7 @@ const updateCourse = asyncHandler(async (req, res) => {
     const updatedCourse = await req.db
       .model('Allcourse')
       .findByIdAndUpdate(courseId, payload, { new: true, runValidators: true })
-      .populate('updatedBy', 'firstname lastname');
+      .populate('updatedBy', 'firstname lastname pictureUrl');
 
     if (!updatedCourse) {
       return res.status(404).send({

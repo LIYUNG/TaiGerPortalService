@@ -33,7 +33,10 @@ const getMycourses = asyncHandler(async (req, res) => {
     .findOne({
       student_id: studentId
     })
-    .populate('student_id', 'firstname lastname agents editors archiv');
+    .populate(
+      'student_id',
+      'firstname lastname agents editors archiv pictureUrl'
+    );
 
   if (!courses) {
     return res.send({
@@ -74,14 +77,14 @@ const putMycourses = asyncHandler(async (req, res) => {
       upsert: true,
       new: false
     })
-    .populate('student_id', 'firstname lastname');
+    .populate('student_id', 'firstname lastname pictureUrl');
   res.send({ success: true, data: courses2 });
   if (is_TaiGer_Student(user)) {
     // TODO: send course update to Agent
     const student = await req.db
       .model('Student')
       .findById(studentId)
-      .populate('agents', 'firstname lastname email')
+      .populate('agents', 'firstname lastname email pictureUrl')
       .lean();
 
     for (let i = 0; i < student.agents.length; i += 1) {
@@ -182,7 +185,7 @@ const processTranscript_test = asyncHandler(async (req, res, next) => {
   const student = await req.db
     .model('Student')
     .findById(studentId)
-    .populate('agents', 'firstname lastname email')
+    .populate('agents', 'firstname lastname email pictureUrl')
     .lean();
 
   if (isNotArchiv(student)) {
@@ -262,7 +265,7 @@ const processTranscript_api = asyncHandler(async (req, res, next) => {
   const student = await req.db
     .model('Student')
     .findById(studentId)
-    .populate('agents', 'firstname lastname email')
+    .populate('agents', 'firstname lastname email pictureUrl')
     .lean();
 
   if (isNotArchiv(student)) {
@@ -410,7 +413,7 @@ const downloadJson = asyncHandler(async (req, res, next) => {
     })
     .populate(
       'student_id',
-      'firstname lastname firstname_chinese lastname_chinese role academic_background application_preference'
+      'firstname lastname firstname_chinese lastname_chinese role academic_background application_preference pictureUrl'
     );
   if (!course) {
     logger.error('downloadJson: Invalid student id');

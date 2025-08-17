@@ -74,7 +74,9 @@ const getSearchUserMessages = asyncHandler(async (req, res, next) => {
       )
       .sort({ score: { $meta: 'textScore' } })
       .limit(10)
-      .select('firstname lastname firstname_chinese lastname_chinese role')
+      .select(
+        'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+      )
       .lean();
     // Merge the results
     const mergedResults = students.map((student) => {
@@ -99,7 +101,9 @@ const getSearchUserMessages = asyncHandler(async (req, res, next) => {
       )
       .sort({ score: { $meta: 'textScore' } })
       .limit(10)
-      .select('firstname lastname firstname_chinese lastname_chinese role')
+      .select(
+        'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+      )
       .lean();
 
     // Merge the results
@@ -153,7 +157,9 @@ const getSearchMessageKeywords = asyncHandler(async (req, res) => {
       .find({
         $or: [{ archiv: { $exists: false } }, { archiv: false }]
       })
-      .select('firstname lastname firstname_chinese lastname_chinese role')
+      .select(
+        'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+      )
       .lean();
     // Merge the results
     const mergedResults = students.map((student) => {
@@ -178,7 +184,9 @@ const getSearchMessageKeywords = asyncHandler(async (req, res) => {
     )
     .sort({ score: { $meta: 'textScore' } })
     .limit(10)
-    .select('firstname lastname firstname_chinese lastname_chinese role')
+    .select(
+      'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+    )
     .lean();
   // Merge the results
   const mergedResults = students_search.map((student) => {
@@ -228,7 +236,7 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
       .find({
         $or: [{ archiv: { $exists: false } }, { archiv: false }]
       })
-      .select('firstname lastname role')
+      .select('firstname lastname role pictureUrl')
       .lean();
     // Get only the last communication
     const student_ids = students.map((stud) => stud._id);
@@ -272,7 +280,7 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
       agents: user._id.toString(),
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     })
-    .select('firstname lastname role')
+    .select('firstname lastname role pictureUrl')
     .lean();
   const student_ids = students.map((stud) => stud._id);
   const studentsWithCommunications = await req.db.model('Student').aggregate([
@@ -334,7 +342,7 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
       .find({
         $or: [{ archiv: { $exists: false } }, { archiv: false }]
       })
-      .select('firstname lastname role')
+      .select('firstname lastname role pictureUrl')
       .lean();
     // Get only the last communication
     const student_ids = students.map((stud) => stud._id);
@@ -386,7 +394,7 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
         agents: user._id.toString(),
         $or: [{ archiv: { $exists: false } }, { archiv: false }]
       })
-      .select('firstname lastname role')
+      .select('firstname lastname role pictureUrl')
       .lean();
     const student_ids = students.map((stud) => stud._id);
     const studentsWithCommunications = await req.db.model('Student').aggregate([
@@ -444,9 +452,9 @@ const loadMessages = asyncHandler(async (req, res, next) => {
     .model('Student')
     .findById(studentId)
     .select(
-      'firstname lastname firstname_chinese lastname_chinese agents archiv'
+      'firstname lastname firstname_chinese lastname_chinese agents archiv pictureUrl'
     )
-    .populate('agents', 'firstname lastname email role');
+    .populate('agents', 'firstname lastname email role pictureUrl');
   if (!student) {
     logger.error('loadMessages: Invalid student id!');
     throw new ErrorResponse(404, 'Student tot found');
@@ -459,7 +467,7 @@ const loadMessages = asyncHandler(async (req, res, next) => {
     })
     .populate(
       'student_id user_id readBy ignoredMessageBy',
-      'firstname lastname firstname_chinese lastname_chinese role agents editors'
+      'firstname lastname firstname_chinese lastname_chinese role agents editors pictureUrl'
     )
     .sort({ createdAt: -1 })
     .skip(skipAmount) // skip first x items.
@@ -485,9 +493,9 @@ const getMessages = asyncHandler(async (req, res, next) => {
     .model('Student')
     .findById(studentId)
     .select(
-      'firstname lastname firstname_chinese lastname_chinese agents lastLoginAt archiv'
+      'firstname lastname firstname_chinese lastname_chinese agents lastLoginAt archiv pictureUrl'
     )
-    .populate('agents editors', 'firstname lastname email role');
+    .populate('agents editors', 'firstname lastname email role pictureUrl');
   if (!student) {
     logger.error('getMessages: Invalid student id!');
     throw new ErrorResponse(404, 'Student not found');
@@ -499,7 +507,7 @@ const getMessages = asyncHandler(async (req, res, next) => {
     })
     .populate(
       'student_id user_id readBy ignoredMessageBy',
-      'firstname lastname role'
+      'firstname lastname role pictureUrl'
     )
     .sort({ createdAt: -1 }) // 0: latest!
     .limit(pageSize); // show only first y limit items after skip.
@@ -522,7 +530,10 @@ const getMessages = asyncHandler(async (req, res, next) => {
         [userIdStr]: new Date()
       };
       await lastElement.save();
-      await lastElement.populate('readBy', 'firstname lastname role');
+      await lastElement.populate(
+        'readBy',
+        'firstname lastname role pictureUrl'
+      );
     }
   }
   res.status(200).send({
@@ -570,7 +581,7 @@ const postMessages = asyncHandler(async (req, res, next) => {
       .find({
         student_id: studentId
       })
-      .populate('student_id user_id', 'firstname lastname role')
+      .populate('student_id user_id', 'firstname lastname role pictureUrl')
       .sort({ createdAt: -1 }) // 0: latest!
       .limit(3); // show only first 3 limit items after skip.
 
@@ -642,7 +653,7 @@ const postMessages = asyncHandler(async (req, res, next) => {
     .find({
       student_id: studentId
     })
-    .populate('student_id user_id readBy', 'firstname lastname')
+    .populate('student_id user_id readBy', 'firstname lastname pictureUrl')
     .sort({ createdAt: -1 }) // 0: latest!
     .limit(1);
   res.status(200).send({ success: true, data: communication_latest });

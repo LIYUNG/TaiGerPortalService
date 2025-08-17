@@ -135,10 +135,10 @@ const getStudentsByProgram = asyncHandler(async (req, programId) => {
     })
     .populate({
       path: 'studentId',
-      select: 'agents editors firstname lastname',
+      select: 'agents editors firstname lastname pictureUrl',
       populate: {
         path: 'agents editors',
-        select: 'firstname lastname'
+        select: 'firstname lastname pictureUrl'
       }
     })
     .lean();

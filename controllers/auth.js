@@ -289,11 +289,12 @@ const thirdAuth = asyncHandler(async (req, res, next) => {
       data: user
     });
 
-  if (!user.isAccountActivated) {
-    await UserService.updateUser(req, user._id.toString(), {
-      isAccountActivated: true
-    });
-  }
+  // if (!user.isAccountActivated) {
+  await UserService.updateUser(req, user._id.toString(), {
+    pictureUrl: picture,
+    isAccountActivated: true
+  });
+  // }
 });
 
 module.exports = {

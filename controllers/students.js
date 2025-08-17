@@ -46,13 +46,13 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const studentPromise = req.db
     .model('Student')
     .findById(studentId)
-    .populate('agents editors', 'firstname lastname email')
+    .populate('agents editors', 'firstname lastname email pictureUrl')
     .populate({
       path: 'generaldocs_threads.doc_thread_id',
       select: 'file_type isFinalVersion updatedAt messages.file',
       populate: {
         path: 'messages.user_id',
-        select: 'firstname lastname'
+        select: 'firstname lastname pictureUrl'
       }
     })
     .select('-taigerai')
@@ -69,7 +69,7 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
     .find({
       targetUserId: studentId
     })
-    .populate('performedBy targetUserId', 'firstname lastname role')
+    .populate('performedBy targetUserId', 'firstname lastname role pictureUrl')
     .populate({
       path: 'targetDocumentThreadId interviewThreadId',
       select: 'program_id file_type',
@@ -196,7 +196,10 @@ const getStudents = asyncHandler(async (req, res, next) => {
     const auditLogPromise = req.db
       .model('Audit')
       .find()
-      .populate('performedBy targetUserId', 'firstname lastname role')
+      .populate(
+        'performedBy targetUserId',
+        'firstname lastname role pictureUrl'
+      )
       .populate({
         path: 'targetDocumentThreadId interviewThreadId',
         select: 'program_id file_type',

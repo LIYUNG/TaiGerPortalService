@@ -237,7 +237,7 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
     .model('Student')
     .findById(studentId)
     .populate('generaldocs_threads.doc_thread_id')
-    .populate('agents editors', 'firstname lastname email');
+    .populate('agents editors', 'firstname lastname email pictureUrl');
 
   if (!student) {
     logger.info('initGeneralMessagesThread: Invalid student id');
@@ -360,7 +360,7 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
       .find({
         canAssignEditors: true
       })
-      .populate('user_id', 'firstname lastname email archiv')
+      .populate('user_id', 'firstname lastname email archiv pictureUrl')
       .lean();
     if (permissions) {
       for (let x = 0; x < permissions.length; x += 1) {
@@ -575,7 +575,7 @@ const getMessages = asyncHandler(async (req, res) => {
     .find({
       targetDocumentThreadId: messagesThreadId
     })
-    .populate('performedBy targetUserId', 'firstname lastname role')
+    .populate('performedBy targetUserId', 'firstname lastname role pictureUrl')
     .populate({
       path: 'targetDocumentThreadId interviewThreadId',
       select: 'program_id file_type',
@@ -591,13 +591,13 @@ const getMessages = asyncHandler(async (req, res) => {
     .find({
       _id: document_thread.student_id.agents
     })
-    .select('firstname lastname');
+    .select('firstname lastname pictureUrl');
   const editorsPromise = req.db
     .model('Editor')
     .find({
       _id: document_thread.student_id.editors
     })
-    .select('firstname lastname');
+    .select('firstname lastname pictureUrl');
   const applicationsPromise = req.db
     .model('Application')
     .find({ studentId: document_thread.student_id._id.toString() })
@@ -634,7 +634,7 @@ const getMessages = asyncHandler(async (req, res) => {
         decided: 'O',
         application_year: document_thread.application_id.application_year
       })
-      .populate('studentId', 'firstname lastname');
+      .populate('studentId', 'firstname lastname pictureUrl');
   }
 
   res.status(200).send({
@@ -744,7 +744,7 @@ const postMessages = asyncHandler(async (req, res) => {
   const student = await req.db
     .model('Student')
     .findById(document_thread2.student_id._id.toString())
-    .populate('editors agents', 'firstname lastname email archiv');
+    .populate('editors agents', 'firstname lastname email archiv pictureUrl');
   const applications = await req.db
     .model('Application')
     .find({ studentId: document_thread2.student_id._id.toString() })
@@ -868,7 +868,7 @@ const postMessages = asyncHandler(async (req, res) => {
           .find({
             canAssignEditors: true
           })
-          .populate('user_id', 'firstname lastname email')
+          .populate('user_id', 'firstname lastname email pictureUrl')
           .lean();
         if (permissions) {
           for (let x = 0; x < permissions.length; x += 1) {
@@ -956,7 +956,7 @@ const postMessages = asyncHandler(async (req, res) => {
           .find({
             canAssignEditors: true
           })
-          .populate('user_id', 'firstname lastname email')
+          .populate('user_id', 'firstname lastname email pictureUrl')
           .lean();
         if (permissions) {
           for (let x = 0; x < permissions.length; x += 1) {
@@ -1016,7 +1016,10 @@ const postMessages = asyncHandler(async (req, res) => {
           student_id: document_thread.student_id._id.toString(),
           program_id: document_thread.program_id._id.toString()
         })
-        .populate('student_id trainer_id', 'firstname lastname email')
+        .populate(
+          'student_id trainer_id',
+          'firstname lastname email pictureUrl'
+        )
         .populate('program_id', 'school program_name degree semester')
         .lean();
 
@@ -1026,7 +1029,7 @@ const postMessages = asyncHandler(async (req, res) => {
           .find({
             canAssignEditors: true
           })
-          .populate('user_id', 'firstname lastname email')
+          .populate('user_id', 'firstname lastname email pictureUrl')
           .lean();
         if (permissions) {
           for (let x = 0; x < permissions.length; x += 1) {
@@ -1194,7 +1197,10 @@ const postMessages = asyncHandler(async (req, res) => {
           student_id: document_thread.student_id._id.toString(),
           program_id: document_thread.program_id._id.toString()
         })
-        .populate('student_id trainer_id', 'firstname lastname email')
+        .populate(
+          'student_id trainer_id',
+          'firstname lastname email pictureUrl'
+        )
         .populate('program_id', 'school program_name degree semester')
         .lean();
       for (let i = 0; i < interview.trainer_id?.length; i += 1) {

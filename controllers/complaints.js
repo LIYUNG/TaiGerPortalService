@@ -29,7 +29,7 @@ const getManagers = async (req) =>
         { canAccessAllChat: true }
       ]
     })
-    .populate('user_id', 'firstname lastname email archiv')
+    .populate('user_id', 'firstname lastname email archiv pictureUrl')
     .lean();
 
 const getComplaints = asyncHandler(async (req, res) => {
@@ -48,14 +48,14 @@ const getComplaints = asyncHandler(async (req, res) => {
     const tickets = await req.db
       .model('Complaint')
       .find({ requester_id: user._id })
-      .populate('requester_id', 'firstname lastname email')
+      .populate('requester_id', 'firstname lastname email pictureUrl')
       .sort({ createdAt: -1 });
     res.send({ success: true, data: tickets });
   } else {
     const tickets = await req.db
       .model('Complaint')
       .find(query)
-      .populate('requester_id', 'firstname lastname email')
+      .populate('requester_id', 'firstname lastname email pictureUrl')
       .sort({ createdAt: -1 });
     res.send({ success: true, data: tickets });
   }
@@ -67,8 +67,8 @@ const getComplaint = asyncHandler(async (req, res) => {
   const ticket = await req.db
     .model('Complaint')
     .findById(ticketId)
-    .populate('messages.user_id', 'firstname lastname email')
-    .populate('requester_id', 'firstname lastname email ');
+    .populate('messages.user_id', 'firstname lastname email pictureUrl')
+    .populate('requester_id', 'firstname lastname email pictureUrl');
   if (!ticket) {
     logger.error('getComplaint: Invalid ticket id');
     throw new ErrorResponse(404, 'Complaint not found');
@@ -226,7 +226,7 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
   const student = await req.db
     .model('Student')
     .findById(ticket.requester_id)
-    .populate('editors agents', 'firstname lastname email archiv');
+    .populate('editors agents', 'firstname lastname email archiv pictureUrl');
 
   const payload = {
     student_firstname: student.firstname,
@@ -277,7 +277,7 @@ const updateComplaint = asyncHandler(async (req, res) => {
     .findByIdAndUpdate(ticketId, fields, {
       new: true
     })
-    .populate('requester_id', 'firstname lastname email archiv');
+    .populate('requester_id', 'firstname lastname email archiv pictureUrl');
 
   if (!updatedComplaint) {
     logger.error('updateComplaint: Invalid message thread id');

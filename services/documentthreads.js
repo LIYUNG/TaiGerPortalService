@@ -9,9 +9,12 @@ const DocumentThreadService = {
         'student_id',
         'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference'
       )
-      .populate('messages.user_id', 'firstname lastname role archiv')
+      .populate('messages.user_id', 'firstname lastname role archiv pictureUrl')
       .populate('program_id')
-      .populate('outsourced_user_id', 'firstname lastname role archiv')
+      .populate(
+        'outsourced_user_id',
+        'firstname lastname role archiv pictureUrl'
+      )
       .lean();
   },
   async getStudentThreadsByStudentId(req, studentId) {
@@ -24,8 +27,8 @@ const DocumentThreadService = {
       )
       .populate('student_id', 'firstname lastname')
       .populate('application_id')
-      .populate('messages.user_id', 'firstname lastname')
-      .populate('outsourced_user_id', 'firstname lastname')
+      .populate('messages.user_id', 'firstname lastname role pictureUrl')
+      .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
       .lean();
 
     const filteredThreads = threads.filter(
@@ -46,7 +49,7 @@ const DocumentThreadService = {
       .find(documentThreadFilter)
       .populate(
         'messages.user_id outsourced_user_id',
-        'firstname lastname email'
+        'firstname lastname email pictureUrl'
       )
       .populate({
         path: 'student_id',
@@ -93,7 +96,7 @@ const DocumentThreadService = {
       .find(queryFilter)
       .populate(
         'messages.user_id outsourced_user_id',
-        'firstname lastname email'
+        'firstname lastname email pictureUrl'
       )
       .populate({
         path: 'student_id',
@@ -126,9 +129,9 @@ const DocumentThreadService = {
         'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference'
       )
       .populate('application_id')
-      .populate('messages.user_id', 'firstname lastname role')
+      .populate('messages.user_id', 'firstname lastname role pictureUrl')
       .populate('program_id')
-      .populate('outsourced_user_id', 'firstname lastname role')
+      .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
       .lean();
   },
   async updateThreadById(req, threadId, payload) {

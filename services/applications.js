@@ -20,7 +20,7 @@ const ApplicationService = {
         path: 'studentId',
         populate: {
           path: 'editors agents',
-          select: 'firstname lastname email'
+          select: 'firstname lastname email pictureUrl'
         }
       })
       .populate({

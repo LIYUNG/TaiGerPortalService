@@ -7,7 +7,7 @@ const DocumentThreadService = {
       .findById(messagesThreadId)
       .populate(
         'student_id',
-        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference'
+        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
       )
       .populate('messages.user_id', 'firstname lastname role archiv pictureUrl')
       .populate('program_id')
@@ -25,7 +25,7 @@ const DocumentThreadService = {
         'program_id',
         'school program_name application_deadline degree semester lang'
       )
-      .populate('student_id', 'firstname lastname')
+      .populate('student_id', 'firstname lastname pictureUrl')
       .populate('application_id')
       .populate('messages.user_id', 'firstname lastname role pictureUrl')
       .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
@@ -126,7 +126,7 @@ const DocumentThreadService = {
       .find(filter)
       .populate(
         'student_id',
-        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference'
+        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
       )
       .populate('application_id')
       .populate('messages.user_id', 'firstname lastname role pictureUrl')

@@ -15,7 +15,7 @@ const StudentService = {
     return req.db
       .model('Student')
       .find(filter)
-      .populate('agents editors', 'firstname lastname email archiv')
+      .populate('agents editors', 'firstname lastname email archiv pictureUrl')
       .populate('generaldocs_threads.doc_thread_id', '-messages')
       .select('-notification')
       .select('-notification')
@@ -28,7 +28,7 @@ const StudentService = {
     return req.db
       .model('Student')
       .find(filter)
-      .populate('agents editors', 'firstname lastname email archiv')
+      .populate('agents editors', 'firstname lastname email archiv pictureUrl')
       .select('-notification')
       .lean();
   },
@@ -36,7 +36,7 @@ const StudentService = {
     return req.db
       .model('User')
       .find(filter)
-      .populate('agents editors', 'firstname lastname email archiv')
+      .populate('agents editors', 'firstname lastname email archiv pictureUrl')
       .sort(options.sort)
       .skip(options.skip)
       .limit(options.limit)
@@ -46,7 +46,7 @@ const StudentService = {
     return req.db
       .model('Student')
       .findById(id)
-      .populate('agents editors', 'firstname lastname email archiv')
+      .populate('agents editors', 'firstname lastname email archiv pictureUrl')
       .populate('generaldocs_threads.doc_thread_id', '-messages')
       .lean();
   },
@@ -54,7 +54,7 @@ const StudentService = {
     return req.db
       .model('Student')
       .findByIdAndUpdate(id, update, { new: true })
-      .populate('agents editors', 'firstname lastname email archiv')
+      .populate('agents editors', 'firstname lastname email archiv pictureUrl')
       .lean();
   },
   async getStudentsWithApplications(req, filter) {

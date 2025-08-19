@@ -21,6 +21,7 @@ const leads = pgTable('leads', {
   // Internal Tracking
   source: varchar('source', { length: 100 }),
   status: varchar('status', { length: 50 }).default('open'),
+  closeLikelihood: varchar('close_likelihood', { length: 50 }),
   tags: text('tags'),
   notes: text('notes'),
   userId: varchar('user_id', { length: 32 }),

@@ -15,6 +15,13 @@
       "when": 1755545466002,
       "tag": "0001_careful_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1755641875799,
+      "tag": "0002_smiling_princess_powerful",
+      "breakpoints": true
     }
   ]
 }

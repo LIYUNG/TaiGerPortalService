@@ -6,11 +6,16 @@ const leadSimilarUsers = pgTable(
   {
     leadId: text('lead_id')
       .notNull()
-      .references(() => leads.id, { onDelete: 'cascade' }), // Ensure this reference is correct
+      .references(() => leads.id, { onDelete: 'cascade' }),
     mongoId: text('mongo_id').notNull(),
     reason: varchar('reason', { length: 255 }).notNull()
   },
-  (table) => primaryKey({ columns: [table.leadId, table.mongoId] })
+  (t) => ({
+    pk: primaryKey({
+      columns: [t.leadId, t.mongoId],
+      name: 'lead_similar_users_pk'
+    })
+  })
 );
 
 module.exports = { leadSimilarUsers };

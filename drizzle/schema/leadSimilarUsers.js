@@ -1,4 +1,10 @@
-const { pgTable, text, varchar, primaryKey } = require('drizzle-orm/pg-core');
+const {
+  pgTable,
+  text,
+  varchar,
+  primaryKey,
+  timestamp
+} = require('drizzle-orm/pg-core');
 const { leads } = require('./leads');
 
 const leadSimilarUsers = pgTable(
@@ -8,7 +14,8 @@ const leadSimilarUsers = pgTable(
       .notNull()
       .references(() => leads.id, { onDelete: 'cascade' }),
     mongoId: text('mongo_id').notNull(),
-    reason: varchar('reason', { length: 255 }).notNull()
+    reason: varchar('reason', { length: 255 }).notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow()
   },
   (t) => ({
     pk: primaryKey({

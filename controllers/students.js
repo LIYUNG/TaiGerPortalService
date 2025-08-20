@@ -162,6 +162,12 @@ const getActiveStudents = asyncHandler(async (req, res, next) => {
 
 const getStudentsByIds = asyncHandler(async (req, res, next) => {
   const { ids } = req.query;
+  if (!ids || typeof ids !== 'string' || ids.trim() === '') {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Missing or invalid ids parameter.' });
+  }
+
   const idsArray = ids
     .split(',')
     .map((id) => mongoose.Types.ObjectId.createFromHexString(id));

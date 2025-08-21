@@ -23,6 +23,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
       .select({
         year: sql`EXTRACT(YEAR FROM ${leads.createdAt})`.as('year'),
         week: sql`EXTRACT(WEEK FROM ${leads.createdAt})`.as('week'),
+        closeLikelihood: leads.closeLikelihood,
         userId: leads.userId
       })
       .from(leads)
@@ -51,6 +52,10 @@ const getCRMStats = asyncHandler(async (req, res) => {
       .select({
         week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
         count: sql`COUNT(*)`.mapWith(Number),
+        highChanceCount:
+          sql`COUNT(*) FILTER (WHERE close_likelihood = 'high')`.mapWith(
+            Number
+          ),
         convertedCount:
           sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(Number)
       })

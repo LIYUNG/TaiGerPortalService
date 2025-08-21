@@ -1,7 +1,7 @@
 const { asyncHandler } = require('../middlewares/error-handler');
 const { leads, meetingTranscripts } = require('../drizzle/schema/schema.js');
 const { postgresDb } = require('../database');
-const { sql, getTableColumns, eq, desc } = require('drizzle-orm');
+const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
 
 /**
  * Retrieves CRM statistics including weekly counts and total/recent counts for leads and meetings.
@@ -39,6 +39,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
         )
       })
       .from(meetingTranscripts)
+      .where(not(eq(meetingTranscripts.isArchived, true))) // moved filter into CTE
   );
 
   const [
@@ -77,7 +78,8 @@ const getCRMStats = asyncHandler(async (req, res) => {
         recentCount:
           sql`count(*) FILTER (WHERE date >= ${sevenDaysAgo})`.mapWith(Number)
       })
-      .from(meetingTranscripts),
+      .from(meetingTranscripts)
+      .where(not(eq(meetingTranscripts.isArchived, true))),
 
     postgresDb
       .select({

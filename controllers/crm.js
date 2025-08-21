@@ -110,6 +110,7 @@ const getLeads = asyncHandler(async (req, res) => {
       email: leads.email,
       phone: leads.phone,
       status: leads.status,
+      closeLikelihood: leads.closeLikelihood,
       intendedStartTime: leads.intendedStartTime,
       intendedProgramLevel: leads.intendedProgramLevel,
       intendedDirection: leads.intendedDirection,

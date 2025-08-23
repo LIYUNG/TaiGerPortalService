@@ -129,6 +129,7 @@ const getLeads = asyncHandler(async (req, res) => {
         userId: salesMembers.userId,
         label: salesMembers.label
       },
+      salesNote: leads.salesNote,
       meetingCount: sql`(
         SELECT COUNT(${meetingTranscripts.id})
         FROM ${meetingTranscripts}

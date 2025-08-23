@@ -3,6 +3,7 @@ const { meetingTranscripts } = require('./meetingTranscripts');
 const { studentEmbeddings } = require('./studentEmbeddings');
 const {
   leadsRelations,
+  dealsRelations,
   meetingTranscriptsRelations,
   leadSimilarUsersRelations
 } = require('./relations');
@@ -17,6 +18,7 @@ module.exports = {
   leadSimilarUsers,
   deals,
   leadsRelations,
+  dealsRelations,
   meetingTranscriptsRelations,
   leadSimilarUsersRelations,
   salesMembers

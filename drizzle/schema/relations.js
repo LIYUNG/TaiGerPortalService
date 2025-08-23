@@ -15,6 +15,17 @@ const leadsRelations = relations(leads, ({ many, one }) => ({
   })
 }));
 
+const dealsRelations = relations(deals, ({ one }) => ({
+  lead: one(leads, {
+    fields: [deals.leadId],
+    references: [leads.id]
+  }),
+  salesMember: one(salesMembers, {
+    fields: [deals.salesUserId],
+    references: [salesMembers.userId]
+  })
+}));
+
 const meetingTranscriptsRelations = relations(
   meetingTranscripts,
   ({ one }) => ({
@@ -34,6 +45,7 @@ const leadSimilarUsersRelations = relations(leadSimilarUsers, ({ one }) => ({
 
 module.exports = {
   leadsRelations,
+  dealsRelations,
   meetingTranscriptsRelations,
   leadSimilarUsersRelations,
   deals

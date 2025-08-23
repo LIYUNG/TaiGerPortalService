@@ -161,6 +161,14 @@ const getLead = asyncHandler(async (req, res) => {
           label: true
         }
       },
+      deals: {
+        columns: {
+          status: true,
+          closedDate: true,
+          dealSizeNtd: true,
+          note: true
+        }
+      },
       meetingTranscripts: {
         orderBy: desc(meetingTranscripts.date),
         columns: {

@@ -2,7 +2,8 @@ const { asyncHandler } = require('../middlewares/error-handler');
 const {
   leads,
   meetingTranscripts,
-  salesMembers
+  salesMembers,
+  deals
 } = require('../drizzle/schema/schema.js');
 const { postgresDb } = require('../database');
 const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
@@ -329,6 +330,33 @@ const getSalesMembers = asyncHandler(async (req, res) => {
   });
 });
 
+const getDeals = asyncHandler(async (req, res) => {
+  // Select all deal columns except id/createdAt/updatedAt, and populate lead fullName and sales label
+  const dealCols = getTableColumns(deals);
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    ...dealDataCols
+  } = dealCols;
+
+  const dealsList = await postgresDb
+    .select({
+      ...dealDataCols, // includes leadId, salesUserId, status, closedDate, etc.
+      leadFullName: leads.fullName,
+      salesLabel: salesMembers.label
+    })
+    .from(deals)
+    .leftJoin(leads, eq(deals.leadId, leads.id))
+    .leftJoin(salesMembers, eq(deals.salesUserId, salesMembers.userId))
+    .orderBy(desc(deals.closedDate));
+
+  res.status(200).send({
+    success: true,
+    data: dealsList
+  });
+});
+
 module.exports = {
   getCRMStats,
   getLeads,
@@ -337,5 +365,6 @@ module.exports = {
   getMeetings,
   getMeeting,
   updateMeeting,
-  getSalesMembers
+  getSalesMembers,
+  getDeals
 };

@@ -16,7 +16,8 @@ const {
   getMeetings,
   getMeeting,
   updateMeeting,
-  getSalesMembers
+  getSalesMembers,
+  getDeals
 } = require('../controllers/crm');
 
 const router = Router();
@@ -48,5 +49,9 @@ router
 router
   .route('/sales-members')
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getSalesMembers);
+
+router
+  .route('/deals')
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getDeals);
 
 module.exports = router;

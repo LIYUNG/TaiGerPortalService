@@ -357,6 +357,39 @@ const getDeals = asyncHandler(async (req, res) => {
   });
 });
 
+const createDeal = asyncHandler(async (req, res) => {
+  const newDeal = req.body;
+
+  // Validate the incoming data
+  if (!newDeal || Object.keys(newDeal).length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Deal data is required' });
+  }
+
+  // leadId and salesUserId are required
+  if (!newDeal.leadId || !newDeal.salesUserId) {
+    return res
+      .status(400)
+      .send({
+        success: false,
+        message: 'Lead ID and Sales User ID are required'
+      });
+  }
+
+  // Insert the new deal into the database
+  const createdDeal = await postgresDb
+    .insert(deals)
+    .values(newDeal)
+    .returning();
+
+  res.status(201).send({
+    success: true,
+    message: 'Deal created successfully',
+    data: createdDeal[0]
+  });
+});
+
 module.exports = {
   getCRMStats,
   getLeads,
@@ -366,5 +399,6 @@ module.exports = {
   getMeeting,
   updateMeeting,
   getSalesMembers,
-  getDeals
+  getDeals,
+  createDeal
 };

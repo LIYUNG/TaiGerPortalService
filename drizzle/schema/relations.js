@@ -3,10 +3,12 @@ const { leads } = require('./leads');
 const { leadSimilarUsers } = require('./leadSimilarUsers');
 const { meetingTranscripts } = require('./meetingTranscripts');
 const { salesMembers } = require('./salesMembers');
+const { deals } = require('./deals');
 
 const leadsRelations = relations(leads, ({ many, one }) => ({
   meetingTranscripts: many(meetingTranscripts),
   leadSimilarUsers: many(leadSimilarUsers),
+  deals: many(deals),
   salesMember: one(salesMembers, {
     fields: [leads.salesUserId],
     references: [salesMembers.userId]
@@ -33,5 +35,6 @@ const leadSimilarUsersRelations = relations(leadSimilarUsers, ({ one }) => ({
 module.exports = {
   leadsRelations,
   meetingTranscriptsRelations,
-  leadSimilarUsersRelations
+  leadSimilarUsersRelations,
+  deals
 };

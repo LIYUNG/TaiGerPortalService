@@ -1,0 +1,37 @@
+const {
+  pgTable,
+  serial,
+  text,
+  varchar,
+  date,
+  numeric,
+  timestamp
+} = require('drizzle-orm/pg-core');
+const { leads } = require('./leads');
+const { salesMembers } = require('./salesMembers');
+
+// Notes/assumptions:
+// - Using PostgreSQL types (Drizzle pg-core).
+// - lead_id references leads.id (text), so this column is text and NOT NULL.
+// - sales_user_id references sales_members.user_id (varchar(64)).
+// - deal_size_ntd uses numeric(12,2) to represent money with 2 decimals.
+// - Timestamps default to now() (no ON UPDATE trigger applied in schema; app can update updated_at).
+
+const deals = pgTable('deals', {
+  dealId: serial('deal_id').primaryKey(),
+  leadId: text('lead_id')
+    .notNull()
+    .references(() => leads.id),
+  salesUserId: varchar('sales_user_id', { length: 64 }).references(
+    () => salesMembers.userId,
+    { onDelete: 'set null' }
+  ),
+  status: varchar('status', { length: 50 }),
+  closedDate: date('closed_date'),
+  dealSizeNtd: numeric('deal_size_ntd', { precision: 12, scale: 2 }),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+module.exports = { deals };

@@ -18,7 +18,7 @@ const { salesMembers } = require('./salesMembers');
 // - Timestamps default to now() (no ON UPDATE trigger applied in schema; app can update updated_at).
 
 const deals = pgTable('deals', {
-  dealId: serial('deal_id').primaryKey(),
+  id: serial('id').primaryKey(),
   leadId: text('lead_id')
     .notNull()
     .references(() => leads.id),

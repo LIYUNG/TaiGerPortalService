@@ -64,6 +64,13 @@
       "when": 1755968522457,
       "tag": "0008_unusual_tarot",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1755972654134,
+      "tag": "0009_lovely_stature",
+      "breakpoints": true
     }
   ]
 }

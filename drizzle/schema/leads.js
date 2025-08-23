@@ -1,6 +1,6 @@
 const { pgTable, text, varchar, timestamp } = require('drizzle-orm/pg-core');
 const createId = () => import('nanoid').then((mod) => mod.nanoid());
-const { salesMembers } = require('./salesMember'); // add
+const { salesMembers } = require('./salesMembers');
 
 const leads = pgTable('leads', {
   id: text('id').primaryKey().$default(createId).notNull(),

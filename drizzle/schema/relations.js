@@ -2,7 +2,7 @@ const { relations } = require('drizzle-orm');
 const { leads } = require('./leads');
 const { leadSimilarUsers } = require('./leadSimilarUsers');
 const { meetingTranscripts } = require('./meetingTranscripts');
-const { salesMembers } = require('./salesMember');
+const { salesMembers } = require('./salesMembers');
 
 const leadsRelations = relations(leads, ({ many, one }) => ({
   meetingTranscripts: many(meetingTranscripts),

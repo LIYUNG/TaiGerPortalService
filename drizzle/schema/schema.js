@@ -7,7 +7,7 @@ const {
   leadSimilarUsersRelations
 } = require('./relations');
 const { leadSimilarUsers } = require('./leadSimilarUsers');
-const { salesMembers } = require('./salesMember');
+const { salesMembers } = require('./salesMembers');
 
 module.exports = {
   leads,

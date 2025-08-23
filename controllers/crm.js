@@ -125,15 +125,19 @@ const getLeads = asyncHandler(async (req, res) => {
       intendedStartTime: leads.intendedStartTime,
       intendedProgramLevel: leads.intendedProgramLevel,
       intendedDirection: leads.intendedDirection,
-      salesUserId: leads.salesUserId,
-      salesLabel: salesMembers.label,
-      meetingCount: sql`COUNT(${meetingTranscripts.id})`.mapWith(Number),
+      salesMember: {
+        userId: salesMembers.userId,
+        label: salesMembers.label
+      },
+      meetingCount: sql`(
+        SELECT COUNT(${meetingTranscripts.id})
+        FROM ${meetingTranscripts}
+        WHERE ${meetingTranscripts.leadId} = ${leads.id}
+      )`.mapWith(Number),
       createdAt: leads.createdAt
     })
     .from(leads)
-    .leftJoin(meetingTranscripts, eq(leads.id, meetingTranscripts.leadId))
     .leftJoin(salesMembers, eq(leads.salesUserId, salesMembers.userId))
-    .groupBy(leads.id, salesMembers.userId)
     .orderBy(desc(leads.createdAt));
   res.status(200).send({ success: true, data: leadsRecords });
 });
@@ -150,6 +154,12 @@ const getLead = asyncHandler(async (req, res) => {
   const leadRecord = await postgresDb.query.leads.findFirst({
     where: eq(leads.id, leadId),
     with: {
+      salesMember: {
+        columns: {
+          userId: true,
+          label: true
+        }
+      },
       meetingTranscripts: {
         orderBy: desc(meetingTranscripts.date),
         columns: {

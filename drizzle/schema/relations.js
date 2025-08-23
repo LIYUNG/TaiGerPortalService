@@ -8,7 +8,7 @@ const leadsRelations = relations(leads, ({ many, one }) => ({
   meetingTranscripts: many(meetingTranscripts),
   leadSimilarUsers: many(leadSimilarUsers),
   salesMember: one(salesMembers, {
-    fields: [leads.salesMemberUserId],
+    fields: [leads.salesUserId],
     references: [salesMembers.userId]
   })
 }));

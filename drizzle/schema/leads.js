@@ -74,6 +74,7 @@ const leads = pgTable('leads', {
     () => salesMembers.userId,
     { onDelete: 'set null' }
   ),
+  salesNote: text('sales_note'),
 
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()

@@ -280,7 +280,7 @@ const saveProfileFilePath = asyncHandler(async (req, res, next) => {
 
 const updateVPDPayment = asyncHandler(async (req, res, next) => {
   const {
-    params: { studentId, program_id },
+    params: { studentId, programId },
     body: { isPaid }
   } = req;
 
@@ -290,7 +290,7 @@ const updateVPDPayment = asyncHandler(async (req, res, next) => {
     .populate('programId');
 
   const app = applications.find(
-    (application) => application.programId._id.toString() === program_id
+    (application) => application.programId._id.toString() === programId
   );
   if (!app) {
     logger.error('updateVPDPayment: Invalid program id!');
@@ -303,7 +303,7 @@ const updateVPDPayment = asyncHandler(async (req, res, next) => {
   await app.save();
 
   const updatedApplication = applications.find(
-    (application) => application.programId._id.toString() === program_id
+    (application) => application.programId._id.toString() === programId
   );
 
   res.status(201).send({ success: true, data: updatedApplication });
@@ -313,7 +313,7 @@ const updateVPDPayment = asyncHandler(async (req, res, next) => {
 
 const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
   const {
-    params: { studentId, program_id }
+    params: { studentId, programId }
   } = req;
 
   const applications = await req.db
@@ -322,7 +322,7 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
     .populate('programId');
 
   const app = applications.find(
-    (application) => application.programId._id.toString() === program_id
+    (application) => application.programId._id.toString() === programId
   );
   if (!app) {
     logger.error('updateVPDFileNecessity: Invalid program id!');
@@ -339,7 +339,7 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
   await app.save();
 
   const updatedApplication = applications.find(
-    (application) => application.programId._id.toString() === program_id
+    (application) => application.programId._id.toString() === programId
   );
 
   res.status(201).send({ success: true, data: updatedApplication });

@@ -28,6 +28,7 @@ const {
 } = require('../middlewares/chatMultitenantFilter');
 const { logAccess } = require('../utils/log/log');
 const { MessagesChatUpload } = require('../middlewares/file-upload');
+const { validateStudentId } = require('../common/validation');
 
 const router = Router();
 
@@ -61,6 +62,7 @@ router
 router
   .route('/:studentId/:communication_messageId/:ignoreMessageState/ignore')
   .put(
+    validateStudentId,
     filter_archiv_user,
     postMessagesImageRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
@@ -73,6 +75,7 @@ router
 router
   .route('/:studentId/:messageId')
   .put(
+    validateStudentId,
     filter_archiv_user,
     postMessagesImageRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
@@ -82,6 +85,7 @@ router
     logAccess
   )
   .delete(
+    validateStudentId,
     filter_archiv_user,
     postMessagesImageRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
@@ -94,6 +98,7 @@ router
 router
   .route('/:studentId')
   .post(
+    validateStudentId,
     filter_archiv_user,
     postMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
@@ -104,6 +109,7 @@ router
     logAccess
   )
   .get(
+    validateStudentId,
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,
@@ -115,6 +121,7 @@ router
 router
   .route('/:studentId/chat/:fileName')
   .get(
+    validateStudentId,
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,
@@ -126,6 +133,7 @@ router
 router
   .route('/:studentId/pages/:pageNumber')
   .get(
+    validateStudentId,
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,

@@ -29,6 +29,7 @@ const {
   permission_canModifyProgramList_filter
 } = require('../middlewares/permission-filter');
 const getProgramFilter = require('../middlewares/getProgramFilter');
+const { validateProgramId } = require('../common/validation');
 
 const router = Router();
 
@@ -68,6 +69,7 @@ router
 router
   .route('/:programId')
   .get(
+    validateProgramId,
     filter_archiv_user,
     GetProgramRateLimiter,
     permit(
@@ -82,6 +84,7 @@ router
     getProgram
   )
   .put(
+    validateProgramId,
     filter_archiv_user,
     UpdateProgramRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.External),
@@ -89,6 +92,7 @@ router
     updateProgram
   )
   .delete(
+    validateProgramId,
     DeleteProgramRateLimiter,
     permit(Role.Admin),
     permission_canModifyProgramList_filter,
@@ -98,12 +102,14 @@ router
 router
   .route('/:programId/change-requests')
   .get(
+    validateProgramId,
     filter_archiv_user,
     GetProgramRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.External),
     getProgramChangeRequests
   )
   .post(
+    validateProgramId,
     filter_archiv_user,
     PostProgramRateLimiter,
     permit(

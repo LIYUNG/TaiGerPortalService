@@ -43,6 +43,7 @@ const {
 } = require('../controllers/account');
 const { localAuth } = require('../middlewares/auth');
 const { logAccess } = require('../utils/log/log');
+const { validateStudentId } = require('../common/validation');
 
 const router = Router();
 
@@ -84,6 +85,7 @@ router
 router
   .route('/applications/result/v2/:studentId/:programId/:admission')
   .post(
+    validateStudentId,
     filter_archiv_user,
     GeneralPUTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
@@ -97,6 +99,7 @@ router
 router
   .route('/applications/result/:studentId/:applicationId/:programId/:result')
   .post(
+    validateStudentId,
     filter_archiv_user,
     GeneralPUTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
@@ -148,6 +151,7 @@ router
 router
   .route('/survey/university/:studentId')
   .post(
+    validateStudentId,
     filter_archiv_user,
     updatePersonalInformationRateLimiter,
     permit(
@@ -167,6 +171,7 @@ router
 router
   .route('/survey/language/:studentId')
   .post(
+    validateStudentId,
     filter_archiv_user,
     updatePersonalInformationRateLimiter,
     permit(
@@ -186,6 +191,7 @@ router
 router
   .route('/survey/preferences/:studentId')
   .post(
+    validateStudentId,
     filter_archiv_user,
     updatePersonalInformationRateLimiter,
     permit(

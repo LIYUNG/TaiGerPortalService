@@ -49,7 +49,10 @@ const {
 } = require('../middlewares/permission-filter');
 const { logAccess } = require('../utils/log/log');
 const { auditLog } = require('../utils/log/auditLog');
-const { validateStudentId } = require('../common/validation');
+const {
+  validateStudentId,
+  validateProgramId
+} = require('../common/validation');
 
 const router = Router();
 
@@ -184,8 +187,9 @@ router
   );
 
 router
-  .route('/:studentId/vpd/:program_id/payments')
+  .route('/:studentId/vpd/:programId/payments')
   .post(
+    validateProgramId,
     filter_archiv_user,
     GeneralPUTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent),
@@ -198,34 +202,37 @@ router
   );
 
 router
-  .route('/:studentId/vpd/:program_id/:fileType')
+  .route('/:studentId/vpd/:programId/:fileType')
   .put(
+    validateProgramId,
+    validateStudentId,
     filter_archiv_user,
     GeneralPUTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
     permission_canAccessStudentDatabase_filter,
-    validateStudentId,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     updateVPDFileNecessity,
     logAccess
   )
   .get(
+    validateProgramId,
+    validateStudentId,
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
     permission_canAccessStudentDatabase_filter,
-    validateStudentId,
     multitenant_filter,
     downloadVPDFile,
     logAccess
   )
   .post(
+    validateProgramId,
+    validateStudentId,
     filter_archiv_user,
     GeneralPOSTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
     permission_canAccessStudentDatabase_filter,
-    validateStudentId,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     VPDfileUpload,
@@ -233,6 +240,8 @@ router
     logAccess
   )
   .delete(
+    validateProgramId,
+    validateStudentId,
     filter_archiv_user,
     GeneralDELETERequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
@@ -246,11 +255,11 @@ router
 router
   .route('/:studentId/files/:file_key')
   .get(
+    validateStudentId,
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
     permission_canAccessStudentDatabase_filter,
-    validateStudentId,
     multitenant_filter,
     downloadProfileFileURL,
     logAccess
@@ -259,11 +268,11 @@ router
 router
   .route('/:studentId/files/:category')
   .post(
+    validateStudentId,
     filter_archiv_user,
     GeneralPOSTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
     permission_canAccessStudentDatabase_filter,
-    validateStudentId,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     ProfilefileUpload,
@@ -271,11 +280,11 @@ router
     logAccess
   )
   .delete(
+    validateStudentId,
     filter_archiv_user,
     GeneralDELETERequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
     permission_canAccessStudentDatabase_filter,
-    validateStudentId,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     deleteProfileFile,
@@ -285,11 +294,11 @@ router
 router
   .route('/:studentId/:category/status')
   .post(
+    validateStudentId,
     filter_archiv_user,
     GeneralPOSTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent),
     permission_canAccessStudentDatabase_filter,
-    validateStudentId,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     updateProfileDocumentStatus,

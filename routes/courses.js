@@ -25,6 +25,7 @@ const {
   deleteMyCourse
 } = require('../controllers/course');
 const { logAccess } = require('../utils/log/log');
+const { validateStudentId } = require('../common/validation');
 
 const router = Router();
 
@@ -44,18 +45,21 @@ router.route('/transcript/test').get(
 router
   .route('/:studentId')
   .put(
+    validateStudentId,
     GeneralPUTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Student, Role.Guest),
     multitenant_filter,
     putMycourses
   )
   .get(
+    validateStudentId,
     GeneralGETRequestRateLimiter,
     prohibit(Role.Guest),
     multitenant_filter,
     getMycourses
   )
   .delete(
+    validateStudentId,
     GeneralDELETERequestRateLimiter,
     prohibit(Role.Guest),
     multitenant_filter,
@@ -66,6 +70,7 @@ router
 router
   .route('/transcript-test/:studentId/:category/:language')
   .post(
+    validateStudentId,
     filter_archiv_user,
     TranscriptAnalyserRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),

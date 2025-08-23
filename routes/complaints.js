@@ -25,6 +25,7 @@ const {
   complaintTicketMultitenant_filter
 } = require('../middlewares/multitenant-filter');
 const { MessagesTicketUpload } = require('../middlewares/file-upload');
+const { validateStudentId } = require('../common/validation');
 // const {
 //   permission_canModifyComplaintList_filter
 // } = require('../middlewares/permission-filter');
@@ -95,6 +96,7 @@ router
 router
   .route('/:studentId/:ticketId/:fileKey')
   .get(
+    validateStudentId,
     filter_archiv_user,
     UpdateComplaintRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
@@ -106,6 +108,7 @@ router
 router
   .route('/new-message/:ticketId/:studentId')
   .post(
+    validateStudentId,
     filter_archiv_user,
     UpdateComplaintRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),

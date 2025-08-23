@@ -13,6 +13,7 @@ const {
   permission_canAccessStudentDatabase_filter
 } = require('../middlewares/permission-filter');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
+const { validateStudentId } = require('../common/validation');
 
 const router = Router();
 router.use(protect);
@@ -30,6 +31,7 @@ router
 router
   .route('/:studentId/admission/:fileName')
   .get(
+    validateStudentId,
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),

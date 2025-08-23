@@ -380,12 +380,8 @@
           "name": "meeting_transcripts_lead_id_leads_id_fk",
           "tableFrom": "meeting_transcripts",
           "tableTo": "leads",
-          "columnsFrom": [
-            "lead_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["lead_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -469,12 +465,8 @@
           "name": "lead_similar_users_lead_id_leads_id_fk",
           "tableFrom": "lead_similar_users",
           "tableTo": "leads",
-          "columnsFrom": [
-            "lead_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["lead_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -482,10 +474,7 @@
       "compositePrimaryKeys": {
         "lead_similar_users_pk": {
           "name": "lead_similar_users_pk",
-          "columns": [
-            "lead_id",
-            "mongo_id"
-          ]
+          "columns": ["lead_id", "mongo_id"]
         }
       },
       "uniqueConstraints": {},

@@ -24,6 +24,7 @@ const {
   InnerTaigerMultitenantFilter
 } = require('../middlewares/InnerTaigerMultitenantFilter');
 const { logAccess } = require('../utils/log/log');
+const { validateStudentId } = require('../common/validation');
 
 const router = Router();
 
@@ -44,6 +45,7 @@ router
   );
 
 router.route('/student/:studentId/:application_id').put(
+  validateStudentId,
   getMessagesRateLimiter,
   permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor), // TODO: Add multitenant_filter?
   multitenant_filter,
@@ -62,11 +64,13 @@ router
 router
   .route('/student/:studentId')
   .get(
+    validateStudentId,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     getStudentApplications
   )
   .put(
+    validateStudentId,
     // TODO: not implemented yet (UI dependent!)
     filter_archiv_user,
     GeneralPUTRequestRateLimiter,
@@ -77,6 +81,7 @@ router
     logAccess
   )
   .post(
+    validateStudentId,
     filter_archiv_user,
     postMessagesImageRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),

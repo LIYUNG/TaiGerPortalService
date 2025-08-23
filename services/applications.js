@@ -70,10 +70,6 @@ const ApplicationService = {
     const applications = await req.db
       .model('Application')
       .find(filter)
-      .populate(
-        'programId',
-        'school program_name degree semester lang application_deadline application_start'
-      )
       .populate({
         path: 'studentId',
         populate: {
@@ -81,6 +77,10 @@ const ApplicationService = {
           select: 'firstname lastname email'
         }
       })
+      .populate(
+        'programId',
+        'school program_name degree semester lang application_deadline application_start'
+      )
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
     return applications;

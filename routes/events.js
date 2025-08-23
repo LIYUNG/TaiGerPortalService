@@ -22,6 +22,7 @@ const {
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
 const { event_multitenant_filter } = require('../middlewares/event-filter');
 const { logAccess } = require('../utils/log/log');
+const { validateStudentId } = require('../common/validation');
 // const handleError = require('../utils/eventErrors');
 const router = Router();
 
@@ -64,6 +65,7 @@ router
 router
   .route('/:studentId/show')
   .get(
+    validateStudentId,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     showEvent,

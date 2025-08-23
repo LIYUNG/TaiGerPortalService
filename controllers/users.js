@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const generator = require('generate-password');
 const { Role } = require('@taiger-common/core');
 const mongoose = require('mongoose');
-
+const { is_TaiGer_Admin } = require('@taiger-common/core');
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const {
@@ -156,7 +156,7 @@ const updateUser = asyncHandler(async (req, res) => {
   } = req;
   const fields = _.pick(req.body, ['email', 'role']);
   // TODO: check if email in use already and if role is valid
-  if (fields.role === Role.Admin) {
+  if (is_TaiGer_Admin(fields)) {
     logger.warn(`updateUser: User role is changed to ${fields.role}`);
     throw new ErrorResponse(
       409,

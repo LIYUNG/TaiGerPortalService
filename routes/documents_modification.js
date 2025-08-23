@@ -7,7 +7,6 @@ const {
   postMessagesImageRateLimiter,
   GeneralPOSTRequestRateLimiter,
   SetStatusMessagesThreadRateLimiter,
-  GeneralPUTRequestRateLimiter,
   GeneralDELETERequestRateLimiter,
   getMessageFileRateLimiter,
   putThreadInputRateLimiter,
@@ -65,6 +64,8 @@ const {
   AssignOutsourcerFilter
 } = require('../middlewares/AssignOutsourcerFilter');
 const { auditLog } = require('../utils/log/auditLog');
+const { validateStudentId } = require('../common/validation');
+
 const router = Router();
 
 router.use(protect);
@@ -129,6 +130,7 @@ router
 router
   .route('/student-threads/:studentId')
   .get(
+    validateStudentId,
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,
@@ -138,6 +140,7 @@ router
 router
   .route('/init/general/:studentId/:document_category')
   .post(
+    validateStudentId,
     filter_archiv_user,
     GeneralPOSTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
@@ -149,6 +152,7 @@ router
 router
   .route('/init/application/:studentId/:program_id/:document_category')
   .post(
+    validateStudentId,
     filter_archiv_user,
     GeneralPOSTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
@@ -195,6 +199,7 @@ router
 router
   .route('/:messagesThreadId/:studentId/origin-author')
   .put(
+    validateStudentId,
     SetStatusMessagesThreadRateLimiter,
     permit(Role.Student),
     multitenant_filter,
@@ -205,6 +210,7 @@ router
 router
   .route('/:messagesThreadId/:studentId')
   .put(
+    validateStudentId,
     filter_archiv_user,
     SetStatusMessagesThreadRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
@@ -214,6 +220,7 @@ router
     auditLog
   )
   .post(
+    validateStudentId,
     filter_archiv_user,
     postMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
@@ -223,6 +230,7 @@ router
     postMessages
   )
   .delete(
+    validateStudentId,
     filter_archiv_user,
     GeneralDELETERequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
@@ -245,6 +253,7 @@ router
 router
   .route('/image/:messagesThreadId/:studentId/:file_name')
   .get(
+    validateStudentId,
     filter_archiv_user,
     postMessagesImageRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
@@ -254,6 +263,7 @@ router
 router
   .route('/image/:messagesThreadId/:studentId')
   .post(
+    validateStudentId,
     filter_archiv_user,
     postMessagesImageRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
@@ -286,6 +296,7 @@ router
 router
   .route('/:studentId/:messagesThreadId/:file_key')
   .get(
+    validateStudentId,
     filter_archiv_user,
     getMessageFileRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
@@ -296,6 +307,7 @@ router
 router
   .route('/:messagesThreadId/:application_id/:studentId')
   .delete(
+    validateStudentId,
     filter_archiv_user,
     GeneralDELETERequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),

@@ -1,5 +1,9 @@
 const { asyncHandler } = require('../middlewares/error-handler');
-const { leads, meetingTranscripts } = require('../drizzle/schema/schema.js');
+const {
+  leads,
+  meetingTranscripts,
+  salesMembers
+} = require('../drizzle/schema/schema.js');
 const { postgresDb } = require('../database');
 const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
 
@@ -294,6 +298,15 @@ const updateMeeting = asyncHandler(async (req, res) => {
   });
 });
 
+const getSalesMembers = asyncHandler(async (req, res) => {
+  const salesMembersList = await postgresDb.select().from(salesMembers);
+
+  res.status(200).send({
+    success: true,
+    data: salesMembersList
+  });
+});
+
 module.exports = {
   getCRMStats,
   getLeads,
@@ -301,5 +314,6 @@ module.exports = {
   updateLead,
   getMeetings,
   getMeeting,
-  updateMeeting
+  updateMeeting,
+  getSalesMembers
 };

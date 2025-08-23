@@ -1,6 +1,6 @@
 const { pgTable, text, varchar, timestamp } = require('drizzle-orm/pg-core');
 const createId = () => import('nanoid').then((mod) => mod.nanoid());
-const { salesMembers } = require('./salesMembers');
+const { salesReps } = require('./salesReps');
 
 const leads = pgTable('leads', {
   id: text('id').primaryKey().$default(createId).notNull(),
@@ -71,7 +71,7 @@ const leads = pgTable('leads', {
 
   // Ownership/assignment
   salesUserId: varchar('sales_user_id', { length: 64 }).references(
-    () => salesMembers.userId,
+    () => salesReps.userId,
     { onDelete: 'set null' }
   ),
   salesNote: text('sales_note'),

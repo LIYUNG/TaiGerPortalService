@@ -2,16 +2,16 @@ const { relations } = require('drizzle-orm');
 const { leads } = require('./leads');
 const { leadSimilarUsers } = require('./leadSimilarUsers');
 const { meetingTranscripts } = require('./meetingTranscripts');
-const { salesMembers } = require('./salesMembers');
+const { salesReps } = require('./salesReps');
 const { deals } = require('./deals');
 
 const leadsRelations = relations(leads, ({ many, one }) => ({
   meetingTranscripts: many(meetingTranscripts),
   leadSimilarUsers: many(leadSimilarUsers),
   deals: many(deals),
-  salesMember: one(salesMembers, {
+  salesRep: one(salesReps, {
     fields: [leads.salesUserId],
-    references: [salesMembers.userId]
+    references: [salesReps.userId]
   })
 }));
 
@@ -20,9 +20,9 @@ const dealsRelations = relations(deals, ({ one }) => ({
     fields: [deals.leadId],
     references: [leads.id]
   }),
-  salesMember: one(salesMembers, {
+  salesRep: one(salesReps, {
     fields: [deals.salesUserId],
-    references: [salesMembers.userId]
+    references: [salesReps.userId]
   })
 }));
 

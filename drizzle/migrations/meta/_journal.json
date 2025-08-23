@@ -71,6 +71,13 @@
       "when": 1755972654134,
       "tag": "0009_lovely_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1755985935142,
+      "tag": "0010_mysterious_harpoon",
+      "breakpoints": true
     }
   ]
 }

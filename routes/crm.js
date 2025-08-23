@@ -16,7 +16,7 @@ const {
   getMeetings,
   getMeeting,
   updateMeeting,
-  getSalesMembers,
+  getSalesReps,
   getDeals,
   createDeal
 } = require('../controllers/crm');
@@ -49,8 +49,8 @@ router
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getCRMStats);
 
 router
-  .route('/sales-members')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getSalesMembers);
+  .route('/sales-reps')
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getSalesReps);
 
 router
   .route('/deals')

@@ -2,7 +2,7 @@ const { asyncHandler } = require('../middlewares/error-handler');
 const {
   leads,
   meetingTranscripts,
-  salesMembers,
+  salesReps,
   deals
 } = require('../drizzle/schema/schema.js');
 const { postgresDb } = require('../database');
@@ -126,9 +126,9 @@ const getLeads = asyncHandler(async (req, res) => {
       intendedStartTime: leads.intendedStartTime,
       intendedProgramLevel: leads.intendedProgramLevel,
       intendedDirection: leads.intendedDirection,
-      salesMember: {
-        userId: salesMembers.userId,
-        label: salesMembers.label
+      salesRep: {
+        userId: salesReps.userId,
+        label: salesReps.label
       },
       salesNote: leads.salesNote,
       meetingCount: sql`(
@@ -139,7 +139,7 @@ const getLeads = asyncHandler(async (req, res) => {
       createdAt: leads.createdAt
     })
     .from(leads)
-    .leftJoin(salesMembers, eq(leads.salesUserId, salesMembers.userId))
+    .leftJoin(salesReps, eq(leads.salesUserId, salesReps.userId))
     .orderBy(desc(leads.createdAt));
   res.status(200).send({ success: true, data: leadsRecords });
 });
@@ -156,7 +156,7 @@ const getLead = asyncHandler(async (req, res) => {
   const leadRecord = await postgresDb.query.leads.findFirst({
     where: eq(leads.id, leadId),
     with: {
-      salesMember: {
+      salesRep: {
         columns: {
           userId: true,
           label: true
@@ -321,12 +321,12 @@ const updateMeeting = asyncHandler(async (req, res) => {
   });
 });
 
-const getSalesMembers = asyncHandler(async (req, res) => {
-  const salesMembersList = await postgresDb.select().from(salesMembers);
+const getSalesReps = asyncHandler(async (req, res) => {
+  const salesRepsList = await postgresDb.select().from(salesReps);
 
   res.status(200).send({
     success: true,
-    data: salesMembersList
+    data: salesRepsList
   });
 });
 
@@ -344,11 +344,11 @@ const getDeals = asyncHandler(async (req, res) => {
     .select({
       ...dealDataCols, // includes leadId, salesUserId, status, closedDate, etc.
       leadFullName: leads.fullName,
-      salesLabel: salesMembers.label
+      salesLabel: salesReps.label
     })
     .from(deals)
     .leftJoin(leads, eq(deals.leadId, leads.id))
-    .leftJoin(salesMembers, eq(deals.salesUserId, salesMembers.userId))
+    .leftJoin(salesReps, eq(deals.salesUserId, salesReps.userId))
     .orderBy(desc(deals.closedDate));
 
   res.status(200).send({
@@ -369,12 +369,10 @@ const createDeal = asyncHandler(async (req, res) => {
 
   // leadId and salesUserId are required
   if (!newDeal.leadId || !newDeal.salesUserId) {
-    return res
-      .status(400)
-      .send({
-        success: false,
-        message: 'Lead ID and Sales User ID are required'
-      });
+    return res.status(400).send({
+      success: false,
+      message: 'Lead ID and Sales User ID are required'
+    });
   }
 
   // Insert the new deal into the database
@@ -398,7 +396,7 @@ module.exports = {
   getMeetings,
   getMeeting,
   updateMeeting,
-  getSalesMembers,
+  getSalesReps,
   getDeals,
   createDeal
 };

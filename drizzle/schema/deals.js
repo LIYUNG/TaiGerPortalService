@@ -8,12 +8,12 @@ const {
   timestamp
 } = require('drizzle-orm/pg-core');
 const { leads } = require('./leads');
-const { salesMembers } = require('./salesMembers');
+const { salesReps } = require('./salesReps');
 
 // Notes/assumptions:
 // - Using PostgreSQL types (Drizzle pg-core).
 // - lead_id references leads.id (text), so this column is text and NOT NULL.
-// - sales_user_id references sales_members.user_id (varchar(64)).
+// - sales_user_id references sales_reps.user_id (varchar(64)).
 // - deal_size_ntd uses numeric(12,2) to represent money with 2 decimals.
 // - Timestamps default to now() (no ON UPDATE trigger applied in schema; app can update updated_at).
 
@@ -23,7 +23,7 @@ const deals = pgTable('deals', {
     .notNull()
     .references(() => leads.id),
   salesUserId: varchar('sales_user_id', { length: 64 }).references(
-    () => salesMembers.userId,
+    () => salesReps.userId,
     { onDelete: 'set null' }
   ),
   status: varchar('status', { length: 50 }),

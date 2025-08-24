@@ -15,8 +15,12 @@ const {
   updateLead,
   getMeetings,
   getMeeting,
-  updateMeeting
+  updateMeeting,
+  getSalesReps,
+  getDeals,
+  createDeal
 } = require('../controllers/crm');
+const { fi } = require('@faker-js/faker');
 
 const router = Router();
 
@@ -43,5 +47,14 @@ router
 router
   .route('/stats')
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getCRMStats);
+
+router
+  .route('/sales-reps')
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getSalesReps);
+
+router
+  .route('/deals')
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getDeals)
+  .post(filter_archiv_user, GeneralPUTRequestRateLimiter, createDeal);
 
 module.exports = router;

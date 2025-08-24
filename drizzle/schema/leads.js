@@ -1,5 +1,6 @@
 const { pgTable, text, varchar, timestamp } = require('drizzle-orm/pg-core');
 const createId = () => import('nanoid').then((mod) => mod.nanoid());
+const { salesReps } = require('./salesReps');
 
 const leads = pgTable('leads', {
   id: text('id').primaryKey().$default(createId).notNull(),
@@ -67,6 +68,13 @@ const leads = pgTable('leads', {
   // Motivation
   reasonsToStudyAbroad: text('reasons_to_study_abroad'), // Multi-select string or JSON
   promoCode: text('promo_code'),
+
+  // Ownership/assignment
+  salesUserId: varchar('sales_user_id', { length: 64 }).references(
+    () => salesReps.userId,
+    { onDelete: 'set null' }
+  ),
+  salesNote: text('sales_note'),
 
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()

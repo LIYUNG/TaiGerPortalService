@@ -1,0 +1,1 @@
+ALTER TABLE "deals" RENAME COLUMN "deal_id" TO "id";

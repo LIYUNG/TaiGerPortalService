@@ -1,5 +1,10 @@
 const { asyncHandler } = require('../middlewares/error-handler');
-const { leads, meetingTranscripts } = require('../drizzle/schema/schema.js');
+const {
+  leads,
+  meetingTranscripts,
+  salesReps,
+  deals
+} = require('../drizzle/schema/schema.js');
 const { postgresDb } = require('../database');
 const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
 
@@ -108,8 +113,21 @@ const getCRMStats = asyncHandler(async (req, res) => {
   });
 });
 
-const getLeads = asyncHandler(async (req, res) => {
+const getLeads = asyncHandler(async (_req, res) => {
+  // Use a CTE to pre-aggregate meeting counts per lead, so we don't need to group by salesReps
+  const meetingCounts = postgresDb.$with('meeting_counts').as(
+    postgresDb
+      .select({
+        leadId: meetingTranscripts.leadId,
+        // Alias the raw SQL so it can be referenced as meetingCounts.meetingCount
+        meetingCount: sql`COUNT(*)`.mapWith(Number).as('meetingCount')
+      })
+      .from(meetingTranscripts)
+      .groupBy(meetingTranscripts.leadId)
+  );
+
   const leadsRecords = await postgresDb
+    .with(meetingCounts)
     .select({
       id: leads.id,
       fullName: leads.fullName,
@@ -121,13 +139,21 @@ const getLeads = asyncHandler(async (req, res) => {
       intendedStartTime: leads.intendedStartTime,
       intendedProgramLevel: leads.intendedProgramLevel,
       intendedDirection: leads.intendedDirection,
-      meetingCount: sql`COUNT(${meetingTranscripts.id})`.mapWith(Number),
+      salesRep: {
+        userId: salesReps.userId,
+        label: salesReps.label
+      },
+      salesNote: leads.salesNote,
+      meetingCount: sql`COALESCE(${meetingCounts.meetingCount}, 0)`.mapWith(
+        Number
+      ),
       createdAt: leads.createdAt
     })
     .from(leads)
-    .leftJoin(meetingTranscripts, eq(leads.id, meetingTranscripts.leadId))
-    .groupBy(leads.id)
+    .leftJoin(salesReps, eq(leads.salesUserId, salesReps.userId))
+    .leftJoin(meetingCounts, eq(meetingCounts.leadId, leads.id))
     .orderBy(desc(leads.createdAt));
+
   res.status(200).send({ success: true, data: leadsRecords });
 });
 
@@ -143,6 +169,20 @@ const getLead = asyncHandler(async (req, res) => {
   const leadRecord = await postgresDb.query.leads.findFirst({
     where: eq(leads.id, leadId),
     with: {
+      salesRep: {
+        columns: {
+          userId: true,
+          label: true
+        }
+      },
+      deals: {
+        columns: {
+          status: true,
+          closedDate: true,
+          dealSizeNtd: true,
+          note: true
+        }
+      },
       meetingTranscripts: {
         orderBy: desc(meetingTranscripts.date),
         columns: {
@@ -294,6 +334,73 @@ const updateMeeting = asyncHandler(async (req, res) => {
   });
 });
 
+const getSalesReps = asyncHandler(async (req, res) => {
+  const salesRepsList = await postgresDb.select().from(salesReps);
+
+  res.status(200).send({
+    success: true,
+    data: salesRepsList
+  });
+});
+
+const getDeals = asyncHandler(async (req, res) => {
+  // Select all deal columns except id/createdAt/updatedAt, and populate lead fullName and sales label
+  const dealCols = getTableColumns(deals);
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    ...dealDataCols
+  } = dealCols;
+
+  const dealsList = await postgresDb
+    .select({
+      ...dealDataCols, // includes leadId, salesUserId, status, closedDate, etc.
+      leadFullName: leads.fullName,
+      salesLabel: salesReps.label
+    })
+    .from(deals)
+    .leftJoin(leads, eq(deals.leadId, leads.id))
+    .leftJoin(salesReps, eq(deals.salesUserId, salesReps.userId))
+    .orderBy(desc(deals.closedDate));
+
+  res.status(200).send({
+    success: true,
+    data: dealsList
+  });
+});
+
+const createDeal = asyncHandler(async (req, res) => {
+  const newDeal = req.body;
+
+  // Validate the incoming data
+  if (!newDeal || Object.keys(newDeal).length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Deal data is required' });
+  }
+
+  // leadId and salesUserId are required
+  if (!newDeal.leadId || !newDeal.salesUserId) {
+    return res.status(400).send({
+      success: false,
+      message: 'Lead ID and Sales User ID are required'
+    });
+  }
+
+  // Insert the new deal into the database
+  const createdDeal = await postgresDb
+    .insert(deals)
+    .values(newDeal)
+    .returning();
+
+  res.status(201).send({
+    success: true,
+    message: 'Deal created successfully',
+    data: createdDeal[0]
+  });
+});
+
 module.exports = {
   getCRMStats,
   getLeads,
@@ -301,5 +408,8 @@ module.exports = {
   updateLead,
   getMeetings,
   getMeeting,
-  updateMeeting
+  updateMeeting,
+  getSalesReps,
+  getDeals,
+  createDeal
 };

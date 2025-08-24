@@ -1,0 +1,2 @@
+ALTER TABLE "leads" ADD COLUMN "sales_member_user_id" varchar(64);--> statement-breakpoint
+ALTER TABLE "leads" ADD CONSTRAINT "leads_sales_member_user_id_sales_members_user_id_fk" FOREIGN KEY ("sales_member_user_id") REFERENCES "public"."sales_members"("user_id") ON DELETE set null ON UPDATE no action;

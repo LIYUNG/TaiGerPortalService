@@ -113,8 +113,21 @@ const getCRMStats = asyncHandler(async (req, res) => {
   });
 });
 
-const getLeads = asyncHandler(async (req, res) => {
+const getLeads = asyncHandler(async (_req, res) => {
+  // Use a CTE to pre-aggregate meeting counts per lead, so we don't need to group by salesReps
+  const meetingCounts = postgresDb.$with('meeting_counts').as(
+    postgresDb
+      .select({
+        leadId: meetingTranscripts.leadId,
+        // Alias the raw SQL so it can be referenced as meetingCounts.meetingCount
+        meetingCount: sql`COUNT(*)`.mapWith(Number).as('meetingCount')
+      })
+      .from(meetingTranscripts)
+      .groupBy(meetingTranscripts.leadId)
+  );
+
   const leadsRecords = await postgresDb
+    .with(meetingCounts)
     .select({
       id: leads.id,
       fullName: leads.fullName,
@@ -131,16 +144,16 @@ const getLeads = asyncHandler(async (req, res) => {
         label: salesReps.label
       },
       salesNote: leads.salesNote,
-      meetingCount: sql`(
-        SELECT COUNT(${meetingTranscripts.id})
-        FROM ${meetingTranscripts}
-        WHERE ${meetingTranscripts.leadId} = ${leads.id}
-      )`.mapWith(Number),
+      meetingCount: sql`COALESCE(${meetingCounts.meetingCount}, 0)`.mapWith(
+        Number
+      ),
       createdAt: leads.createdAt
     })
     .from(leads)
     .leftJoin(salesReps, eq(leads.salesUserId, salesReps.userId))
+    .leftJoin(meetingCounts, eq(meetingCounts.leadId, leads.id))
     .orderBy(desc(leads.createdAt));
+
   res.status(200).send({ success: true, data: leadsRecords });
 });
 

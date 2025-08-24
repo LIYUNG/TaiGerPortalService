@@ -47,6 +47,5 @@ module.exports = {
   leadsRelations,
   dealsRelations,
   meetingTranscriptsRelations,
-  leadSimilarUsersRelations,
-  deals
+  leadSimilarUsersRelations
 };

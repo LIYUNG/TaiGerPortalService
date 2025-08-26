@@ -401,6 +401,40 @@ const createDeal = asyncHandler(async (req, res) => {
   });
 });
 
+const updateDeal = asyncHandler(async (req, res) => {
+  const { dealId } = req.params;
+  const updateData = req.body;
+
+  if (!dealId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Deal ID is required' });
+  }
+
+  if (!updateData || Object.keys(updateData).length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Update data is required' });
+  }
+
+  // Perform the update directly
+  const updatedDeal = await postgresDb
+    .update(deals)
+    .set(updateData)
+    .where(eq(deals.id, dealId))
+    .returning();
+
+  if (updatedDeal.length === 0) {
+    return res.status(404).send({ success: false, message: 'Deal not found' });
+  }
+
+  res.status(200).send({
+    success: true,
+    message: 'Deal updated successfully',
+    data: updatedDeal[0]
+  });
+});
+
 module.exports = {
   getCRMStats,
   getLeads,
@@ -411,5 +445,6 @@ module.exports = {
   updateMeeting,
   getSalesReps,
   getDeals,
-  createDeal
+  createDeal,
+  updateDeal
 };

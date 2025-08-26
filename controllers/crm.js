@@ -177,6 +177,7 @@ const getLead = asyncHandler(async (req, res) => {
       },
       deals: {
         columns: {
+          id: true,
           status: true,
           closedDate: true,
           dealSizeNtd: true,

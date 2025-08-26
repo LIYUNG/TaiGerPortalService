@@ -355,6 +355,7 @@ const getDeals = asyncHandler(async (req, res) => {
 
   const dealsList = await postgresDb
     .select({
+      id: deals.id, // Include id for editing
       ...dealDataCols, // includes leadId, salesUserId, status, closedDate, etc.
       leadFullName: leads.fullName,
       salesLabel: salesReps.label

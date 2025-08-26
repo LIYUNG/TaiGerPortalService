@@ -54,9 +54,12 @@ router
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getSalesReps);
 
 router
+  .route('/deals/:dealId')
+  .put(filter_archiv_user, GeneralPUTRequestRateLimiter, updateDeal);
+
+router
   .route('/deals')
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getDeals)
-  .post(filter_archiv_user, GeneralPUTRequestRateLimiter, createDeal)
-  .put(filter_archiv_user, GeneralPUTRequestRateLimiter, updateDeal);
+  .post(filter_archiv_user, GeneralPUTRequestRateLimiter, createDeal);
 
 module.exports = router;

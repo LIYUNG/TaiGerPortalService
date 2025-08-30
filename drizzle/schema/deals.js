@@ -31,7 +31,6 @@ const deals = pgTable('deals', {
     enum: ['initiated', 'sent', 'signed', 'closed', 'canceled']
   }),
 
-  // Status timestamps - automatically set when status changes
   initiatedAt: timestamp('initiated_at'),
   sentAt: timestamp('sent_at'),
   signedAt: timestamp('signed_at'),

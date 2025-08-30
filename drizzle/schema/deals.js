@@ -26,8 +26,18 @@ const deals = pgTable('deals', {
     () => salesReps.userId,
     { onDelete: 'set null' }
   ),
-  status: varchar('status', { length: 50 }),
-  closedDate: date('closed_date'),
+  status: varchar('status', {
+    length: 50,
+    enum: ['initiated', 'sent', 'signed', 'closed', 'canceled']
+  }),
+
+  // Status timestamps - automatically set when status changes
+  initiatedAt: timestamp('initiated_at'),
+  sentAt: timestamp('sent_at'),
+  signedAt: timestamp('signed_at'),
+  closedAt: timestamp('closed_at'),
+  canceledAt: timestamp('canceled_at'),
+
   dealSizeNtd: numeric('deal_size_ntd', { precision: 12, scale: 2 }),
   note: text('note'),
   createdAt: timestamp('created_at').defaultNow(),

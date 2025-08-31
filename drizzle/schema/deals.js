@@ -31,11 +31,12 @@ const deals = pgTable('deals', {
     enum: ['initiated', 'sent', 'signed', 'closed', 'canceled']
   }),
 
-  initiatedAt: timestamp('initiated_at'),
-  sentAt: timestamp('sent_at'),
-  signedAt: timestamp('signed_at'),
-  closedAt: timestamp('closed_at'),
-  canceledAt: timestamp('canceled_at'),
+  closedDate: timestamp('closed_date', { mode: 'string' }),
+  initiatedAt: timestamp('initiated_at', { mode: 'string' }),
+  sentAt: timestamp('sent_at', { mode: 'string' }),
+  signedAt: timestamp('signed_at', { mode: 'string' }),
+  closedAt: timestamp('closed_at', { mode: 'string' }),
+  canceledAt: timestamp('canceled_at', { mode: 'string' }),
 
   dealSizeNtd: numeric('deal_size_ntd', { precision: 12, scale: 2 }),
   note: text('note'),

@@ -22,7 +22,7 @@ const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
 const getCRMStats = asyncHandler(async (req, res) => {
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-  // CTEs extracting year and week from leads.createdAt and meetingTranscripts.date timestamps.
+  // Prepare CTEs
   const leadWeeks = postgresDb.$with('lead_weeks').as(
     postgresDb
       .select({
@@ -44,75 +44,179 @@ const getCRMStats = asyncHandler(async (req, res) => {
         )
       })
       .from(meetingTranscripts)
-      .where(not(eq(meetingTranscripts.isArchived, true))) // moved filter into CTE
+      .where(not(eq(meetingTranscripts.isArchived, true)))
+  );
+  const leadTimes = postgresDb.$with('lead_times').as(
+    postgresDb
+      .select({
+        id: leads.id,
+        first_contact: sql`MIN(${leads.createdAt})`.as('first_contact'),
+        first_meeting:
+          sql`MIN(to_timestamp(${meetingTranscripts.date} / 1000))`.as(
+            'first_meeting'
+          )
+      })
+      .from(leads)
+      .leftJoin(meetingTranscripts, eq(meetingTranscripts.leadId, leads.id))
+      .where(not(eq(meetingTranscripts.isArchived, true)))
+      .groupBy(leads.id)
+  );
+  const leadTimesDeals = postgresDb.$with('lead_times_deals').as(
+    postgresDb
+      .select({
+        leadId: deals.leadId,
+        first_meeting:
+          sql`MIN(to_timestamp(${meetingTranscripts.date} / 1000))`.as(
+            'first_meeting'
+          ),
+        closed_date: sql`MIN(${deals.closedAt})`.as('closed_date')
+      })
+      .from(deals)
+      .leftJoin(meetingTranscripts, eq(deals.leadId, meetingTranscripts.leadId))
+      .where(not(eq(meetingTranscripts.isArchived, true)))
+      .groupBy(deals.leadId)
   );
 
+  // Prepare all promises first
+  const leadsCountByDatePromise = postgresDb
+    .with(leadWeeks)
+    .select({
+      week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
+      count: sql`COUNT(*)`.mapWith(Number),
+      highChanceCount:
+        sql`COUNT(*) FILTER (WHERE close_likelihood = 'high')`.mapWith(Number),
+      convertedCount: sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(
+        Number
+      )
+    })
+    .from(leadWeeks)
+    .groupBy(sql`year, week`)
+    .orderBy(sql`year, week`);
+
+  const meetingCountByDatePromise = postgresDb
+    .with(meetingWeeks)
+    .select({
+      week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
+      count: sql`COUNT(*)`.mapWith(Number)
+    })
+    .from(meetingWeeks)
+    .groupBy(sql`year, week`)
+    .orderBy(sql`year, week`);
+
+  const meetingCountResultPromise = postgresDb
+    .select({
+      totalCount: sql`count(*)`.mapWith(Number),
+      recentCount: sql`count(*) FILTER (WHERE date >= ${sevenDaysAgo})`.mapWith(
+        Number
+      )
+    })
+    .from(meetingTranscripts)
+    .where(not(eq(meetingTranscripts.isArchived, true)));
+
+  const leadCountResultPromise = postgresDb
+    .select({
+      totalCount: sql`count(*)`.mapWith(Number),
+      recentCount: sql`count(*) FILTER (WHERE created_at >= ${new Date(
+        sevenDaysAgo
+      )})`.mapWith(Number),
+      convertedCount: sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(
+        Number
+      )
+    })
+    .from(leads);
+
+  const avgResponseTimeResultPromise = postgresDb
+    .with(leadTimes)
+    .select({
+      avgResponseTimeDays:
+        sql`AVG(EXTRACT(EPOCH FROM (first_meeting - first_contact)) / 86400)`.mapWith(
+          Number
+        )
+    })
+    .from(leadTimes)
+    .where(sql`(first_meeting - first_contact) > interval '0'`);
+
+  const avgSalesCycleResultPromise = postgresDb
+    .with(leadTimesDeals)
+    .select({
+      avgSalesCycle:
+        sql`AVG(EXTRACT(EPOCH FROM (closed_date - first_meeting)) / 86400)`.mapWith(
+          Number
+        )
+    })
+    .from(leadTimesDeals)
+    .where(sql`(closed_date - first_meeting) > interval '0'`);
+
+  const totalLeadsWithMeetingPromise = postgresDb
+    .select({
+      count: sql`COUNT(DISTINCT lead_id)`.mapWith(Number)
+    })
+    .from(meetingTranscripts)
+    .where(sql`lead_id IS NOT NULL AND is_archived = false`);
+
+  const totalLeadsWithFollowUpPromise = postgresDb
+    .select({
+      count: sql`COUNT(*)`.mapWith(Number)
+    })
+    .from(
+      sql`(
+          SELECT lead_id
+          FROM meeting_transcripts
+          WHERE lead_id IS NOT NULL
+            AND is_archived = false
+          GROUP BY lead_id
+          HAVING COUNT(*) > 1
+        ) t`
+    );
+
+  // Await all promises at once
   const [
     leadsCountByDate,
     meetingCountByDate,
     meetingCountResult,
-    leadCountResult
+    leadCountResult,
+    avgResponseTimeResult,
+    avgSalesCycleResult,
+    totalLeadsWithMeeting,
+    totalLeadsWithFollowUp
   ] = await Promise.all([
-    postgresDb
-      .with(leadWeeks)
-      .select({
-        week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
-        count: sql`COUNT(*)`.mapWith(Number),
-        highChanceCount:
-          sql`COUNT(*) FILTER (WHERE close_likelihood = 'high')`.mapWith(
-            Number
-          ),
-        convertedCount:
-          sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(Number)
-      })
-      .from(leadWeeks)
-      .groupBy(sql`year, week`)
-      .orderBy(sql`year, week`),
-    postgresDb
-      .with(meetingWeeks)
-      .select({
-        week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
-        count: sql`COUNT(*)`.mapWith(Number)
-      })
-      .from(meetingWeeks)
-      .groupBy(sql`year, week`)
-      .orderBy(sql`year, week`),
-    postgresDb
-      .select({
-        totalCount: sql`count(*)`.mapWith(Number),
-        recentCount:
-          sql`count(*) FILTER (WHERE date >= ${sevenDaysAgo})`.mapWith(Number)
-      })
-      .from(meetingTranscripts)
-      .where(not(eq(meetingTranscripts.isArchived, true))),
-
-    postgresDb
-      .select({
-        totalCount: sql`count(*)`.mapWith(Number),
-        recentCount: sql`count(*) FILTER (WHERE created_at >= ${new Date(
-          sevenDaysAgo
-        )})`.mapWith(Number),
-        convertedCount:
-          sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(Number)
-      })
-      .from(leads)
+    leadsCountByDatePromise,
+    meetingCountByDatePromise,
+    meetingCountResultPromise,
+    leadCountResultPromise,
+    avgResponseTimeResultPromise,
+    avgSalesCycleResultPromise,
+    totalLeadsWithMeetingPromise,
+    totalLeadsWithFollowUpPromise
   ]);
 
   res.status(200).send({
     success: true,
     data: {
-      totalLeadCount: leadCountResult[0].totalCount,
-      recentLeadCount: leadCountResult[0].recentCount,
-      convertedLeadCount: leadCountResult[0].convertedCount,
-      totalMeetingCount: meetingCountResult[0].totalCount,
-      recentMeetingCount: meetingCountResult[0].recentCount,
-
-      leadsCountByDate: leadsCountByDate,
-      meetingCountByDate: meetingCountByDate
+      totalLeadCount: leadCountResult[0]?.totalCount,
+      recentLeadCount: leadCountResult[0]?.recentCount,
+      convertedLeadCount: leadCountResult[0]?.convertedCount,
+      totalMeetingCount: meetingCountResult[0]?.totalCount,
+      recentMeetingCount: meetingCountResult[0]?.recentCount,
+      avgResponseTimeDays:
+        avgResponseTimeResult &&
+        avgResponseTimeResult[0] &&
+        avgResponseTimeResult[0].avgResponseTimeDays != null
+          ? Math.round(avgResponseTimeResult[0].avgResponseTimeDays * 100) / 100
+          : null,
+      avgSalesCycleDays:
+        avgSalesCycleResult &&
+        avgSalesCycleResult[0] &&
+        avgSalesCycleResult[0].avgSalesCycle != null
+          ? Math.round(avgSalesCycleResult[0].avgSalesCycle * 100) / 100
+          : null,
+      leadsCountByDate,
+      meetingCountByDate,
+      totalLeadsWithMeeting: totalLeadsWithMeeting[0]?.count ?? 0,
+      totalLeadsWithFollowUp: totalLeadsWithFollowUp[0]?.count ?? 0
     }
   });
 });
-
 const getLeads = asyncHandler(async (_req, res) => {
   // Use a CTE to pre-aggregate meeting counts per lead, so we don't need to group by salesReps
   const meetingCounts = postgresDb.$with('meeting_counts').as(

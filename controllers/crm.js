@@ -147,6 +147,28 @@ const getCRMStats = asyncHandler(async (req, res) => {
     .from(leadTimesDeals)
     .where(sql`(closed_date - first_meeting) > interval '0'`);
 
+  const totalLeadsWithMeetingPromise = postgresDb
+    .select({
+      count: sql`COUNT(DISTINCT lead_id)`.mapWith(Number)
+    })
+    .from(meetingTranscripts)
+    .where(sql`lead_id IS NOT NULL AND is_archived = false`);
+
+  const totalLeadsWithFollowUpPromise = postgresDb
+    .select({
+      count: sql`COUNT(*)`.mapWith(Number)
+    })
+    .from(
+      sql`(
+          SELECT lead_id
+          FROM meeting_transcripts
+          WHERE lead_id IS NOT NULL
+            AND is_archived = false
+          GROUP BY lead_id
+          HAVING COUNT(*) > 1
+        ) t`
+    );
+
   // Await all promises at once
   const [
     leadsCountByDate,
@@ -154,14 +176,18 @@ const getCRMStats = asyncHandler(async (req, res) => {
     meetingCountResult,
     leadCountResult,
     avgResponseTimeResult,
-    avgSalesCycleResult
+    avgSalesCycleResult,
+    totalLeadsWithMeeting,
+    totalLeadsWithFollowUp
   ] = await Promise.all([
     leadsCountByDatePromise,
     meetingCountByDatePromise,
     meetingCountResultPromise,
     leadCountResultPromise,
     avgResponseTimeResultPromise,
-    avgSalesCycleResultPromise
+    avgSalesCycleResultPromise,
+    totalLeadsWithMeetingPromise,
+    totalLeadsWithFollowUpPromise
   ]);
 
   res.status(200).send({
@@ -185,7 +211,9 @@ const getCRMStats = asyncHandler(async (req, res) => {
           ? Math.round(avgSalesCycleResult[0].avgSalesCycle * 100) / 100
           : null,
       leadsCountByDate,
-      meetingCountByDate
+      meetingCountByDate,
+      totalLeadsWithMeeting: totalLeadsWithMeeting[0]?.count ?? 0,
+      totalLeadsWithFollowUp: totalLeadsWithFollowUp[0]?.count ?? 0
     }
   });
 });

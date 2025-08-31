@@ -175,15 +175,8 @@ const getLead = asyncHandler(async (req, res) => {
           label: true
         }
       },
-      deals: {
-        columns: {
-          id: true,
-          status: true,
-          closedDate: true,
-          dealSizeNtd: true,
-          note: true
-        }
-      },
+      // Fetch all deal columns
+      deals: true,
       meetingTranscripts: {
         orderBy: desc(meetingTranscripts.date),
         columns: {
@@ -357,7 +350,7 @@ const getDeals = asyncHandler(async (req, res) => {
   const dealsList = await postgresDb
     .select({
       id: deals.id, // Include id for editing
-      ...dealDataCols, // includes leadId, salesUserId, status, closedDate, etc.
+      ...dealDataCols, // includes leadId, salesUserId, status, timestamp, etc.
       leadFullName: leads.fullName,
       salesLabel: salesReps.label
     })

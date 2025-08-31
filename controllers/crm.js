@@ -175,12 +175,15 @@ const getLead = asyncHandler(async (req, res) => {
           label: true
         }
       },
+      // Fetch all deal columns and include the sales rep label
       deals: {
-        columns: {
-          status: true,
-          closedDate: true,
-          dealSizeNtd: true,
-          note: true
+        with: {
+          salesRep: {
+            columns: {
+              userId: true,
+              label: true
+            }
+          }
         }
       },
       meetingTranscripts: {
@@ -355,20 +358,39 @@ const getDeals = asyncHandler(async (req, res) => {
 
   const dealsList = await postgresDb
     .select({
-      ...dealDataCols, // includes leadId, salesUserId, status, closedDate, etc.
+      id: deals.id, // Include id for editing
+      ...dealDataCols, // includes leadId, salesUserId, status, timestamp, etc.
       leadFullName: leads.fullName,
       salesLabel: salesReps.label
     })
     .from(deals)
     .leftJoin(leads, eq(deals.leadId, leads.id))
     .leftJoin(salesReps, eq(deals.salesUserId, salesReps.userId))
-    .orderBy(desc(deals.closedDate));
+    .orderBy(desc(deals.closedAt));
 
   res.status(200).send({
     success: true,
     data: dealsList
   });
 });
+
+const stampDealStatusTimestamps = (deal) => {
+  if (!deal || typeof deal.status !== 'string') return deal;
+  const now = new Date();
+  const status = deal.status;
+  const tsKeyByStatus = {
+    initiated: 'initiatedAt',
+    sent: 'sentAt',
+    signed: 'signedAt',
+    closed: 'closedAt',
+    canceled: 'canceledAt'
+  };
+  const key = tsKeyByStatus[status];
+  if (key && deal[key] === null) {
+    deal[key] = now;
+  }
+  return deal;
+};
 
 const createDeal = asyncHandler(async (req, res) => {
   const newDeal = req.body;
@@ -388,6 +410,11 @@ const createDeal = asyncHandler(async (req, res) => {
     });
   }
 
+  // Default status to 'initiated' if missing
+  if (!newDeal.status) newDeal.status = 'initiated';
+  // Stamp status-specific timestamp if not provided
+  stampDealStatusTimestamps(newDeal);
+
   // Insert the new deal into the database
   const createdDeal = await postgresDb
     .insert(deals)
@@ -401,6 +428,43 @@ const createDeal = asyncHandler(async (req, res) => {
   });
 });
 
+const updateDeal = asyncHandler(async (req, res) => {
+  const { dealId } = req.params;
+  const updateData = req.body;
+
+  if (!dealId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Deal ID is required' });
+  }
+
+  if (!updateData || Object.keys(updateData).length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Update data is required' });
+  }
+
+  // Stamp status-specific timestamp when status changes (if not already set in payload)
+  stampDealStatusTimestamps(updateData);
+
+  // Perform the update directly
+  const updatedDeal = await postgresDb
+    .update(deals)
+    .set(updateData)
+    .where(eq(deals.id, dealId))
+    .returning();
+
+  if (updatedDeal.length === 0) {
+    return res.status(404).send({ success: false, message: 'Deal not found' });
+  }
+
+  res.status(200).send({
+    success: true,
+    message: 'Deal updated successfully',
+    data: updatedDeal[0]
+  });
+});
+
 module.exports = {
   getCRMStats,
   getLeads,
@@ -411,5 +475,6 @@ module.exports = {
   updateMeeting,
   getSalesReps,
   getDeals,
-  createDeal
+  createDeal,
+  updateDeal
 };

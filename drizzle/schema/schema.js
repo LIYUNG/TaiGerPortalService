@@ -9,7 +9,7 @@ const {
 } = require('./relations');
 const { leadSimilarUsers } = require('./leadSimilarUsers');
 const { salesReps } = require('./salesReps');
-const { deals } = require('./deals');
+const { deals, dealStatusEnum } = require('./deals');
 
 module.exports = {
   leads,
@@ -17,6 +17,7 @@ module.exports = {
   studentEmbeddings,
   leadSimilarUsers,
   deals,
+  dealStatusEnum,
   leadsRelations,
   dealsRelations,
   meetingTranscriptsRelations,

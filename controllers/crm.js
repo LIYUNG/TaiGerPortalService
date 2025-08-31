@@ -490,7 +490,7 @@ const stampDealStatusTimestamps = (deal) => {
     canceled: 'canceledAt'
   };
   const key = tsKeyByStatus[status];
-  if (key && deal[key] === null) {
+  if (key) {
     deal[key] = now;
   }
   return deal;

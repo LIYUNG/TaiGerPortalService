@@ -364,13 +364,33 @@ const getDeals = asyncHandler(async (req, res) => {
     .from(deals)
     .leftJoin(leads, eq(deals.leadId, leads.id))
     .leftJoin(salesReps, eq(deals.salesUserId, salesReps.userId))
-    .orderBy(desc(deals.closedDate));
+    .orderBy(desc(deals.closedAt));
 
   res.status(200).send({
     success: true,
     data: dealsList
   });
 });
+
+const stampDealStatusTimestamps = (deal) => {
+  if (!deal || typeof deal.status !== 'string') return deal;
+  const now = new Date();
+  const status = deal.status;
+  const tsKeyByStatus = {
+    initiated: 'initiatedAt',
+    sent: 'sentAt',
+    signed: 'signedAt',
+    closed: 'closedAt',
+    canceled: 'canceledAt'
+  };
+  const key = tsKeyByStatus[status];
+  if (key && deal[key] == null) {
+    deal[key] = now;
+  }
+  // If moving to closed and a closedDate wasn't explicitly provided, do not force it here;
+  // frontend enforces closedDate via modal. Backend only stamps closedAt.
+  return deal;
+};
 
 const createDeal = asyncHandler(async (req, res) => {
   const newDeal = req.body;
@@ -389,6 +409,11 @@ const createDeal = asyncHandler(async (req, res) => {
       message: 'Lead ID and Sales User ID are required'
     });
   }
+
+  // Default status to 'initiated' if missing
+  if (!newDeal.status) newDeal.status = 'initiated';
+  // Stamp status-specific timestamp if not provided
+  stampDealStatusTimestamps(newDeal);
 
   // Insert the new deal into the database
   const createdDeal = await postgresDb
@@ -418,6 +443,9 @@ const updateDeal = asyncHandler(async (req, res) => {
       .status(400)
       .send({ success: false, message: 'Update data is required' });
   }
+
+  // Stamp status-specific timestamp when status changes (if not already set in payload)
+  stampDealStatusTimestamps(updateData);
 
   // Perform the update directly
   const updatedDeal = await postgresDb

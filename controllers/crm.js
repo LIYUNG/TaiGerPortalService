@@ -47,11 +47,29 @@ const getCRMStats = asyncHandler(async (req, res) => {
       .where(not(eq(meetingTranscripts.isArchived, true))) // moved filter into CTE
   );
 
+  // CTE to compute first contact and first meeting per lead, used to calculate avg response time
+  const leadTimes = postgresDb.$with('lead_times').as(
+    postgresDb
+      .select({
+        id: leads.id,
+        first_contact: sql`MIN(${leads.createdAt})`.as('first_contact'),
+        first_meeting:
+          sql`MIN(to_timestamp(${meetingTranscripts.date} / 1000))`.as(
+            'first_meeting'
+          )
+      })
+      .from(leads)
+      .leftJoin(meetingTranscripts, eq(meetingTranscripts.leadId, leads.id))
+      .where(not(eq(meetingTranscripts.isArchived, true)))
+      .groupBy(leads.id)
+  );
+
   const [
     leadsCountByDate,
     meetingCountByDate,
     meetingCountResult,
-    leadCountResult
+    leadCountResult,
+    avgResponseTimeResult
   ] = await Promise.all([
     postgresDb
       .with(leadWeeks)
@@ -95,7 +113,18 @@ const getCRMStats = asyncHandler(async (req, res) => {
         convertedCount:
           sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(Number)
       })
-      .from(leads)
+      .from(leads),
+    // Calculate average response time (in days) between first contact and first meeting
+    postgresDb
+      .with(leadTimes)
+      .select({
+        avgResponseTimeDays:
+          sql`AVG(EXTRACT(EPOCH FROM (first_meeting - first_contact)) / 86400)`.mapWith(
+            Number
+          )
+      })
+      .from(leadTimes)
+      .where(sql`(first_meeting - first_contact) > interval '0'`)
   ]);
 
   res.status(200).send({
@@ -106,6 +135,12 @@ const getCRMStats = asyncHandler(async (req, res) => {
       convertedLeadCount: leadCountResult[0].convertedCount,
       totalMeetingCount: meetingCountResult[0].totalCount,
       recentMeetingCount: meetingCountResult[0].recentCount,
+      avgResponseTimeDays:
+        avgResponseTimeResult &&
+        avgResponseTimeResult[0] &&
+        avgResponseTimeResult[0].avgResponseTimeDays != null
+          ? Math.round(avgResponseTimeResult[0].avgResponseTimeDays * 100) / 100
+          : null,
 
       leadsCountByDate: leadsCountByDate,
       meetingCountByDate: meetingCountByDate

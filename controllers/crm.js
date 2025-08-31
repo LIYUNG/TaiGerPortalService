@@ -175,8 +175,17 @@ const getLead = asyncHandler(async (req, res) => {
           label: true
         }
       },
-      // Fetch all deal columns
-      deals: true,
+      // Fetch all deal columns and include the sales rep label
+      deals: {
+        with: {
+          salesRep: {
+            columns: {
+              userId: true,
+              label: true
+            }
+          }
+        }
+      },
       meetingTranscripts: {
         orderBy: desc(meetingTranscripts.date),
         columns: {

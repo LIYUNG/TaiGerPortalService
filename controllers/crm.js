@@ -64,12 +64,30 @@ const getCRMStats = asyncHandler(async (req, res) => {
       .groupBy(leads.id)
   );
 
+  // CTE to compute first meeting and closed date per deal's lead, used to calculate average sales cycle
+  const leadTimesDeals = postgresDb.$with('lead_times_deals').as(
+    postgresDb
+      .select({
+        leadId: deals.leadId,
+        first_meeting:
+          sql`MIN(to_timestamp(${meetingTranscripts.date} / 1000))`.as(
+            'first_meeting'
+          ),
+        closed_date: sql`MIN(${deals.closedAt})`.as('closed_date')
+      })
+      .from(deals)
+      .leftJoin(meetingTranscripts, eq(deals.leadId, meetingTranscripts.leadId))
+      .where(not(eq(meetingTranscripts.isArchived, true)))
+      .groupBy(deals.leadId)
+  );
+
   const [
     leadsCountByDate,
     meetingCountByDate,
     meetingCountResult,
     leadCountResult,
-    avgResponseTimeResult
+    avgResponseTimeResult,
+    avgSalesCycleResult
   ] = await Promise.all([
     postgresDb
       .with(leadWeeks)
@@ -124,7 +142,18 @@ const getCRMStats = asyncHandler(async (req, res) => {
           )
       })
       .from(leadTimes)
-      .where(sql`(first_meeting - first_contact) > interval '0'`)
+      .where(sql`(first_meeting - first_contact) > interval '0'`),
+    // Calculate average sales cycle (in days) between first meeting and deal close
+    postgresDb
+      .with(leadTimesDeals)
+      .select({
+        avgSalesCycle:
+          sql`AVG(EXTRACT(EPOCH FROM (closed_date - first_meeting)) / 86400)`.mapWith(
+            Number
+          )
+      })
+      .from(leadTimesDeals)
+      .where(sql`(closed_date - first_meeting) > interval '0'`)
   ]);
 
   res.status(200).send({
@@ -140,6 +169,12 @@ const getCRMStats = asyncHandler(async (req, res) => {
         avgResponseTimeResult[0] &&
         avgResponseTimeResult[0].avgResponseTimeDays != null
           ? Math.round(avgResponseTimeResult[0].avgResponseTimeDays * 100) / 100
+          : null,
+      avgSalesCycle:
+        avgSalesCycleResult &&
+        avgSalesCycleResult[0] &&
+        avgSalesCycleResult[0].avgSalesCycle != null
+          ? Math.round(avgSalesCycleResult[0].avgSalesCycle * 100) / 100
           : null,
 
       leadsCountByDate: leadsCountByDate,

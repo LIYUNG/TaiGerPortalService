@@ -170,7 +170,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
         avgResponseTimeResult[0].avgResponseTimeDays != null
           ? Math.round(avgResponseTimeResult[0].avgResponseTimeDays * 100) / 100
           : null,
-      avgSalesCycle:
+      avgSalesCycleDays:
         avgSalesCycleResult &&
         avgSalesCycleResult[0] &&
         avgSalesCycleResult[0].avgSalesCycle != null

@@ -389,8 +389,6 @@ const stampDealStatusTimestamps = (deal) => {
   if (key && deal[key] === null) {
     deal[key] = now;
   }
-  // If moving to closed and a closedDate wasn't explicitly provided, do not force it here;
-  // frontend enforces closedDate via modal. Backend only stamps closedAt.
   return deal;
 };
 

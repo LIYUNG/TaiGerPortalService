@@ -1,1 +1,0 @@
-ALTER TABLE "leads" ADD COLUMN "sales_note" text;

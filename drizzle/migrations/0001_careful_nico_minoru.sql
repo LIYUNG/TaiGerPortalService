@@ -1,1 +1,0 @@
-ALTER TABLE "leads" ADD COLUMN "close_likelihood" varchar(50);

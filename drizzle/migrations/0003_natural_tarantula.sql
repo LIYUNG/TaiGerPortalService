@@ -1,1 +1,0 @@
-ALTER TABLE "lead_similar_users" ADD COLUMN "created_at" timestamp DEFAULT now() NOT NULL;

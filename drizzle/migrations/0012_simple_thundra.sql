@@ -1,1 +1,0 @@
-ALTER TABLE "deals" ADD COLUMN "closed_date" timestamp;

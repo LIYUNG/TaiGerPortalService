@@ -1,1 +1,0 @@
-CREATE TYPE "public"."deal_status" AS ENUM('initiated', 'sent', 'signed', 'closed', 'canceled');

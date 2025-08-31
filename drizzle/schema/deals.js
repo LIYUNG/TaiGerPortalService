@@ -5,7 +5,8 @@ const {
   varchar,
   date,
   numeric,
-  timestamp
+  timestamp,
+  pgEnum
 } = require('drizzle-orm/pg-core');
 const { leads } = require('./leads');
 const { salesReps } = require('./salesReps');
@@ -17,6 +18,15 @@ const { salesReps } = require('./salesReps');
 // - deal_size_ntd uses numeric(12,2) to represent money with 2 decimals.
 // - Timestamps default to now() (no ON UPDATE trigger applied in schema; app can update updated_at).
 
+// Postgres enum for deal status
+const dealStatusEnum = pgEnum('deal_status', [
+  'initiated',
+  'sent',
+  'signed',
+  'closed',
+  'canceled'
+]);
+
 const deals = pgTable('deals', {
   id: serial('id').primaryKey(),
   leadId: text('lead_id')
@@ -26,10 +36,7 @@ const deals = pgTable('deals', {
     () => salesReps.userId,
     { onDelete: 'set null' }
   ),
-  status: varchar('status', {
-    length: 50,
-    enum: ['initiated', 'sent', 'signed', 'closed', 'canceled']
-  }),
+  status: dealStatusEnum('status'),
 
   closedDate: timestamp('closed_date', { mode: 'string' }),
   initiatedAt: timestamp('initiated_at', { mode: 'string' }),
@@ -44,4 +51,4 @@ const deals = pgTable('deals', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
-module.exports = { deals };
+module.exports = { deals, dealStatusEnum };

@@ -7,6 +7,8 @@ const {
 } = require('../drizzle/schema/schema.js');
 const { postgresDb } = require('../database');
 const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
+const logger = require('../services/logger');
+const { one_day_cache } = require('../cache/node-cache');
 
 /**
  * Retrieves CRM statistics including weekly counts and total/recent counts for leads and meetings.
@@ -20,8 +22,16 @@ const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
  * @returns {Promise<void>} Sends a JSON response with CRM statistics.
  */
 const getCRMStats = asyncHandler(async (req, res) => {
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const cacheKey = 'CRM-stats';
+  const cachedValue = one_day_cache.get(cacheKey);
 
+  if (!!cachedValue) {
+    logger.info('getCRMStats - cache hit');
+    res.status(200).send(cachedValue);
+    return;
+  }
+
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   // Prepare CTEs
   const leadWeeks = postgresDb.$with('lead_weeks').as(
     postgresDb
@@ -190,7 +200,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
     totalLeadsWithFollowUpPromise
   ]);
 
-  res.status(200).send({
+  const returnBody = {
     success: true,
     data: {
       totalLeadCount: leadCountResult[0]?.totalCount,
@@ -215,7 +225,10 @@ const getCRMStats = asyncHandler(async (req, res) => {
       totalLeadsWithMeeting: totalLeadsWithMeeting[0]?.count ?? 0,
       totalLeadsWithFollowUp: totalLeadsWithFollowUp[0]?.count ?? 0
     }
-  });
+  };
+
+  const success = one_day_cache.set(cacheKey, returnBody);
+  res.status(200).send(returnBody);
 });
 const getLeads = asyncHandler(async (_req, res) => {
   // Use a CTE to pre-aggregate meeting counts per lead, so we don't need to group by salesReps

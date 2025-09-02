@@ -6,7 +6,7 @@ const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const { one_month_cache } = require('../cache/node-cache');
 const logger = require('../services/logger');
-const { API_ORIGIN, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
+const { ORIGIN, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
 const { getS3Object } = require('../aws/s3');
 
 const valid_categories = [
@@ -164,7 +164,7 @@ const createInternalDocumentation = asyncHandler(async (req, res) => {
 
 const uploadDocImage = asyncHandler(async (req, res) => {
   const filePath = req.file.key.split('/');
-  let imageurl = new URL(`/api/docs/file/${filePath[1]}`, API_ORIGIN).href;
+  let imageurl = new URL(`/api/docs/file/${filePath[1]}`, ORIGIN).href;
   imageurl = imageurl.replace(/\\/g, '/');
   // TODO: to overwrite cache image, pdf, docs, file here.
   return res.send({ success: true, data: imageurl });
@@ -200,10 +200,8 @@ const getDocFile = asyncHandler(async (req, res) => {
 const uploadDocDocs = asyncHandler(async (req, res) => {
   const filePath = req.file.key.split('/');
   const fileName = filePath[1];
-  let docUrl = new URL(
-    `/api/docs/file/${encodeURIComponent(fileName)}`,
-    API_ORIGIN
-  ).href;
+  let docUrl = new URL(`/api/docs/file/${encodeURIComponent(fileName)}`, ORIGIN)
+    .href;
   docUrl = docUrl.replace(/\\/g, '/');
   let extname = path.extname(fileName);
   extname = extname.replace('.', '');

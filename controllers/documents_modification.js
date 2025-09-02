@@ -44,7 +44,7 @@ const {
   informAgentEssayAssignedEmail
 } = require('../services/email');
 
-const { AWS_S3_BUCKET_NAME, API_ORIGIN } = require('../config');
+const { AWS_S3_BUCKET_NAME, ORIGIN } = require('../config');
 const { deleteS3Objects } = require('../aws/s3');
 const {
   createApplicationThread,
@@ -660,7 +660,7 @@ const postImageInThread = asyncHandler(async (req, res) => {
   const fileName = filePath[3];
   let imageurl = new URL(
     `/api/document-threads/image/${messagesThreadId}/${studentId}/${fileName}`,
-    API_ORIGIN
+    ORIGIN
   ).href;
   imageurl = imageurl.replace(/\\/g, '/');
   return res.send({ success: true, data: imageurl });

@@ -26,7 +26,6 @@ module.exports = {
   HTTPS_CERT: env('HTTPS_CERT', './cert/selfsigned.pem'),
   HTTPS_CA: env('HTTPS_CA', './cert/selfsigned.pem'),
   ORIGIN: env('ORIGIN', 'http://localhost:3006'),
-  API_ORIGIN: env('API_ORIGIN', 'http://localhost:3000/api'),
   TENANT_ID: env('TENANT_ID', 'TaiGer'),
   // TODO: remove some of the default values
   MONGODB_URI: env('MONGODB_URI', 'mongodb://localhost:27017/TaiGer'),

@@ -203,6 +203,11 @@ const getProgramApplicationCounts = asyncHandler(async (req) => {
   }
 });
 
+const getAdmissionsOverview = asyncHandler(async (req, res) => {
+  const result = await getApplicationCountsResultCount(req);
+  res.status(200).send({ success: true, data: result });
+});
+
 // TODO: can flatten the result, so that frontend can render in table directly.
 const getAdmissions = asyncHandler(async (req, res) => {
   try {
@@ -213,8 +218,7 @@ const getAdmissions = asyncHandler(async (req, res) => {
       .withAdmission(admission)
       .build();
 
-    const [test, result, applications] = await Promise.all([
-      getApplicationCountsResultCount(req),
+    const [result, applications] = await Promise.all([
       getProgramApplicationCounts(req),
       ApplicationService.getApplicationsWithStudentDetails(req, filter)
     ]);
@@ -279,6 +283,7 @@ const getAdmissionsYear = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getAdmissionsOverview,
   getApplicationCountsResultCount,
   getAdmissions,
   getAdmissionLetter,

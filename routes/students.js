@@ -51,7 +51,8 @@ const { logAccess } = require('../utils/log/log');
 const { auditLog } = require('../utils/log/auditLog');
 const {
   validateStudentId,
-  validateProgramId
+  validateProgramId,
+  validateApplicationId
 } = require('../common/validation');
 
 const router = Router();
@@ -177,24 +178,24 @@ router
 router
   .route('/:studentId/attributes')
   .post(
+    validateStudentId,
     filter_archiv_user,
     GeneralPOSTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent),
     InnerTaigerMultitenantFilter,
-    validateStudentId,
     assignAttributesToStudent,
     logAccess
   );
 
 router
-  .route('/:studentId/vpd/:programId/payments')
+  .route('/:studentId/vpd/:applicationId/payments')
   .post(
-    validateProgramId,
+    validateStudentId,
+    validateApplicationId,
     filter_archiv_user,
     GeneralPUTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent),
     permission_canAccessStudentDatabase_filter,
-    validateStudentId,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     updateVPDPayment,
@@ -202,9 +203,9 @@ router
   );
 
 router
-  .route('/:studentId/vpd/:programId/:fileType')
+  .route('/:studentId/vpd/:applicationId/:fileType')
   .put(
-    validateProgramId,
+    validateApplicationId,
     validateStudentId,
     filter_archiv_user,
     GeneralPUTRequestRateLimiter,
@@ -216,7 +217,7 @@ router
     logAccess
   )
   .get(
-    validateProgramId,
+    validateApplicationId,
     validateStudentId,
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
@@ -227,7 +228,7 @@ router
     logAccess
   )
   .post(
-    validateProgramId,
+    validateApplicationId,
     validateStudentId,
     filter_archiv_user,
     GeneralPOSTRequestRateLimiter,
@@ -240,7 +241,7 @@ router
     logAccess
   )
   .delete(
-    validateProgramId,
+    validateApplicationId,
     validateStudentId,
     filter_archiv_user,
     GeneralDELETERequestRateLimiter,

@@ -68,6 +68,13 @@ const validateProgramId = [
   validationCallBack
 ];
 
+const validateApplicationId = [
+  param('applicationId')
+    .isMongoId()
+    .withMessage('Invalid application ID format. It must be a valid ObjectId.'),
+  validationCallBack
+];
+
 module.exports = {
   fieldsValidation,
   makeOptional,
@@ -79,6 +86,7 @@ module.exports = {
   checkToken,
   validateCourseId,
   validateStudentId,
-  validateProgramId
+  validateProgramId,
+  validateApplicationId
   // checkObjectID
 };

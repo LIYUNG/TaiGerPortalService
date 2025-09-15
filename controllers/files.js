@@ -351,7 +351,7 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
 const saveVPDFilePath = asyncHandler(async (req, res, next) => {
   const {
     user,
-    params: { studentId, program_id, fileType }
+    params: { studentId, programId, fileType }
   } = req;
 
   const applications = await req.db
@@ -360,7 +360,7 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
     .populate('programId');
 
   const app = applications.find(
-    (application) => application.programId._id.toString() === program_id
+    (application) => application.programId._id.toString() === programId
   );
   if (!app) {
     app.uni_assist.status = DocumentStatusType.Uploaded;
@@ -368,7 +368,7 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
     app.uni_assist.vpd_file_path = req.file.key;
     await app.save();
     const updatedApplication = applications.find(
-      (application) => application.programId._id.toString() === program_id
+      (application) => application.programId._id.toString() === programId
     );
     res.status(201).send({ success: true, data: updatedApplication });
 
@@ -387,7 +387,7 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
 
   await app.save();
   const updatedApplication = applications.find(
-    (application) => application.programId._id.toString() === program_id
+    (application) => application.programId._id.toString() === programId
   );
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
   res.status(201).send({ success: true, data: updatedApplication });
@@ -440,7 +440,7 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
 const downloadVPDFile = asyncHandler(async (req, res, next) => {
   const {
     user,
-    params: { studentId, program_id, fileType }
+    params: { studentId, programId, fileType }
   } = req;
 
   // AWS S3
@@ -451,7 +451,7 @@ const downloadVPDFile = asyncHandler(async (req, res, next) => {
     .populate('programId');
 
   const app = applications.find(
-    (application) => application.programId._id.toString() === program_id
+    (application) => application.programId._id.toString() === programId
   );
   if (!app) {
     logger.error('downloadVPDFile: Invalid app name!');
@@ -975,7 +975,7 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
 });
 
 const deleteVPDFile = asyncHandler(async (req, res, next) => {
-  const { studentId, program_id, fileType } = req.params;
+  const { studentId, programId, fileType } = req.params;
 
   const applications = await req.db
     .model('Application')
@@ -983,7 +983,7 @@ const deleteVPDFile = asyncHandler(async (req, res, next) => {
     .populate('programId');
 
   const app = applications.find(
-    (application) => application.programId._id.toString() === program_id
+    (application) => application.programId._id.toString() === programId
   );
   if (!app) {
     logger.error('deleteVPDFile: Invalid applications name');
@@ -1033,7 +1033,7 @@ const deleteVPDFile = asyncHandler(async (req, res, next) => {
     app.uni_assist.updatedAt = new Date();
     await app.save();
     const updatedApplication = applications.find(
-      (application) => application.programId._id.toString() === program_id
+      (application) => application.programId._id.toString() === programId
     );
     res.status(200).send({ success: true, data: updatedApplication });
     next();

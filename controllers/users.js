@@ -54,6 +54,78 @@ const hashToken = (token) =>
 //   }
 // });
 
+const getUsersCount = asyncHandler(async (req, res) => {
+  const result = await req.db.model('User').aggregate([
+    // Group all users together and count by role
+    {
+      $group: {
+        _id: null,
+        totalUsers: { $sum: 1 },
+        adminCount: {
+          $sum: {
+            $cond: [{ $eq: ['$role', 'Admin'] }, 1, 0]
+          }
+        },
+        agentCount: {
+          $sum: {
+            $cond: [{ $eq: ['$role', 'Agent'] }, 1, 0]
+          }
+        },
+        editorCount: {
+          $sum: {
+            $cond: [{ $eq: ['$role', 'Editor'] }, 1, 0]
+          }
+        },
+        studentCount: {
+          $sum: {
+            $cond: [{ $eq: ['$role', 'Student'] }, 1, 0]
+          }
+        },
+        guestCount: {
+          $sum: {
+            $cond: [{ $eq: ['$role', 'Guest'] }, 1, 0]
+          }
+        },
+        externalCount: {
+          $sum: {
+            $cond: [{ $eq: ['$role', 'External'] }, 1, 0]
+          }
+        }
+      }
+    },
+
+    // Project the counts as a single object
+    {
+      $project: {
+        _id: 0,
+        totalUsers: 1,
+        adminCount: 1,
+        agentCount: 1,
+        editorCount: 1,
+        studentCount: 1,
+        guestCount: 1,
+        externalCount: 1
+      }
+    }
+  ]);
+
+  // Extract the first (and only) result object
+  const countData =
+    result.length > 0
+      ? result[0]
+      : {
+          totalUsers: 0,
+          adminCount: 0,
+          agentCount: 0,
+          editorCount: 0,
+          studentCount: 0,
+          guestCount: 0,
+          externalCount: 0
+        };
+
+  res.status(200).send({ success: true, data: countData });
+});
+
 const addUser = asyncHandler(async (req, res, next) => {
   await fieldsValidation(
     checkUserFirstname,
@@ -316,6 +388,7 @@ const deleteUser = asyncHandler(async (req, res) => {
 
 module.exports = {
   // UserS3GarbageCollector,
+  getUsersCount,
   addUser,
   getUsers,
   getUser,

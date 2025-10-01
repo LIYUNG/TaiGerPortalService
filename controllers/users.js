@@ -139,6 +139,7 @@ const addUser = asyncHandler(async (req, res, next) => {
     firstname,
     lastname,
     email,
+    role,
     applying_program_count
   } = req.body;
   const { user } = req;
@@ -150,17 +151,22 @@ const addUser = asyncHandler(async (req, res, next) => {
       'An account with this email address already exists'
     );
   }
+
+  if (role === Role.Admin) {
+    throw new ErrorResponse(409, 'Admin role is not allowed to be added');
+  }
   // TODO: check if email address exists in the world!
   const password = generator.generate({
     length: 10,
     numbers: true
   });
-  const newUser = await req.db.model('Student').create({
+  const newUser = await req.db.model('User').create({
     firstname_chinese,
     lastname_chinese,
     firstname,
     lastname,
     email,
+    role,
     applying_program_count,
     password
   });
@@ -298,7 +304,10 @@ const deleteUser = asyncHandler(async (req, res) => {
   const user_deleting = await req.db.model('User').findById(user_id);
 
   // Delete Admin
-  if (user_deleting.role === Role.Admin) {
+  if (
+    user_deleting.role === Role.Admin ||
+    user_deleting.role === Role.External
+  ) {
     await req.db.model('User').findByIdAndDelete(user_id);
   }
 

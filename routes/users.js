@@ -2,7 +2,6 @@ const { Router } = require('express');
 const { Role } = require('@taiger-common/core');
 
 const {
-  GeneralPUTRequestRateLimiter,
   GeneralPOSTRequestRateLimiter,
   GeneralDELETERequestRateLimiter,
   GeneralGETRequestRateLimiter

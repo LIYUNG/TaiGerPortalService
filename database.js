@@ -7,7 +7,8 @@ const {
   Editor,
   Student,
   Admin,
-  Guest
+  Guest,
+  External
 } = require('./models/User');
 const postgresSchema = require('./drizzle/schema/schema.js');
 const { EventSchema } = require('./models/Event');
@@ -120,6 +121,7 @@ const connectToDatabase = (tenant, uri = null) => {
     connection.model('User').discriminator('Editor', Editor.schema);
     connection.model('User').discriminator('Student', Student.schema);
     connection.model('User').discriminator('Admin', Admin.schema);
+    connection.model('User').discriminator('External', External.schema);
     connection.model('User').discriminator('Guest', Guest.schema);
 
     connection.model('ProgramChangeRequest', programChangeRequestSchema);

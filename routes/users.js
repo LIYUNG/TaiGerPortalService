@@ -2,7 +2,6 @@ const { Router } = require('express');
 const { Role } = require('@taiger-common/core');
 
 const {
-  GeneralPUTRequestRateLimiter,
   GeneralPOSTRequestRateLimiter,
   GeneralDELETERequestRateLimiter,
   GeneralGETRequestRateLimiter
@@ -16,7 +15,8 @@ const {
   addUser,
   updateUser,
   deleteUser,
-  getUser
+  getUser,
+  getUsersCount
 } = require('../controllers/users');
 const { auditLog } = require('../utils/log/auditLog');
 const {
@@ -42,6 +42,15 @@ router
     permission_canAddUser_filter,
     addUser,
     auditLog
+  );
+
+router
+  .route('/count')
+  .get(
+    filter_archiv_user,
+    permit(Role.Admin, Role.Agent, Role.Editor),
+    GeneralGETRequestRateLimiter,
+    getUsersCount
   );
 
 router

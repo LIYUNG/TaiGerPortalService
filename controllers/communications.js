@@ -223,7 +223,7 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
     user.role !== Role.Agent &&
     user.role !== Role.Editor
   ) {
-    logger.error(`getMyMessages: not ${TENANT_SHORT_NAME} user!`);
+    logger.error(`getUnreadNumberMessages: no ${TENANT_SHORT_NAME} user!`);
     throw new ErrorResponse(401, `Invalid ${TENANT_SHORT_NAME} user`);
   }
   const permissions = await getPermission(req, user);
@@ -361,6 +361,7 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
           lastname: 1,
           firstname_chinese: 1,
           lastname_chinese: 1,
+          pictureUrl: 1,
           role: 1,
           attributes: 1,
           latestCommunication: {

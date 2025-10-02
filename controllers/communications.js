@@ -414,6 +414,7 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
           firstname_chinese: 1,
           lastname_chinese: 1,
           attributes: 1,
+          pictureUrl: 1,
           role: 1,
           latestCommunication: {
             $arrayElemAt: ['$communications', -1]

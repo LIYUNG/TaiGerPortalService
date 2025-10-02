@@ -227,59 +227,22 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
     throw new ErrorResponse(401, `Invalid ${TENANT_SHORT_NAME} user`);
   }
   const permissions = await getPermission(req, user);
-  if (
-    is_TaiGer_Admin(user) ||
-    (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
-  ) {
-    const students = await req.db
-      .model('Student')
-      .find({
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .select('firstname lastname role pictureUrl')
-      .lean();
-    // Get only the last communication
-    const student_ids = students.map((stud) => stud._id);
-    const studentsWithCommunications = await req.db.model('Student').aggregate([
-      {
-        $lookup: {
-          from: 'communications',
-          localField: '_id',
-          foreignField: 'student_id',
-          as: 'communications'
-        }
-      },
-      {
-        $project: {
-          firstname: 1,
-          lastname: 1,
-          firstname_chinese: 1,
-          lastname_chinese: 1,
-          role: 1,
-          latestCommunication: {
-            $arrayElemAt: ['$communications', -1]
-          }
-        }
-      },
-      {
-        $match: {
-          'latestCommunication.student_id': { $in: student_ids },
-          'latestCommunication.readBy': { $nin: [user._id] }
-        }
-      }
-    ]);
 
-    return res.status(200).send({
-      success: true,
-      data: studentsWithCommunications.length
-    });
+  const filter = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
+  if (
+    !(
+      is_TaiGer_Admin(user) ||
+      (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
+    )
+  ) {
+    filter.agents = user._id.toString();
   }
+
   const students = await req.db
     .model('Student')
-    .find({
-      agents: user._id.toString(),
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
+    .find(filter)
     .select('firstname lastname role pictureUrl')
     .lean();
   const student_ids = students.map((stud) => stud._id);

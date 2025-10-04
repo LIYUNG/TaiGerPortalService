@@ -139,7 +139,7 @@ const addUser = asyncHandler(async (req, res, next) => {
     firstname,
     lastname,
     email,
-    role,
+    role = 'Student',
     applying_program_count
   } = req.body;
   const { user } = req;
@@ -160,7 +160,9 @@ const addUser = asyncHandler(async (req, res, next) => {
     length: 10,
     numbers: true
   });
-  const newUser = await req.db.model('User').create({
+
+  const collectionName = role === Role.Student ? 'Student' : 'User';
+  const newUser = await req.db.model(collectionName).create({
     firstname_chinese,
     lastname_chinese,
     firstname,

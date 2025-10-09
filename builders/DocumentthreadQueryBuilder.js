@@ -23,6 +23,7 @@ class DocumentthreadQueryBuilder extends BaseQueryBuilder {
     ) {
       this.query.outsourced_user_id = { $exists: true, $size: 0 };
     }
+    return this;
   }
 
   withHasMessages(hasMessages) {

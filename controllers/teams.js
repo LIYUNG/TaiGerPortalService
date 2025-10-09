@@ -911,7 +911,8 @@ const getTasksOverview = asyncHandler(async (req, res, next) => {
     DocumentThreadService.getAllStudentsThreads(req, {
       isFinalVersion: false,
       file_type: 'Essay',
-      outsourced_user_id: { $exists: true, $size: 0 }
+      outsourced_user_id: { $exists: true, $size: 0 },
+      messages: { $exists: true, $not: { $size: 0 } }
     })
   ]);
 

@@ -64,8 +64,26 @@ const ApplicationService = require('../services/applications');
 const DocumentthreadQueryBuilder = require('../builders/DocumentthreadQueryBuilder');
 
 const getActiveThreads = asyncHandler(async (req, res) => {
-  const { query } = req;
-  const threads = await DocumentThreadService.getAllStudentsThreads(req, query);
+  const {
+    file_type,
+    isFinalVersion,
+    hasOutsourcedUserId,
+    hasMessages,
+    outsourcedUserId
+  } = req.query;
+
+  const { filter } = new DocumentthreadQueryBuilder()
+    .withFileType(file_type)
+    .withIsFinalVersion(isFinalVersion)
+    .withHasOutsourcedUserId(hasOutsourcedUserId)
+    .withHasMessages(hasMessages)
+    .withOutsourcedUserId(outsourcedUserId)
+    .build();
+
+  const threads = await DocumentThreadService.getAllStudentsThreads(
+    req,
+    filter
+  );
 
   res.status(200).send({ success: true, data: threads });
 });

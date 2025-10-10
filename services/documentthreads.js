@@ -78,7 +78,9 @@ const DocumentThreadService = {
               (o_user_id) => o_user_id._id.toString() === userId
             ))) &&
         (thread?.application_id?.decided === 'O' || !thread?.application_id) &&
-        thread.file_type !== 'Interview'
+        thread.file_type !== 'Interview' &&
+        (thread.student_id?.archiv === false ||
+          thread.student_id?.archiv === undefined)
     );
 
     return filteredThreads;

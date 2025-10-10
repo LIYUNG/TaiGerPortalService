@@ -369,7 +369,7 @@ const deleteAMessageInComplaint = asyncHandler(async (req, res) => {
     logger.error('deleteAMessageInComplaint : Invalid message thread id');
     throw new ErrorResponse(404, 'Thread not found');
   }
-  if (ticket.status === 'closed') {
+  if (ticket.status === 'resolved') {
     logger.error('deleteAMessageInComplaint : ticket is closed.');
     throw new ErrorResponse(423, 'Ticket is closed.');
   }

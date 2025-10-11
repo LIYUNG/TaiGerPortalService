@@ -310,19 +310,11 @@ const getInterview = asyncHandler(async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
-    const questionsNumPromise = req.db
-      .model('InterviewSurveyResponse')
-      .countDocuments({ 'interview_id.program_id': interview.program_id?._id });
-
-    const [interviewAuditLog, questionsNum] = await Promise.all([
-      interviewAuditLogPromise,
-      questionsNumPromise
-    ]);
+    const [interviewAuditLog] = await Promise.all([interviewAuditLogPromise]);
 
     res.status(200).send({
       success: true,
       data: interview,
-      questionsNum,
       interviewAuditLog
     });
   } catch (e) {

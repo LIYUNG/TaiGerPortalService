@@ -186,7 +186,7 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
   let newfile = [];
   if (req.files) {
     for (let i = 0; i < req.files.length; i += 1) {
-      const fileName = req.files[i].key[2];
+      const fileName = req.files[i].key.split('/')[2];
       newfile.push({
         name: fileName,
         path: req.files[i].key

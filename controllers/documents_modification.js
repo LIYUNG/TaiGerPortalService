@@ -90,9 +90,10 @@ const getActiveThreads = asyncHandler(async (req, res) => {
 
 const getMyStudentsThreads = asyncHandler(async (req, res) => {
   const { userId } = req.params;
-  const { isFinalVersion } = req.query;
+  const { isFinalVersion, fileType } = req.query;
   const { filter: documentThreadFilter } = new DocumentthreadQueryBuilder()
     .withIsFinalVersion(isFinalVersion)
+    .withFileType(fileType)
     .build();
   const threads = await DocumentThreadService.getStudentsThreadsByTaiGerUserId(
     req,

@@ -18,7 +18,8 @@ const {
   deleteProgram,
   getDistinctSchoolsAttributes,
   updateBatchSchoolAttributes,
-  getProgramsOverview
+  getProgramsOverview,
+  getSchoolsDistribution
 } = require('../controllers/programs');
 const {
   getProgramChangeRequests,
@@ -43,6 +44,15 @@ router
     GetProgramListRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.External),
     getProgramsOverview
+  );
+
+router
+  .route('/schools-distribution')
+  .get(
+    filter_archiv_user,
+    GetProgramListRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.External),
+    getSchoolsDistribution
   );
 
 router

@@ -109,22 +109,83 @@ const updateBatchSchoolAttributes = async (req, res) => {
  * @access Protected - Admin, Manager, Agent, Editor, External
  * @returns {Object} Overview object with aggregated program statistics
  */
+/**
+ * Get all schools with program counts
+ * @route GET /api/programs/schools-distribution
+ * @access Protected - Admin, Manager, Agent, Editor, External
+ * @returns {Object} List of all schools with program counts
+ */
+const getSchoolsDistribution = asyncHandler(async (req, res) => {
+  try {
+    const schools = await req.db.model('Program').aggregate([
+      { $match: { isArchiv: { $ne: true } } },
+      {
+        $group: {
+          _id: {
+            school: '$school',
+            country: '$country',
+            city: '$city'
+          },
+          programCount: { $sum: 1 }
+        }
+      },
+      { $sort: { programCount: -1 } },
+      {
+        $project: {
+          _id: 0,
+          school: '$_id.school',
+          country: '$_id.country',
+          city: '$_id.city',
+          programCount: 1
+        }
+      }
+    ]);
+
+    logger.info(`Retrieved ${schools.length} schools for distribution`);
+    return res.send({
+      success: true,
+      data: schools.filter((item) => item.school)
+    });
+  } catch (error) {
+    logger.error('Error fetching schools distribution:', error);
+    throw error;
+  }
+});
+
 const getProgramsOverview = asyncHandler(async (req, res) => {
   try {
     // Run multiple aggregations in parallel for better performance
     const [
       totalCount,
+      totalSchools,
       byCountry,
       byDegree,
       byLanguage,
       bySubject,
       bySchoolType,
       topSchools,
+      topContributors,
       recentlyUpdated,
       applicationStats
     ] = await Promise.all([
       // Total count of active programs
       req.db.model('Program').countDocuments({ isArchiv: { $ne: true } }),
+
+      // Total count of distinct schools
+      req.db
+        .model('Program')
+        .aggregate([
+          { $match: { isArchiv: { $ne: true } } },
+          {
+            $group: {
+              _id: '$school'
+            }
+          },
+          {
+            $count: 'totalSchools'
+          }
+        ])
+        .then((result) => result[0]?.totalSchools || 0),
 
       // Programs by country
       req.db.model('Program').aggregate([
@@ -260,6 +321,33 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
         }
       ]),
 
+      // Top 10 contributors by update count
+      req.db.model('Program').aggregate([
+        {
+          $match: {
+            isArchiv: { $ne: true },
+            whoupdated: { $exists: true, $nin: [null, ''] }
+          }
+        },
+        {
+          $group: {
+            _id: '$whoupdated',
+            updateCount: { $sum: 1 },
+            lastUpdate: { $max: '$updatedAt' }
+          }
+        },
+        { $sort: { updateCount: -1 } },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 0,
+            contributor: '$_id',
+            updateCount: 1,
+            lastUpdate: 1
+          }
+        }
+      ]),
+
       // Recently updated programs (last 30 days)
       req.db
         .model('Program')
@@ -340,12 +428,14 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
 
     const overview = {
       totalPrograms: totalCount,
+      totalSchools,
       byCountry: byCountry.filter((item) => item.country),
       byDegree: byDegree.filter((item) => item.degree),
       byLanguage: byLanguage.filter((item) => item.language),
       bySubject: bySubject.filter((item) => item.subject),
       bySchoolType,
-      topSchools,
+      topSchools: topSchools.filter((item) => item.school),
+      topContributors,
       recentlyUpdated,
       topApplicationPrograms: applicationStats.filter(
         (item) => item.school && item.program_name
@@ -646,6 +736,7 @@ module.exports = {
   updateBatchSchoolAttributes,
   getStudentsByProgram,
   getProgramsOverview,
+  getSchoolsDistribution,
   getPrograms,
   getProgram,
   createProgram,

@@ -17,7 +17,8 @@ const {
   updateProgram,
   deleteProgram,
   getDistinctSchoolsAttributes,
-  updateBatchSchoolAttributes
+  updateBatchSchoolAttributes,
+  getProgramsOverview
 } = require('../controllers/programs');
 const {
   getProgramChangeRequests,
@@ -34,6 +35,15 @@ const { validateProgramId } = require('../common/validation');
 const router = Router();
 
 router.use(protect);
+
+router
+  .route('/overview')
+  .get(
+    filter_archiv_user,
+    GetProgramListRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.External),
+    getProgramsOverview
+  );
 
 router
   .route('/')

@@ -95,6 +95,272 @@ const updateBatchSchoolAttributes = async (req, res) => {
   }
 };
 
+/**
+ * Get high-level overview and aggregated statistics about the Program collection
+ * Provides metrics useful for dashboard and overview pages including:
+ * - Total program count
+ * - Distribution by country, degree, language, subject
+ * - School type statistics
+ * - Top schools by program count
+ * - Recently updated programs
+ * - Programs with most applications and admission statistics
+ *
+ * @route GET /api/programs/overview
+ * @access Protected - Admin, Manager, Agent, Editor, External
+ * @returns {Object} Overview object with aggregated program statistics
+ */
+const getProgramsOverview = asyncHandler(async (req, res) => {
+  try {
+    // Run multiple aggregations in parallel for better performance
+    const [
+      totalCount,
+      byCountry,
+      byDegree,
+      byLanguage,
+      bySubject,
+      bySchoolType,
+      topSchools,
+      recentlyUpdated,
+      applicationStats
+    ] = await Promise.all([
+      // Total count of active programs
+      req.db.model('Program').countDocuments({ isArchiv: { $ne: true } }),
+
+      // Programs by country
+      req.db.model('Program').aggregate([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: '$country',
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        {
+          $project: {
+            _id: 0,
+            country: '$_id',
+            count: 1
+          }
+        }
+      ]),
+
+      // Programs by degree
+      req.db.model('Program').aggregate([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: '$degree',
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        {
+          $project: {
+            _id: 0,
+            degree: '$_id',
+            count: 1
+          }
+        }
+      ]),
+
+      // Programs by language
+      req.db.model('Program').aggregate([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: '$lang',
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        {
+          $project: {
+            _id: 0,
+            language: '$_id',
+            count: 1
+          }
+        }
+      ]),
+
+      // Programs by subject (unwind array first)
+      req.db.model('Program').aggregate([
+        {
+          $match: {
+            isArchiv: { $ne: true },
+            programSubjects: { $exists: true, $ne: [] }
+          }
+        },
+        { $unwind: '$programSubjects' },
+        {
+          $group: {
+            _id: '$programSubjects',
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 0,
+            subject: '$_id',
+            count: 1
+          }
+        }
+      ]),
+
+      // Programs by school type
+      req.db.model('Program').aggregate([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: {
+              schoolType: '$schoolType',
+              isPrivateSchool: '$isPrivateSchool',
+              isPartnerSchool: '$isPartnerSchool'
+            },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        {
+          $project: {
+            _id: 0,
+            schoolType: '$_id.schoolType',
+            isPrivateSchool: '$_id.isPrivateSchool',
+            isPartnerSchool: '$_id.isPartnerSchool',
+            count: 1
+          }
+        }
+      ]),
+
+      // Top 10 schools by program count
+      req.db.model('Program').aggregate([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: {
+              school: '$school',
+              country: '$country',
+              city: '$city'
+            },
+            programCount: { $sum: 1 }
+          }
+        },
+        { $sort: { programCount: -1 } },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 0,
+            school: '$_id.school',
+            country: '$_id.country',
+            city: '$_id.city',
+            programCount: 1
+          }
+        }
+      ]),
+
+      // Recently updated programs (last 30 days)
+      req.db
+        .model('Program')
+        .find({
+          isArchiv: { $ne: true },
+          updatedAt: {
+            $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+          }
+        })
+        .select('school program_name degree semester updatedAt whoupdated')
+        .sort({ updatedAt: -1 })
+        .limit(10)
+        .lean(),
+
+      // Application statistics - programs with most applications
+      req.db.model('Application').aggregate([
+        {
+          $group: {
+            _id: '$programId',
+            totalApplications: { $sum: 1 },
+            submittedCount: {
+              $sum: { $cond: [{ $eq: ['$closed', 'O'] }, 1, 0] }
+            },
+            admittedCount: {
+              $sum: { $cond: [{ $eq: ['$admission', 'O'] }, 1, 0] }
+            },
+            rejectedCount: {
+              $sum: { $cond: [{ $eq: ['$admission', 'X'] }, 1, 0] }
+            },
+            pendingCount: {
+              $sum: { $cond: [{ $eq: ['$admission', '-'] }, 1, 0] }
+            }
+          }
+        },
+        { $sort: { totalApplications: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: 'programs',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'programDetails'
+          }
+        },
+        {
+          $unwind: { path: '$programDetails', preserveNullAndEmptyArrays: true }
+        },
+        {
+          $project: {
+            _id: 0,
+            programId: '$_id',
+            school: '$programDetails.school',
+            program_name: '$programDetails.program_name',
+            degree: '$programDetails.degree',
+            semester: '$programDetails.semester',
+            country: '$programDetails.country',
+            totalApplications: 1,
+            submittedCount: 1,
+            admittedCount: 1,
+            rejectedCount: 1,
+            pendingCount: 1,
+            admissionRate: {
+              $cond: [
+                { $eq: ['$submittedCount', 0] },
+                0,
+                {
+                  $multiply: [
+                    { $divide: ['$admittedCount', '$submittedCount'] },
+                    100
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ])
+    ]);
+
+    const overview = {
+      totalPrograms: totalCount,
+      byCountry: byCountry.filter((item) => item.country),
+      byDegree: byDegree.filter((item) => item.degree),
+      byLanguage: byLanguage.filter((item) => item.language),
+      bySubject: bySubject.filter((item) => item.subject),
+      bySchoolType,
+      topSchools,
+      recentlyUpdated,
+      topApplicationPrograms: applicationStats.filter(
+        (item) => item.school && item.program_name
+      ),
+      generatedAt: new Date()
+    };
+
+    logger.info('Programs overview generated successfully');
+    return res.send({ success: true, data: overview });
+  } catch (error) {
+    logger.error('Error generating programs overview:', error);
+    throw error;
+  }
+});
+
 const getPrograms = asyncHandler(async (req, res) => {
   // Option 1 : Cache version
   if (PROGRAMS_CACHE === 'true') {
@@ -379,6 +645,7 @@ module.exports = {
   getDistinctSchoolsAttributes,
   updateBatchSchoolAttributes,
   getStudentsByProgram,
+  getProgramsOverview,
   getPrograms,
   getProgram,
   createProgram,

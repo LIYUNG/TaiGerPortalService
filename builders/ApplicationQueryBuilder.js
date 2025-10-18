@@ -5,6 +5,13 @@ class ApplicationQueryBuilder extends BaseQueryBuilder {
     super();
   }
 
+  withApplicationYear(year) {
+    if (year) {
+      this.query.application_year = year;
+    }
+    return this;
+  }
+
   withDecided(decided) {
     if (decided) {
       this.query.decided = decided;

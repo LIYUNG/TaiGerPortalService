@@ -20,6 +20,34 @@ const UserService = require('../services/users');
 const StudentService = require('../services/students');
 const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
 
+const getApplications = asyncHandler(async (req, res) => {
+  const { decided, closed, admission, year } = req.query;
+  const { filter: applicationQuery } = new ApplicationQueryBuilder()
+    .withDecided(decided)
+    .withClosed(closed)
+    .withAdmission(admission)
+    .withApplicationYear(year)
+    .build();
+
+  const selectFields = [
+    'programId',
+    'studentId',
+    'application_year',
+    'decided',
+    'closed',
+    'admission',
+    'finalEnrolment'
+  ];
+  const populateFields = false;
+  const applications = await ApplicationService.getApplications(
+    req,
+    applicationQuery,
+    selectFields,
+    populateFields
+  );
+  res.status(200).send({ success: true, data: applications });
+});
+
 const getMyStudentsApplications = asyncHandler(async (req, res) => {
   const {
     params: { userId }
@@ -492,6 +520,7 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
 });
 
 module.exports = {
+  getApplications,
   deleteApplication,
   getMyStudentsApplications,
   getActiveStudentsApplications,

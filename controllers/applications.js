@@ -21,7 +21,13 @@ const StudentService = require('../services/students');
 const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
 
 const getApplications = asyncHandler(async (req, res) => {
-  const { decided, closed, admission, year } = req.query;
+  const {
+    decided,
+    closed,
+    admission,
+    year,
+    populate: populateFields = false
+  } = req.query;
   const { filter: applicationQuery } = new ApplicationQueryBuilder()
     .withDecided(decided)
     .withClosed(closed)
@@ -38,7 +44,7 @@ const getApplications = asyncHandler(async (req, res) => {
     'admission',
     'finalEnrolment'
   ];
-  const populateFields = false;
+
   const applications = await ApplicationService.getApplications(
     req,
     applicationQuery,

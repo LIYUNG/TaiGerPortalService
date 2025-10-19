@@ -138,6 +138,11 @@ const getProgramApplicationCounts = asyncHandler(async (req) => {
               $cond: [{ $eq: ['$admission', 'O'] }, 1, 0] // Count admissions with "O"
             }
           },
+          finalEnrolmentCount: {
+            $sum: {
+              $cond: [{ $eq: ['$finalEnrolment', true] }, 1, 0] // Count final enrolments
+            }
+          },
           rejectionCount: {
             $sum: {
               $cond: [{ $eq: ['$admission', 'X'] }, 1, 0] // Count rejections with "X"
@@ -172,6 +177,7 @@ const getProgramApplicationCounts = asyncHandler(async (req) => {
         $project: {
           applicationCount: 1,
           admissionCount: 1,
+          finalEnrolmentCount: 1,
           rejectionCount: 1,
           pendingResultCount: 1,
           id: '$programDetails._id',

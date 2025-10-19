@@ -5,6 +5,7 @@ const FILETYPES = {
   rl_required: 'RL',
   ml_required: 'ML',
   sop_required: 'SOP',
+  phs_required: 'PHS',
   essay_required: 'Essay',
   portfolio_required: 'Portfolio',
   curriculum_analysis_required: 'Curriculum_Analysis',

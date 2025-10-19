@@ -177,6 +177,7 @@ const EDITOR_SCOPE = {
   CV_US: 'Curriculum Vitae (US)',
   ML: 'Motivation Letter',
   SOP: 'Statement of Purpose',
+  PHS: 'Personal History of Statement',
   Portfolio: 'Portfolio',
   RL_A: 'Recommendation Letter',
   RL_B: 'Recommendation Letter',
@@ -198,6 +199,10 @@ const PROGRAM_SPECIFIC_FILETYPE = [
   {
     required: 'sop_required',
     fileType: 'SOP'
+  },
+  {
+    required: 'phs_required',
+    fileType: 'PHS'
   },
   {
     required: 'essay_required',

@@ -153,6 +153,7 @@ const isCrucialChanges = (changes) => {
   const crucialChanges = [
     'ml_required',
     'sop_required',
+    'phs_required',
     'rl_required',
     'rl_requirements',
     'is_rl_specific',

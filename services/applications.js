@@ -32,7 +32,7 @@ const ApplicationService = {
       })
       .populate(
         'programId',
-        'school program_name degree semester lang application_deadline application_start'
+        'school program_name degree semester lang country application_deadline application_start'
       )
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
@@ -79,7 +79,7 @@ const ApplicationService = {
       })
       .populate(
         'programId',
-        'school program_name degree semester lang application_deadline application_start'
+        'school program_name degree semester lang country application_deadline application_start'
       )
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();

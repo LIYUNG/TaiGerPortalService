@@ -4,6 +4,7 @@ const { asyncHandler } = require('../../middlewares/error-handler');
 const FILETYPES = {
   rl_required: 'RL',
   ml_required: 'ML',
+  sop_required: 'SOP',
   essay_required: 'Essay',
   portfolio_required: 'Portfolio',
   curriculum_analysis_required: 'Curriculum_Analysis',

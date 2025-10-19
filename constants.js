@@ -175,6 +175,7 @@ const application_deadline_V2_calculator = (application) => {
 const EDITOR_SCOPE = {
   CV: 'Curriculum Vitae',
   ML: 'Motivation Letter',
+  SOP: 'Statement of Purpose',
   Portfolio: 'Portfolio',
   RL_A: 'Recommendation Letter',
   RL_B: 'Recommendation Letter',
@@ -192,6 +193,10 @@ const PROGRAM_SPECIFIC_FILETYPE = [
   {
     required: 'ml_required',
     fileType: 'ML'
+  },
+  {
+    required: 'sop_required',
+    fileType: 'SOP'
   },
   {
     required: 'essay_required',

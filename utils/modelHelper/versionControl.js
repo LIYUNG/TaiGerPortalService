@@ -152,6 +152,7 @@ const detectChanges = (a, b) => {
 const isCrucialChanges = (changes) => {
   const crucialChanges = [
     'ml_required',
+    'sop_required',
     'rl_required',
     'rl_requirements',
     'is_rl_specific',

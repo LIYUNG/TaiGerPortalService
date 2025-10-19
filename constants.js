@@ -174,6 +174,7 @@ const application_deadline_V2_calculator = (application) => {
 
 const EDITOR_SCOPE = {
   CV: 'Curriculum Vitae',
+  CV_US: 'Curriculum Vitae (US)',
   ML: 'Motivation Letter',
   SOP: 'Statement of Purpose',
   Portfolio: 'Portfolio',
@@ -233,6 +234,7 @@ const General_Docs = [
   'Form_A',
   'Form_B',
   'CV',
+  'CV_US',
   'Others'
 ];
 

@@ -1,4 +1,4 @@
-const { isNotArchiv, Role, is_TaiGer_Student } = require('@taiger-common/core');
+const { isNotArchiv, Role } = require('@taiger-common/core');
 const mongoose = require('mongoose');
 
 const { asyncHandler } = require('../middlewares/error-handler');

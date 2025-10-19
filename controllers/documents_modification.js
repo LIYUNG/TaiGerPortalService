@@ -498,7 +498,7 @@ const checkDocumentPattern = asyncHandler(async (req, res) => {
     params: { messagesThreadId, file_type }
   } = req;
   // don't check non-CV doc at the moment
-  if (file_type !== 'CV') {
+  if (file_type !== 'CV' || file_type !== 'CV_US') {
     return res.status(200).send({
       success: true,
       isPassed: true

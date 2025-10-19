@@ -549,6 +549,7 @@ const getStatistics = asyncHandler(async (req, res) => {
         isFinalVersion: true,
         $or: [
           { file_type: 'CV' },
+          { file_type: 'CV_US' },
           { file_type: 'ML' },
           { file_type: 'RL_A' },
           { file_type: 'RL_B' },

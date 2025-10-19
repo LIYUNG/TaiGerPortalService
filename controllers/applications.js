@@ -25,6 +25,7 @@ const getApplications = asyncHandler(async (req, res) => {
     decided,
     closed,
     admission,
+    finalEnrolment,
     year,
     populate: populateFields = false
   } = req.query;
@@ -32,6 +33,7 @@ const getApplications = asyncHandler(async (req, res) => {
     .withDecided(decided)
     .withClosed(closed)
     .withAdmission(admission)
+    .withFinalEnrolment(finalEnrolment)
     .withApplicationYear(year)
     .build();
 

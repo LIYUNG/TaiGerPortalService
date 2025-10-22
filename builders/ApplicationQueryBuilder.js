@@ -34,9 +34,8 @@ class ApplicationQueryBuilder extends BaseQueryBuilder {
   }
 
   withFinalEnrolment(finalEnrolment) {
-    if (finalEnrolment) {
-      // this.query.finalEnrolment = finalEnrolment === 'true' ? true : false;
-      this.query.finalEnrolment = finalEnrolment;
+    if (finalEnrolment !== undefined) {
+      this.query.finalEnrolment = finalEnrolment === 'true';
     }
     return this;
   }

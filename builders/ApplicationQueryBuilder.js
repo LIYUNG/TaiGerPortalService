@@ -5,6 +5,13 @@ class ApplicationQueryBuilder extends BaseQueryBuilder {
     super();
   }
 
+  withApplicationYear(year) {
+    if (year) {
+      this.query.application_year = year;
+    }
+    return this;
+  }
+
   withDecided(decided) {
     if (decided) {
       this.query.decided = decided;
@@ -22,6 +29,13 @@ class ApplicationQueryBuilder extends BaseQueryBuilder {
   withAdmission(admission) {
     if (admission) {
       this.query.admission = admission;
+    }
+    return this;
+  }
+
+  withFinalEnrolment(finalEnrolment) {
+    if (finalEnrolment !== undefined) {
+      this.query.finalEnrolment = finalEnrolment === 'true';
     }
     return this;
   }

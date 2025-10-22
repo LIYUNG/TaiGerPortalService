@@ -10,6 +10,7 @@ const {
 const { protect, permit } = require('../middlewares/auth');
 
 const {
+  getApplications,
   getStudentApplications,
   deleteApplication,
   createApplicationV2,
@@ -29,6 +30,16 @@ const { validateStudentId } = require('../common/validation');
 const router = Router();
 
 router.use(protect);
+
+router
+  .route('/')
+  .get(
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getApplications,
+    logAccess
+  );
 
 router.route('/application/:application_id').delete(
   getMessagesRateLimiter,

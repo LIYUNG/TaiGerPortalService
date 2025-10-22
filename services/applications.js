@@ -59,12 +59,16 @@ const ApplicationService = {
 
     return filteredApplications;
   },
-  getApplications(req, filter) {
-    return req.db
-      .model('Application')
-      .find(filter)
-      .populate('programId')
-      .populate('doc_modification_thread.doc_thread_id', '-messages');
+  getApplications(req, filter = {}, select = [], populate = true) {
+    const query = req.db.model('Application').find(filter);
+    if (!!populate && populate !== 'false') {
+      query.populate('programId');
+      query.populate('doc_modification_thread.doc_thread_id', '-messages');
+    }
+    if (select.length > 0) {
+      query.select(select.join(' '));
+    }
+    return query;
   },
   async getApplicationsWithStudentDetails(req, filter) {
     const applications = await req.db

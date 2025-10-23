@@ -141,6 +141,14 @@ const getCRMStats = asyncHandler(async (req, res) => {
       avgResponseTimeDays:
         sql`AVG(EXTRACT(EPOCH FROM (first_meeting - first_contact)) / 86400)`.mapWith(
           Number
+        ),
+      p50ResponseTimeDays:
+        sql`PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (EXTRACT(EPOCH FROM (first_meeting - first_contact)) / 86400))`.mapWith(
+          Number
+        ),
+      p95ResponseTimeDays:
+        sql`PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY (EXTRACT(EPOCH FROM (first_meeting - first_contact)) / 86400))`.mapWith(
+          Number
         )
     })
     .from(leadTimes)
@@ -151,6 +159,14 @@ const getCRMStats = asyncHandler(async (req, res) => {
     .select({
       avgSalesCycle:
         sql`AVG(EXTRACT(EPOCH FROM (closed_date - first_meeting)) / 86400)`.mapWith(
+          Number
+        ),
+      p50SalesCycle:
+        sql`PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (EXTRACT(EPOCH FROM (closed_date - first_meeting)) / 86400))`.mapWith(
+          Number
+        ),
+      p95SalesCycle:
+        sql`PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY (EXTRACT(EPOCH FROM (closed_date - first_meeting)) / 86400))`.mapWith(
           Number
         )
     })
@@ -214,11 +230,35 @@ const getCRMStats = asyncHandler(async (req, res) => {
         avgResponseTimeResult[0].avgResponseTimeDays != null
           ? Math.round(avgResponseTimeResult[0].avgResponseTimeDays * 100) / 100
           : null,
+      p50ResponseTimeDays:
+        avgResponseTimeResult &&
+        avgResponseTimeResult[0] &&
+        avgResponseTimeResult[0].p50ResponseTimeDays != null
+          ? Math.round(avgResponseTimeResult[0].p50ResponseTimeDays * 100) / 100
+          : null,
+      p95ResponseTimeDays:
+        avgResponseTimeResult &&
+        avgResponseTimeResult[0] &&
+        avgResponseTimeResult[0].p95ResponseTimeDays != null
+          ? Math.round(avgResponseTimeResult[0].p95ResponseTimeDays * 100) / 100
+          : null,
       avgSalesCycleDays:
         avgSalesCycleResult &&
         avgSalesCycleResult[0] &&
         avgSalesCycleResult[0].avgSalesCycle != null
           ? Math.round(avgSalesCycleResult[0].avgSalesCycle * 100) / 100
+          : null,
+      p50SalesCycleDays:
+        avgSalesCycleResult &&
+        avgSalesCycleResult[0] &&
+        avgSalesCycleResult[0].p50SalesCycle != null
+          ? Math.round(avgSalesCycleResult[0].p50SalesCycle * 100) / 100
+          : null,
+      p95SalesCycleDays:
+        avgSalesCycleResult &&
+        avgSalesCycleResult[0] &&
+        avgSalesCycleResult[0].p95SalesCycle != null
+          ? Math.round(avgSalesCycleResult[0].p95SalesCycle * 100) / 100
           : null,
       leadsCountByDate,
       meetingCountByDate,

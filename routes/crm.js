@@ -12,6 +12,7 @@ const {
   getCRMStats,
   getLeads,
   getLead,
+  getLeadByStudentId,
   updateLead,
   getMeetings,
   getMeeting,
@@ -31,6 +32,10 @@ router
   .route('/leads/:leadId')
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLead)
   .put(filter_archiv_user, GeneralPUTRequestRateLimiter, updateLead);
+
+router
+  .route('/students/:studentId/lead')
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLeadByStudentId);
 
 router
   .route('/leads')

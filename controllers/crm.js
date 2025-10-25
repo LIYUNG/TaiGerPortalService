@@ -377,6 +377,32 @@ const getLead = asyncHandler(async (req, res) => {
   });
 });
 
+const getLeadByStudentId = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+
+  if (!studentId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Student ID is required' });
+  }
+
+  const leadRecord = await postgresDb.query.leads.findFirst({
+    columns: { id: true },
+    where: eq(leads.userId, studentId)
+  });
+
+  if (!leadRecord) {
+    return res
+      .status(404)
+      .send({ success: false, message: 'User has no matching leads' });
+  }
+
+  res.status(200).send({
+    success: true,
+    data: leadRecord
+  });
+});
+
 const updateLead = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
   const updateData = req.body;
@@ -626,6 +652,7 @@ module.exports = {
   getCRMStats,
   getLeads,
   getLead,
+  getLeadByStudentId,
   updateLead,
   getMeetings,
   getMeeting,

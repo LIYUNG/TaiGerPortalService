@@ -644,6 +644,142 @@ const getIsManager = asyncHandler(async (req, res, next) => {
   res.status(200).send({ success: true, data: { isManager } });
 });
 
+// Helper function to get editor task counts
+const getEditorTaskCounts = asyncHandler(async (req, editors) => {
+  // Aggregate tasks from general docs
+  const generalTasksPipeline = [
+    {
+      $match: {
+        $or: [{ archiv: { $exists: false } }, { archiv: false }]
+      }
+    },
+    {
+      $unwind: '$generaldocs_threads'
+    },
+    {
+      $lookup: {
+        from: 'documentthreads',
+        localField: 'generaldocs_threads.doc_thread_id',
+        foreignField: '_id',
+        as: 'doc_thread'
+      }
+    },
+    {
+      $unwind: '$doc_thread'
+    },
+    {
+      $unwind: '$editors'
+    },
+    {
+      $project: {
+        editor_id: '$editors',
+        isFinalVersion: '$generaldocs_threads.isFinalVersion',
+        show: { $literal: true },
+        isPotentials: { $literal: false }
+      }
+    }
+  ];
+
+  // Aggregate tasks from application docs
+  const applicationTasksPipeline = [
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'studentId',
+        foreignField: '_id',
+        as: 'student'
+      }
+    },
+    {
+      $unwind: '$student'
+    },
+    {
+      $match: {
+        $or: [
+          { 'student.archiv': { $exists: false } },
+          { 'student.archiv': false }
+        ]
+      }
+    },
+    {
+      $unwind: '$doc_modification_thread'
+    },
+    {
+      $lookup: {
+        from: 'documentthreads',
+        localField: 'doc_modification_thread.doc_thread_id',
+        foreignField: '_id',
+        as: 'doc_thread'
+      }
+    },
+    {
+      $unwind: '$doc_thread'
+    },
+    {
+      $unwind: '$student.editors'
+    },
+    {
+      $project: {
+        editor_id: '$student.editors',
+        isFinalVersion: '$doc_modification_thread.isFinalVersion',
+        show: {
+          $cond: {
+            if: { $eq: ['$decided', 'O'] },
+            then: true,
+            else: false
+          }
+        },
+        isPotentials: {
+          $cond: {
+            if: { $eq: ['$decided', '-'] },
+            then: true,
+            else: false
+          }
+        }
+      }
+    }
+  ];
+
+  // Execute both pipelines
+  const [generalTasks, applicationTasks] = await Promise.all([
+    req.db.model('Student').aggregate(generalTasksPipeline),
+    req.db.model('Application').aggregate(applicationTasksPipeline)
+  ]);
+  console.log(applicationTasks);
+  // Combine all tasks
+  const allTasks = [...generalTasks, ...applicationTasks];
+
+  // Group by editor and count
+  const editorTaskCounts = {};
+
+  editors.forEach((editor) => {
+    const editorId = editor._id.toString();
+    const editorTasks = allTasks.filter(
+      (task) => task.editor_id.toString() === editorId
+    );
+
+    // Count active tasks (not final version and show = true)
+    const activeTasks = editorTasks.filter(
+      (task) => task.isFinalVersion !== true && task.show === true
+    );
+
+    // Count potential tasks (not final version, show = false, isPotentials = true)
+    const potentialTasks = editorTasks.filter(
+      (task) =>
+        task.isFinalVersion !== true &&
+        task.show === false &&
+        task.isPotentials === true
+    );
+
+    editorTaskCounts[editorId] = {
+      active: activeTasks.length,
+      potentials: potentialTasks.length
+    };
+  });
+
+  return editorTaskCounts;
+});
+
 // Separate statistics endpoints for each dashboard tab
 const getStatisticsOverview = asyncHandler(async (req, res) => {
   const cacheKey = 'internalDashboard:overview';
@@ -663,17 +799,40 @@ const getStatisticsOverview = asyncHandler(async (req, res) => {
       editors.map((editor) => getEditorData(req, editor))
     );
     const documentsPromise = getFileTypeCount(req);
-    const studentsPromise = StudentService.getStudentsWithApplications(req, {});
 
-    const [agents_raw_data, editors_raw_data, documentsData, students] =
-      await Promise.all([
-        agentsPromises,
-        editorsPromises,
-        documentsPromise,
-        studentsPromise
-      ]);
+    // Get student data for charts (only necessary fields)
+    const studentsDataPromise = req.db.model('Student').aggregate([
+      {
+        $match: {
+          $or: [{ archiv: { $exists: false } }, { archiv: false }]
+        }
+      },
+      {
+        $project: {
+          createdAt: 1,
+          application_preference: 1
+        }
+      }
+    ]);
 
-    const students_years_arr = numStudentYearDistribution(students);
+    // Get editor task counts
+    const editorTaskCountsPromise = getEditorTaskCounts(req, editors);
+
+    const [
+      agents_raw_data,
+      editors_raw_data,
+      documentsData,
+      studentsData,
+      editorTaskCounts
+    ] = await Promise.all([
+      agentsPromises,
+      editorsPromises,
+      documentsPromise,
+      studentsDataPromise,
+      editorTaskCountsPromise
+    ]);
+
+    const students_years_arr = numStudentYearDistribution(studentsData);
     const students_years = Object.keys(students_years_arr).sort();
     const lastYears = students_years.slice(
       Math.max(students_years.length - 10, 1)
@@ -697,11 +856,13 @@ const getStatisticsOverview = asyncHandler(async (req, res) => {
 
     const editors_data = [];
     editors_raw_data.forEach((editor, i) => {
+      const editorId = editor._id.toString();
       editors_data.push({
         ...editor,
         key: `${editor.firstname}`,
         student_num: editor.student_num,
-        color: colors[i]
+        color: colors[i],
+        task_counts: editorTaskCounts[editorId] || { active: 0, potentials: 0 }
       });
     });
 
@@ -722,7 +883,7 @@ const getStatisticsOverview = asyncHandler(async (req, res) => {
       agents_data,
       editors_data,
       students_years_pair,
-      students_details: students
+      students_creation_dates: studentsData
     };
     res.status(200).send(returnBody);
     const success = one_day_cache.set(cacheKey, returnBody);

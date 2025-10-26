@@ -32,6 +32,7 @@ const StudentService = require('../services/students');
 const UserQueryBuilder = require('../builders/UserQueryBuilder');
 const ApplicationService = require('../services/applications');
 const InterviewService = require('../services/interviews');
+const { getAuditLogs } = require('../services/audit');
 
 const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const {
@@ -64,21 +65,16 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const survey_linkPromise = req.db.model('Basedocumentationslink').find({
     category: 'survey'
   });
-  const auditPromise = req.db
-    .model('Audit')
-    .find({
+  const auditPromise = getAuditLogs(
+    req,
+    {
       targetUserId: studentId
-    })
-    .populate('performedBy targetUserId', 'firstname lastname role pictureUrl')
-    .populate({
-      path: 'targetDocumentThreadId interviewThreadId',
-      select: 'program_id file_type',
-      populate: {
-        path: 'program_id',
-        select: 'school program_name degree semester'
-      }
-    })
-    .sort({ createdAt: -1 });
+    },
+    {
+      limit: 1000,
+      sort: { createdAt: -1 }
+    }
+  );
   const [student, applications, base_docs_link, survey_link, audit] =
     await Promise.all([
       studentPromise,
@@ -122,18 +118,16 @@ const updateDocumentationHelperLink = asyncHandler(async (req, res, next) => {
   const { link, key, category } = req.body;
   // if not in database, then create one
   // otherwise: update the existing one.
-  let helper_link = await req.db
-    .model('Basedocumentationslink')
-    .findOneAndUpdate(
-      { category, key },
-      {
-        $set: {
-          link,
-          updatedAt: new Date()
-        }
-      },
-      { upsert: true, new: true }
-    );
+  await req.db.model('Basedocumentationslink').findOneAndUpdate(
+    { category, key },
+    {
+      $set: {
+        link,
+        updatedAt: new Date()
+      }
+    },
+    { upsert: true }
+  );
 
   const updated_helper_link = await req.db
     .model('Basedocumentationslink')

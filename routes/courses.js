@@ -126,9 +126,5 @@ router
     downloadJson,
     logAccess
   );
-// router
-//   .route('/:id')
-//   .put(permit(Role.Admin, Role.Agent), updateCourses)
-//   .delete(permit(Role.Admin, Role.Agent), deleteCourse);
 
 module.exports = router;

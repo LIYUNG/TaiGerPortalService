@@ -3,7 +3,10 @@ const AuditService = {
     const auditLogs = await req.db
       .model('Audit')
       .find(filter)
-      .populate('performedBy targetUserId', 'firstname lastname role')
+      .populate(
+        'performedBy targetUserId',
+        'firstname lastname role pictureUrl'
+      )
       .populate({
         path: 'targetDocumentThreadId interviewThreadId',
         select: 'program_id file_type',

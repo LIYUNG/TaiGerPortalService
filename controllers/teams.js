@@ -745,7 +745,6 @@ const getEditorTaskCounts = asyncHandler(async (req, editors) => {
     req.db.model('Student').aggregate(generalTasksPipeline),
     req.db.model('Application').aggregate(applicationTasksPipeline)
   ]);
-  console.log(applicationTasks);
   // Combine all tasks
   const allTasks = [...generalTasks, ...applicationTasks];
 

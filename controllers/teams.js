@@ -524,300 +524,6 @@ const getResponseTimeByStudent = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: responseTimeRecords });
 });
 
-const getStatistics = asyncHandler(async (req, res) => {
-  const cacheKey = 'internalDashboard';
-  const value = one_day_cache.get(cacheKey);
-  if (value === undefined) {
-    const agents = await req.db.model('Agent').find({
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    });
-    const editors = await req.db.model('Editor').find({
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    });
-
-    const agentsPromises = Promise.all(
-      agents.map((agent) => getAgentData(req, agent))
-    );
-    const editorsPromises = Promise.all(
-      editors.map((editor) => getEditorData(req, editor))
-    );
-
-    const documentsPromise = getFileTypeCount(req);
-    const finDocsPromise = req.db
-      .model('Documentthread')
-      .find({
-        isFinalVersion: true,
-        $or: [
-          { file_type: 'CV' },
-          { file_type: 'CV_US' },
-          { file_type: 'ML' },
-          { file_type: 'RL_A' },
-          { file_type: 'RL_B' },
-          { file_type: 'RL_C' },
-          { file_type: 'Recommendation_Letter_A' },
-          { file_type: 'Recommendation_Letter_B' },
-          { file_type: 'Recommendation_Letter_C' }
-        ]
-      })
-      .populate('student_id', 'firstname lastname')
-      .select('file_type messages.createdAt')
-      .lean();
-
-    const studentsPromise = StudentService.getStudentsWithApplications(req, {});
-
-    const archivCountPromise = req.db.model('Student').aggregate([
-      {
-        $group: {
-          _id: '$archiv',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-    // TODO: get MLs, RLs, etc. individual response time and thread_id>> will be used to query intervals collection.
-    // const studentResponseTimeLookupTablePromise =
-    //   GenerateResponseTimeByStudent();
-
-    const studentAvgResponseTimePipeline = [
-      // group by student and document type and calculate the average response time per document type
-      {
-        $group: {
-          _id: {
-            student_id: '$student_id',
-            interval_type: '$interval_type'
-          },
-          typeAvg: { $avg: '$intervalAvg' }
-        }
-      },
-      // unwrap the _id object -> which is used for grouping (student_id, interval_type)
-      {
-        $replaceRoot: { newRoot: { $mergeObjects: ['$_id', '$$ROOT'] } }
-      },
-      // group by student to create a array of all averages per document type
-      {
-        $group: {
-          _id: '$student_id',
-          avgByType: {
-            $push: {
-              k: '$interval_type',
-              v: '$typeAvg'
-            }
-          }
-        }
-      },
-      // lookup student details (name, agents, editors)
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'student'
-        }
-      },
-      // unwrap the student data, spreading the details to the root level
-      {
-        $unwind: '$student'
-      },
-      // select only the relevant fields for the output
-      {
-        $project: {
-          _id: 1,
-          agents: '$student.agents',
-          editors: '$student.editors',
-          lastname_chinese: '$student.lastname_chinese',
-          firstname_chinese: '$student.firstname_chinese',
-          name: {
-            $concat: ['$student.firstname', ' ', '$student.lastname']
-          },
-          avgByType: {
-            $arrayToObject: '$avgByType'
-          }
-        }
-      }
-    ];
-
-    const studentAvgResponseTimePromise = req.db
-      .model('ResponseTime')
-      .aggregate(studentAvgResponseTimePipeline);
-    const activeStudentGeneralTasksPromise = getGeneralTasks(req);
-    const activeStudentTasksPromise = getDecidedApplicationsTasks(req);
-
-    const programListStatsPipeline = [
-      {
-        $facet: {
-          countryCount: [
-            { $group: { _id: '$country', count: { $sum: 1 } } },
-            { $project: { _id: 0, country: '$_id', count: 1 } }
-          ],
-          whoupdatedCount: [
-            { $group: { _id: '$whoupdated', count: { $sum: 1 } } },
-            { $project: { _id: 0, whoupdated: '$_id', count: 1 } }
-          ],
-          schoolCount: [
-            { $group: { _id: '$school', count: { $sum: 1 } } },
-            { $project: { _id: 0, school: '$_id', count: 1 } }
-          ],
-          langCount: [
-            { $group: { _id: '$lang', count: { $sum: 1 } } },
-            { $project: { _id: 0, lang: '$_id', count: 1 } }
-          ],
-          degreeCount: [
-            { $group: { _id: '$degree', count: { $sum: 1 } } },
-            { $project: { _id: 0, degree: '$_id', count: 1 } }
-          ],
-          updatedAtCount: [
-            {
-              $group: {
-                _id: {
-                  $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' }
-                },
-                count: { $sum: 1 }
-              }
-            },
-            { $project: { _id: 0, updatedAt: '$_id', count: 1 } },
-            { $sort: { updatedAt: 1 } }
-          ]
-        }
-      }
-    ];
-
-    const programListStatsPromise = req.db
-      .model('Program')
-      .aggregate(programListStatsPipeline);
-
-    const [
-      agents_raw_data,
-      editors_raw_data,
-      documentsData,
-      finishedDocs,
-      students,
-      archivCount,
-      studentAvgResponseTime,
-      activeStudentGeneralTasks,
-      activeStudentTasks,
-      programListStats,
-      ...agentsStudentsDistribution
-    ] = await Promise.all([
-      agentsPromises,
-      editorsPromises,
-      documentsPromise,
-      finDocsPromise,
-      studentsPromise,
-      archivCountPromise,
-      studentAvgResponseTimePromise,
-      activeStudentGeneralTasksPromise,
-      activeStudentTasksPromise,
-      programListStatsPromise,
-      ...agents.map((agent) => getAgentStudentDistData(req, agent))
-    ]);
-
-    const resultAdmission = agentsStudentsDistribution.map(
-      (agentStudentDis, idx) => {
-        const returnData = {
-          name: `${agents[idx].firstname}`,
-          id: `${agents[idx]._id.toString()}`,
-          admission: agentStudentDis.admission.reduce((acc, curr) => {
-            if (curr.expected_application_date) {
-              acc[curr.expected_application_date] = curr.count;
-            } else {
-              acc.TBD = curr.count;
-            }
-
-            return acc;
-          }, {})
-        };
-        return returnData;
-      }
-    );
-
-    const resultNoAdmission = agentsStudentsDistribution.map(
-      (agentStudentDis, idx) => {
-        const returnData = {
-          noAdmission: agentStudentDis.noAdmission.reduce((acc, curr) => {
-            if (curr.expected_application_date) {
-              acc[curr.expected_application_date] = curr.count;
-            } else {
-              acc.TBD = curr.count;
-            }
-
-            return acc;
-          }, {})
-        };
-        return returnData;
-      }
-    );
-    const mergedResults = _.mergeWith(resultAdmission, resultNoAdmission);
-    const students_years_arr = numStudentYearDistribution(students);
-    const students_years = Object.keys(students_years_arr).sort();
-    const lastYears = students_years.slice(
-      Math.max(students_years.length - 10, 1)
-    );
-
-    const students_years_pair = lastYears.map((date) => ({
-      name: `${date}`,
-      uv: students_years_arr[date]
-    }));
-
-    const colors = [
-      '#ff8a65',
-      '#f4c22b',
-      '#04a9f5',
-      '#3ebfea',
-      '#4F5467',
-      '#1de9b6',
-      '#a389d4',
-      '#FE8A7D'
-    ];
-
-    const editors_data = [];
-    editors_raw_data.forEach((editor, i) => {
-      editors_data.push({
-        ...editor,
-        key: `${editor.firstname}`,
-        student_num: editor.student_num,
-        color: colors[i]
-      });
-    });
-
-    const agents_data = [];
-    agents_raw_data.forEach((agent, i) => {
-      agents_data.push({
-        ...agent,
-        key: `${agent.firstname}`,
-        student_num_no_offer: agent.student_num_no_offer,
-        student_num_with_offer: agent.student_num_with_offer,
-        color: colors[i]
-      });
-    });
-    const returnBody = {
-      success: true,
-      documents: documentsData,
-      students: {
-        isClose: archivCount.find((count) => count._id === true)?.count || 0,
-        isOpen: archivCount.find((count) => count._id === false)?.count || 0
-      },
-      finished_docs: finishedDocs,
-      agents_data,
-      editors_data,
-      students_years_pair,
-      students_details: students,
-      applications: [],
-      activeStudentGeneralTasks,
-      activeStudentTasks,
-      agentStudentDistribution: mergedResults,
-      programListStats: programListStats?.[0], // unwrap single element pipeline
-      studentAvgResponseTime
-    };
-    res.status(200).send(returnBody);
-    const success = one_day_cache.set(cacheKey, returnBody);
-    if (success) {
-      logger.info('internal dashboard cache set successfully');
-    }
-  } else {
-    logger.info('internal dashboard cache hit');
-    res.status(200).send(value);
-  }
-});
-
 const putAgentProfile = asyncHandler(async (req, res, next) => {
   const { agent_id } = req.params;
   const agent = await req.db
@@ -938,9 +644,340 @@ const getIsManager = asyncHandler(async (req, res, next) => {
   res.status(200).send({ success: true, data: { isManager } });
 });
 
+// Separate statistics endpoints for each dashboard tab
+const getStatisticsOverview = asyncHandler(async (req, res) => {
+  const cacheKey = 'internalDashboard:overview';
+  const value = one_day_cache.get(cacheKey);
+  if (value === undefined) {
+    const agents = await req.db.model('Agent').find({
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+    const editors = await req.db.model('Editor').find({
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+
+    const agentsPromises = Promise.all(
+      agents.map((agent) => getAgentData(req, agent))
+    );
+    const editorsPromises = Promise.all(
+      editors.map((editor) => getEditorData(req, editor))
+    );
+    const documentsPromise = getFileTypeCount(req);
+    const studentsPromise = StudentService.getStudentsWithApplications(req, {});
+
+    const [agents_raw_data, editors_raw_data, documentsData, students] =
+      await Promise.all([
+        agentsPromises,
+        editorsPromises,
+        documentsPromise,
+        studentsPromise
+      ]);
+
+    const students_years_arr = numStudentYearDistribution(students);
+    const students_years = Object.keys(students_years_arr).sort();
+    const lastYears = students_years.slice(
+      Math.max(students_years.length - 10, 1)
+    );
+
+    const students_years_pair = lastYears.map((date) => ({
+      name: `${date}`,
+      uv: students_years_arr[date]
+    }));
+
+    const colors = [
+      '#ff8a65',
+      '#f4c22b',
+      '#04a9f5',
+      '#3ebfea',
+      '#4F5467',
+      '#1de9b6',
+      '#a389d4',
+      '#FE8A7D'
+    ];
+
+    const editors_data = [];
+    editors_raw_data.forEach((editor, i) => {
+      editors_data.push({
+        ...editor,
+        key: `${editor.firstname}`,
+        student_num: editor.student_num,
+        color: colors[i]
+      });
+    });
+
+    const agents_data = [];
+    agents_raw_data.forEach((agent, i) => {
+      agents_data.push({
+        ...agent,
+        key: `${agent.firstname}`,
+        student_num_no_offer: agent.student_num_no_offer,
+        student_num_with_offer: agent.student_num_with_offer,
+        color: colors[i]
+      });
+    });
+
+    const returnBody = {
+      success: true,
+      documents: documentsData,
+      agents_data,
+      editors_data,
+      students_years_pair,
+      students_details: students
+    };
+    res.status(200).send(returnBody);
+    const success = one_day_cache.set(cacheKey, returnBody);
+    if (success) {
+      logger.info('internal dashboard overview cache set successfully');
+    }
+  } else {
+    logger.info('internal dashboard overview cache hit');
+    res.status(200).send(value);
+  }
+});
+
+const getStatisticsAgents = asyncHandler(async (req, res) => {
+  const cacheKey = 'internalDashboard:agents';
+  const value = one_day_cache.get(cacheKey);
+  if (value === undefined) {
+    const agents = await req.db.model('Agent').find({
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+
+    const agentsStudentsDistribution = await Promise.all(
+      agents.map((agent) => getAgentStudentDistData(req, agent))
+    );
+
+    const resultAdmission = agentsStudentsDistribution.map(
+      (agentStudentDis, idx) => {
+        const returnData = {
+          name: `${agents[idx].firstname}`,
+          id: `${agents[idx]._id.toString()}`,
+          admission: agentStudentDis.admission.reduce((acc, curr) => {
+            if (curr.expected_application_date) {
+              acc[curr.expected_application_date] = curr.count;
+            } else {
+              acc.TBD = curr.count;
+            }
+            return acc;
+          }, {})
+        };
+        return returnData;
+      }
+    );
+
+    const resultNoAdmission = agentsStudentsDistribution.map(
+      (agentStudentDis, idx) => {
+        const returnData = {
+          noAdmission: agentStudentDis.noAdmission.reduce((acc, curr) => {
+            if (curr.expected_application_date) {
+              acc[curr.expected_application_date] = curr.count;
+            } else {
+              acc.TBD = curr.count;
+            }
+            return acc;
+          }, {})
+        };
+        return returnData;
+      }
+    );
+    const mergedResults = _.mergeWith(resultAdmission, resultNoAdmission);
+
+    const returnBody = {
+      success: true,
+      agentStudentDistribution: mergedResults
+    };
+    res.status(200).send(returnBody);
+    const success = one_day_cache.set(cacheKey, returnBody);
+    if (success) {
+      logger.info('internal dashboard agents cache set successfully');
+    }
+  } else {
+    logger.info('internal dashboard agents cache hit');
+    res.status(200).send(value);
+  }
+});
+
+const getStatisticsKPI = asyncHandler(async (req, res) => {
+  const cacheKey = 'internalDashboard:kpi';
+  const value = one_day_cache.get(cacheKey);
+  if (value === undefined) {
+    const finishedDocs = await req.db
+      .model('Documentthread')
+      .find({
+        isFinalVersion: true,
+        $or: [
+          { file_type: 'CV' },
+          { file_type: 'CV_US' },
+          { file_type: 'ML' },
+          { file_type: 'RL_A' },
+          { file_type: 'RL_B' },
+          { file_type: 'RL_C' },
+          { file_type: 'Recommendation_Letter_A' },
+          { file_type: 'Recommendation_Letter_B' },
+          { file_type: 'Recommendation_Letter_C' }
+        ]
+      })
+      .populate('student_id', 'firstname lastname')
+      .select('file_type messages.createdAt')
+      .lean();
+
+    const returnBody = {
+      success: true,
+      finished_docs: finishedDocs
+    };
+    res.status(200).send(returnBody);
+    const success = one_day_cache.set(cacheKey, returnBody);
+    if (success) {
+      logger.info('internal dashboard kpi cache set successfully');
+    }
+  } else {
+    logger.info('internal dashboard kpi cache hit');
+    res.status(200).send(value);
+  }
+});
+
+const getStatisticsResponseTime = asyncHandler(async (req, res) => {
+  const cacheKey = 'internalDashboard:responseTime';
+  const value = one_day_cache.get(cacheKey);
+  if (value === undefined) {
+    const agents = await req.db.model('Agent').find({
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+    const editors = await req.db.model('Editor').find({
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+
+    const agentsPromises = Promise.all(
+      agents.map((agent) => getAgentData(req, agent))
+    );
+    const editorsPromises = Promise.all(
+      editors.map((editor) => getEditorData(req, editor))
+    );
+
+    const studentAvgResponseTimePipeline = [
+      // group by student and document type and calculate the average response time per document type
+      {
+        $group: {
+          _id: {
+            student_id: '$student_id',
+            interval_type: '$interval_type'
+          },
+          typeAvg: { $avg: '$intervalAvg' }
+        }
+      },
+      // unwrap the _id object -> which is used for grouping (student_id, interval_type)
+      {
+        $replaceRoot: { newRoot: { $mergeObjects: ['$_id', '$$ROOT'] } }
+      },
+      // group by student to create a array of all averages per document type
+      {
+        $group: {
+          _id: '$student_id',
+          avgByType: {
+            $push: {
+              k: '$interval_type',
+              v: '$typeAvg'
+            }
+          }
+        }
+      },
+      // lookup student details (name, agents, editors)
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'student'
+        }
+      },
+      // unwrap the student data, spreading the details to the root level
+      {
+        $unwind: '$student'
+      },
+      // select only the relevant fields for the output
+      {
+        $project: {
+          _id: 1,
+          agents: '$student.agents',
+          editors: '$student.editors',
+          lastname_chinese: '$student.lastname_chinese',
+          firstname_chinese: '$student.firstname_chinese',
+          name: {
+            $concat: ['$student.firstname', ' ', '$student.lastname']
+          },
+          avgByType: {
+            $arrayToObject: '$avgByType'
+          }
+        }
+      }
+    ];
+
+    const studentAvgResponseTimePromise = req.db
+      .model('ResponseTime')
+      .aggregate(studentAvgResponseTimePipeline);
+
+    const [agents_raw_data, editors_raw_data, studentAvgResponseTime] =
+      await Promise.all([
+        agentsPromises,
+        editorsPromises,
+        studentAvgResponseTimePromise
+      ]);
+
+    const colors = [
+      '#ff8a65',
+      '#f4c22b',
+      '#04a9f5',
+      '#3ebfea',
+      '#4F5467',
+      '#1de9b6',
+      '#a389d4',
+      '#FE8A7D'
+    ];
+
+    const editors_data = [];
+    editors_raw_data.forEach((editor, i) => {
+      editors_data.push({
+        ...editor,
+        key: `${editor.firstname}`,
+        student_num: editor.student_num,
+        color: colors[i]
+      });
+    });
+
+    const agents_data = [];
+    agents_raw_data.forEach((agent, i) => {
+      agents_data.push({
+        ...agent,
+        key: `${agent.firstname}`,
+        student_num_no_offer: agent.student_num_no_offer,
+        student_num_with_offer: agent.student_num_with_offer,
+        color: colors[i]
+      });
+    });
+
+    const returnBody = {
+      success: true,
+      agents_data,
+      editors_data,
+      studentAvgResponseTime
+    };
+    res.status(200).send(returnBody);
+    const success = one_day_cache.set(cacheKey, returnBody);
+    if (success) {
+      logger.info('internal dashboard response time cache set successfully');
+    }
+  } else {
+    logger.info('internal dashboard response time cache hit');
+    res.status(200).send(value);
+  }
+});
+
 module.exports = {
   getTeamMembers,
-  getStatistics,
+  getStatisticsOverview,
+  getStatisticsAgents,
+  getStatisticsKPI,
+  getStatisticsResponseTime,
   getResponseIntervalByStudent,
   getResponseTimeByStudent,
   putAgentProfile,

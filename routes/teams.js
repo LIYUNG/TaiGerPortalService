@@ -7,7 +7,10 @@ const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
 
 const {
   getTeamMembers,
-  getStatistics,
+  getStatisticsOverview,
+  getStatisticsAgents,
+  getStatisticsKPI,
+  getStatisticsResponseTime,
   getResponseIntervalByStudent,
   getResponseTimeByStudent,
   getArchivStudents,
@@ -25,13 +28,41 @@ router.use(protect, permit(Role.Admin, Role.Agent, Role.Editor));
 router
   .route('/')
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getTeamMembers);
+
 router
-  .route('/statistics')
+  .route('/statistics/overview')
   .get(
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
     permission_canAccessStudentDatabase_filter,
-    getStatistics
+    getStatisticsOverview
+  );
+
+router
+  .route('/statistics/agents')
+  .get(
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permission_canAccessStudentDatabase_filter,
+    getStatisticsAgents
+  );
+
+router
+  .route('/statistics/kpi')
+  .get(
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permission_canAccessStudentDatabase_filter,
+    getStatisticsKPI
+  );
+
+router
+  .route('/statistics/response-time')
+  .get(
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permission_canAccessStudentDatabase_filter,
+    getStatisticsResponseTime
   );
 
 router

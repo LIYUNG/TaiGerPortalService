@@ -1,7 +1,7 @@
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
-const { two_month_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { getS3Object } = require('../aws/s3');
 const ApplicationService = require('../services/applications');
@@ -253,11 +253,11 @@ const getAdmissionLetter = asyncHandler(async (req, res, next) => {
   // download the file via aws s3 here
   const fileKey = `${studentId}/admission/${fileName}`;
   logger.info(`Trying to download admission letter: ${fileKey}`);
-  const value = two_month_cache.get(fileKey);
+  const value = ten_minutes_cache.get(fileKey);
   const encodedFileName = encodeURIComponent(fileName);
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = two_month_cache.set(fileKey, Buffer.from(response));
+    const success = ten_minutes_cache.set(fileKey, Buffer.from(response));
     if (success) {
       logger.info('Admission letter cache set successfully');
     }

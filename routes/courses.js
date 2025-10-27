@@ -17,9 +17,6 @@ const { protect, permit, prohibit } = require('../middlewares/auth');
 const {
   getMycourses,
   putMycourses,
-  processTranscript_api,
-  processTranscript_test,
-  downloadXLSX,
   processTranscript_api_gatway,
   downloadJson,
   deleteMyCourse
@@ -66,20 +63,6 @@ router
     deleteMyCourse
   );
 
-// TaiGer Transcript Analyser (Python Backend)
-router
-  .route('/transcript-test/:studentId/:category/:language')
-  .post(
-    validateStudentId,
-    filter_archiv_user,
-    TranscriptAnalyserRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    multitenant_filter,
-    InnerTaigerMultitenantFilter,
-    processTranscript_api,
-    logAccess
-  );
-
 // TaiGer Transcript Analyser:
 router
   .route('/transcript/v2/:studentId/:language')
@@ -90,29 +73,6 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     processTranscript_api_gatway,
-    logAccess
-  );
-
-router
-  .route('/transcript/:studentId/:category/:language')
-  .post(
-    filter_archiv_user,
-    TranscriptAnalyserRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    multitenant_filter,
-    InnerTaigerMultitenantFilter,
-    processTranscript_test,
-    logAccess
-  );
-
-router
-  .route('/transcript/:studentId')
-  .get(
-    filter_archiv_user,
-    DownloadTemplateRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
-    multitenant_filter,
-    downloadXLSX,
     logAccess
   );
 

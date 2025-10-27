@@ -5,7 +5,7 @@ const {
 } = require('@taiger-common/core');
 
 const { asyncHandler } = require('../middlewares/error-handler');
-const { one_month_cache, two_month_cache } = require('../cache/node-cache');
+const { one_day_cache } = require('../cache/node-cache');
 const { ErrorResponse } = require('../common/errors');
 const { isNotArchiv } = require('../constants');
 const {
@@ -46,7 +46,7 @@ const deleteTemplate = asyncHandler(async (req, res, next) => {
 
   try {
     await deleteS3Object(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
-    const value = two_month_cache.del(fileKey);
+    const value = one_day_cache.del(fileKey);
     if (value === 1) {
       logger.info('Template cache key deleted successfully');
     }
@@ -105,10 +105,10 @@ const downloadTemplateFile = asyncHandler(async (req, res, next) => {
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
   logger.info('Trying to download template file', fileKey);
 
-  const value = two_month_cache.get(fileKey); // vpd name
+  const value = one_day_cache.get(fileKey); // vpd name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
-    const success = two_month_cache.set(fileKey, Buffer.from(response));
+    const success = one_day_cache.set(fileKey, Buffer.from(response));
     if (success) {
       logger.info('Template file cache set successfully');
     }
@@ -456,12 +456,12 @@ const downloadVPDFile = asyncHandler(async (req, res, next) => {
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
 
   logger.info(`Trying to download ${fileType} file`);
-  const value = one_month_cache.get(fileKey); // vpd name
+  const value = one_day_cache.get(fileKey); // vpd name
   const encodedFileName = encodeURIComponent(fileName);
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
 
-    const success = one_month_cache.set(fileKey, Buffer.from(response));
+    const success = one_day_cache.set(fileKey, Buffer.from(response));
     if (success) {
       logger.info('VPD file cache set successfully');
     }
@@ -517,10 +517,10 @@ const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
   logger.info(`Trying to download profile file ${fileKey}`);
 
   const cache_key = `${studentId}${fileKey}`;
-  const value = one_month_cache.get(cache_key); // profile name
+  const value = one_day_cache.get(cache_key); // profile name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = one_month_cache.set(cache_key, Buffer.from(response));
+    const success = one_day_cache.set(cache_key, Buffer.from(response));
     if (success) {
       logger.info('Profile file cache set successfully');
     }
@@ -665,7 +665,7 @@ const updateStudentApplicationResultV2 = asyncHandler(
           logger.info('Trying to delete file', fileKey);
           try {
             await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
-            const value = two_month_cache.del(fileKey);
+            const value = one_day_cache.del(fileKey);
             if (value === 1) {
               logger.info('Admission cache key deleted successfully');
             }
@@ -790,7 +790,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       logger.info('Trying to delete file', fileKey);
       try {
         await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
-        const value = two_month_cache.del(fileKey);
+        const value = one_day_cache.del(fileKey);
         if (value === 1) {
           logger.info('Admission cache key deleted successfully');
         }
@@ -930,7 +930,7 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
     document.updatedAt = new Date();
 
     student.save();
-    const value = one_month_cache.del(cache_key);
+    const value = one_day_cache.del(cache_key);
     if (value === 1) {
       logger.info('Profile cache key deleted successfully');
     }
@@ -986,7 +986,7 @@ const deleteVPDFile = asyncHandler(async (req, res, next) => {
 
   try {
     await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const value = one_month_cache.del(fileKey);
+    const value = one_day_cache.del(fileKey);
     if (value === 1) {
       logger.info('VPD cache key deleted successfully');
     }

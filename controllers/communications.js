@@ -17,7 +17,7 @@ const logger = require('../services/logger');
 const { isNotArchiv } = require('../constants');
 const { getPermission } = require('../utils/queryFunctions');
 const { AWS_S3_BUCKET_NAME } = require('../config');
-const { one_month_cache } = require('../cache/node-cache');
+const { one_day_cache } = require('../cache/node-cache');
 const { deleteS3Objects } = require('../aws/s3');
 const { TENANT_SHORT_NAME } = require('../constants/common');
 const { getS3Object } = require('../aws/s3');
@@ -470,10 +470,10 @@ const getChatFile = asyncHandler(async (req, res, next) => {
   const fileKey = path.join(studentId, 'chat', fileName).replace(/\\/g, '/');
 
   const cache_key = `chat-${studentId}${req.originalUrl.split('/')[5]}`;
-  const value = one_month_cache.get(cache_key); // image name
+  const value = one_day_cache.get(cache_key); // image name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = one_month_cache.set(cache_key, Buffer.from(response));
+    const success = one_day_cache.set(cache_key, Buffer.from(response));
     if (success) {
       logger.info('image cache set successfully');
     }
@@ -652,7 +652,7 @@ const deleteAMessageInCommunicationThread = asyncHandler(
 
     // remove chat attachment cache.
     msg.files?.map((file) =>
-      one_month_cache.del(`chat-${msg.student_id?.toString()}${file.name}`)
+      one_day_cache.del(`chat-${msg.student_id?.toString()}${file.name}`)
     );
 
     try {

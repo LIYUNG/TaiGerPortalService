@@ -1,5 +1,4 @@
 const _ = require('lodash');
-const { spawn } = require('child_process');
 const path = require('path');
 const { jsPDF } = require('jspdf');
 const { Role } = require('@taiger-common/core');
@@ -15,7 +14,7 @@ const {
   apiGatewayUrl
 } = require('../aws/constants');
 const { callApiGateway, getTemporaryCredentials } = require('../aws');
-const { one_month_cache } = require('../cache/node-cache');
+const { one_day_cache } = require('../cache/node-cache');
 
 const student_name = 'PreCustomer';
 
@@ -43,7 +42,7 @@ const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, next) => {
       courses_taiger_guided: '"[]"',
       requirement_ids: JSON.stringify(requirementIds)
     });
-    console.log('response: ', response);
+
     await uploadJsonToS3(
       response.result,
       AWS_S3_BUCKET_NAME,
@@ -60,7 +59,7 @@ const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, next) => {
     metadata.analysis.pathV2 = fileKey;
 
     // TODO: update json to S3
-    const success = one_month_cache.del(fileKey);
+    const success = one_day_cache.del(fileKey);
     if (success === 1) {
       logger.info('cache key deleted successfully');
     }
@@ -69,85 +68,6 @@ const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, next) => {
   } catch (error) {
     res.status(403).send({ message: error });
   }
-});
-
-const WidgetProcessTranscript = asyncHandler(async (req, res, next) => {
-  const {
-    params: { category, language },
-    body: { courses, table_data_string_taiger_guided }
-  } = req;
-  const stringified_courses = JSON.stringify(JSON.stringify(courses));
-  const stringified_courses_taiger_guided = JSON.stringify(
-    JSON.stringify(table_data_string_taiger_guided)
-  );
-  let exitCode_Python = -1;
-  const studentId = req.user._id.toString();
-  const python_command = isProd() ? 'python3' : 'python';
-  const python = spawn(
-    python_command,
-    [
-      path.join(
-        __dirname,
-        '..',
-        'python',
-        'TaiGerTranscriptAnalyzerJS',
-        'main.py'
-      ),
-      stringified_courses,
-      category,
-      studentId, // TODO: put in local or in Admin?
-      student_name,
-      language,
-      stringified_courses_taiger_guided
-    ],
-    { stdio: 'inherit' }
-  );
-  python.on('data', (data) => {
-    logger.info(`stdout: ${data}`);
-  });
-  python.on('error', (err) => {
-    logger.error('error');
-    logger.error(err);
-    exitCode_Python = err;
-  });
-
-  python.on('close', (code) => {
-    if (code === 0) {
-      const metadata = {
-        analysis: { isAnalysed: false, path: '', updatedAt: new Date() }
-      };
-      metadata.analysis.isAnalysed = true;
-      metadata.analysis.path = path.join(
-        studentId,
-        `analysed_transcript_${student_name}.xlsx`
-      );
-
-      exitCode_Python = 0;
-      res.status(200).send({ success: true, data: metadata.analysis });
-    } else {
-      res.status(403).send({ message: code });
-    }
-  });
-});
-
-// Download original transcript excel
-const WidgetdownloadXLSX = asyncHandler(async (req, res, next) => {
-  const {
-    params: { adminId }
-  } = req;
-
-  const fileKey = path
-    .join(adminId, `analysed_transcript_${student_name}.xlsx`)
-    .replace(/\\/g, '/');
-
-  logger.info(`Trying to download transcript excel file ${fileKey}`);
-
-  const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-  const fileKey_converted = encodeURIComponent(fileKey); // Use the encoding necessary
-
-  res.attachment(fileKey_converted);
-  res.end(response);
-  next();
 });
 
 const WidgetdownloadJson = asyncHandler(async (req, res, next) => {
@@ -161,13 +81,13 @@ const WidgetdownloadJson = asyncHandler(async (req, res, next) => {
 
   logger.info(`Trying to download transcript json file ${fileKey}`);
 
-  const value = one_month_cache.get(fileKey);
+  const value = one_day_cache.get(fileKey);
   if (value === undefined) {
     const analysedJson = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
     const jsonString = Buffer.from(analysedJson).toString('utf-8');
     const jsonData = JSON.parse(jsonString);
     const fileKey_converted = encodeURIComponent(fileKey); // Use the encoding necessary
-    const success = one_month_cache.set(fileKey, {
+    const success = one_day_cache.set(fileKey, {
       jsonData,
       fileKey_converted
     });
@@ -275,8 +195,6 @@ const WidgetExportMessagePDF = asyncHandler(async (req, res, next) => {
 
 module.exports = {
   WidgetProcessTranscriptV2,
-  WidgetProcessTranscript,
-  WidgetdownloadXLSX,
   WidgetdownloadJson,
   WidgetExportMessagePDF
 };

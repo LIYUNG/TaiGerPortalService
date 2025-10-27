@@ -11,7 +11,7 @@ const {
 
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
-const { one_month_cache } = require('../cache/node-cache');
+const { one_day_cache } = require('../cache/node-cache');
 const { informOnSurveyUpdate } = require('../utils/informEditor');
 const {
   sendNewApplicationMessageInThreadEmail,
@@ -1302,10 +1302,10 @@ const getMessageImageDownload = asyncHandler(async (req, res) => {
     .replace(/\\/g, '/');
 
   const cache_key = `${studentId}${req.originalUrl.split('/')[6]}`;
-  const value = one_month_cache.get(cache_key); // image name
+  const value = one_day_cache.get(cache_key); // image name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = one_month_cache.set(cache_key, Buffer.from(response));
+    const success = one_day_cache.set(cache_key, Buffer.from(response));
     if (success) {
       logger.info('image cache set successfully');
     }
@@ -1363,11 +1363,11 @@ const getMessageFileDownload = asyncHandler(async (req, res) => {
 
   // messageid + extension
   const cache_key = `${encodeURIComponent(fileKey)}`;
-  const value = one_month_cache.get(cache_key); // file name
+  const value = one_day_cache.get(cache_key); // file name
   const encodedFileName = encodeURIComponent(file_key);
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = one_month_cache.set(cache_key, Buffer.from(response));
+    const success = one_day_cache.set(cache_key, Buffer.from(response));
     if (success) {
       logger.info('thread file cache set successfully');
     }
@@ -1821,7 +1821,7 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
 
   for (let i = 0; i < msg.file.length; i += 1) {
     const cache_key = `${encodeURIComponent(msg.file[i].path)}`;
-    const value = one_month_cache.del(cache_key);
+    const value = one_day_cache.del(cache_key);
     if (value === 1) {
       logger.info('file cache key deleted successfully');
     }

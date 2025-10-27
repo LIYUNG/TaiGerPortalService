@@ -1,17 +1,11 @@
-const {
-  Role,
-  is_TaiGer_Agent,
-  is_TaiGer_role
-} = require('@taiger-common/core');
+const { Role, is_TaiGer_Agent } = require('@taiger-common/core');
 
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
-const { one_month_cache } = require('../cache/node-cache');
-const { two_weeks_cache } = require('../cache/node-cache');
-const { PROGRAMS_CACHE } = require('../config');
 const ApplicationService = require('../services/applications');
 const ProgramService = require('../services/programs');
+const VCService = require('../services/vs');
 
 const getDistinctSchoolsAttributes = async (req, res) => {
   try {
@@ -452,34 +446,13 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
 });
 
 const getPrograms = asyncHandler(async (req, res) => {
-  // Option 1 : Cache version
-  if (PROGRAMS_CACHE === 'true') {
-    const value = two_weeks_cache.get(req.originalUrl);
-    if (value === undefined) {
-      // cache miss
-      const programs = await req.db
-        .model('Program')
-        .find({ isArchiv: { $ne: true } })
-        .select(
-          '-tuition_fees -website -special_notes -comments -optionalDocuments -requiredDocuments -uni_assist -daad_link -ml_required -ml_requirements -rl_required -essay_required -essay_requirements -application_portal_a -application_portal_b -fpso -program_duration -deprecated'
-        );
-      const success = two_weeks_cache.set(req.originalUrl, programs);
-      if (success) {
-        logger.info('programs cache set successfully');
-      }
-      return res.send({ success: true, data: programs });
-    }
-    res.send({ success: true, data: value });
-  } else {
-    // Option 2: No cache, good when programs are still frequently updated
-    const programs = await req.db
-      .model('Program')
-      .find({ isArchiv: { $ne: true } })
-      .select(
-        '-tuition_fees -website -special_notes -comments -optionalDocuments -requiredDocuments -uni_assist -daad_link -ml_required -ml_requirements -rl_required -essay_required -essay_requirements -application_portal_a -application_portal_b -fpso -program_duration -deprecated'
-      );
-    res.send({ success: true, data: programs });
-  }
+  const programs = await req.db
+    .model('Program')
+    .find({ isArchiv: { $ne: true } })
+    .select(
+      '-tuition_fees -website -special_notes -comments -optionalDocuments -requiredDocuments -uni_assist -daad_link -ml_required -ml_requirements -rl_required -essay_required -essay_requirements -application_portal_a -application_portal_b -fpso -program_duration -deprecated'
+    );
+  res.send({ success: true, data: programs });
 });
 
 const getStudentsByProgram = asyncHandler(async (req, programId) => {
@@ -513,108 +486,36 @@ const getStudentsByProgram = asyncHandler(async (req, programId) => {
   return Array.from(studentSet);
 });
 
+const getSameProgramStudents = asyncHandler(async (req, res) => {
+  const students = await getStudentsByProgram(req, req.params.programId);
+  return res.send({ success: true, data: students });
+});
+
 const getProgram = asyncHandler(async (req, res) => {
   const { user } = req;
-  if (PROGRAMS_CACHE === 'true') {
-    const value = one_month_cache.get(req.originalUrl);
-    if (value === undefined) {
-      // cache miss
-      const program = await ProgramService.getProgramById(
-        req,
-        req.params.programId
-      );
-      if (!program) {
-        logger.error('getProgram: Invalid program id');
-        throw new ErrorResponse(404, 'Program not found');
-      }
-      const success = one_month_cache.set(req.originalUrl, program);
-      if (success) {
-        logger.info('programs cache set successfully');
-      }
-      if (is_TaiGer_role(user)) {
-        const applications = await ApplicationService.getApplications(req, {
-          programId: req.params.programId,
-          decided: 'O'
-        });
-        const students = applications.map(
-          (application) => application.studentId
-        );
+  const program = await ProgramService.getProgramById(
+    req,
+    req.params.programId
+  );
+  if (!program) {
+    logger.error('getProgram: Invalid program id');
+    throw new ErrorResponse(404, 'Program not found');
+  }
+  let vc = null;
 
-        const vc = await req.db
-          .model('VC')
-          .findOne({
-            docId: req.params.programId,
-            collectionName: 'Program'
-          })
-          .lean();
-
-        return res.send({ success: true, data: program, students, vc });
-      }
-      return res.send({ success: true, data: program });
-    }
-    logger.info('programs cache hit');
-
-    if (
-      user.role === Role.Admin ||
-      is_TaiGer_Agent(user) ||
-      user.role === Role.Editor ||
-      user.role === Role.External
-    ) {
-      let students = [];
-
-      if (user.role !== Role.External) {
-        students = await getStudentsByProgram(req, req.params.programId);
-      }
-
-      const vc = await req.db
-        .model('VC')
-        .findOne({
-          docId: req.params.programId,
-          collectionName: 'Program'
-        })
-        .lean();
-      res.send({ success: true, data: value, students, vc });
-    } else {
-      res.send({ success: true, data: value });
-    }
-  } else if (
+  if (
     user.role === Role.Admin ||
     is_TaiGer_Agent(user) ||
     user.role === Role.Editor ||
     user.role === Role.External
   ) {
-    let students = [];
-
-    let program = {};
-    if (user.role !== Role.External) {
-      students = await getStudentsByProgram(req, req.params.programId);
-    }
-    program = await ProgramService.getProgramById(req, req.params.programId);
-
-    if (!program) {
-      logger.error('getProgram: Invalid program id');
-      throw new ErrorResponse(404, 'Program not found');
-    }
-    const vc = await req.db
-      .model('VC')
-      .findOne({
-        docId: req.params.programId,
-        collectionName: 'Program'
-      })
-      .lean();
-
-    res.send({ success: true, data: program, students, vc });
-  } else {
-    const program = await ProgramService.getProgramById(
-      req,
-      req.params.programId
-    );
-    if (!program) {
-      logger.error('getProgram: Invalid program id');
-      throw new ErrorResponse(404, 'Program not found');
-    }
-    res.send({ success: true, data: program });
+    vc = await VCService.getVC(req, {
+      docId: req.params.programId,
+      collectionName: 'Program'
+    });
   }
+
+  res.send({ success: true, data: program, vc });
 });
 
 const createProgram = asyncHandler(async (req, res) => {
@@ -672,19 +573,10 @@ const updateProgram = asyncHandler(async (req, res) => {
     fields_root
   );
 
-  const vc = await req.db
-    .model('VC')
-    .findOne({
-      docId: req.params.programId,
-      collectionName: 'Program'
-    })
-    .lean();
-
-  // Delete cache key for image, pdf, docs, file here.
-  const value = one_month_cache.del(req.originalUrl);
-  if (value === 1) {
-    logger.info('cache key deleted successfully due to update');
-  }
+  const vc = await VCService.getVC(req, {
+    docId: req.params.programId,
+    collectionName: 'Program'
+  });
 
   return res.status(200).send({ success: true, data: program, vc });
 });
@@ -705,10 +597,6 @@ const deleteProgram = asyncHandler(async (req, res) => {
       .findByIdAndUpdate(req.params.programId, { isArchiv: true });
     logger.info('The program deleted!');
 
-    const value = one_month_cache.del(req.originalUrl);
-    if (value === 1) {
-      logger.info('cache key deleted successfully due to delete');
-    }
     await req.db
       .model('ProgramRequirement')
       .findOneAndDelete({ programId: { $in: [req.params.programId] } });
@@ -738,6 +626,7 @@ module.exports = {
   getProgramsOverview,
   getSchoolsDistribution,
   getPrograms,
+  getSameProgramStudents,
   getProgram,
   createProgram,
   updateProgram,

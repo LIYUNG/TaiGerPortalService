@@ -19,7 +19,8 @@ const {
   getDistinctSchoolsAttributes,
   updateBatchSchoolAttributes,
   getProgramsOverview,
-  getSchoolsDistribution
+  getSchoolsDistribution,
+  getSameProgramStudents
 } = require('../controllers/programs');
 const {
   getProgramChangeRequests,
@@ -53,6 +54,15 @@ router
     GetProgramListRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.External),
     getSchoolsDistribution
+  );
+
+router
+  .route('/same-program-students/:programId')
+  .get(
+    filter_archiv_user,
+    GetProgramListRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getSameProgramStudents
   );
 
 router

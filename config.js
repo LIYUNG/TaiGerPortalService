@@ -32,7 +32,6 @@ module.exports = {
   POSTGRES_URI: env('POSTGRES_URI', 'postgresql://localhost:5432/TaiGer'),
   JWT_SECRET: env('JWT_SECRET', 'topsecret'),
   JWT_EXPIRE: env('JWT_EXPIRE', '1hr'),
-  PROGRAMS_CACHE: env('PROGRAMS_CACHE', false),
   SMTP_HOST: env('SMTP_HOST', 'smtp.ethereal.email'),
   SMTP_PORT: env('SMTP_PORT', 587),
   SMTP_USERNAME: env('SMTP_USERNAME', 'glen.simonis12@ethereal.email'),

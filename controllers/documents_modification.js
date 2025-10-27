@@ -792,8 +792,6 @@ const postMessages = asyncHandler(async (req, res) => {
         doc_thread_id.toString() === document_thread2._id.toString()
     );
     if (general_thread) {
-      if (is_TaiGer_Student(user)) {
-      }
       if (!is_TaiGer_Student(user)) {
         student.notification.isRead_new_cvmlrl_messsage = false;
       }

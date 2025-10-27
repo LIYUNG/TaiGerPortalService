@@ -12,7 +12,7 @@ const {
   complaintResolvedRequesterReminderEmail,
   newCustomerCenterTicketMessageEmail
 } = require('../services/email/complaints');
-const { one_day_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
 const { threadS3GarbageCollector } = require('../utils/utils_function');
@@ -134,10 +134,10 @@ const getMessageFileInTicket = asyncHandler(async (req, res) => {
 
   // messageid + extension
   const cache_key = `${studentId}${ticketId}${encodeURIComponent(fileKey)}`;
-  const value = one_day_cache.get(cache_key); // file name
+  const value = ten_minutes_cache.get(cache_key); // file name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = one_day_cache.set(cache_key, Buffer.from(response));
+    const success = ten_minutes_cache.set(cache_key, Buffer.from(response));
     if (success) {
       logger.info('ticket file cache set successfully');
     }

@@ -8,7 +8,7 @@ const {
 const { postgresDb } = require('../database');
 const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
 const logger = require('../services/logger');
-const { one_day_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 
 /**
  * Retrieves CRM statistics including weekly counts and total/recent counts for leads and meetings.
@@ -23,7 +23,7 @@ const { one_day_cache } = require('../cache/node-cache');
  */
 const getCRMStats = asyncHandler(async (req, res) => {
   const cacheKey = 'CRM-stats';
-  const cachedValue = one_day_cache.get(cacheKey);
+  const cachedValue = ten_minutes_cache.get(cacheKey);
 
   if (!!cachedValue) {
     logger.info('getCRMStats - cache hit');
@@ -267,7 +267,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
     }
   };
 
-  const success = one_day_cache.set(cacheKey, returnBody);
+  const success = ten_minutes_cache.set(cacheKey, returnBody);
   res.status(200).send(returnBody);
 });
 const getLeads = asyncHandler(async (_req, res) => {

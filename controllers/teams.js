@@ -8,7 +8,7 @@ const { getStudentsByProgram } = require('./programs');
 const { findStudentDeltaGet } = require('../utils/modelHelper/programChange');
 const { GenerateResponseTimeByStudent } = require('./response_time');
 const { numStudentYearDistribution } = require('../utils/utils_function');
-const { one_day_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 const StudentService = require('../services/students');
 const UserQueryBuilder = require('../builders/UserQueryBuilder');
 const InterviewQueryBuilder = require('../builders/InterviewQueryBuilder');
@@ -782,7 +782,7 @@ const getEditorTaskCounts = asyncHandler(async (req, editors) => {
 // Separate statistics endpoints for each dashboard tab
 const getStatisticsOverview = asyncHandler(async (req, res) => {
   const cacheKey = 'internalDashboard:overview';
-  const value = one_day_cache.get(cacheKey);
+  const value = ten_minutes_cache.get(cacheKey);
   if (value === undefined) {
     const agents = await req.db.model('Agent').find({
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
@@ -885,7 +885,7 @@ const getStatisticsOverview = asyncHandler(async (req, res) => {
       students_creation_dates: studentsData
     };
     res.status(200).send(returnBody);
-    const success = one_day_cache.set(cacheKey, returnBody);
+    const success = ten_minutes_cache.set(cacheKey, returnBody);
     if (success) {
       logger.info('internal dashboard overview cache set successfully');
     }
@@ -897,7 +897,7 @@ const getStatisticsOverview = asyncHandler(async (req, res) => {
 
 const getStatisticsAgents = asyncHandler(async (req, res) => {
   const cacheKey = 'internalDashboard:agents';
-  const value = one_day_cache.get(cacheKey);
+  const value = ten_minutes_cache.get(cacheKey);
   if (value === undefined) {
     const agents = await req.db.model('Agent').find({
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
@@ -947,7 +947,7 @@ const getStatisticsAgents = asyncHandler(async (req, res) => {
       agentStudentDistribution: mergedResults
     };
     res.status(200).send(returnBody);
-    const success = one_day_cache.set(cacheKey, returnBody);
+    const success = ten_minutes_cache.set(cacheKey, returnBody);
     if (success) {
       logger.info('internal dashboard agents cache set successfully');
     }
@@ -959,7 +959,7 @@ const getStatisticsAgents = asyncHandler(async (req, res) => {
 
 const getStatisticsKPI = asyncHandler(async (req, res) => {
   const cacheKey = 'internalDashboard:kpi';
-  const value = one_day_cache.get(cacheKey);
+  const value = ten_minutes_cache.get(cacheKey);
   if (value === undefined) {
     const finishedDocs = await req.db
       .model('Documentthread')
@@ -986,7 +986,7 @@ const getStatisticsKPI = asyncHandler(async (req, res) => {
       finished_docs: finishedDocs
     };
     res.status(200).send(returnBody);
-    const success = one_day_cache.set(cacheKey, returnBody);
+    const success = ten_minutes_cache.set(cacheKey, returnBody);
     if (success) {
       logger.info('internal dashboard kpi cache set successfully');
     }
@@ -998,7 +998,7 @@ const getStatisticsKPI = asyncHandler(async (req, res) => {
 
 const getStatisticsResponseTime = asyncHandler(async (req, res) => {
   const cacheKey = 'internalDashboard:responseTime';
-  const value = one_day_cache.get(cacheKey);
+  const value = ten_minutes_cache.get(cacheKey);
   if (value === undefined) {
     const agents = await req.db.model('Agent').find({
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
@@ -1122,7 +1122,7 @@ const getStatisticsResponseTime = asyncHandler(async (req, res) => {
       studentAvgResponseTime
     };
     res.status(200).send(returnBody);
-    const success = one_day_cache.set(cacheKey, returnBody);
+    const success = ten_minutes_cache.set(cacheKey, returnBody);
     if (success) {
       logger.info('internal dashboard response time cache set successfully');
     }

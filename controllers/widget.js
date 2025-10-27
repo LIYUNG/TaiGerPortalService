@@ -14,7 +14,7 @@ const {
   apiGatewayUrl
 } = require('../aws/constants');
 const { callApiGateway, getTemporaryCredentials } = require('../aws');
-const { one_day_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 
 const student_name = 'PreCustomer';
 
@@ -59,7 +59,7 @@ const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, next) => {
     metadata.analysis.pathV2 = fileKey;
 
     // TODO: update json to S3
-    const success = one_day_cache.del(fileKey);
+    const success = ten_minutes_cache.del(fileKey);
     if (success === 1) {
       logger.info('cache key deleted successfully');
     }
@@ -81,13 +81,13 @@ const WidgetdownloadJson = asyncHandler(async (req, res, next) => {
 
   logger.info(`Trying to download transcript json file ${fileKey}`);
 
-  const value = one_day_cache.get(fileKey);
+  const value = ten_minutes_cache.get(fileKey);
   if (value === undefined) {
     const analysedJson = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
     const jsonString = Buffer.from(analysedJson).toString('utf-8');
     const jsonData = JSON.parse(jsonString);
     const fileKey_converted = encodeURIComponent(fileKey); // Use the encoding necessary
-    const success = one_day_cache.set(fileKey, {
+    const success = ten_minutes_cache.set(fileKey, {
       jsonData,
       fileKey_converted
     });

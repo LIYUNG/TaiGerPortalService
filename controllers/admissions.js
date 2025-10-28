@@ -1,7 +1,6 @@
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
-const { ten_minutes_cache } = require('../cache/node-cache');
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { getS3Object } = require('../aws/s3');
 const ApplicationService = require('../services/applications');

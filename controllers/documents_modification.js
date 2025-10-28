@@ -1362,31 +1362,15 @@ const getMessageFileDownload = asyncHandler(async (req, res) => {
   logger.info('Trying to download message file', fileKey);
 
   // messageid + extension
-  const cache_key = `${encodeURIComponent(fileKey)}`;
-  const value = ten_minutes_cache.get(cache_key); // file name
   const encodedFileName = encodeURIComponent(file_key);
-  if (value === undefined) {
-    const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = ten_minutes_cache.set(cache_key, Buffer.from(response));
-    if (success) {
-      logger.info('thread file cache set successfully');
-    }
+  const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
 
-    res.attachment(encodedFileName);
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename*=UTF-8''${encodedFileName}`
-    );
-    return res.end(response);
-  }
-
-  logger.info('thread file cache hit');
   res.attachment(encodedFileName);
   res.setHeader(
     'Content-Disposition',
     `attachment; filename*=UTF-8''${encodedFileName}`
   );
-  return res.end(value);
+  return res.end(response);
 });
 
 const putOriginAuthorConfirmedByStudent = asyncHandler(async (req, res) => {

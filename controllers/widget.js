@@ -14,7 +14,6 @@ const {
   apiGatewayUrl
 } = require('../aws/constants');
 const { callApiGateway, getTemporaryCredentials } = require('../aws');
-const { ten_minutes_cache } = require('../cache/node-cache');
 
 const student_name = 'PreCustomer';
 
@@ -58,12 +57,6 @@ const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, next) => {
 
     metadata.analysis.pathV2 = fileKey;
 
-    // TODO: update json to S3
-    const success = ten_minutes_cache.del(fileKey);
-    if (success === 1) {
-      logger.info('cache key deleted successfully');
-    }
-
     res.status(200).send({ success: true, data: metadata.analysis });
   } catch (error) {
     res.status(403).send({ message: error });
@@ -81,32 +74,15 @@ const WidgetdownloadJson = asyncHandler(async (req, res, next) => {
 
   logger.info(`Trying to download transcript json file ${fileKey}`);
 
-  const value = ten_minutes_cache.get(fileKey);
-  if (value === undefined) {
-    const analysedJson = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const jsonString = Buffer.from(analysedJson).toString('utf-8');
-    const jsonData = JSON.parse(jsonString);
-    const fileKey_converted = encodeURIComponent(fileKey); // Use the encoding necessary
-    const success = ten_minutes_cache.set(fileKey, {
-      jsonData,
-      fileKey_converted
-    });
-    if (success) {
-      logger.info('Course analysis json cache set successfully');
-    }
-    res
-      .status(200)
-      .send({ success: true, json: jsonData, fileKey: fileKey_converted });
-    next();
-  } else {
-    logger.info('Course analysis json cache hit');
-    res.status(200).send({
-      success: true,
-      json: value.jsonData,
-      fileKey: value.fileKey_converted
-    });
-    next();
-  }
+  const analysedJson = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
+  const jsonString = Buffer.from(analysedJson).toString('utf-8');
+  const jsonData = JSON.parse(jsonString);
+  const fileKey_converted = encodeURIComponent(fileKey); // Use the encoding necessary
+
+  res
+    .status(200)
+    .send({ success: true, json: jsonData, fileKey: fileKey_converted });
+  next();
 });
 
 // Export messages as pdf

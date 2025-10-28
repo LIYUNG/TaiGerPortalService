@@ -46,10 +46,6 @@ const deleteTemplate = asyncHandler(async (req, res, next) => {
 
   try {
     await deleteS3Object(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
-    const value = ten_minutes_cache.del(fileKey);
-    if (value === 1) {
-      logger.info('Template cache key deleted successfully');
-    }
   } catch (err) {
     if (err) {
       logger.error('deleteTemplate: ', err);
@@ -458,32 +454,16 @@ const downloadVPDFile = asyncHandler(async (req, res, next) => {
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
 
   logger.info(`Trying to download ${fileType} file`);
-  const value = ten_minutes_cache.get(fileKey); // vpd name
   const encodedFileName = encodeURIComponent(fileName);
-  if (value === undefined) {
-    const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
+  const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
 
-    const success = ten_minutes_cache.set(fileKey, Buffer.from(response));
-    if (success) {
-      logger.info('VPD file cache set successfully');
-    }
-    res.attachment(encodedFileName);
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename*=UTF-8''${encodedFileName}`
-    );
-    res.end(response);
-    next();
-  } else {
-    logger.info('VPD file cache hit');
-    res.attachment(encodedFileName);
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename*=UTF-8''${encodedFileName}`
-    );
-    res.end(value);
-    next();
-  }
+  res.attachment(encodedFileName);
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename*=UTF-8''${encodedFileName}`
+  );
+  res.end(response);
+  next();
 });
 
 const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
@@ -518,23 +498,11 @@ const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
   logger.info(`Trying to download profile file ${fileKey}`);
 
-  const cache_key = `${studentId}${fileKey}`;
-  const value = ten_minutes_cache.get(cache_key); // profile name
-  if (value === undefined) {
-    const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = ten_minutes_cache.set(cache_key, Buffer.from(response));
-    if (success) {
-      logger.info('Profile file cache set successfully');
-    }
-    res.attachment(fileKey);
-    res.end(response);
-    next();
-  } else {
-    logger.info('Profile file cache hit');
-    res.attachment(fileKey);
-    res.end(value);
-    next();
-  }
+  const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
+
+  res.attachment(fileKey);
+  res.end(response);
+  next();
 });
 
 // (O) email : student notification
@@ -667,10 +635,6 @@ const updateStudentApplicationResultV2 = asyncHandler(
           logger.info('Trying to delete file', fileKey);
           try {
             await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
-            const value = ten_minutes_cache.del(fileKey);
-            if (value === 1) {
-              logger.info('Admission cache key deleted successfully');
-            }
           } catch (err) {
             if (err) {
               logger.error(`Error: delete Application result letter: ${err}`);
@@ -792,10 +756,6 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       logger.info('Trying to delete file', fileKey);
       try {
         await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
-        const value = ten_minutes_cache.del(fileKey);
-        if (value === 1) {
-          logger.info('Admission cache key deleted successfully');
-        }
       } catch (err) {
         if (err) {
           logger.error(`Error: delete Application result letter: ${err}`);
@@ -924,7 +884,6 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
 
   logger.info('Trying to delete file', fileKey);
 
-  const cache_key = `${studentId}${fileKey}`;
   try {
     await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
     document.status = DocumentStatusType.Missing;
@@ -932,10 +891,7 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
     document.updatedAt = new Date();
 
     student.save();
-    const value = ten_minutes_cache.del(cache_key);
-    if (value === 1) {
-      logger.info('Profile cache key deleted successfully');
-    }
+
     res.status(200).send({ success: true, data: document });
     next();
   } catch (err) {

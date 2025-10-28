@@ -47,9 +47,26 @@ app.use(
   })
 );
 app.use(cookieParser());
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
   console.log('healthy check');
-  res.status(200).json({ status: 'healthy', timestamp: new Date() });
+  // Optional: read ECS task metadata (if awsvpc mode)
+  let ecsMetadata = {};
+  const metadataUri = process.env.ECS_CONTAINER_METADATA_URI_V4;
+  console.log('metadataUri', metadataUri);
+  try {
+    if (metadataUri) {
+      const metadata = await fetch(`${metadataUri}/task`);
+      ecsMetadata = await metadata.json();
+    }
+  } catch (err) {
+    console.warn('ECS metadata unavailable:', err.message);
+  }
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date(),
+    ecsTaskArn: ecsMetadata.TaskARN || null,
+    containerName: ecsMetadata.Containers?.[0]?.Name || null
+  });
 });
 app.use(decryptCookieMiddleware);
 app.use(checkTenantDBMiddleware);

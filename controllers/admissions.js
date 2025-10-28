@@ -214,34 +214,24 @@ const getAdmissionsOverview = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: result });
 });
 
-// TODO: can flatten the result, so that frontend can render in table directly.
-const getAdmissions = asyncHandler(async (req, res) => {
-  try {
-    const { decided, closed, admission } = req.query;
-    const { filter } = new ApplicationQueryBuilder()
-      .withDecided(decided)
-      .withClosed(closed)
-      .withAdmission(admission)
-      .build();
+const getAdmissions = asyncHandler(async (req, res, next) => {
+  const { decided, closed, admission } = req.query;
+  const { filter } = new ApplicationQueryBuilder()
+    .withDecided(decided)
+    .withClosed(closed)
+    .withAdmission(admission)
+    .build();
 
-    const [result, applications] = await Promise.all([
-      getProgramApplicationCounts(req),
-      ApplicationService.getApplicationsWithStudentDetails(req, filter)
-    ]);
+  const [result, applications] = await Promise.all([
+    getProgramApplicationCounts(req),
+    ApplicationService.getApplicationsWithStudentDetails(req, filter)
+  ]);
 
-    res.status(200).send({
-      success: true,
-      data: applications || [],
-      result: result || []
-    });
-  } catch (error) {
-    logger.error('Error in getAdmissions:', error);
-    res.status(500).send({
-      success: false,
-      message: 'Error fetching admissions data',
-      error: error.message
-    });
-  }
+  res.status(200).send({
+    success: true,
+    data: applications || [],
+    result: result || []
+  });
 });
 
 const getAdmissionLetter = asyncHandler(async (req, res, next) => {
@@ -253,31 +243,15 @@ const getAdmissionLetter = asyncHandler(async (req, res, next) => {
   // download the file via aws s3 here
   const fileKey = `${studentId}/admission/${fileName}`;
   logger.info(`Trying to download admission letter: ${fileKey}`);
-  const value = ten_minutes_cache.get(fileKey);
   const encodedFileName = encodeURIComponent(fileName);
-  if (value === undefined) {
-    const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = ten_minutes_cache.set(fileKey, Buffer.from(response));
-    if (success) {
-      logger.info('Admission letter cache set successfully');
-    }
-    res.attachment(encodedFileName);
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename*=UTF-8''${encodedFileName}`
-    );
-    res.end(response);
-    next();
-  } else {
-    logger.info('Admission letter cache hit');
-    res.attachment(encodedFileName);
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename*=UTF-8''${encodedFileName}`
-    );
-    res.end(value);
-    next();
-  }
+  const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
+
+  res.attachment(encodedFileName);
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename*=UTF-8''${encodedFileName}`
+  );
+  res.end(response);
 });
 
 const getAdmissionsYear = asyncHandler(async (req, res) => {

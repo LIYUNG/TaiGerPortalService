@@ -986,30 +986,28 @@ const deleteVPDFile = asyncHandler(async (req, res, next) => {
   const fileKey = document_split.replace(/\\/g, '/');
   logger.info(`Trying to delete file ${fileKey}`);
 
-  try {
-    await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const value = ten_minutes_cache.del(fileKey);
-    if (value === 1) {
-      logger.info('VPD cache key deleted successfully');
+  await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
+  const payload = {
+    uni_assist: {
+      ...app.uni_assist,
+      updatedAt: new Date()
     }
-    if (fileType === 'VPD') {
-      app.uni_assist.status = DocumentStatusType.Missing;
-      app.uni_assist.vpd_file_path = '';
-    }
-    if (fileType === 'VPDConfirmation') {
-      app.uni_assist.vpd_paid_confirmation_file_path = '';
-    }
-    app.uni_assist.updatedAt = new Date();
-    await app.save();
-
-    res.status(200).send({ success: true, data: app });
-    next();
-  } catch (err) {
-    if (err) {
-      logger.error('deleteVPDFile: ', err);
-      throw new ErrorResponse(500, 'Error occurs while deleting');
-    }
+  };
+  if (fileType === 'VPD') {
+    payload.uni_assist.status = DocumentStatusType.Missing;
+    payload.uni_assist.vpd_file_path = '';
   }
+  if (fileType === 'VPDConfirmation') {
+    payload.uni_assist.vpd_paid_confirmation_file_path = '';
+  }
+  const updatedApp = await ApplicationService.updateApplication(
+    req,
+    { _id: applicationId },
+    payload
+  );
+
+  res.status(200).send({ success: true, data: updatedApp });
+  next();
 });
 
 const removeNotification = asyncHandler(async (req, res, next) => {

@@ -64,8 +64,7 @@ app.get('/health', async (req, res) => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date(),
-    ecsTaskArn: ecsMetadata.TaskARN || null,
-    containerName: ecsMetadata.Containers?.[0]?.Name || null
+    ecsTaskArn: `taskId: ${ecsMetadata.TaskARN?.split('/').pop()}` || null // taskId in ecs-task-arn
   });
 });
 app.use(decryptCookieMiddleware);

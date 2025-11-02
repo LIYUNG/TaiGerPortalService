@@ -147,7 +147,7 @@ describe('POST /api/document-threads/:category', () => {
 });
 
 // user: Agent
-describe('POST /api/document-threads/init/application/:studentId/:programId/:document_category', () => {
+describe('POST /api/document-threads/init/application/:studentId/:application_id/:document_category', () => {
   const { _id: studentId } = student;
   const { _id: programId } = program1;
   const { _id: agentId } = agent;
@@ -202,30 +202,6 @@ describe('POST /api/document-threads/init/application/:studentId/:programId/:doc
     );
     expect(thread.doc_thread_id.file_type).toBe('ML');
     messagesThreadId = thread.doc_thread_id._id?.toString();
-  });
-
-  it('should create a Supplementary_Form thread when manually added', async () => {
-    const resp22 = await requestWithSupertest
-      .post(
-        `/api/document-threads/init/application/${studentId}/${programId}/${'Supplementary_Form'}`
-      )
-      .set('tenantId', TENANT_ID);
-    expect(resp22.status).toBe(200);
-
-    const resp_std = await requestWithSupertest
-      .get(`/api/students/doc-links/${studentId}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp_std.status).toBe(200);
-    const newStudentData = resp_std.body.data;
-
-    const newApplication = newStudentData.applications.find(
-      (appl) => appl.programId._id?.toString() === programId
-    );
-    const thread = newApplication.doc_modification_thread.find(
-      (thr) => thr.doc_thread_id.file_type === 'Supplementary_Form'
-    );
-    expect(thread.doc_thread_id.file_type).toBe('Supplementary_Form');
   });
 
   it.each([

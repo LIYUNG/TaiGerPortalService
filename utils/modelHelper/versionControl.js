@@ -92,6 +92,65 @@ const createApplicationThread = async (
   return newAppRecord;
 };
 
+// only for initApplicationMessagesThread
+const createApplicationThreadV2 = async (
+  { StudentModel, ApplicationModel, DocumentthreadModel },
+  studentId,
+  applicationId,
+  fileType
+) => {
+  const threadExisted = await DocumentthreadModel.findOne({
+    student_id: studentId,
+    application_id: applicationId,
+    file_type: fileType
+  });
+
+  if (threadExisted) {
+    logger.error(
+      'initApplicationMessagesThread: Document Thread already existed!'
+    );
+    throw new ErrorResponse(409, 'Document Thread already existed!');
+  }
+  const student = await StudentModel.findById(studentId);
+  const applications = await ApplicationModel.find({ studentId }).populate(
+    'programId'
+  );
+
+  if (!applications) {
+    logger.info('initApplicationMessagesThread: Invalid student id!');
+    throw new ErrorResponse(404, 'Student not found');
+  }
+
+  const appIdx = applications.findIndex(
+    (app) => app._id.toString() === applicationId.toString()
+  );
+
+  if (appIdx === -1) {
+    logger.info('initApplicationMessagesThread: Invalid application id!');
+    throw new ErrorResponse(404, 'Application not found');
+  }
+
+  const newThread = new DocumentthreadModel({
+    student_id: studentId,
+    application_id: applications[appIdx]._id,
+    file_type: fileType,
+    program_id: applications[appIdx].programId._id.toString(),
+    updatedAt: new Date()
+  });
+
+  const newAppRecord = applications[appIdx].doc_modification_thread.create({
+    doc_thread_id: newThread,
+    updatedAt: new Date(),
+    createdAt: new Date()
+  });
+  applications[appIdx].doc_modification_thread.push(newAppRecord);
+  student.notification.isRead_new_cvmlrl_tasks_created = false;
+  await student.save();
+  await applications[appIdx].save();
+  await newThread.save();
+  return newAppRecord;
+};
+
 const deleteApplicationThread = async (
   req,
   studentId,
@@ -397,6 +456,7 @@ module.default = enableVersionControl;
 module.exports = {
   emptyS3Directory,
   createApplicationThread,
+  createApplicationThreadV2,
   deleteApplicationThread,
   handleProgramChanges,
   enableVersionControl

@@ -150,7 +150,7 @@ router
   );
 
 router
-  .route('/init/application/:studentId/:program_id/:document_category')
+  .route('/init/application/:studentId/:application_id/:document_category')
   .post(
     validateStudentId,
     filter_archiv_user,

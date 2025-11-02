@@ -47,7 +47,8 @@ const {
 const { AWS_S3_BUCKET_NAME, ORIGIN } = require('../config');
 const { deleteS3Objects } = require('../aws/s3');
 const {
-  createApplicationThread,
+  // createApplicationThread, // only used for VC hook
+  createApplicationThreadV2,
   emptyS3Directory
 } = require('../utils/modelHelper/versionControl');
 const {
@@ -346,17 +347,17 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
 // (O) Tested
 const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   const {
-    params: { studentId, program_id, document_category }
+    params: { studentId, application_id, document_category }
   } = req;
 
-  const newAppRecord = await createApplicationThread(
+  const newAppRecord = await createApplicationThreadV2(
     {
       StudentModel: req.db.model('Student'),
       ApplicationModel: req.db.model('Application'),
       DocumentthreadModel: req.db.model('Documentthread')
     },
     studentId,
-    program_id,
+    application_id,
     document_category
   );
   res.status(200).send({ success: true, data: newAppRecord });
@@ -369,7 +370,7 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   );
 
   const program = applications.find(
-    (app) => app.programId._id.toString() === program_id
+    (app) => app._id.toString() === application_id
   )?.programId;
   const Essay_Writer_Scope = Object.keys(ESSAY_WRITER_SCOPE);
   const program_name = `${program.school} - ${program.program_name}`;

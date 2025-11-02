@@ -63,7 +63,21 @@ const ApplicationService = {
     const query = req.db.model('Application').find(filter);
     if (!!populate && populate !== 'false') {
       query.populate('programId');
-      query.populate('doc_modification_thread.doc_thread_id', '-messages');
+      query.populate({
+        path: 'doc_modification_thread.doc_thread_id',
+        select: 'file_type isFinalVersion updatedAt messages',
+        populate: {
+          path: 'messages',
+          options: {
+            sort: { createdAt: -1 },
+            limit: 1
+          },
+          populate: {
+            path: 'user_id',
+            select: 'firstname lastname pictureUrl'
+          }
+        }
+      });
     }
     if (select.length > 0) {
       query.select(select.join(' '));

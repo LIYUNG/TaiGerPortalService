@@ -280,25 +280,28 @@ const needUpdateCourseSelection = (student) => {
   if (student.courses?.length === 0) {
     return true;
   }
-  // necessary if never analyzed and is studying
-  if (!student.courses[0].analysis?.updatedAt) {
+
+  // necessary if courses or analysis expired 39 daays and is studying
+  if (
+    !student.courses[0].updatedAt ||
+    !student.courses[0].analysis?.updatedAt
+  ) {
     return true;
   }
-  // necessary if courses or analysis expired 39 daays and is studying
   const course_aged_days = differenceInDays(
     new Date(),
     student.courses[0].updatedAt
   );
   const analyse_aged_days = differenceInDays(
     new Date(),
-    student.courses[0].analysis?.updatedAt
+    student.courses[0].analysis.updatedAt
   );
-  const trigger_days = 1;
-  if (course_aged_days > trigger_days || analyse_aged_days > trigger_days) {
+  const trigger_days = 39;
+  if (course_aged_days > trigger_days && analyse_aged_days > trigger_days) {
     return true;
   }
 
-  return true;
+  return false;
 };
 
 const does_editor_have_pending_tasks = (students, editor) => {

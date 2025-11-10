@@ -390,14 +390,8 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
             );
           }
           const Documentthread = req.db.model('Documentthread');
-          const isRLSpecific = program.is_rl_specific;
-          const NoRLSpecificFlag =
-            isRLSpecific === undefined || isRLSpecific === null;
-          // create specific RL tag if flag is false, or no flag and no requirement
-          if (
-            isRLSpecific === false ||
-            (NoRLSpecificFlag && !program.rl_requirements)
-          ) {
+          const isRLSpecific = program?.is_rl_specific;
+          if (!isRLSpecific) {
             // check if general RL is created, if not, create ones!
             const genThreadIds = student.generaldocs_threads.map(
               (thread) => thread.doc_thread_id

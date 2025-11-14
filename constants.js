@@ -1276,6 +1276,24 @@ const missing_academic_background = (student, user) => {
   return missing_background_fields;
 };
 
+const General_RL_Deadline_Calculator = (applications) => {
+  const RLrequiredApplications = applications?.filter((app) => {
+    const program = app?.programId;
+    if (
+      !program ||
+      !program.rl_required ||
+      program.rl_required === '0' ||
+      program.is_rl_specific
+    ) {
+      return false;
+    } else {
+      return true;
+    }
+  });
+
+  return CVDeadline_Calculator(RLrequiredApplications);
+};
+
 const CVDeadline_Calculator = (applications) => {
   let daysLeftMin = 3000;
   let CVDeadline = '';
@@ -1520,6 +1538,7 @@ module.exports = {
   cv_ml_rl_editor_escalation_summary,
   cv_ml_rl_unfinished_summary,
   profile_keys_list,
+  General_RL_Deadline_Calculator,
   CVDeadline_Calculator,
   isNotArchiv,
   isArchiv,

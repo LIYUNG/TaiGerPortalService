@@ -31,9 +31,11 @@ const {
 const logger = require('../services/logger');
 const {
   General_Docs,
+  GENERAL_RLs_CONSTANT,
   application_deadline_V2_calculator,
   isNotArchiv,
   CVDeadline_Calculator,
+  General_RL_Deadline_Calculator,
   EDITOR_SCOPE,
   ESSAY_WRITER_SCOPE,
   CV_MUST_HAVE_PATTERNS
@@ -631,7 +633,9 @@ const getMessages = asyncHandler(async (req, res) => {
   ]);
 
   let deadline = 'x';
-  if (General_Docs.includes(document_thread.file_type)) {
+  if (GENERAL_RLs_CONSTANT.includes(document_thread.file_type)) {
+    deadline = General_RL_Deadline_Calculator(applications);
+  } else if (General_Docs.includes(document_thread.file_type)) {
     deadline = CVDeadline_Calculator(applications);
   } else {
     const application = await ApplicationService.getApplicationById(
@@ -640,6 +644,7 @@ const getMessages = asyncHandler(async (req, res) => {
     );
     deadline = application_deadline_V2_calculator(application);
   }
+
   // Find conflict list:
   let conflict_list = [];
   if (

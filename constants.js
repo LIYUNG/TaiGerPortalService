@@ -1276,24 +1276,6 @@ const missing_academic_background = (student, user) => {
   return missing_background_fields;
 };
 
-const General_RL_Deadline_Calculator = (applications) => {
-  const RLrequiredApplications = applications?.filter((app) => {
-    const program = app?.programId;
-    if (
-      !program ||
-      !program.rl_required ||
-      program.rl_required === '0' ||
-      program.is_rl_specific
-    ) {
-      return false;
-    } else {
-      return true;
-    }
-  });
-
-  return CVDeadline_Calculator(RLrequiredApplications);
-};
-
 const CVDeadline_Calculator = (applications) => {
   let daysLeftMin = 3000;
   let CVDeadline = '';
@@ -1323,6 +1305,23 @@ const CVDeadline_Calculator = (applications) => {
   }
 
   return CVDeadline;
+};
+
+const General_RL_Deadline_Calculator = (applications) => {
+  const RLrequiredApplications = applications?.filter((app) => {
+    const program = app?.programId;
+    if (
+      !program ||
+      !program.rl_required ||
+      program.rl_required === '0' ||
+      program.is_rl_specific
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  return CVDeadline_Calculator(RLrequiredApplications);
 };
 
 const cvmlrl_deadline_within30days_escalation_summary = (

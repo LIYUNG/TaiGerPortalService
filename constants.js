@@ -1301,8 +1301,8 @@ const CVDeadline_Calculator = (applications) => {
   let hasRolling = false;
   const today = new Date();
   for (let i = 0; i < applications.length; i += 1) {
-    if (isProgramDecided(applications[i])) {
-      const app = applications[i];
+    const app = applications[i];
+    if (isProgramDecided(app) && app.closed === '-') {
       const application_deadline_temp = application_deadline_V2_calculator(app);
       if (application_deadline_temp?.toLowerCase()?.includes('rolling')) {
         hasRolling = true;

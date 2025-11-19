@@ -162,13 +162,62 @@ const getStudentsByIds = asyncHandler(async (req, res, next) => {
       .send({ success: false, message: 'Missing or invalid ids parameter.' });
   }
 
-  const idsArray = ids
-    .split(',')
-    .map((id) => mongoose.Types.ObjectId.createFromHexString(id));
+  const { validObjectIds, invalidIds } = ids.split(',').reduce(
+    (acc, rawId) => {
+      const trimmedId = rawId?.trim();
+      if (!trimmedId) {
+        return acc;
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(trimmedId)) {
+        acc.invalidIds.push(trimmedId);
+        return acc;
+      }
+
+      try {
+        acc.validObjectIds.push(
+          mongoose.Types.ObjectId.createFromHexString(trimmedId)
+        );
+      } catch (error) {
+        acc.invalidIds.push(trimmedId);
+      }
+
+      return acc;
+    },
+    { validObjectIds: [], invalidIds: [] }
+  );
+
+  if (validObjectIds.length === 0) {
+    return res.status(400).send({
+      success: false,
+      message: 'No valid student ids were provided.',
+      invalidIds
+    });
+  }
+
+  if (invalidIds.length > 0) {
+    logger.warn('Some student ids were ignored because they are invalid.', {
+      invalidIds,
+      requestId: req.requestId
+    });
+  }
+
   const students = await StudentService.getStudentsWithApplications(req, {
-    _id: { $in: idsArray }
+    _id: { $in: validObjectIds }
   });
-  res.status(200).send({ success: true, data: students });
+
+  const responsePayload = {
+    success: true,
+    data: students
+  };
+
+  if (invalidIds.length > 0) {
+    responsePayload.message =
+      'Some ids were ignored because they are not valid Mongo ObjectIds.';
+    responsePayload.invalidIds = invalidIds;
+  }
+
+  res.status(200).send(responsePayload);
   next();
 });
 

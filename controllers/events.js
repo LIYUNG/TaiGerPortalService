@@ -11,6 +11,7 @@ const {
 } = require('../services/email');
 const logger = require('../services/logger');
 const { TENANT_SHORT_NAME } = require('../constants/common');
+const EventQueryBuilder = require('../builders/EventQueryBuilder');
 
 const MeetingAdjustReminder = (receiver, user, meeting_event) => {
   MeetingAdjustReminderEmail(
@@ -104,11 +105,15 @@ const meetingConfirmationReminder = (receiver, user, start_time) => {
 const getEvents = asyncHandler(async (req, res, next) => {
   const { user } = req;
   const { startTime, endTime } = req.query;
+  const { filter: startTimeEventQuery } = new EventQueryBuilder()
+    .withStartTimeStart(startTime)
+    .withStartTimeEnd(endTime)
+    .build();
 
-  // Helper: Build time filter
-  const timeFilter = {};
-  if (startTime) timeFilter.$gte = new Date(startTime);
-  if (endTime) timeFilter.$lte = new Date(endTime);
+  const { filter: endTimeEventQuery } = new EventQueryBuilder()
+    .withEndTimeStart(startTime)
+    .withEndTimeEnd(endTime)
+    .build();
 
   // Common response structure
   const response = {
@@ -129,7 +134,7 @@ const getEvents = asyncHandler(async (req, res, next) => {
       .model('Event')
       .find({
         requester_id: user._id,
-        ...(Object.keys(timeFilter).length && { start: timeFilter })
+        ...startTimeEventQuery
       })
       .populate('receiver_id requester_id', 'firstname lastname email')
       .lean();
@@ -148,7 +153,7 @@ const getEvents = asyncHandler(async (req, res, next) => {
         .find({
           receiver_id: { $in: agentsIds },
           requester_id: { $ne: user._id },
-          ...(Object.keys(timeFilter).length && { start: timeFilter })
+          ...startTimeEventQuery
         })
         .populate('receiver_id', 'firstname lastname email')
         .select('start')
@@ -169,7 +174,7 @@ const getEvents = asyncHandler(async (req, res, next) => {
         .model('Event')
         .find({
           $or: [{ requester_id: user._id }, { receiver_id: user._id }],
-          ...(Object.keys(timeFilter).length && { end: timeFilter })
+          ...endTimeEventQuery
         })
         .populate('receiver_id requester_id', 'firstname lastname email')
         .lean(),
@@ -200,15 +205,13 @@ const getEvents = asyncHandler(async (req, res, next) => {
 
 const getActiveEventsNumber = asyncHandler(async (req, res) => {
   const { user } = req;
-  const futureEvents = await req.db
-    .model('Event')
-    .find({
-      $or: [{ requester_id: user._id }, { receiver_id: user._id }],
-      isConfirmedReceiver: true,
-      isConfirmedRequester: true,
-      start: { $gt: new Date() }
-    })
-    .lean();
+  const { filter: eventQuery } = new EventQueryBuilder()
+    .withOrs([{ requester_id: user._id }, { receiver_id: user._id }])
+    .withConfirmedReceiver(true)
+    .withConfirmedRequester(true)
+    .withStartTimeStart(new Date())
+    .build();
+  const futureEvents = await req.db.model('Event').find(eventQuery).lean();
   res.status(200).send({ success: true, data: futureEvents.length });
 });
 
@@ -260,13 +263,8 @@ const showEvent = asyncHandler(async (req, res, next) => {
   const { event_id } = req.params;
   const event = await req.db.model('Event').findById(event_id);
 
-  try {
-    res.status(200).json(event);
-    next();
-  } catch (err) {
-    logger.info(err);
-    throw new ErrorResponse(400, err);
-  }
+  res.status(200).json(event);
+  next();
 });
 
 const postEvent = asyncHandler(async (req, res, next) => {

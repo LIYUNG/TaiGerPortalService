@@ -157,8 +157,7 @@ const getEvents = asyncHandler(async (req, res, next) => {
     success: true,
     agents: [],
     data: [],
-    hasEvents: false,
-    students: []
+    hasEvents: false
   };
 
   // Role-based logic
@@ -194,27 +193,16 @@ const getEvents = asyncHandler(async (req, res, next) => {
 
   // For agents
   if (is_TaiGer_Agent(user)) {
-    const [events, students] = await Promise.all([
-      req.db
-        .model('Event')
-        .find({
-          $or: [{ requester_id: user._id }, { receiver_id: user._id }],
-          ...endTimeEventQuery
-        })
-        .populate('receiver_id requester_id', 'firstname lastname email')
-        .lean(),
-      req.db
-        .model('Student')
-        .find({
-          agents: user._id,
-          $or: [{ archiv: { $exists: false } }, { archiv: false }]
-        })
-        .select('firstname lastname firstname_chinese lastname_chinese email')
-        .lean()
-    ]);
+    const events = await req.db
+      .model('Event')
+      .find({
+        $or: [{ requester_id: user._id }, { receiver_id: user._id }],
+        ...endTimeEventQuery
+      })
+      .populate('receiver_id requester_id', 'firstname lastname email')
+      .lean();
 
     response.data = events;
-    response.students = students;
     response.hasEvents = events.length > 0;
   }
 

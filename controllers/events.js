@@ -102,6 +102,43 @@ const meetingConfirmationReminder = (receiver, user, start_time) => {
   );
 };
 
+const getBookedEvents = asyncHandler(async (req, res, next) => {
+  const { user } = req;
+  const { startTime, endTime } = req.query;
+  const { filter: startTimeEventQuery } = new EventQueryBuilder()
+    .withStartTimeStart(startTime)
+    .withStartTimeEnd(endTime)
+    .build();
+
+  // Only available for students
+  if (!is_TaiGer_Student(user)) {
+    return res.status(403).send({
+      success: false,
+      message: 'Booked events are only available for students'
+    });
+  }
+
+  const agentsIds = user.agents;
+
+  // Fetch booked events for student's agents
+  const bookedEvents = await req.db
+    .model('Event')
+    .find({
+      receiver_id: { $in: agentsIds },
+      requester_id: { $ne: user._id },
+      ...startTimeEventQuery
+    })
+    .populate('receiver_id', 'firstname lastname email')
+    .select('start')
+    .lean();
+
+  res.status(200).send({
+    success: true,
+    data: bookedEvents
+  });
+  return next();
+});
+
 const getEvents = asyncHandler(async (req, res, next) => {
   const { user } = req;
   const { startTime, endTime } = req.query;
@@ -120,7 +157,6 @@ const getEvents = asyncHandler(async (req, res, next) => {
     success: true,
     agents: [],
     data: [],
-    booked_events: [],
     hasEvents: false,
     students: []
   };
@@ -139,30 +175,19 @@ const getEvents = asyncHandler(async (req, res, next) => {
       .populate('receiver_id requester_id', 'firstname lastname email')
       .lean();
 
-    // Fetch student's agents and their available events
-    const [agents, events, agentsEvents] = await Promise.all([
+    // Fetch student's agents
+    const [agents, events] = await Promise.all([
       req.db
         .model('Agent')
         .find({ _id: { $in: agentsIds } })
         .select(
           'firstname lastname email selfIntroduction officehours timezone'
         ),
-      eventsPromise,
-      req.db
-        .model('Event')
-        .find({
-          receiver_id: { $in: agentsIds },
-          requester_id: { $ne: user._id },
-          ...startTimeEventQuery
-        })
-        .populate('receiver_id', 'firstname lastname email')
-        .select('start')
-        .lean()
+      eventsPromise
     ]);
 
     response.agents = agents;
     response.data = events;
-    response.booked_events = agentsEvents;
     response.hasEvents = events.length > 0;
     return res.status(200).send(response);
   }
@@ -608,6 +633,7 @@ const deleteEvent = asyncHandler(async (req, res, next) => {
 
 module.exports = {
   getEvents,
+  getBookedEvents,
   getActiveEventsNumber,
   getAllEvents,
   showEvent,

@@ -48,14 +48,14 @@ class EventQueryBuilder extends BaseQueryBuilder {
 
   withReceiverId(receiverId) {
     if (receiverId) {
-      this.query.receiverId = receiverId;
+      this.query.receiver_id = receiverId;
     }
     return this;
   }
 
   withRequesterId(requesterId) {
     if (requesterId) {
-      this.query.requesterId = requesterId;
+      this.query.requester_id = requesterId;
     }
     return this;
   }

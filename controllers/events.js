@@ -141,15 +141,19 @@ const getBookedEvents = asyncHandler(async (req, res, next) => {
 
 const getEvents = asyncHandler(async (req, res, next) => {
   const { user } = req;
-  const { startTime, endTime } = req.query;
-  const { filter: startTimeEventQuery } = new EventQueryBuilder()
-    .withStartTimeStart(startTime)
-    .withStartTimeEnd(endTime)
-    .build();
+  const { startTime, endTime, requester_id, receiver_id } = req.query;
+  // const { filter: startTimeEventQuery } = new EventQueryBuilder()
+  //   .withStartTimeStart(startTime)
+  //   .withStartTimeEnd(endTime)
+  //   .withRequesterId(requester_id)
+  //   .withReceiverId(receiver_id)
+  //   .build();
 
   const { filter: endTimeEventQuery } = new EventQueryBuilder()
     .withEndTimeStart(startTime)
     .withEndTimeEnd(endTime)
+    .withRequesterId(requester_id)
+    .withReceiverId(receiver_id)
     .build();
 
   // Common response structure
@@ -161,56 +165,26 @@ const getEvents = asyncHandler(async (req, res, next) => {
   };
 
   // Role-based logic
-  if (is_TaiGer_Student(user)) {
-    const agentsIds = user.agents;
+  const agentsIds = user.agents;
 
-    // Fetch events requested by the student
-    const eventsPromise = req.db
-      .model('Event')
-      .find({
-        requester_id: user._id,
-        ...startTimeEventQuery
-      })
-      .populate('receiver_id requester_id', 'firstname lastname email')
-      .lean();
-
-    // Fetch student's agents
-    const [agents, events] = await Promise.all([
-      req.db
-        .model('Agent')
-        .find({ _id: { $in: agentsIds } })
-        .select(
-          'firstname lastname email selfIntroduction officehours timezone'
-        ),
-      eventsPromise
-    ]);
-
-    response.agents = agents;
-    response.data = events;
-    response.hasEvents = events.length > 0;
-    return res.status(200).send(response);
-  }
-
-  // For agents
-  if (is_TaiGer_Agent(user)) {
-    const events = await req.db
-      .model('Event')
-      .find({
-        $or: [{ requester_id: user._id }, { receiver_id: user._id }],
-        ...endTimeEventQuery
-      })
-      .populate('receiver_id requester_id', 'firstname lastname email')
-      .lean();
-
-    response.data = events;
-    response.hasEvents = events.length > 0;
-  }
-
-  // Agents' information
-  response.agents = await req.db
+  // Fetch student's agents
+  const agents = await req.db
     .model('Agent')
-    .find({ _id: user._id })
-    .select('firstname lastname email selfIntroduction officehours timezone');
+    .find({ _id: { $in: agentsIds } })
+    .select(
+      'firstname lastname email selfIntroduction officehours timezone pictureUrl'
+    );
+
+  response.agents = agents;
+
+  const events = await req.db
+    .model('Event')
+    .find(endTimeEventQuery)
+    .populate('receiver_id requester_id', 'firstname lastname email pictureUrl')
+    .lean();
+
+  response.data = events;
+  response.hasEvents = events.length > 0;
 
   res.status(200).send(response);
   return next();
@@ -226,50 +200,6 @@ const getActiveEventsNumber = asyncHandler(async (req, res) => {
     .build();
   const futureEvents = await req.db.model('Event').find(eventQuery).lean();
   res.status(200).send({ success: true, data: futureEvents.length });
-});
-
-const getAllEvents = asyncHandler(async (req, res, next) => {
-  const { user } = req;
-  const agents = await req.db
-    .model('Agent')
-    .find()
-    .select('firstname lastname email selfIntroduction officehours timezone');
-
-  const events = await req.db
-    .model('Event')
-    .find()
-    .populate('receiver_id requester_id', 'firstname lastname email')
-    .lean();
-  const students = await req.db
-    .model('Student')
-    .find({
-      $and: [
-        { $or: [{ agents: user._id }, { editors: user._id }] },
-        { $or: [{ archiv: { $exists: false } }, { archiv: false }] }
-      ]
-    })
-    .select('firstname lastname firstname_chinese lastname_chinese  email')
-    .lean();
-  if (events.length === 0) {
-    res.status(200).send({
-      success: true,
-      agents,
-      data: events,
-      booked_events: [],
-      hasEvents: false,
-      students
-    });
-  } else {
-    res.status(200).send({
-      success: true,
-      agents,
-      data: events,
-      booked_events: [],
-      hasEvents: true,
-      students
-    });
-  }
-  next();
 });
 
 const showEvent = asyncHandler(async (req, res, next) => {
@@ -314,7 +244,10 @@ const postEvent = asyncHandler(async (req, res, next) => {
             }
           ]
         })
-        .populate('requester_id receiver_id', 'firstname lastname email')
+        .populate(
+          'requester_id receiver_id',
+          'firstname lastname email pictureUrl'
+        )
         .lean();
     } catch (e) {
       logger.error(e);
@@ -339,13 +272,18 @@ const postEvent = asyncHandler(async (req, res, next) => {
           $in: [new Types.ObjectId(newEvent.requester_id)]
         }
       })
-      .populate('requester_id receiver_id', 'firstname lastname email')
+      .populate(
+        'requester_id receiver_id',
+        'firstname lastname email pictureUrl'
+      )
       .lean();
     const agents_ids = user.agents;
     const agents = await req.db
       .model('Agent')
       .find({ _id: agents_ids })
-      .select('firstname lastname email selfIntroduction officehours timezone');
+      .select(
+        'firstname lastname email selfIntroduction officehours timezone pictureUrl'
+      );
     res.status(201).send({
       success: true,
       agents,
@@ -381,7 +319,7 @@ const postEvent = asyncHandler(async (req, res, next) => {
             }
           ]
         })
-        .populate('receiver_id', 'firstname lastname email')
+        .populate('receiver_id', 'firstname lastname email pictureUrl')
         .lean();
       // Check if there is any already booked upcoming events
       if (events.length === 0) {
@@ -401,14 +339,17 @@ const postEvent = asyncHandler(async (req, res, next) => {
         .find({
           $or: [{ requester_id: user._id }, { receiver_id: user._id }]
         })
-        .populate('receiver_id requester_id', 'firstname lastname email')
+        .populate(
+          'receiver_id requester_id',
+          'firstname lastname email pictureUrl'
+        )
         .lean();
       const agents_ids = user.agents;
       const agents = await req.db
         .model('Agent')
         .find({ _id: agents_ids })
         .select(
-          'firstname lastname email selfIntroduction officehours timezone'
+          'firstname lastname email selfIntroduction officehours timezone pictureUrl'
         );
       res.status(201).send({
         success: true,
@@ -419,7 +360,10 @@ const postEvent = asyncHandler(async (req, res, next) => {
       const updatedEvent = await req.db
         .model('Event')
         .findById(write_NewEvent._id)
-        .populate('requester_id receiver_id', 'firstname lastname email')
+        .populate(
+          'requester_id receiver_id',
+          'firstname lastname email pictureUrl'
+        )
         .lean();
       updatedEvent.requester_id.forEach((requester) => {
         meetingConfirmationReminder(requester, user, updatedEvent.start);
@@ -451,7 +395,10 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
       const event_temp = await req.db
         .model('Event')
         .findById(event_id)
-        .populate('receiver_id requester_id', 'firstname lastname email')
+        .populate(
+          'receiver_id requester_id',
+          'firstname lastname email pictureUrl'
+        )
         .lean();
       let concat_name = '';
       let concat_id = '';
@@ -478,7 +425,10 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
         upsert: false,
         new: true
       })
-      .populate('receiver_id requester_id', 'firstname lastname email')
+      .populate(
+        'receiver_id requester_id',
+        'firstname lastname email pictureUrl'
+      )
       .lean();
     if (event) {
       res.status(200).send({ success: true, data: event });
@@ -623,7 +573,6 @@ module.exports = {
   getEvents,
   getBookedEvents,
   getActiveEventsNumber,
-  getAllEvents,
   showEvent,
   postEvent,
   confirmEvent,

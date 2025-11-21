@@ -10,7 +10,6 @@ const {
   postEvent,
   deleteEvent,
   confirmEvent,
-  getAllEvents,
   getActiveEventsNumber
 } = require('../controllers/events');
 
@@ -28,15 +27,6 @@ const { validateStudentId } = require('../common/validation');
 const router = Router();
 
 router.use(protect);
-
-router
-  .route('/all')
-  .get(
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getAllEvents,
-    logAccess
-  );
 
 router
   .route('/ping')

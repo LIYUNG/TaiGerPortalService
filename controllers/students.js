@@ -33,6 +33,7 @@ const UserQueryBuilder = require('../builders/UserQueryBuilder');
 const ApplicationService = require('../services/applications');
 const InterviewService = require('../services/interviews');
 const { getAuditLogs } = require('../services/audit');
+const ProgramService = require('../services/programs');
 
 const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const {
@@ -88,8 +89,30 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
       .status(404)
       .send({ success: false, message: 'Student not found' });
   }
+  
+  // Enrich programs in applications with hasActiveApplications
+  const programsToEnrich = applications
+    .map((app) => app.programId)
+    .filter(Boolean);
+  const enrichedPrograms = await ProgramService.enrichProgramsWithActiveApplications(
+    req,
+    programsToEnrich
+  );
+  const programMap = new Map(
+    enrichedPrograms.map((p) => [p._id.toString(), p])
+  );
+  
+  // Replace programId in applications with enriched programs
+  const enrichedApplications = applications.map((app) => {
+    if (app.programId) {
+      app.programId =
+        programMap.get(app.programId._id?.toString()) || app.programId;
+    }
+    return app;
+  });
+  
   // TODO: remove agent notfication for new documents upload
-  student.applications = add_portals_registered_status(applications);
+  student.applications = add_portals_registered_status(enrichedApplications);
 
   res.status(200).send({
     success: true,

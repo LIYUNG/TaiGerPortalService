@@ -64,6 +64,7 @@ const UserService = require('../services/users');
 const ApplicationService = require('../services/applications');
 const DocumentthreadQueryBuilder = require('../builders/DocumentthreadQueryBuilder');
 
+
 const getActiveThreads = asyncHandler(async (req, res) => {
   const {
     file_type,
@@ -703,7 +704,6 @@ const postMessages = asyncHandler(async (req, res) => {
     logger.info('postMessages: Invalid message thread id');
     throw new ErrorResponse(404, 'Thread Id not found');
   }
-
   if (document_thread.isFinalVersion) {
     logger.info('postMessages: thread is closed! Please refresh!');
     throw new ErrorResponse(403, ' thread is closed! Please refresh!');

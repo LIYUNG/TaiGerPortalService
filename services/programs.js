@@ -10,6 +10,7 @@ const ProgramService = {
    * A program has active applications if there are Applications for the program
    * where decided = 'O' (Yes) AND closed = '-' (not yet submitted)
    * and the associated student is active (not archived)
+   * AND at least one document thread generated from this application is not null or empty (has messages)
    * 
    * Note: Once all applications are submitted (closed = 'O'), the program should lock
    */
@@ -17,6 +18,7 @@ const ProgramService = {
     if (!programId) return false;
     
     // Use aggregation to find open applications (decided = 'O' AND closed = '-') with active (non-archived) students
+    // and at least one non-empty document thread
     const result = await req.db.model('Application').aggregate([
       {
         $match: {
@@ -46,6 +48,35 @@ const ProgramService = {
         }
       },
       {
+        $lookup: {
+          from: 'documentthreads',
+          localField: '_id',
+          foreignField: 'application_id',
+          as: 'threads'
+        }
+      },
+      {
+        $addFields: {
+          threadsWithMessages: {
+            $filter: {
+              input: '$threads',
+              as: 'thread',
+              cond: {
+                $and: [
+                  { $ne: ['$$thread.messages', null] },
+                  { $gt: [{ $size: { $ifNull: ['$$thread.messages', []] } }, 0] }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $match: {
+          threadsWithMessages: { $ne: [], $exists: true }
+        }
+      },
+      {
         $limit: 1
       }
     ]);
@@ -66,6 +97,7 @@ const ProgramService = {
   /**
    * Enrich multiple programs with hasActiveApplications field
    * Checks if programs have open applications (decided = 'O' AND closed = '-') with active (non-archived) students
+   * AND at least one document thread generated from this application is not null or empty (has messages)
    */
   async enrichProgramsWithActiveApplications(req, programs) {
     if (!Array.isArray(programs) || programs.length === 0) return programs;
@@ -74,6 +106,7 @@ const ProgramService = {
     const programIds = programs.map((p) => p._id).filter(Boolean);
 
     // Find open applications (decided = 'O' AND closed = '-') for these programs with active students
+    // and at least one non-empty document thread
     const activePrograms = await req.db.model('Application').aggregate([
       {
         $match: {
@@ -100,6 +133,35 @@ const ProgramService = {
       {
         $match: {
           'student.archiv': false
+        }
+      },
+      {
+        $lookup: {
+          from: 'documentthreads',
+          localField: '_id',
+          foreignField: 'application_id',
+          as: 'threads'
+        }
+      },
+      {
+        $addFields: {
+          threadsWithMessages: {
+            $filter: {
+              input: '$threads',
+              as: 'thread',
+              cond: {
+                $and: [
+                  { $ne: ['$$thread.messages', null] },
+                  { $gt: [{ $size: { $ifNull: ['$$thread.messages', []] } }, 0] }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $match: {
+          threadsWithMessages: { $ne: [], $exists: true }
         }
       },
       {

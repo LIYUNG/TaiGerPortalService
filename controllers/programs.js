@@ -458,7 +458,7 @@ const getPrograms = asyncHandler(async (req, res) => {
   const enrichedPrograms = await ProgramService.enrichProgramsWithActiveApplications(
     req,
     programs
-  );
+    );
   
   res.send({ success: true, data: enrichedPrograms });
 });
@@ -673,10 +673,10 @@ const refreshProgram = asyncHandler(async (req, res) => {
     throw new ErrorResponse(404, 'Program not found');
   }
 
-  // Manually add version control entry with field="none" and content="none"
+  // Manually add version control entry with field="none" and content message
   const docChanges = {
     originalValues: { none: null },
-    updatedValues: { none: null },
+    updatedValues: { none: 'verified program information is up-to-date, unlock manually' },
     changedBy: `${user.firstname} ${user.lastname}`,
     changedAt: now
   };

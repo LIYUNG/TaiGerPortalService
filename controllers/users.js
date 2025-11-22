@@ -423,7 +423,6 @@ const getUsersOverview = asyncHandler(async (req, res) => {
   ] = await Promise.all([
     // Students by target degree
     req.db.model('Student').aggregate([
-      { $match: { archiv: { $ne: true } } },
       {
         $group: {
           _id: '$application_preference.target_degree',
@@ -443,7 +442,6 @@ const getUsersOverview = asyncHandler(async (req, res) => {
 
     // Students by expected application semester
     req.db.model('Student').aggregate([
-      { $match: { archiv: { $ne: true } } },
       {
         $group: {
           _id: '$application_preference.expected_application_semester',
@@ -463,7 +461,6 @@ const getUsersOverview = asyncHandler(async (req, res) => {
 
     // Students by target application field
     req.db.model('Student').aggregate([
-      { $match: { archiv: { $ne: true } } },
       {
         $group: {
           _id: '$application_preference.target_application_field',
@@ -484,7 +481,6 @@ const getUsersOverview = asyncHandler(async (req, res) => {
 
     // Students by target program language
     req.db.model('Student').aggregate([
-      { $match: { archiv: { $ne: true } } },
       {
         $group: {
           _id: '$application_preference.target_program_language',
@@ -504,7 +500,6 @@ const getUsersOverview = asyncHandler(async (req, res) => {
 
     // Students by university name (case-insensitive)
     req.db.model('Student').aggregate([
-      { $match: { archiv: { $ne: true } } },
       {
         $addFields: {
           universityNameLower: {

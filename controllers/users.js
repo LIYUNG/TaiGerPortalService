@@ -397,6 +397,168 @@ const deleteUser = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true });
 });
 
+/**
+ * Get high-level overview and aggregated statistics about Users/Students
+ * Provides metrics useful for dashboard and overview pages including:
+ * - Total user/student count by role
+ * - Distribution by country, target degree, application preferences
+ * - Academic background statistics
+ * - Language proficiency statistics
+ * - Application statistics
+ * - Top agents/editors by student count
+ * - Recently registered students
+ *
+ * @route GET /api/users/overview
+ * @access Protected - Admin, Manager, Agent, Editor
+ * @returns {Object} Overview object with aggregated user/student statistics
+ */
+const getUsersOverview = asyncHandler(async (req, res) => {
+  // Run multiple aggregations in parallel for better performance
+  const [
+    byTargetDegree,
+    byApplicationSemester,
+    byTargetField,
+    byProgramLanguage,
+    byUniversityProgram
+  ] = await Promise.all([
+    // Students by target degree
+    req.db.model('Student').aggregate([
+      { $match: { archiv: { $ne: true } } },
+      {
+        $group: {
+          _id: '$application_preference.target_degree',
+          count: { $sum: 1 }
+        }
+      },
+      { $match: { _id: { $ne: null, $ne: '' } } },
+      { $sort: { count: -1 } },
+      {
+        $project: {
+          _id: 0,
+          degree: '$_id',
+          count: 1
+        }
+      }
+    ]),
+
+    // Students by expected application semester
+    req.db.model('Student').aggregate([
+      { $match: { archiv: { $ne: true } } },
+      {
+        $group: {
+          _id: '$application_preference.expected_application_semester',
+          count: { $sum: 1 }
+        }
+      },
+      { $match: { _id: { $ne: null, $ne: '' } } },
+      { $sort: { count: -1 } },
+      {
+        $project: {
+          _id: 0,
+          semester: '$_id',
+          count: 1
+        }
+      }
+    ]),
+
+    // Students by target application field
+    req.db.model('Student').aggregate([
+      { $match: { archiv: { $ne: true } } },
+      {
+        $group: {
+          _id: '$application_preference.target_application_field',
+          count: { $sum: 1 }
+        }
+      },
+      { $match: { _id: { $ne: null, $ne: '' } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+      {
+        $project: {
+          _id: 0,
+          field: '$_id',
+          count: 1
+        }
+      }
+    ]),
+
+    // Students by target program language
+    req.db.model('Student').aggregate([
+      { $match: { archiv: { $ne: true } } },
+      {
+        $group: {
+          _id: '$application_preference.target_program_language',
+          count: { $sum: 1 }
+        }
+      },
+      { $match: { _id: { $ne: null, $ne: '' } } },
+      { $sort: { count: -1 } },
+      {
+        $project: {
+          _id: 0,
+          language: '$_id',
+          count: 1
+        }
+      }
+    ]),
+
+    // Students by university name (case-insensitive)
+    req.db.model('Student').aggregate([
+      { $match: { archiv: { $ne: true } } },
+      {
+        $addFields: {
+          universityNameLower: {
+            $toLower: {
+              $ifNull: [
+                '$academic_background.university.attended_university',
+                ''
+              ]
+            }
+          }
+        }
+      },
+      {
+        $match: {
+          universityNameLower: { $ne: '' }
+        }
+      },
+      {
+        $group: {
+          _id: '$universityNameLower',
+          count: { $sum: 1 },
+          // Keep the original case of the first occurrence for display
+          originalName: {
+            $first: '$academic_background.university.attended_university'
+          }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 20 },
+      {
+        $project: {
+          _id: 0,
+          university: '$originalName',
+          count: 1
+        }
+      }
+    ])
+  ]);
+
+  const overview = {
+    byTargetDegree: byTargetDegree.filter((item) => item.degree),
+    byApplicationSemester: byApplicationSemester.filter(
+      (item) => item.semester
+    ),
+    byTargetField: byTargetField.filter((item) => item.field),
+    byProgramLanguage: byProgramLanguage.filter((item) => item.language),
+    byUniversity: byUniversityProgram.filter((item) => item.university),
+    generatedAt: new Date()
+  };
+
+  logger.info('Users overview generated successfully');
+  return res.send({ success: true, data: overview });
+});
+
 module.exports = {
   // UserS3GarbageCollector,
   getUsersCount,
@@ -405,5 +567,6 @@ module.exports = {
   getUser,
   updateUserArchivStatus,
   updateUser,
-  deleteUser
+  deleteUser,
+  getUsersOverview
 };

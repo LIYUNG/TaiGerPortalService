@@ -451,9 +451,18 @@ const getPrograms = asyncHandler(async (req, res) => {
     .find({ isArchiv: { $ne: true } })
     .select(
       '-tuition_fees -website -special_notes -comments -optionalDocuments -requiredDocuments -uni_assist -daad_link -ml_required -ml_requirements -rl_required -essay_required -essay_requirements -application_portal_a -application_portal_b -fpso -program_duration -deprecated'
+    )
+    .lean();
+  
+  // Enrich with hasActiveApplications
+  const enrichedPrograms = await ProgramService.enrichProgramsWithActiveApplications(
+    req,
+    programs
     );
-  res.send({ success: true, data: programs });
+  
+  res.send({ success: true, data: enrichedPrograms });
 });
+
 
 const getStudentsByProgram = asyncHandler(async (req, programId) => {
   const applications = await req.db
@@ -501,6 +510,13 @@ const getProgram = asyncHandler(async (req, res) => {
     logger.error('getProgram: Invalid program id');
     throw new ErrorResponse(404, 'Program not found');
   }
+  
+  // Enrich with hasActiveApplications
+  const enrichedProgram = await ProgramService.enrichProgramWithActiveApplications(
+    req,
+    program
+  );
+  
   let vc = null;
 
   if (
@@ -515,7 +531,7 @@ const getProgram = asyncHandler(async (req, res) => {
     });
   }
 
-  res.send({ success: true, data: program, vc });
+  res.send({ success: true, data: enrichedProgram, vc });
 });
 
 const createProgram = asyncHandler(async (req, res) => {
@@ -541,7 +557,14 @@ const createProgram = asyncHandler(async (req, res) => {
     );
   }
   const program = await req.db.model('Program').create(new_program);
-  return res.status(201).send({ success: true, data: program });
+  
+  // Enrich with hasActiveApplications (will be false for new program)
+  const enrichedProgram = await ProgramService.enrichProgramWithActiveApplications(
+    req,
+    program
+  );
+  
+  return res.status(201).send({ success: true, data: enrichedProgram });
 });
 
 const updateProgram = asyncHandler(async (req, res) => {
@@ -560,7 +583,14 @@ const updateProgram = asyncHandler(async (req, res) => {
     .model('Program')
     .findOneAndUpdate({ _id: req.params.programId }, fields, {
       new: true
-    });
+    })
+    .lean();
+
+  // Enrich with hasActiveApplications
+  const enrichedProgram = await ProgramService.enrichProgramWithActiveApplications(
+    req,
+    program
+  );
 
   // Update same program but other semester common data
   await req.db.model('Program').updateMany(
@@ -578,7 +608,9 @@ const updateProgram = asyncHandler(async (req, res) => {
     collectionName: 'Program'
   });
 
-  return res.status(200).send({ success: true, data: program, vc });
+  return res
+    .status(200)
+    .send({ success: true, data: enrichedProgram, vc });
 });
 
 const deleteProgram = asyncHandler(async (req, res) => {
@@ -619,6 +651,61 @@ const deleteProgram = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true });
 });
 
+const refreshProgram = asyncHandler(async (req, res) => {
+  const { user } = req;
+  const { programId } = req.params;
+
+  // Update program's updatedAt and whoupdated
+  const now = new Date();
+  const program = await req.db
+    .model('Program')
+    .findByIdAndUpdate(
+      programId,
+      {
+        updatedAt: now,
+        whoupdated: `${user.firstname} ${user.lastname}`
+      },
+      { new: true }
+    )
+    .lean();
+
+  if (!program) {
+    throw new ErrorResponse(404, 'Program not found');
+  }
+
+  // Manually add version control entry with field="none" and content message
+  const docChanges = {
+    originalValues: { none: null },
+    updatedValues: { none: 'verified program information is up-to-date, unlock manually' },
+    changedBy: `${user.firstname} ${user.lastname}`,
+    changedAt: now
+  };
+
+  await req.db.model('VC').findOneAndUpdate(
+    {
+      docId: programId,
+      collectionName: 'Program'
+    },
+    { $push: { changes: docChanges } },
+    { upsert: true, new: true }
+  );
+
+  // Enrich with hasActiveApplications
+  const enrichedProgram = await ProgramService.enrichProgramWithActiveApplications(
+    req,
+    program
+  );
+
+  const vc = await VCService.getVC(req, {
+    docId: programId,
+    collectionName: 'Program'
+  });
+
+  return res
+    .status(200)
+    .send({ success: true, data: enrichedProgram, vc });
+});
+
 module.exports = {
   getDistinctSchoolsAttributes,
   updateBatchSchoolAttributes,
@@ -630,5 +717,6 @@ module.exports = {
   getProgram,
   createProgram,
   updateProgram,
-  deleteProgram
+  deleteProgram,
+  refreshProgram
 };

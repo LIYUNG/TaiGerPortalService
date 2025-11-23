@@ -1,4 +1,8 @@
-const { is_TaiGer_Agent, is_TaiGer_Student } = require('@taiger-common/core');
+const {
+  is_TaiGer_Agent,
+  is_TaiGer_Student,
+  is_TaiGer_Editor
+} = require('@taiger-common/core');
 const { Types } = require('mongoose');
 
 const { ErrorResponse } = require('../common/errors');
@@ -166,17 +170,26 @@ const getEvents = asyncHandler(async (req, res, next) => {
 
   // Role-based logic
   const agentsIds = user.agents;
+  const editorsIds = user.editors;
 
   // Fetch student's agents
-  const agents = await req.db
-    .model('Agent')
-    .find({ _id: { $in: agentsIds } })
-    .select(
-      'firstname lastname email selfIntroduction officehours timezone pictureUrl'
-    );
+  const [agents, editors] = await Promise.all([
+    req.db
+      .model('Agent')
+      .find({ _id: { $in: agentsIds } })
+      .select(
+        'firstname lastname email selfIntroduction officehours timezone pictureUrl'
+      ),
+    req.db
+      .model('Editor')
+      .find({ _id: { $in: editorsIds } })
+      .select(
+        'firstname lastname email selfIntroduction officehours timezone pictureUrl'
+      )
+  ]);
 
   response.agents = agents;
-
+  response.editors = editors;
   const events = await req.db
     .model('Event')
     .find(endTimeEventQuery)
@@ -262,7 +275,7 @@ const postEvent = asyncHandler(async (req, res, next) => {
       logger.error('Student book a conflicting event in this time slot.');
       throw new ErrorResponse(
         403,
-        'You are not allowed to book further timeslot, if you have already an upcoming timeslot of the agent.'
+        'You are not allowed to book further timeslot, if you have already an upcoming timeslot of the agent or editor.'
       );
     }
     events = await req.db
@@ -391,7 +404,7 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
         .replace(/:/g, '_')
         .replace(/\./g, '_')}_${user._id.toString()}`.replace(/ /g, '_');
     }
-    if (user.role === 'Agent') {
+    if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       const event_temp = await req.db
         .model('Event')
         .findById(event_id)
@@ -443,7 +456,7 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
         meetingInvitation(receiver, user, event);
       });
     }
-    if (is_TaiGer_Agent(user)) {
+    if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       event.requester_id.forEach((requester) => {
         meetingInvitation(requester, user, event);
       });
@@ -465,7 +478,7 @@ const updateEvent = asyncHandler(async (req, res, next) => {
       updated_event.isConfirmedRequester = true;
       updated_event.isConfirmedReceiver = false;
     }
-    if (is_TaiGer_Agent(user)) {
+    if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       updated_event.isConfirmedRequester = false;
       updated_event.isConfirmedReceiver = true;
     }
@@ -492,7 +505,7 @@ const updateEvent = asyncHandler(async (req, res, next) => {
         MeetingAdjustReminder(receiver, user, event);
       });
     }
-    if (user.role === 'Agent') {
+    if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       event.requester_id.forEach((requester) => {
         MeetingAdjustReminder(requester, user, event);
       });
@@ -535,7 +548,7 @@ const deleteEvent = asyncHandler(async (req, res, next) => {
         hasEvents: events.length !== 0
       });
       MeetingCancelledReminder(user, toBeDeletedEvent);
-    } else if (is_TaiGer_Agent(user)) {
+    } else if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       events = await req.db
         .model('Event')
         .find({

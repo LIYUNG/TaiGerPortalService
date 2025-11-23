@@ -40,8 +40,9 @@ const updateOfficehours = asyncHandler(async (req, res, next) => {
     user,
     body: { officehours, timezone }
   } = req;
+  console.log(JSON.stringify(officehours));
   await req.db
-    .model('Agent')
+    .model(user.role) // Agent or Editor
     .findByIdAndUpdate(user._id.toString(), { officehours, timezone }, {});
 
   res.status(200).send({

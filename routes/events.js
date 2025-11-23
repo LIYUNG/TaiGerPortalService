@@ -32,7 +32,7 @@ router
   .route('/ping')
   .get(
     GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     getActiveEventsNumber
   );
 

@@ -61,7 +61,7 @@ const DocumentThreadService = {
       .populate('application_id')
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang application_start'
+        'school program_name application_deadline degree semester lang application_start country'
       )
       .lean();
 
@@ -110,7 +110,7 @@ const DocumentThreadService = {
       .populate('application_id')
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang'
+        'school program_name application_deadline degree semester lang country'
       )
       .lean();
 

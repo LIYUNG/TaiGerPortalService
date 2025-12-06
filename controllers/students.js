@@ -91,7 +91,7 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   }
   
   // Ensure isLocked field exists (default to true if undefined for existing applications)
-  const enrichedApplications = applications.map((app) => {
+  const applicationsWithDefaults = applications.map((app) => {
     // Ensure isLocked field exists (default to true if undefined for existing applications)
     if (app.isLocked === undefined) {
       app.isLocked = true;
@@ -100,7 +100,7 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   });
   
   // TODO: remove agent notfication for new documents upload
-  student.applications = add_portals_registered_status(enrichedApplications);
+  student.applications = add_portals_registered_status(applicationsWithDefaults);
 
   res.status(200).send({
     success: true,

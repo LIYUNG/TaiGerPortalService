@@ -1,4 +1,8 @@
-const { is_TaiGer_Agent, is_TaiGer_Student } = require('@taiger-common/core');
+const {
+  is_TaiGer_Agent,
+  is_TaiGer_Student,
+  is_TaiGer_Editor
+} = require('@taiger-common/core');
 const { Types } = require('mongoose');
 
 const { ErrorResponse } = require('../common/errors');
@@ -11,6 +15,7 @@ const {
 } = require('../services/email');
 const logger = require('../services/logger');
 const { TENANT_SHORT_NAME } = require('../constants/common');
+const EventQueryBuilder = require('../builders/EventQueryBuilder');
 
 const MeetingAdjustReminder = (receiver, user, meeting_event) => {
   MeetingAdjustReminderEmail(
@@ -101,98 +106,98 @@ const meetingConfirmationReminder = (receiver, user, start_time) => {
   );
 };
 
-const getEvents = asyncHandler(async (req, res, next) => {
+const getBookedEvents = asyncHandler(async (req, res, next) => {
   const { user } = req;
   const { startTime, endTime } = req.query;
+  const { filter: startTimeEventQuery } = new EventQueryBuilder()
+    .withStartTimeStart(startTime)
+    .withStartTimeEnd(endTime)
+    .build();
 
-  // Helper: Build time filter
-  const timeFilter = {};
-  if (startTime) timeFilter.$gte = new Date(startTime);
-  if (endTime) timeFilter.$lte = new Date(endTime);
+  // Only available for students
+  if (!is_TaiGer_Student(user)) {
+    return res.status(403).send({
+      success: false,
+      message: 'Booked events are only available for students'
+    });
+  }
+
+  const agentsIds = user.agents;
+
+  // Fetch booked events for student's agents
+  const bookedEvents = await req.db
+    .model('Event')
+    .find({
+      receiver_id: { $in: agentsIds },
+      requester_id: { $ne: user._id },
+      ...startTimeEventQuery
+    })
+    .populate('receiver_id', 'firstname lastname email')
+    .select('start')
+    .lean();
+
+  res.status(200).send({
+    success: true,
+    data: bookedEvents
+  });
+  return next();
+});
+
+const getEvents = asyncHandler(async (req, res, next) => {
+  const { user } = req;
+  const { startTime, endTime, requester_id, receiver_id } = req.query;
+  // const { filter: startTimeEventQuery } = new EventQueryBuilder()
+  //   .withStartTimeStart(startTime)
+  //   .withStartTimeEnd(endTime)
+  //   .withRequesterId(requester_id)
+  //   .withReceiverId(receiver_id)
+  //   .build();
+
+  const { filter: endTimeEventQuery } = new EventQueryBuilder()
+    .withEndTimeStart(startTime)
+    .withEndTimeEnd(endTime)
+    .withRequesterId(requester_id)
+    .withReceiverId(receiver_id)
+    .build();
 
   // Common response structure
   const response = {
     success: true,
     agents: [],
     data: [],
-    booked_events: [],
-    hasEvents: false,
-    students: []
+    hasEvents: false
   };
 
   // Role-based logic
-  if (is_TaiGer_Student(user)) {
-    const agentsIds = user.agents;
+  const agentsIds = user.agents;
+  const editorsIds = user.editors;
 
-    // Fetch events requested by the student
-    const eventsPromise = req.db
-      .model('Event')
-      .find({
-        requester_id: user._id,
-        ...(Object.keys(timeFilter).length && { start: timeFilter })
-      })
-      .populate('receiver_id requester_id', 'firstname lastname email')
-      .lean();
+  // Fetch student's agents
+  const [agents, editors] = await Promise.all([
+    req.db
+      .model('Agent')
+      .find({ _id: { $in: agentsIds } })
+      .select(
+        'firstname lastname email selfIntroduction officehours timezone pictureUrl'
+      ),
+    req.db
+      .model('Editor')
+      .find({ _id: { $in: editorsIds } })
+      .select(
+        'firstname lastname email selfIntroduction officehours timezone pictureUrl'
+      )
+  ]);
 
-    // Fetch student's agents and their available events
-    const [agents, events, agentsEvents] = await Promise.all([
-      req.db
-        .model('Agent')
-        .find({ _id: { $in: agentsIds } })
-        .select(
-          'firstname lastname email selfIntroduction officehours timezone'
-        ),
-      eventsPromise,
-      req.db
-        .model('Event')
-        .find({
-          receiver_id: { $in: agentsIds },
-          requester_id: { $ne: user._id },
-          ...(Object.keys(timeFilter).length && { start: timeFilter })
-        })
-        .populate('receiver_id', 'firstname lastname email')
-        .select('start')
-        .lean()
-    ]);
+  response.agents = agents;
+  response.editors = editors;
+  const events = await req.db
+    .model('Event')
+    .find(endTimeEventQuery)
+    .populate('receiver_id requester_id', 'firstname lastname email pictureUrl')
+    .lean();
 
-    response.agents = agents;
-    response.data = events;
-    response.booked_events = agentsEvents;
-    response.hasEvents = events.length > 0;
-    return res.status(200).send(response);
-  }
-
-  // For agents
-  if (is_TaiGer_Agent(user)) {
-    const [events, students] = await Promise.all([
-      req.db
-        .model('Event')
-        .find({
-          $or: [{ requester_id: user._id }, { receiver_id: user._id }],
-          ...(Object.keys(timeFilter).length && { end: timeFilter })
-        })
-        .populate('receiver_id requester_id', 'firstname lastname email')
-        .lean(),
-      req.db
-        .model('Student')
-        .find({
-          agents: user._id,
-          $or: [{ archiv: { $exists: false } }, { archiv: false }]
-        })
-        .select('firstname lastname firstname_chinese lastname_chinese email')
-        .lean()
-    ]);
-
-    response.data = events;
-    response.students = students;
-    response.hasEvents = events.length > 0;
-  }
-
-  // Agents' information
-  response.agents = await req.db
-    .model('Agent')
-    .find({ _id: user._id })
-    .select('firstname lastname email selfIntroduction officehours timezone');
+  response.data = events;
+  response.hasEvents = events.length > 0;
 
   res.status(200).send(response);
   return next();
@@ -200,73 +205,22 @@ const getEvents = asyncHandler(async (req, res, next) => {
 
 const getActiveEventsNumber = asyncHandler(async (req, res) => {
   const { user } = req;
-  const futureEvents = await req.db
-    .model('Event')
-    .find({
-      $or: [{ requester_id: user._id }, { receiver_id: user._id }],
-      isConfirmedReceiver: true,
-      isConfirmedRequester: true,
-      start: { $gt: new Date() }
-    })
-    .lean();
+  const { filter: eventQuery } = new EventQueryBuilder()
+    .withOrs([{ requester_id: user._id }, { receiver_id: user._id }])
+    .withConfirmedReceiver(true)
+    .withConfirmedRequester(true)
+    .withStartTimeStart(new Date())
+    .build();
+  const futureEvents = await req.db.model('Event').find(eventQuery).lean();
   res.status(200).send({ success: true, data: futureEvents.length });
-});
-
-const getAllEvents = asyncHandler(async (req, res, next) => {
-  const { user } = req;
-  const agents = await req.db
-    .model('Agent')
-    .find()
-    .select('firstname lastname email selfIntroduction officehours timezone');
-
-  const events = await req.db
-    .model('Event')
-    .find()
-    .populate('receiver_id requester_id', 'firstname lastname email')
-    .lean();
-  const students = await req.db
-    .model('Student')
-    .find({
-      $and: [
-        { $or: [{ agents: user._id }, { editors: user._id }] },
-        { $or: [{ archiv: { $exists: false } }, { archiv: false }] }
-      ]
-    })
-    .select('firstname lastname firstname_chinese lastname_chinese  email')
-    .lean();
-  if (events.length === 0) {
-    res.status(200).send({
-      success: true,
-      agents,
-      data: events,
-      booked_events: [],
-      hasEvents: false,
-      students
-    });
-  } else {
-    res.status(200).send({
-      success: true,
-      agents,
-      data: events,
-      booked_events: [],
-      hasEvents: true,
-      students
-    });
-  }
-  next();
 });
 
 const showEvent = asyncHandler(async (req, res, next) => {
   const { event_id } = req.params;
   const event = await req.db.model('Event').findById(event_id);
 
-  try {
-    res.status(200).json(event);
-    next();
-  } catch (err) {
-    logger.info(err);
-    throw new ErrorResponse(400, err);
-  }
+  res.status(200).json(event);
+  next();
 });
 
 const postEvent = asyncHandler(async (req, res, next) => {
@@ -303,7 +257,10 @@ const postEvent = asyncHandler(async (req, res, next) => {
             }
           ]
         })
-        .populate('requester_id receiver_id', 'firstname lastname email')
+        .populate(
+          'requester_id receiver_id',
+          'firstname lastname email pictureUrl'
+        )
         .lean();
     } catch (e) {
       logger.error(e);
@@ -318,7 +275,7 @@ const postEvent = asyncHandler(async (req, res, next) => {
       logger.error('Student book a conflicting event in this time slot.');
       throw new ErrorResponse(
         403,
-        'You are not allowed to book further timeslot, if you have already an upcoming timeslot of the agent.'
+        'You are not allowed to book further timeslot, if you have already an upcoming timeslot of the agent or editor.'
       );
     }
     events = await req.db
@@ -328,13 +285,18 @@ const postEvent = asyncHandler(async (req, res, next) => {
           $in: [new Types.ObjectId(newEvent.requester_id)]
         }
       })
-      .populate('requester_id receiver_id', 'firstname lastname email')
+      .populate(
+        'requester_id receiver_id',
+        'firstname lastname email pictureUrl'
+      )
       .lean();
     const agents_ids = user.agents;
     const agents = await req.db
       .model('Agent')
       .find({ _id: agents_ids })
-      .select('firstname lastname email selfIntroduction officehours timezone');
+      .select(
+        'firstname lastname email selfIntroduction officehours timezone pictureUrl'
+      );
     res.status(201).send({
       success: true,
       agents,
@@ -370,7 +332,7 @@ const postEvent = asyncHandler(async (req, res, next) => {
             }
           ]
         })
-        .populate('receiver_id', 'firstname lastname email')
+        .populate('receiver_id', 'firstname lastname email pictureUrl')
         .lean();
       // Check if there is any already booked upcoming events
       if (events.length === 0) {
@@ -390,14 +352,17 @@ const postEvent = asyncHandler(async (req, res, next) => {
         .find({
           $or: [{ requester_id: user._id }, { receiver_id: user._id }]
         })
-        .populate('receiver_id requester_id', 'firstname lastname email')
+        .populate(
+          'receiver_id requester_id',
+          'firstname lastname email pictureUrl'
+        )
         .lean();
       const agents_ids = user.agents;
       const agents = await req.db
         .model('Agent')
         .find({ _id: agents_ids })
         .select(
-          'firstname lastname email selfIntroduction officehours timezone'
+          'firstname lastname email selfIntroduction officehours timezone pictureUrl'
         );
       res.status(201).send({
         success: true,
@@ -408,7 +373,10 @@ const postEvent = asyncHandler(async (req, res, next) => {
       const updatedEvent = await req.db
         .model('Event')
         .findById(write_NewEvent._id)
-        .populate('requester_id receiver_id', 'firstname lastname email')
+        .populate(
+          'requester_id receiver_id',
+          'firstname lastname email pictureUrl'
+        )
         .lean();
       updatedEvent.requester_id.forEach((requester) => {
         meetingConfirmationReminder(requester, user, updatedEvent.start);
@@ -436,11 +404,14 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
         .replace(/:/g, '_')
         .replace(/\./g, '_')}_${user._id.toString()}`.replace(/ /g, '_');
     }
-    if (user.role === 'Agent') {
+    if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       const event_temp = await req.db
         .model('Event')
         .findById(event_id)
-        .populate('receiver_id requester_id', 'firstname lastname email')
+        .populate(
+          'receiver_id requester_id',
+          'firstname lastname email pictureUrl'
+        )
         .lean();
       let concat_name = '';
       let concat_id = '';
@@ -467,7 +438,10 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
         upsert: false,
         new: true
       })
-      .populate('receiver_id requester_id', 'firstname lastname email')
+      .populate(
+        'receiver_id requester_id',
+        'firstname lastname email pictureUrl'
+      )
       .lean();
     if (event) {
       res.status(200).send({ success: true, data: event });
@@ -482,7 +456,7 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
         meetingInvitation(receiver, user, event);
       });
     }
-    if (is_TaiGer_Agent(user)) {
+    if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       event.requester_id.forEach((requester) => {
         meetingInvitation(requester, user, event);
       });
@@ -504,7 +478,7 @@ const updateEvent = asyncHandler(async (req, res, next) => {
       updated_event.isConfirmedRequester = true;
       updated_event.isConfirmedReceiver = false;
     }
-    if (is_TaiGer_Agent(user)) {
+    if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       updated_event.isConfirmedRequester = false;
       updated_event.isConfirmedReceiver = true;
     }
@@ -531,7 +505,7 @@ const updateEvent = asyncHandler(async (req, res, next) => {
         MeetingAdjustReminder(receiver, user, event);
       });
     }
-    if (user.role === 'Agent') {
+    if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       event.requester_id.forEach((requester) => {
         MeetingAdjustReminder(requester, user, event);
       });
@@ -574,7 +548,7 @@ const deleteEvent = asyncHandler(async (req, res, next) => {
         hasEvents: events.length !== 0
       });
       MeetingCancelledReminder(user, toBeDeletedEvent);
-    } else if (is_TaiGer_Agent(user)) {
+    } else if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       events = await req.db
         .model('Event')
         .find({
@@ -610,8 +584,8 @@ const deleteEvent = asyncHandler(async (req, res, next) => {
 
 module.exports = {
   getEvents,
+  getBookedEvents,
   getActiveEventsNumber,
-  getAllEvents,
   showEvent,
   postEvent,
   confirmEvent,

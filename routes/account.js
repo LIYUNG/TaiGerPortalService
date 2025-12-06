@@ -213,7 +213,7 @@ router
   .put(
     filter_archiv_user,
     updatePersonalInformationRateLimiter,
-    permit(Role.Admin, Role.Agent),
+    permit(Role.Agent, Role.Editor),
     updateOfficehours,
     logAccess
   );

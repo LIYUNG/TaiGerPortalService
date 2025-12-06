@@ -28,6 +28,14 @@ class BaseQueryBuilder {
     return this;
   }
 
+  withOrs(ors) {
+    if (!Array.isArray(ors)) {
+      throw new Error('ors must be an array');
+    }
+    this.query.$or = ors;
+    return this;
+  }
+
   build() {
     return {
       filter: this.query,

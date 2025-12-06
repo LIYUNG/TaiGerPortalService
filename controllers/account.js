@@ -40,8 +40,9 @@ const updateOfficehours = asyncHandler(async (req, res, next) => {
     user,
     body: { officehours, timezone }
   } = req;
+  console.log(JSON.stringify(officehours));
   await req.db
-    .model('Agent')
+    .model(user.role) // Agent or Editor
     .findByIdAndUpdate(user._id.toString(), { officehours, timezone }, {});
 
   res.status(200).send({
@@ -49,6 +50,12 @@ const updateOfficehours = asyncHandler(async (req, res, next) => {
   });
   next();
 });
+
+// Helper function to normalize university name
+const normalizeName = (name) => {
+  if (!name || typeof name !== 'string') return name;
+  return name.trim().replace(/\s+/g, ' '); // Replace multiple spaces with single space
+};
 
 // (O)  email : self notification
 const updateAcademicBackground = asyncHandler(async (req, res, next) => {
@@ -58,6 +65,23 @@ const updateAcademicBackground = asyncHandler(async (req, res, next) => {
   const { studentId } = req.params;
 
   try {
+    // Normalize name field before saving
+    if (university.attended_high_school) {
+      university.attended_high_school = normalizeName(
+        university.attended_high_school
+      );
+    }
+    if (university.attended_university) {
+      university.attended_university = normalizeName(
+        university.attended_university
+      );
+    }
+    if (university.attended_university_program) {
+      university.attended_university_program = normalizeName(
+        university.attended_university_program
+      );
+    }
+
     university.updatedAt = new Date();
     const updatedStudent = await req.db.model('User').findByIdAndUpdate(
       studentId,

@@ -108,6 +108,10 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
       app.programId =
         programMap.get(app.programId._id?.toString()) || app.programId;
     }
+    // Ensure isLocked field exists (default to true if undefined for existing applications)
+    if (app.isLocked === undefined) {
+      app.isLocked = true;
+    }
     return app;
   });
   

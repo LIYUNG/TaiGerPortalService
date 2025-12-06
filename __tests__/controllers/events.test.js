@@ -106,16 +106,6 @@ beforeEach(async () => {
   });
 });
 
-describe('GET /api/events/all', () => {
-  it('getAllEvents', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/events/all')
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toEqual(200);
-  });
-});
-
 describe('GET /api/events/ping', () => {
   it('getActiveEventsNumber', async () => {
     const resp = await requestWithSupertest

@@ -4,12 +4,12 @@ const { Role } = require('@taiger-common/core');
 const { protect, permit } = require('../middlewares/auth');
 const {
   getEvents,
+  getBookedEvents,
   showEvent,
   updateEvent,
   postEvent,
   deleteEvent,
   confirmEvent,
-  getAllEvents,
   getActiveEventsNumber
 } = require('../controllers/events');
 
@@ -29,20 +29,20 @@ const router = Router();
 router.use(protect);
 
 router
-  .route('/all')
-  .get(
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getAllEvents,
-    logAccess
-  );
-
-router
   .route('/ping')
   .get(
     GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     getActiveEventsNumber
+  );
+
+router
+  .route('/booked')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    getBookedEvents,
+    logAccess
   );
 
 router

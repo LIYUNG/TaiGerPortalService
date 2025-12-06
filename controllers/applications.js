@@ -366,10 +366,12 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
   // Insert only new programIds for student.
   for (let i = 0; i < new_programIds.length; i += 1) {
     try {
+      // Default isLocked to true (locked by default)
       const application = await req.db.model('Application').create({
         studentId,
         programId: new mongoose.Types.ObjectId(new_programIds[i]),
-        application_year
+        application_year,
+        isLocked: true
       });
 
       const program = program_ids.find(
@@ -521,6 +523,47 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const refreshApplication = asyncHandler(async (req, res) => {
+  const { applicationId } = req.params;
+  
+  // Set isLocked to false (unlock the application)
+  const application = await req.db
+    .model('Application')
+    .findById(applicationId)
+    .lean();
+  
+  if (!application) {
+    console.error(`[refreshApplication] Application ${applicationId} not found`);
+    return res.status(404).json({ success: false, message: 'Application not found' });
+  }
+  
+  // Unlock the application by setting isLocked to false
+  // Use native MongoDB collection to ensure the field is saved
+  const collection = req.db.collection('applications');
+  const objectId = new mongoose.Types.ObjectId(applicationId);
+  
+  // Use native MongoDB update to bypass Mongoose schema issues
+  await collection.updateOne(
+    { _id: objectId },
+    { $set: { isLocked: false } }
+  );
+  
+  // Verify by fetching the document directly from the collection
+  const rawDocument = await collection.findOne({ _id: objectId });
+  
+  // Fetch again using Mongoose to verify it's in the model
+  const ApplicationModel = req.db.model('Application');
+  const updatedApplication = await ApplicationModel.findById(applicationId).lean();
+  
+  // Return the raw document data to ensure isLocked is included
+  const responseData = rawDocument ? {
+    ...updatedApplication,
+    isLocked: rawDocument.isLocked !== undefined ? rawDocument.isLocked : false
+  } : updatedApplication;
+  
+  return res.json({ success: true, data: responseData });
+});
+
 module.exports = {
   getApplications,
   deleteApplication,
@@ -529,5 +572,6 @@ module.exports = {
   getStudentApplications,
   updateStudentApplications,
   updateApplication,
-  createApplicationV2
+  createApplicationV2,
+  refreshApplication
 };

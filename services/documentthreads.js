@@ -18,13 +18,6 @@ const DocumentThreadService = {
       )
       .lean();
     
-    if (thread?.program_id) {
-      thread.program_id = await ProgramService.enrichProgramWithActiveApplications(
-        req,
-        thread.program_id
-      );
-    }
-    
     return thread;
   },
   async getStudentThreadsByStudentId(req, studentId) {
@@ -41,21 +34,7 @@ const DocumentThreadService = {
       .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
       .lean();
 
-    // Enrich programs with hasActiveApplications
-    const enrichedThreads = await ProgramService.enrichProgramsWithActiveApplications(
-      req,
-      threads.map((t) => t.program_id).filter(Boolean)
-    );
-    const programMap = new Map(enrichedThreads.map((p) => [p._id.toString(), p]));
-    
-    const threadsWithEnrichedPrograms = threads.map((thread) => {
-      if (thread.program_id) {
-        thread.program_id = programMap.get(thread.program_id._id?.toString()) || thread.program_id;
-      }
-      return thread;
-    });
-
-    const filteredThreads = threadsWithEnrichedPrograms.filter(
+    const filteredThreads = threads.filter(
       (thread) =>
         (thread?.application_id?.decided === 'O' || !thread?.application_id) &&
         thread.file_type !== 'Interview'
@@ -89,21 +68,7 @@ const DocumentThreadService = {
       )
       .lean();
 
-    // Enrich programs with hasActiveApplications
-    const enrichedThreads = await ProgramService.enrichProgramsWithActiveApplications(
-      req,
-      threads.map((t) => t.program_id).filter(Boolean)
-    );
-    const programMap = new Map(enrichedThreads.map((p) => [p._id.toString(), p]));
-    
-    const threadsWithEnrichedPrograms = threads.map((thread) => {
-      if (thread.program_id) {
-        thread.program_id = programMap.get(thread.program_id._id?.toString()) || thread.program_id;
-      }
-      return thread;
-    });
-
-    const filteredThreads = threadsWithEnrichedPrograms.filter(
+    const filteredThreads = threads.filter(
       (thread) =>
         (thread.student_id?.agents.some(
           (agent) => agent._id.toString() === userId
@@ -152,21 +117,7 @@ const DocumentThreadService = {
       )
       .lean();
 
-    // Enrich programs with hasActiveApplications
-    const enrichedThreads = await ProgramService.enrichProgramsWithActiveApplications(
-      req,
-      threads.map((t) => t.program_id).filter(Boolean)
-    );
-    const programMap = new Map(enrichedThreads.map((p) => [p._id.toString(), p]));
-    
-    const threadsWithEnrichedPrograms = threads.map((thread) => {
-      if (thread.program_id) {
-        thread.program_id = programMap.get(thread.program_id._id?.toString()) || thread.program_id;
-      }
-      return thread;
-    });
-
-    const filteredThreads = threadsWithEnrichedPrograms.filter(
+    const filteredThreads = threads.filter(
       (thread) =>
         (thread?.application_id?.decided === 'O' || !thread?.application_id) &&
         thread.file_type !== 'Interview'
@@ -188,19 +139,7 @@ const DocumentThreadService = {
       .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
       .lean();
     
-    // Enrich programs with hasActiveApplications
-    const enrichedThreads = await ProgramService.enrichProgramsWithActiveApplications(
-      req,
-      threads.map((t) => t.program_id).filter(Boolean)
-    );
-    const programMap = new Map(enrichedThreads.map((p) => [p._id.toString(), p]));
-    
-    return threads.map((thread) => {
-      if (thread.program_id) {
-        thread.program_id = programMap.get(thread.program_id._id?.toString()) || thread.program_id;
-      }
-      return thread;
-    });
+    return threads;
   },
   async updateThreadById(req, threadId, payload) {
     return req.db

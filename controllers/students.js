@@ -90,24 +90,8 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
       .send({ success: false, message: 'Student not found' });
   }
   
-  // Enrich programs in applications with hasActiveApplications
-  const programsToEnrich = applications
-    .map((app) => app.programId)
-    .filter(Boolean);
-  const enrichedPrograms = await ProgramService.enrichProgramsWithActiveApplications(
-    req,
-    programsToEnrich
-  );
-  const programMap = new Map(
-    enrichedPrograms.map((p) => [p._id.toString(), p])
-  );
-  
-  // Replace programId in applications with enriched programs
+  // Ensure isLocked field exists (default to true if undefined for existing applications)
   const enrichedApplications = applications.map((app) => {
-    if (app.programId) {
-      app.programId =
-        programMap.get(app.programId._id?.toString()) || app.programId;
-    }
     // Ensure isLocked field exists (default to true if undefined for existing applications)
     if (app.isLocked === undefined) {
       app.isLocked = true;

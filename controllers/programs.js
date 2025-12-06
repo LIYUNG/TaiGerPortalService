@@ -454,13 +454,7 @@ const getPrograms = asyncHandler(async (req, res) => {
     )
     .lean();
   
-  // Enrich with hasActiveApplications
-  const enrichedPrograms = await ProgramService.enrichProgramsWithActiveApplications(
-    req,
-    programs
-    );
-  
-  res.send({ success: true, data: enrichedPrograms });
+  res.send({ success: true, data: programs });
 });
 
 
@@ -511,12 +505,6 @@ const getProgram = asyncHandler(async (req, res) => {
     throw new ErrorResponse(404, 'Program not found');
   }
   
-  // Enrich with hasActiveApplications
-  const enrichedProgram = await ProgramService.enrichProgramWithActiveApplications(
-    req,
-    program
-  );
-  
   let vc = null;
 
   if (
@@ -531,7 +519,7 @@ const getProgram = asyncHandler(async (req, res) => {
     });
   }
 
-  res.send({ success: true, data: enrichedProgram, vc });
+  res.send({ success: true, data: program, vc });
 });
 
 const createProgram = asyncHandler(async (req, res) => {
@@ -558,13 +546,7 @@ const createProgram = asyncHandler(async (req, res) => {
   }
   const program = await req.db.model('Program').create(new_program);
   
-  // Enrich with hasActiveApplications (will be false for new program)
-  const enrichedProgram = await ProgramService.enrichProgramWithActiveApplications(
-    req,
-    program
-  );
-  
-  return res.status(201).send({ success: true, data: enrichedProgram });
+  return res.status(201).send({ success: true, data: program });
 });
 
 const updateProgram = asyncHandler(async (req, res) => {
@@ -586,12 +568,6 @@ const updateProgram = asyncHandler(async (req, res) => {
     })
     .lean();
 
-  // Enrich with hasActiveApplications
-  const enrichedProgram = await ProgramService.enrichProgramWithActiveApplications(
-    req,
-    program
-  );
-
   // Update same program but other semester common data
   await req.db.model('Program').updateMany(
     {
@@ -610,7 +586,7 @@ const updateProgram = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .send({ success: true, data: enrichedProgram, vc });
+    .send({ success: true, data: program, vc });
 });
 
 const deleteProgram = asyncHandler(async (req, res) => {
@@ -690,12 +666,6 @@ const refreshProgram = asyncHandler(async (req, res) => {
     { upsert: true, new: true }
   );
 
-  // Enrich with hasActiveApplications
-  const enrichedProgram = await ProgramService.enrichProgramWithActiveApplications(
-    req,
-    program
-  );
-
   const vc = await VCService.getVC(req, {
     docId: programId,
     collectionName: 'Program'
@@ -703,7 +673,7 @@ const refreshProgram = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .send({ success: true, data: enrichedProgram, vc });
+    .send({ success: true, data: program, vc });
 });
 
 module.exports = {

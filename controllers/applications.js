@@ -366,12 +366,14 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
   // Insert only new programIds for student.
   for (let i = 0; i < new_programIds.length; i += 1) {
     try {
-      // Default isLocked to true (locked by default)
+      // Default isLocked to false (unlocked by default)
+      // For approval countries, this field is ignored anyway (unlocked automatically)
+      // For non-approval countries, most applications are safe, so unlocked by default reduces manual work
       const application = await req.db.model('Application').create({
         studentId,
         programId: new mongoose.Types.ObjectId(new_programIds[i]),
         application_year,
-        isLocked: true
+        isLocked: false
       });
 
       const program = program_ids.find(

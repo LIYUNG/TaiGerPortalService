@@ -90,11 +90,12 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
       .send({ success: false, message: 'Student not found' });
   }
   
-  // Ensure isLocked field exists (default to true if undefined for existing applications)
+  // Ensure isLocked field exists (default to false if undefined for existing applications)
+  // Existing applications should be unlocked to avoid disrupting running workflows
+  // Lock mechanism only applies to newly created applications
   const applicationsWithDefaults = applications.map((app) => {
-    // Ensure isLocked field exists (default to true if undefined for existing applications)
     if (app.isLocked === undefined) {
-      app.isLocked = true;
+      app.isLocked = false; // Existing applications default to unlocked
     }
     return app;
   });

@@ -322,6 +322,7 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
       _id: { $in: programObjectIds },
       $or: [{ isArchiv: { $exists: false } }, { isArchiv: false }]
     })
+    .select('_id country') // Include country field to determine approval status
     .lean();
   if (program_ids.length !== programObjectIds.length) {
     logger.error('createApplication: some program_ids invalid');
@@ -363,22 +364,60 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
       )
   );
 
+  // Approval countries list (must match frontend APPROVAL_COUNTRIES)
+  const APPROVAL_COUNTRIES = ['de', 'nl', 'uk', 'ch', 'se', 'at'];
+  
+  // Create a Map for O(1) program lookup instead of O(n) find in loop
+  const programMap = new Map(
+    program_ids.map((p) => [p._id.toString(), p])
+  );
+  
+  // Get collection reference once for reuse in loop
+  const collection = req.db.collection('applications');
+
   // Insert only new programIds for student.
   for (let i = 0; i < new_programIds.length; i += 1) {
     try {
-      // Default isLocked to false (unlocked by default)
-      // For approval countries, this field is ignored anyway (unlocked automatically)
-      // For non-approval countries, most applications are safe, so unlocked by default reduces manual work
+      // Get program from Map (O(1) lookup)
+      const program = programMap.get(new_programIds[i]);
+
+      if (!program) {
+        logger.error(
+          `createApplicationV2: Program ${new_programIds[i]} not found in program_ids`
+        );
+        throw new ErrorResponse(400, 'Program not found');
+      }
+
+      // Determine isLocked based on program country:
+      // - Non-approval countries: isLocked = true (locked by default, requires manual unlock)
+      // - Approval countries: isLocked = false (unlocked by default)
+      const countryCode = program.country
+        ? String(program.country).toLowerCase()
+        : null;
+      const isInApprovalCountry = countryCode
+        ? APPROVAL_COUNTRIES.includes(countryCode)
+        : false;
+      const isLocked = !isInApprovalCountry; // true for non-approval, false for approval
+
+      // Create application with explicit isLocked value
       const application = await req.db.model('Application').create({
         studentId,
         programId: new mongoose.Types.ObjectId(new_programIds[i]),
         application_year,
-        isLocked: false
+        isLocked // Explicitly set based on country
       });
 
-      const program = program_ids.find(
-        ({ _id }) => _id.toString() === new_programIds[i]
+      // Use native MongoDB to ensure isLocked is persisted correctly
+      // This prevents Mongoose schema defaults from overriding our explicit value
+      await collection.updateOne(
+        { _id: application._id },
+        { $set: { isLocked } }
       );
+
+      // Update the Mongoose model instance to ensure subsequent saves don't override isLocked
+      // This is critical because application.save() calls later might reset isLocked to schema default
+      application.isLocked = isLocked;
+      application.markModified('isLocked');
 
       // check if RL required, if yes, create new thread
       if (

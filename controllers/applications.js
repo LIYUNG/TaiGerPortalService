@@ -407,17 +407,12 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
         isLocked // Explicitly set based on country
       });
 
-      // Use native MongoDB to ensure isLocked is persisted correctly
-      // This prevents Mongoose schema defaults from overriding our explicit value
-      await collection.updateOne(
-        { _id: application._id },
-        { $set: { isLocked } }
+      // Ensure isLocked is persisted correctly
+      await req.db.model('Application').findByIdAndUpdate(
+        application._id,
+        { isLocked },
+        {}
       );
-
-      // Update the Mongoose model instance to ensure subsequent saves don't override isLocked
-      // This is critical because application.save() calls later might reset isLocked to schema default
-      application.isLocked = isLocked;
-      application.markModified('isLocked');
 
       // check if RL required, if yes, create new thread
       if (
@@ -567,42 +562,22 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
 const refreshApplication = asyncHandler(async (req, res) => {
   const { applicationId } = req.params;
   
-  // Set isLocked to false (unlock the application)
-  const application = await req.db
+  // Unlock the application by setting isLocked to false
+  const updatedApplication = await req.db
     .model('Application')
-    .findById(applicationId)
+    .findByIdAndUpdate(
+      applicationId,
+      { isLocked: false },
+      { new: true }
+    )
     .lean();
   
-  if (!application) {
+  if (!updatedApplication) {
     console.error(`[refreshApplication] Application ${applicationId} not found`);
     return res.status(404).json({ success: false, message: 'Application not found' });
   }
   
-  // Unlock the application by setting isLocked to false
-  // Use native MongoDB collection to ensure the field is saved
-  const collection = req.db.collection('applications');
-  const objectId = new mongoose.Types.ObjectId(applicationId);
-  
-  // Use native MongoDB update to bypass Mongoose schema issues
-  await collection.updateOne(
-    { _id: objectId },
-    { $set: { isLocked: false } }
-  );
-  
-  // Verify by fetching the document directly from the collection
-  const rawDocument = await collection.findOne({ _id: objectId });
-  
-  // Fetch again using Mongoose to verify it's in the model
-  const ApplicationModel = req.db.model('Application');
-  const updatedApplication = await ApplicationModel.findById(applicationId).lean();
-  
-  // Return the raw document data to ensure isLocked is included
-  const responseData = rawDocument ? {
-    ...updatedApplication,
-    isLocked: rawDocument.isLocked !== undefined ? rawDocument.isLocked : false
-  } : updatedApplication;
-  
-  return res.json({ success: true, data: responseData });
+  return res.json({ success: true, data: updatedApplication });
 });
 
 module.exports = {

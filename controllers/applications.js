@@ -363,18 +363,33 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
       )
   );
 
+  // Approval countries list (must match frontend APPROVAL_COUNTRIES)
+  const APPROVAL_COUNTRIES = ['de', 'nl', 'uk', 'ch', 'se', 'at'];
+
   // Insert only new programIds for student.
   for (let i = 0; i < new_programIds.length; i += 1) {
     try {
-      const application = await req.db.model('Application').create({
-        studentId,
-        programId: new mongoose.Types.ObjectId(new_programIds[i]),
-        application_year
-      });
-
       const program = program_ids.find(
         ({ _id }) => _id.toString() === new_programIds[i]
       );
+
+      // Determine isLocked based on program country:
+      // - Non-approval countries: isLocked = true (locked by default, requires manual unlock)
+      // - Approval countries: isLocked = false (unlocked by default)
+      const countryCode = program?.country
+        ? String(program.country).toLowerCase()
+        : null;
+      const isInApprovalCountry = countryCode
+        ? APPROVAL_COUNTRIES.includes(countryCode)
+        : false;
+      const isLocked = !isInApprovalCountry; // true for non-approval, false for approval
+
+      const application = await req.db.model('Application').create({
+        studentId,
+        programId: new mongoose.Types.ObjectId(new_programIds[i]),
+        application_year,
+        isLocked // Set based on country
+      });
 
       // check if RL required, if yes, create new thread
       if (
@@ -521,6 +536,27 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const refreshApplication = asyncHandler(async (req, res) => {
+  const { applicationId } = req.params;
+  
+  // Unlock the application by setting isLocked to false
+  const updatedApplication = await req.db
+    .model('Application')
+    .findByIdAndUpdate(
+      applicationId,
+      { isLocked: false },
+      { new: true }
+    )
+    .lean();
+  
+  if (!updatedApplication) {
+    console.error(`[refreshApplication] Application ${applicationId} not found`);
+    return res.status(404).json({ success: false, message: 'Application not found' });
+  }
+  
+  return res.json({ success: true, data: updatedApplication });
+});
+
 module.exports = {
   getApplications,
   deleteApplication,
@@ -529,5 +565,6 @@ module.exports = {
   getStudentApplications,
   updateStudentApplications,
   updateApplication,
-  createApplicationV2
+  createApplicationV2,
+  refreshApplication
 };

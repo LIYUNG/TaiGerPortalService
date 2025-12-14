@@ -2,7 +2,7 @@ const StudentService = require('./students');
 
 const DocumentThreadService = {
   async getThreadById(req, messagesThreadId) {
-    return req.db
+    const thread = await req.db
       .model('Documentthread')
       .findById(messagesThreadId)
       .populate(
@@ -16,6 +16,8 @@ const DocumentThreadService = {
         'firstname lastname role archiv pictureUrl'
       )
       .lean();
+    
+    return thread;
   },
   async getStudentThreadsByStudentId(req, studentId) {
     const threads = await req.db
@@ -23,7 +25,7 @@ const DocumentThreadService = {
       .find({ student_id: studentId })
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang'
+        'school program_name application_deadline degree semester lang country updatedAt'
       )
       .populate('student_id', 'firstname lastname pictureUrl')
       .populate('application_id')
@@ -61,7 +63,7 @@ const DocumentThreadService = {
       .populate('application_id')
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang application_start country'
+        'school program_name application_deadline degree semester lang application_start country updatedAt'
       )
       .lean();
 
@@ -110,7 +112,7 @@ const DocumentThreadService = {
       .populate('application_id')
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang country'
+        'school program_name application_deadline degree semester lang country updatedAt'
       )
       .lean();
 
@@ -123,7 +125,7 @@ const DocumentThreadService = {
     return filteredThreads;
   },
   async getThreads(req, filter) {
-    return req.db
+    const threads = await req.db
       .model('Documentthread')
       .find(filter)
       .populate(
@@ -135,6 +137,8 @@ const DocumentThreadService = {
       .populate('program_id')
       .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
       .lean();
+    
+    return threads;
   },
   async updateThreadById(req, threadId, payload) {
     return req.db

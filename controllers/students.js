@@ -33,6 +33,7 @@ const UserQueryBuilder = require('../builders/UserQueryBuilder');
 const ApplicationService = require('../services/applications');
 const InterviewService = require('../services/interviews');
 const { getAuditLogs } = require('../services/audit');
+const ProgramService = require('../services/programs');
 
 const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const {
@@ -88,8 +89,19 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
       .status(404)
       .send({ success: false, message: 'Student not found' });
   }
+  
+  // Ensure isLocked field exists (default to false if undefined for existing applications)
+  // Existing applications should be unlocked to avoid disrupting running workflows
+  // Lock mechanism only applies to newly created applications
+  const applicationsWithDefaults = applications.map((app) => {
+    if (app.isLocked === undefined) {
+      app.isLocked = false; // Existing applications default to unlocked
+    }
+    return app;
+  });
+  
   // TODO: remove agent notfication for new documents upload
-  student.applications = add_portals_registered_status(applications);
+  student.applications = add_portals_registered_status(applicationsWithDefaults);
 
   res.status(200).send({
     success: true,

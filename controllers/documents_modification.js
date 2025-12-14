@@ -12,7 +12,7 @@ const {
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const { ten_minutes_cache } = require('../cache/node-cache');
-const { informOnSurveyUpdate } = require('../utils/informEditor');
+const { informOnSurveyUpdate, informNoEditor } = require('../utils/informEditor');
 const {
   sendNewApplicationMessageInThreadEmail,
   sendAssignEditorReminderEmail,
@@ -376,39 +376,69 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   )?.programId;
   const Essay_Writer_Scope = Object.keys(ESSAY_WRITER_SCOPE);
   const program_name = `${program.school} - ${program.program_name}`;
+  const essayDifficulty = program?.essay_difficulty;
+  
   if (Essay_Writer_Scope.includes(document_category)) {
-    const permissions = await req.db
-      .model('Permission')
-      .find({
-        canAssignEditors: true
-      })
-      .populate('user_id', 'firstname lastname email archiv pictureUrl')
-      .lean();
-    if (permissions) {
-      for (let x = 0; x < permissions.length; x += 1) {
-        if (isNotArchiv(permissions[x].user_id)) {
-          assignEssayTaskToEditorEmail(
+    // Check essay difficulty
+    // Treat undefined as 'EASY' (default to editor assignment flow)
+    if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
+      // EASY essay: Use editor flow (same as CV/ML/RL)
+      // Notify existing student editors
+      for (let i = 0; i < student.editors.length; i += 1) {
+        if (isNotArchiv(student.editors[i])) {
+          assignDocumentTaskToEditorEmail(
             {
-              firstname: permissions[x].user_id.firstname,
-              lastname: permissions[x].user_id.lastname,
-              address: permissions[x].user_id.email
+              firstname: student.editors[i].firstname,
+              lastname: student.editors[i].lastname,
+              address: student.editors[i].email
             },
             {
               student_firstname: student.firstname,
               student_lastname: student.lastname,
-              student_id: student._id.toString(),
               thread_id: newAppRecord.doc_thread_id._id,
-              document_category,
+              documentname: document_category,
               program_name,
               updatedAt: new Date()
             }
           );
         }
       }
+    } else {
+      // HARD essay: Keep current behavior (notify editor leads for assignment)
+      const permissions = await req.db
+        .model('Permission')
+        .find({
+          canAssignEditors: true
+        })
+        .populate('user_id', 'firstname lastname email archiv pictureUrl')
+        .lean();
+      if (permissions) {
+        for (let x = 0; x < permissions.length; x += 1) {
+          if (isNotArchiv(permissions[x].user_id)) {
+            assignEssayTaskToEditorEmail(
+              {
+                firstname: permissions[x].user_id.firstname,
+                lastname: permissions[x].user_id.lastname,
+                address: permissions[x].user_id.email
+              },
+              {
+                student_firstname: student.firstname,
+                student_lastname: student.lastname,
+                student_id: student._id.toString(),
+                thread_id: newAppRecord.doc_thread_id._id,
+                document_category,
+                program_name,
+                updatedAt: new Date()
+              }
+            );
+          }
+        }
+      }
     }
   }
   const documentname = document_category;
 
+  // For non-essay documents (CV/ML/RL), notify student editors
   for (let i = 0; i < student.editors.length; i += 1) {
     if (isNotArchiv(student.editors[i])) {
       if (!Essay_Writer_Scope.includes(document_category)) {
@@ -945,88 +975,169 @@ const postMessages = asyncHandler(async (req, res) => {
         }
       }
     }
-    // Essay-related only notification: if no essay writer: infor agent and editor lead
+    // Essay-related only notification: check essay difficulty
     const Essay_Writer_Scope = Object.keys(ESSAY_WRITER_SCOPE);
     if (Essay_Writer_Scope.includes(document_thread.file_type)) {
-      if (
-        !document_thread.outsourced_user_id ||
-        document_thread.outsourced_user_id.length === 0
-      ) {
-        await req.db
-          .model('Student')
-          .findByIdAndUpdate(user._id, { needEditor: true }, {});
-        const payload = {
-          student_firstname: student.firstname,
-          student_id: student._id.toString(),
-          student_lastname: student.lastname
-        };
-        for (let i = 0; i < student.agents.length; i += 1) {
-          // inform active-agent
-          if (isNotArchiv(student)) {
-            sendAssignEssayWriterReminderEmail(
-              {
-                firstname: student.agents[i].firstname,
-                lastname: student.agents[i].lastname,
-                address: student.agents[i].email
-              },
-              payload
-            );
+      const program = document_thread.program_id;
+      const essayDifficulty = program?.essay_difficulty;
+      
+      // Treat undefined as 'EASY' (default to editor assignment flow)
+      if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
+        // EASY essay: Use editor flow (same as CV/ML/RL)
+        // Check BOTH student.editors AND thread.outsourced_user_id (backward compatibility)
+        const hasEditors = student.editors && student.editors.length > 0;
+        const hasOutsourced = document_thread.outsourced_user_id && 
+                              document_thread.outsourced_user_id.length > 0;
+        
+        if (!hasEditors && !hasOutsourced) {
+          // No assignment in either system: send editor reminder
+          await informNoEditor(req, student);
+        } else {
+          // Notify ALL assigned users (from both systems) - backward compatibility
+          const usersToNotify = new Map();
+          
+          // Add users from student.editors (new system)
+          if (hasEditors) {
+            student.editors.forEach(editor => {
+              if (isNotArchiv(editor)) {
+                usersToNotify.set(editor._id.toString(), {
+                  firstname: editor.firstname,
+                  lastname: editor.lastname,
+                  email: editor.email
+                });
+              }
+            });
           }
-        }
-        // inform editor-lead
-        const permissions = await req.db
-          .model('Permission')
-          .find({
-            canAssignEditors: true
-          })
-          .populate('user_id', 'firstname lastname email pictureUrl')
-          .lean();
-        if (permissions) {
-          for (let x = 0; x < permissions.length; x += 1) {
-            sendAssignEssayWriterReminderEmail(
-              {
-                firstname: permissions[x].user_id.firstname,
-                lastname: permissions[x].user_id.lastname,
-                address: permissions[x].user_id.email
-              },
-              payload
-            );
+          
+          // Add users from thread.outsourced_user_id (old system - backward compatibility)
+          if (hasOutsourced) {
+            document_thread.outsourced_user_id.forEach(outsourcer => {
+              if (isNotArchiv(outsourcer)) {
+                usersToNotify.set(outsourcer._id.toString(), {
+                  firstname: outsourcer.firstname,
+                  lastname: outsourcer.lastname,
+                  email: outsourcer.email
+                });
+              }
+            });
           }
-        }
-      } else {
-        // Inform outsourcer
-        for (let i = 0; i < document_thread.outsourced_user_id.length; i += 1) {
-          const outsourcer_recipient = {
-            firstname: document_thread.outsourced_user_id[i].firstname,
-            lastname: document_thread.outsourced_user_id[i].lastname,
-            address: document_thread.outsourced_user_id[i].email
-          };
-          const outsourcer_payload = {
-            writer_firstname: user.firstname,
-            writer_lastname: user.lastname,
-            student_firstname: student.firstname,
-            student_lastname: student.lastname,
-            uploaded_documentname: document_thread.file_type,
-            thread_id: document_thread._id.toString(),
-            uploaded_updatedAt: new Date()
-          };
-          if (
-            isNotArchiv(student) &&
-            isNotArchiv(document_thread.outsourced_user_id[i])
-          ) {
+          
+          // Send notifications to all unique users
+          for (const userObj of usersToNotify.values()) {
+            const payload = {
+              writer_firstname: user.firstname,
+              writer_lastname: user.lastname,
+              student_firstname: student.firstname,
+              student_lastname: student.lastname,
+              uploaded_documentname: document_thread.file_type,
+              thread_id: document_thread._id.toString(),
+              uploaded_updatedAt: new Date()
+            };
+            
             if (document_thread.program_id) {
-              outsourcer_payload.school = document_thread.program_id.school;
-              outsourcer_payload.program_name =
-                document_thread.program_id.program_name;
+              payload.school = document_thread.program_id.school;
+              payload.program_name = document_thread.program_id.program_name;
               sendNewApplicationMessageInThreadEmail(
-                outsourcer_recipient,
-                outsourcer_payload
+                {
+                  firstname: userObj.firstname,
+                  lastname: userObj.lastname,
+                  address: userObj.email
+                },
+                payload
               );
             } else {
               sendNewGeneraldocMessageInThreadEmail(
-                outsourcer_recipient,
-                outsourcer_payload
+                {
+                  firstname: userObj.firstname,
+                  lastname: userObj.lastname,
+                  address: userObj.email
+                },
+                payload
               );
+            }
+          }
+        }
+      } else {
+        // HARD essay: Keep current behavior (check thread.outsourced_user_id)
+        // Note: HARD essays use essay writers, NOT editors, so we don't set needEditor: true
+        if (
+          !document_thread.outsourced_user_id ||
+          document_thread.outsourced_user_id.length === 0
+        ) {
+          // Don't set needEditor for HARD essays - they appear in "Assign Essay Writer" dashboard instead
+          const payload = {
+            student_firstname: student.firstname,
+            student_id: student._id.toString(),
+            student_lastname: student.lastname
+          };
+          for (let i = 0; i < student.agents.length; i += 1) {
+            // inform active-agent
+            if (isNotArchiv(student)) {
+              sendAssignEssayWriterReminderEmail(
+                {
+                  firstname: student.agents[i].firstname,
+                  lastname: student.agents[i].lastname,
+                  address: student.agents[i].email
+                },
+                payload
+              );
+            }
+          }
+          // inform editor-lead
+          const permissions = await req.db
+            .model('Permission')
+            .find({
+              canAssignEditors: true
+            })
+            .populate('user_id', 'firstname lastname email pictureUrl')
+            .lean();
+          if (permissions) {
+            for (let x = 0; x < permissions.length; x += 1) {
+              sendAssignEssayWriterReminderEmail(
+                {
+                  firstname: permissions[x].user_id.firstname,
+                  lastname: permissions[x].user_id.lastname,
+                  address: permissions[x].user_id.email
+                },
+                payload
+              );
+            }
+          }
+        } else {
+          // Inform outsourcer
+          for (let i = 0; i < document_thread.outsourced_user_id.length; i += 1) {
+            const outsourcer_recipient = {
+              firstname: document_thread.outsourced_user_id[i].firstname,
+              lastname: document_thread.outsourced_user_id[i].lastname,
+              address: document_thread.outsourced_user_id[i].email
+            };
+            const outsourcer_payload = {
+              writer_firstname: user.firstname,
+              writer_lastname: user.lastname,
+              student_firstname: student.firstname,
+              student_lastname: student.lastname,
+              uploaded_documentname: document_thread.file_type,
+              thread_id: document_thread._id.toString(),
+              uploaded_updatedAt: new Date()
+            };
+            if (
+              isNotArchiv(student) &&
+              isNotArchiv(document_thread.outsourced_user_id[i])
+            ) {
+              if (document_thread.program_id) {
+                outsourcer_payload.school = document_thread.program_id.school;
+                outsourcer_payload.program_name =
+                  document_thread.program_id.program_name;
+                sendNewApplicationMessageInThreadEmail(
+                  outsourcer_recipient,
+                  outsourcer_payload
+                );
+              } else {
+                sendNewGeneraldocMessageInThreadEmail(
+                  outsourcer_recipient,
+                  outsourcer_payload
+                );
+              }
             }
           }
         }
@@ -1887,6 +1998,24 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
     return res
       .status(404)
       .json({ success: false, message: 'Essay thread not found.' });
+  }
+
+  // Check essay difficulty - reject EASY essays
+  const program = essayDocumentThreads.program_id;
+  const essayDifficulty = program?.essay_difficulty;
+  
+  // Treat undefined as 'EASY' (default to editor assignment flow)
+  if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
+    return res.status(400).json({
+      success: false,
+      message: 'EASY essays use the editor assignment flow. Please assign editors at the student level.',
+      errorCode: 'EASY_ESSAY_REQUIRES_EDITOR_ASSIGNMENT',
+      guidance: {
+        action: 'Use the "Edit Editors" button on the student profile or document thread page',
+        endpoint: `/api/students/${essayDocumentThreads.student_id._id || essayDocumentThreads.student_id}/editors`,
+        reason: 'EASY essays are assigned at the student level (like CV/ML/RL) to maintain consistency across all tasks'
+      }
+    });
   }
 
   const {

@@ -610,7 +610,7 @@ const getTasksOverview = asyncHandler(async (req, res, next) => {
     noAgentsStudents,
     noEditorsStudents,
     noTrainerInInterviewsStudents,
-    noEssayWritersEssays
+    allEssayThreads
   ] = await Promise.all([
     StudentService.fetchStudents(req, noAgentsfilter),
     StudentService.fetchStudents(req, noEditorsfilter),
@@ -618,10 +618,29 @@ const getTasksOverview = asyncHandler(async (req, res, next) => {
     DocumentThreadService.getAllStudentsThreads(req, {
       isFinalVersion: false,
       file_type: 'Essay',
-      outsourced_user_id: { $exists: true, $size: 0 },
+      $or: [
+        { outsourced_user_id: { $exists: false } },
+        { outsourced_user_id: null },
+        { outsourced_user_id: { $size: 0 } }
+      ],
       messages: { $exists: true, $not: { $size: 0 } }
     })
   ]);
+
+  // Filter: Only count HARD essays without writers (exclude EASY essays)
+  const noEssayWritersEssays = allEssayThreads.filter((thread) => {
+    const program = thread.program_id;
+    const essayDifficulty = program?.essay_difficulty;
+    
+    // Only count HARD essays without writers
+    // Treat undefined as 'EASY' (default to editor assignment flow)
+    if (essayDifficulty === 'EASY' || essayDifficulty === undefined) return false;
+    
+    return !thread.outsourced_user_id || thread.outsourced_user_id.length === 0;
+  });
+
+  // Note: EASY essays without editors are already counted in noEditorsStudents
+  // because they check student.editors at the student level
 
   res.status(200).send({
     success: true,

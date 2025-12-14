@@ -19,16 +19,35 @@ const AssignOutsourcerFilter = asyncHandler(async (req, res, next) => {
       .model('Documentthread')
       .findById(messagesThreadId)
       .populate('student_id')
+      .populate('program_id', 'essay_difficulty')
       .lean();
     studentId_temp = document_thread.student_id._id.toString();
-    outsourcer_allowed_modify =
-      document_thread.outsourced_user_id?.some(
-        (outsourcer_id) => outsourcer_id.toString() === user._id.toString()
-      ) ||
-      (document_thread.file_type !== 'Essay' &&
+    
+    // Determine permission check based on essay difficulty
+    if (document_thread.file_type === 'Essay') {
+      const program = document_thread.program_id;
+      const essayDifficulty = program?.essay_difficulty;
+      
+      // Treat undefined as 'EASY' (default to editor assignment flow)
+      if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
+        // EASY essay: Check BOTH student.editors AND thread.outsourced_user_id (backward compatibility)
+        // Will be checked below with student.editors, but also check outsourced_user_id here
+        outsourcer_allowed_modify = document_thread.outsourced_user_id?.some(
+          (outsourcer_id) => outsourcer_id.toString() === user._id.toString()
+        );
+      } else {
+        // HARD essay: Only check thread.outsourced_user_id (current behavior)
+        outsourcer_allowed_modify = document_thread.outsourced_user_id?.some(
+          (outsourcer_id) => outsourcer_id.toString() === user._id.toString()
+        );
+      }
+    } else {
+      // Non-essay: Check student agents (current behavior)
+      outsourcer_allowed_modify =
         document_thread.student_id?.agents?.some(
           (agent) => agent?.toString() === user._id.toString()
-        ));
+        );
+    }
 
     const student = await req.db
       .model('Student')

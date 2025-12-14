@@ -188,4 +188,4 @@ const informOnSurveyUpdate = asyncHandler(async (req, user, survey, thread) => {
   }
 });
 
-module.exports = { informOnSurveyUpdate, addMessageInThread };
+module.exports = { informOnSurveyUpdate, addMessageInThread, informNoEditor };

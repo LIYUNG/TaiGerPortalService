@@ -513,7 +513,7 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
   const applications_updated = await req.db
     .model('Application')
     .find({ studentId })
-    .populate('programId')
+    .populate('programId', 'school program_name degree semester')
     .populate('doc_modification_thread.doc_thread_id', '-messages')
     .lean();
 

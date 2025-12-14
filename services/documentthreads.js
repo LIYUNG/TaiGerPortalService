@@ -11,7 +11,7 @@ const DocumentThreadService = {
         'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
       )
       .populate('messages.user_id', 'firstname lastname role archiv pictureUrl')
-      .populate('program_id', 'country')
+      .populate('program_id', 'school degree program_name country updatedAt')
       .populate(
         'outsourced_user_id',
         'firstname lastname role archiv pictureUrl'
@@ -62,7 +62,7 @@ const DocumentThreadService = {
         }
       })
       .populate('application_id')
-      .populate('program_id', 'country')
+      .populate('program_id', 'school degree program_name country updatedAt')
       .lean();
 
     const filteredThreads = threads.filter(

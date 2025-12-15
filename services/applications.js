@@ -62,7 +62,7 @@ const ApplicationService = {
   getApplications(req, filter = {}, select = [], populate = true) {
     const query = req.db.model('Application').find(filter);
     if (!!populate && populate !== 'false') {
-      query.populate('programId', 'school program_name degree semester lang country application_deadline application_start whoupdated updatedAt');
+      query.populate('programId');
       query.populate({
         path: 'doc_modification_thread.doc_thread_id',
         select: 'file_type isFinalVersion updatedAt messages',

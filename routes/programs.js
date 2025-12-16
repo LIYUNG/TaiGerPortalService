@@ -16,6 +16,7 @@ const {
   createProgram,
   updateProgram,
   deleteProgram,
+  refreshProgram,
   getDistinctSchoolsAttributes,
   updateBatchSchoolAttributes,
   getProgramsOverview,
@@ -127,6 +128,17 @@ router
     permit(Role.Admin),
     permission_canModifyProgramList_filter,
     deleteProgram
+  );
+
+router
+  .route('/:programId/refresh')
+  .post(
+    validateProgramId,
+    filter_archiv_user,
+    UpdateProgramRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.External),
+    permission_canModifyProgramList_filter,
+    refreshProgram
   );
 
 router

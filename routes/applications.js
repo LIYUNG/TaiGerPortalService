@@ -17,7 +17,8 @@ const {
   getMyStudentsApplications,
   updateStudentApplications,
   getActiveStudentsApplications,
-  updateApplication
+  updateApplication,
+  refreshApplication
 } = require('../controllers/applications');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
@@ -45,6 +46,12 @@ router.route('/application/:application_id').delete(
   getMessagesRateLimiter,
   permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor), // TODO: Add multitenant_filter?
   deleteApplication
+);
+
+router.route('/:applicationId/refresh').post(
+  getMessagesRateLimiter,
+  permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+  refreshApplication
 );
 
 router

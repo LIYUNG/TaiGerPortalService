@@ -134,7 +134,7 @@ const DocumentThreadService = {
       )
       .populate('application_id')
       .populate('messages.user_id', 'firstname lastname role pictureUrl')
-      .populate('program_id', 'school program_name application_deadline degree semester lang essay_difficulty')
+      .populate('program_id')
       .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
       .lean();
     

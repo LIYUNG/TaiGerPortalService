@@ -10,7 +10,7 @@ const DocumentThreadService = {
         'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
       )
       .populate('messages.user_id', 'firstname lastname role archiv pictureUrl')
-      .populate('program_id', 'school program_name application_deadline degree semester lang essay_difficulty')
+      .populate('program_id')
       .populate(
         'outsourced_user_id',
         'firstname lastname role archiv pictureUrl'

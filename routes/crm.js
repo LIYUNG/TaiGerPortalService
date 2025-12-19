@@ -22,7 +22,6 @@ const {
   createDeal,
   updateDeal
 } = require('../controllers/crm');
-const { fi } = require('@faker-js/faker');
 
 const router = Router();
 
@@ -66,5 +65,13 @@ router
   .route('/deals')
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getDeals)
   .post(filter_archiv_user, GeneralPUTRequestRateLimiter, createDeal);
+
+router
+  .route('/instant-invite')
+  .post(
+    filter_archiv_user,
+    GeneralPUTRequestRateLimiter,
+    instantInviteMeetingAssistant
+  );
 
 module.exports = router;

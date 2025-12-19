@@ -649,11 +649,12 @@ const updateDeal = asyncHandler(async (req, res) => {
     data: updatedDeal[0]
   });
 });
-const instantInviteMeetingAssistant = asyncHandler(
-  async (meetingSummary, meetingLink) => {
-    return await instantInviteTA(meetingSummary, meetingLink);
-  }
-);
+
+const instantInviteMeetingAssistant = asyncHandler(async (req, res) => {
+  const { meetingSummary, meetingLink } = req.body;
+  const result = await instantInviteTA(meetingSummary, meetingLink);
+  res.status(200).send(result);
+});
 
 module.exports = {
   getCRMStats,

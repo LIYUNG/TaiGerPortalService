@@ -470,9 +470,9 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
 
   try {
     scheduleInviteTA(
-      `${user.firstname} ${
-        user.lastname
-      } (${updated_event?.start?.toLocaleDateString()}) ###${user._id}###`,
+      `${user.firstname} ${user.lastname} (${new Date(
+        updated_event?.start
+      ).toLocaleDateString()}) ###${user._id}###`,
       updated_event.meetingLink,
       updated_event.start,
       updated_event.end

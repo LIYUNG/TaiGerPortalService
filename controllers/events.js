@@ -17,6 +17,8 @@ const logger = require('../services/logger');
 const { TENANT_SHORT_NAME } = require('../constants/common');
 const EventQueryBuilder = require('../builders/EventQueryBuilder');
 
+const { scheduleInviteTA } = require('../utils/meeting-assistant.service');
+
 const MeetingAdjustReminder = (receiver, user, meeting_event) => {
   MeetingAdjustReminderEmail(
     {
@@ -461,11 +463,25 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
         meetingInvitation(requester, user, event);
       });
     }
-    next();
   } catch (err) {
     logger.error(err);
     throw new ErrorResponse(400, err);
   }
+
+  try {
+    scheduleInviteTA(
+      `${user.firstname} ${
+        user.lastname
+      } (${updated_event?.start?.toLocaleDateString()}) ###${user._id}###`,
+      updated_event.meetingLink,
+      updated_event.start,
+      updated_event.end
+    );
+  } catch (err) {
+    logger.error(err);
+  }
+
+  next();
 });
 
 const updateEvent = asyncHandler(async (req, res, next) => {

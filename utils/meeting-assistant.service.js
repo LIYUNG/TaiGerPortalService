@@ -3,10 +3,10 @@ const {
   FIREFLIES_API_URL,
   FIREFLIES_API_TOKEN,
   FIREFLIES_GOOGLE_INVITE_N8N_URL
-} = require('../../config');
+} = require('../config');
 
 /**
- * Creates a Google meeting event by posting meeting details to an external workflow.
+ * Schedule invite a TaiGer assitant to a meeting. Creates a Google meeting event by posting meeting details to an external workflow.
  *
  * @async
  * @param {string} meetingSummary - A brief title or description of the meeting.
@@ -16,7 +16,7 @@ const {
  * @returns {Promise<any>} Resolves with the upstream service response payload.
  * @throws {Error} If the request fails, includes the underlying error message or response data.
  */
-const createGoogleMeetingEvent = async (
+const scheduleInviteTA = async (
   meetingSummary,
   meetingLink,
   meetingTimeFrom,
@@ -169,6 +169,6 @@ const instantInviteTA = async (meetingSummary, meetingLink) => {
 };
 
 module.exports = {
-  createGoogleMeetingEvent,
+  scheduleInviteTA,
   instantInviteTA
 };

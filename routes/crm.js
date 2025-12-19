@@ -20,7 +20,8 @@ const {
   getSalesReps,
   getDeals,
   createDeal,
-  updateDeal
+  updateDeal,
+  instantInviteMeetingAssistant
 } = require('../controllers/crm');
 
 const router = Router();

@@ -26,6 +26,12 @@ const scheduleInviteTA = async (
     throw new Error('FIREFLIES_GOOGLE_INVITE_N8N_URL is not configured');
   }
 
+  if (!meetingSummary || !meetingLink || !meetingTimeFrom || !meetingTimeTo) {
+    throw new Error(
+      'Missing required parameters: meetingSummary, meetingLink, meetingTimeFrom, meetingTimeTo'
+    );
+  }
+
   try {
     const payload = {
       summary: meetingSummary,
@@ -57,7 +63,7 @@ const scheduleInviteTA = async (
  * @param {string} meetingLink - URL of the live meeting to join.
  * @returns {Promise<InstantInviteResult>} A discriminated result describing success or detailed failure reasons.
  *
- *  * Success example:
+ *  * Success example from Fireflies API:
  *   { data: { addToLiveMeeting: { success: true } } }
  *
  * Common failure example (rate limited):
@@ -78,6 +84,10 @@ const instantInviteTA = async (meetingSummary, meetingLink) => {
       success: false,
       message: 'FIREFLIES_API_URL or FIREFLIES_API_TOKEN is not configured'
     };
+  }
+
+  if (!meetingSummary || !meetingLink) {
+    throw new Error('Missing required parameters: meetingSummary, meetingLink');
   }
 
   try {

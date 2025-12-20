@@ -652,6 +652,12 @@ const updateDeal = asyncHandler(async (req, res) => {
 
 const instantInviteMeetingAssistant = asyncHandler(async (req, res) => {
   const { meetingSummary, meetingLink } = req.body;
+  if (!meetingSummary || !meetingLink) {
+    return res.status(400).send({
+      success: false,
+      message: 'meetingSummary and meetingLink are required'
+    });
+  }
   const result = await instantInviteTA(meetingSummary, meetingLink);
   res.status(200).send(result);
 });

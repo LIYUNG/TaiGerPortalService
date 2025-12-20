@@ -485,7 +485,7 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
       updated_event.start,
       updated_event.end
     );
-    if (data.success === false) {
+    if (!data.success) {
       logger.error(
         `TA schedule invite failed: ${JSON.stringify(
           data

@@ -1064,7 +1064,7 @@ const postMessages = asyncHandler(async (req, res) => {
           !document_thread.outsourced_user_id ||
           document_thread.outsourced_user_id.length === 0
         ) {
-          // Don't set needEditor for HARD essays - they appear in "Assign Essay Writer" dashboard instead
+          // Don't set needEditor for HARD essays - they appear in "Assign Essay Writers" dashboard instead
           const payload = {
             student_firstname: student.firstname,
             student_id: student._id.toString(),
@@ -2007,14 +2007,7 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
   // Treat undefined as 'EASY' (default to editor assignment flow)
   if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
     return res.status(400).json({
-      success: false,
-      message: 'EASY essays use the editor assignment flow. Please assign editors at the student level.',
-      errorCode: 'EASY_ESSAY_REQUIRES_EDITOR_ASSIGNMENT',
-      guidance: {
-        action: 'Use the "Edit Editors" button on the student profile or document thread page',
-        endpoint: `/api/students/${essayDocumentThreads.student_id._id || essayDocumentThreads.student_id}/editors`,
-        reason: 'EASY essays are assigned at the student level (like CV/ML/RL) to maintain consistency across all tasks'
-      }
+      success: false
     });
   }
 

@@ -395,6 +395,10 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
   const { event_id } = req.params;
   const { user } = req;
   const updated_event = req.body;
+
+  let student;
+  let taigerRep;
+
   try {
     const date = new Date(updated_event.start);
     if (is_TaiGer_Student(user)) {
@@ -452,13 +456,16 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
       res.status(404).json({ error: 'event is not found' });
     }
     // TODO Sent email to requester
-
     if (is_TaiGer_Student(user)) {
+      student = user;
+      taigerRep = event.receiver_id[0];
       event.receiver_id.forEach((receiver) => {
         meetingInvitation(receiver, user, event);
       });
     }
     if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
+      student = event.requester_id[0];
+      taigerRep = user;
       event.requester_id.forEach((requester) => {
         meetingInvitation(requester, user, event);
       });
@@ -469,14 +476,24 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
   }
 
   try {
-    scheduleInviteTA(
-      `${user.firstname} ${user.lastname} (${new Date(
-        updated_event?.start
-      ).toLocaleDateString()}) ###${user._id}###`,
+    // {success: true, meetingId: 'sk3s965j2qle9jtm6sufprc53s', meetingUrl: 'https://meet.jit.si/AJ-student_taiger_2025-…-23T06_00_00_000Z_6945cba8822419e279cf5f11', start: '2025-12-23T07:00:00+01:00', end: '2025-12-23T07:30:00+01:00', …}
+    const data = await scheduleInviteTA(
+      `[${taigerRep.firstname} OH] ${student?.firstname || user?.firstname} ${
+        student?.lastname || user?.lastname
+      } ###${student?._id || user?._id}###`,
       updated_event.meetingLink,
       updated_event.start,
       updated_event.end
     );
+    if (data.success === false) {
+      logger.error(
+        `TA schedule invite failed: ${JSON.stringify(
+          data
+        )} for event_id: ${event_id}`
+      );
+    } else {
+      logger.info(`TA schedule invite succeeded for event_id: ${event_id}`);
+    }
   } catch (err) {
     logger.error(err);
   }

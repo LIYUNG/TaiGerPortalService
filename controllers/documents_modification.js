@@ -385,7 +385,6 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
     if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
       // EASY essay: sync student.editors to thread.outsourced_user_id
       const threadId = newAppRecord.doc_thread_id._id;
-      console.log('threadId', threadId);
       const hasEditors = student.editors && student.editors.length > 0;
       
       if (hasEditors) {

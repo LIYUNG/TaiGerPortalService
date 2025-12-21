@@ -19,6 +19,7 @@ const ApplicationService = require('../services/applications');
 const UserService = require('../services/users');
 const StudentService = require('../services/students');
 const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
+const DocumentThreadService = require('../services/documentthreads');
 
 const getApplications = asyncHandler(async (req, res) => {
   const {
@@ -490,6 +491,24 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
             application.doc_modification_thread.push(temp);
             await new_doc_thread.save();
             await application.save();
+
+            // Hybrid approach: For EASY essays, sync student.editors to thread.outsourced_user_id
+            if (doc.fileType === 'Essay') {
+              const essayDifficulty = program.essay_difficulty;
+              // Treat undefined as 'EASY' (default to editor assignment flow)
+              if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
+                const hasEditors = student.editors && student.editors.length > 0;
+                if (hasEditors) {
+                  // Sync student.editors to thread.outsourced_user_id
+                  const editorIds = student.editors.map(
+                    (editorId) => new mongoose.Types.ObjectId(editorId.toString())
+                  );
+                  await DocumentThreadService.updateThreadById(req, new_doc_thread._id, {
+                    outsourced_user_id: editorIds
+                  });
+                }
+              }
+            }
           }
         }
       } catch (error) {

@@ -659,7 +659,9 @@ const instantInviteMeetingAssistant = asyncHandler(async (req, res) => {
     });
   }
   const result = await instantInviteTA(meetingSummary, meetingLink);
-  res.status(200).send(result);
+  const isSuccess = result && result.success === true;
+  const statusCode = isSuccess ? 200 : 500;
+  res.status(statusCode).send(result);
 });
 
 module.exports = {

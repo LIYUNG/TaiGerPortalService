@@ -575,7 +575,7 @@ const updateEvent = asyncHandler(async (req, res, next) => {
   }
 
   logger.info(
-    `[${event_id}] Confirm event called with addMeetingAssistant: ${addMeetingAssistant}`
+    `[${event_id}] Update event called with addMeetingAssistant: ${addMeetingAssistant}`
   );
   if (addMeetingAssistant) {
     handleTAScheduling(taigerRep, student, user, updated_event, event_id);

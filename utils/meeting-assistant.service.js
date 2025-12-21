@@ -80,10 +80,9 @@ const scheduleInviteTA = async (
  */
 const instantInviteTA = async (meetingSummary, meetingLink) => {
   if (!FIREFLIES_API_URL || !FIREFLIES_API_TOKEN) {
-    return {
-      success: false,
-      message: 'FIREFLIES_API_URL or FIREFLIES_API_TOKEN is not configured'
-    };
+    throw new Error(
+      'FIREFLIES_API_URL or FIREFLIES_API_TOKEN is not configured'
+    );
   }
 
   if (!meetingSummary || !meetingLink) {

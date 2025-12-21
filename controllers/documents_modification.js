@@ -383,44 +383,42 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
     // Check essay difficulty
     // Treat undefined as 'EASY' (default to editor assignment flow)
     if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
-      // EASY essay: Use editor flow (same as CV/ML/RL)
-      // Check if thread has existing outsourced_user_id
-      const threadWithOutsourcer = await req.db
-        .model('Documentthread')
-        .findById(newAppRecord.doc_thread_id._id)
-        .populate('outsourced_user_id')
-        .lean();
-      
-      const hasOutsourced = threadWithOutsourcer?.outsourced_user_id && 
-                            threadWithOutsourcer.outsourced_user_id.length > 0;
+      // EASY essay: sync student.editors to thread.outsourced_user_id
+      const threadId = newAppRecord.doc_thread_id._id;
+      console.log('threadId', threadId);
       const hasEditors = student.editors && student.editors.length > 0;
       
-      if (hasOutsourced) {
-        // If outsourcer exists (legacy assignment), do nothing - outsourcer will be notified via postMessages
-        // Do NOT notify editors or set needEditor
-      } else if (hasEditors) {
-        // If no outsourcer but has editors, notify editors
+      if (hasEditors) {
+        // Sync student.editors to thread.outsourced_user_id 
+        const editorIds = student.editors.map(
+          (editorId) => new mongoose.Types.ObjectId(editorId.toString())
+        );
+        await DocumentThreadService.updateThreadById(req, threadId, {
+          outsourced_user_id: editorIds
+        });
+        
+        // Notify editors using informEssayWriterNewEssayEmail (unified with HARD essays)
         for (let i = 0; i < student.editors.length; i += 1) {
           if (isNotArchiv(student.editors[i])) {
-            assignDocumentTaskToEditorEmail(
+            await informEssayWriterNewEssayEmail(
               {
                 firstname: student.editors[i].firstname,
                 lastname: student.editors[i].lastname,
                 address: student.editors[i].email
               },
               {
-                student_firstname: student.firstname,
-                student_lastname: student.lastname,
-                thread_id: newAppRecord.doc_thread_id._id,
-                documentname: document_category,
-                program_name,
-                updatedAt: new Date()
+                std_firstname: student.firstname,
+                std_lastname: student.lastname,
+                std_id: student._id.toString(),
+                thread_id: threadId.toString(),
+                file_type: document_category,
+                program: program
               }
             );
           }
         }
       } else {
-        // No editors and no outsourcer: inform agents and editor leads to assign editor
+        // No editors: inform agents and editor leads to assign editor
         await informNoEditor(req, student);
       }
     } else {
@@ -1002,42 +1000,27 @@ const postMessages = asyncHandler(async (req, res) => {
       
       // Treat undefined as 'EASY' (default to editor assignment flow)
       if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
-        // EASY essay: Use editor flow (same as CV/ML/RL)
-        // Check BOTH student.editors AND thread.outsourced_user_id (backward compatibility)
-        const hasEditors = student.editors && student.editors.length > 0;
+        // EASY essay: With hybrid approach, editors are stored in thread.outsourced_user_id
+        // So we can use the same logic as HARD essays - just check thread.outsourced_user_id
         const hasOutsourced = document_thread.outsourced_user_id && 
                               document_thread.outsourced_user_id.length > 0;
         
-        if (!hasEditors && !hasOutsourced) {
-          // No assignment in either system: send editor reminder
+        if (!hasOutsourced) {
+          // No assignment: send editor reminder
           await informNoEditor(req, student);
         } else {
-          // Notify only ONE system: prioritize outsourcer (legacy system) if both exist
+          // Notify outsourcers (which includes editors for EASY essays)
           const usersToNotify = [];
           
-          if (hasOutsourced) {
-            // If outsourcer exists, notify only outsourcers (legacy system takes priority)
-            document_thread.outsourced_user_id.forEach(outsourcer => {
-              if (isNotArchiv(outsourcer)) {
-                usersToNotify.push({
-                  firstname: outsourcer.firstname,
-                  lastname: outsourcer.lastname,
-                  email: outsourcer.email
-                });
-              }
-            });
-          } else if (hasEditors) {
-            // If no outsourcer but has editors, notify editors only (new system)
-            student.editors.forEach(editor => {
-              if (isNotArchiv(editor)) {
-                usersToNotify.push({
-                  firstname: editor.firstname,
-                  lastname: editor.lastname,
-                  email: editor.email
-                });
-              }
-            });
-          }
+          document_thread.outsourced_user_id.forEach(outsourcer => {
+            if (isNotArchiv(outsourcer)) {
+              usersToNotify.push({
+                firstname: outsourcer.firstname,
+                lastname: outsourcer.lastname,
+                email: outsourcer.email
+              });
+            }
+          });
           
           // Send notifications
           for (const userObj of usersToNotify) {

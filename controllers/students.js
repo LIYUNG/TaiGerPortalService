@@ -23,7 +23,8 @@ const {
   informEditorNewStudentEmail,
   informStudentTheirEditorEmail,
   informAgentStudentAssignedEmail,
-  informAgentManagerNewStudentEmail
+  informAgentManagerNewStudentEmail,
+  informEssayWriterNewEssayEmail
 } = require('../services/email');
 
 const { isNotArchiv, ManagerType } = require('../constants');
@@ -34,6 +35,7 @@ const ApplicationService = require('../services/applications');
 const InterviewService = require('../services/interviews');
 const { getAuditLogs } = require('../services/audit');
 const ProgramService = require('../services/programs');
+const DocumentThreadService = require('../services/documentthreads');
 
 const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const {
@@ -809,6 +811,60 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
         'notification.isRead_new_agent_assigned': false,
         editors: updatedEditorIds
       });
+
+      // Hybrid approach: Also update thread.outsourced_user_id for EASY essay threads
+      // This allows unified display/notification logic while maintaining student-level semantics
+      const easyEssayThreads = await DocumentThreadService.getStudentThreadsByStudentId(
+        req,
+        studentId
+      );
+
+      // Filter for EASY essays
+      const easyEssays = easyEssayThreads.filter((thread) => {
+        if (thread.file_type !== 'Essay') return false;
+        const essayDifficulty = thread.program_id?.essay_difficulty;
+        return essayDifficulty === 'EASY' || essayDifficulty === undefined;
+      });
+
+      // Update thread.outsourced_user_id for each EASY essay thread
+      if (easyEssays.length > 0) {
+        const updatedEditorIdsMongoose = updatedEditorIds.map(
+          (id) => new mongoose.Types.ObjectId(id)
+        );
+
+        await Promise.all(
+          easyEssays.map((essay) =>
+            DocumentThreadService.updateThreadById(req, essay._id, {
+              outsourced_user_id: updatedEditorIdsMongoose
+            })
+          )
+        );
+
+        // Send informEssayWriterNewEssayEmail to newly added editors for each EASY essay
+        if (addedEditors.length > 0) {
+          for (const essay of easyEssays) {
+            for (const addedEditor of addedEditors) {
+              if (isNotArchiv(student) && isNotArchiv(addedEditor)) {
+                await informEssayWriterNewEssayEmail(
+                  {
+                    firstname: addedEditor.firstname,
+                    lastname: addedEditor.lastname,
+                    address: addedEditor.email
+                  },
+                  {
+                    std_firstname: student.firstname,
+                    std_lastname: student.lastname,
+                    std_id: student._id.toString(),
+                    thread_id: essay._id.toString(),
+                    file_type: essay.file_type,
+                    program: essay.program_id
+                  }
+                );
+              }
+            }
+          }
+        }
+      }
     }
 
     // Populate the updated student data

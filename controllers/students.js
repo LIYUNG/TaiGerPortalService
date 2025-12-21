@@ -812,8 +812,7 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
         editors: updatedEditorIds
       });
 
-      // Hybrid approach: Also update thread.outsourced_user_id for EASY essay threads
-      // This allows unified display/notification logic while maintaining student-level semantics
+      // update thread.outsourced_user_id for EASY essay threads
       const easyEssayThreads = await DocumentThreadService.getStudentThreadsByStudentId(
         req,
         studentId

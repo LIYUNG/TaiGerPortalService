@@ -25,8 +25,6 @@ const AssignOutsourcerFilter = asyncHandler(async (req, res, next) => {
     
     // Determine permission check based on document type
     if (document_thread.file_type === 'Essay') {
-      // Essay (both EASY and HARD): With hybrid approach, EASY essay editors are in thread.outsourced_user_id
-      // So we can use the same logic for both - just check thread.outsourced_user_id
       outsourcer_allowed_modify = document_thread.outsourced_user_id?.some(
         (outsourcer_id) => outsourcer_id.toString() === user._id.toString()
       );

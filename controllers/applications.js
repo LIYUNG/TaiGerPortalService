@@ -492,7 +492,7 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
             await new_doc_thread.save();
             await application.save();
 
-            // Hybrid approach: For EASY essays, sync student.editors to thread.outsourced_user_id
+            // sync student.editors to thread.outsourced_user_id
             if (doc.fileType === 'Essay') {
               const essayDifficulty = program.essay_difficulty;
               // Treat undefined as 'EASY' (default to editor assignment flow)

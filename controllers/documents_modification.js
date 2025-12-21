@@ -396,7 +396,7 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
           outsourced_user_id: editorIds
         });
         
-        // Notify editors using informEssayWriterNewEssayEmail (unified with HARD essays)
+        // Notify editors using informEssayWriterNewEssayEmail
         for (let i = 0; i < student.editors.length; i += 1) {
           if (isNotArchiv(student.editors[i])) {
             await informEssayWriterNewEssayEmail(
@@ -999,8 +999,6 @@ const postMessages = asyncHandler(async (req, res) => {
       
       // Treat undefined as 'EASY' (default to editor assignment flow)
       if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
-        // EASY essay: With hybrid approach, editors are stored in thread.outsourced_user_id
-        // So we can use the same logic as HARD essays - just check thread.outsourced_user_id
         const hasOutsourced = document_thread.outsourced_user_id && 
                               document_thread.outsourced_user_id.length > 0;
         
@@ -1058,12 +1056,10 @@ const postMessages = asyncHandler(async (req, res) => {
         }
       } else {
         // HARD essay: Keep current behavior (check thread.outsourced_user_id)
-        // Note: HARD essays use essay writers, NOT editors, so we don't set needEditor: true
         if (
           !document_thread.outsourced_user_id ||
           document_thread.outsourced_user_id.length === 0
         ) {
-          // Don't set needEditor for HARD essays - they appear in "Assign Essay Writers" dashboard instead
           const payload = {
             student_firstname: student.firstname,
             student_id: student._id.toString(),

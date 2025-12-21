@@ -2017,17 +2017,6 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
       .json({ success: false, message: 'Essay thread not found.' });
   }
 
-  // Check essay difficulty - reject EASY essays
-  const program = essayDocumentThreads.program_id;
-  const essayDifficulty = program?.essay_difficulty;
-  
-  // Treat undefined as 'EASY' (default to editor assignment flow)
-  if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
-    return res.status(400).json({
-      success: false
-    });
-  }
-
   const {
     addedUsers: addedEditors,
     removedUsers: removedEditors,

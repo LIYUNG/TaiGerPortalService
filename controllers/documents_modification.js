@@ -993,14 +993,25 @@ const postMessages = asyncHandler(async (req, res) => {
           // No assignment in either system: send editor reminder
           await informNoEditor(req, student);
         } else {
-          // Notify ALL assigned users (from both systems) - backward compatibility
-          const usersToNotify = new Map();
+          // Notify only ONE system: prioritize outsourcer (legacy system) if both exist
+          const usersToNotify = [];
           
-          // Add users from student.editors (new system)
-          if (hasEditors) {
+          if (hasOutsourced) {
+            // If outsourcer exists, notify only outsourcers (legacy system takes priority)
+            document_thread.outsourced_user_id.forEach(outsourcer => {
+              if (isNotArchiv(outsourcer)) {
+                usersToNotify.push({
+                  firstname: outsourcer.firstname,
+                  lastname: outsourcer.lastname,
+                  email: outsourcer.email
+                });
+              }
+            });
+          } else if (hasEditors) {
+            // If no outsourcer but has editors, notify editors only (new system)
             student.editors.forEach(editor => {
               if (isNotArchiv(editor)) {
-                usersToNotify.set(editor._id.toString(), {
+                usersToNotify.push({
                   firstname: editor.firstname,
                   lastname: editor.lastname,
                   email: editor.email
@@ -1009,21 +1020,8 @@ const postMessages = asyncHandler(async (req, res) => {
             });
           }
           
-          // Add users from thread.outsourced_user_id (old system - backward compatibility)
-          if (hasOutsourced) {
-            document_thread.outsourced_user_id.forEach(outsourcer => {
-              if (isNotArchiv(outsourcer)) {
-                usersToNotify.set(outsourcer._id.toString(), {
-                  firstname: outsourcer.firstname,
-                  lastname: outsourcer.lastname,
-                  email: outsourcer.email
-                });
-              }
-            });
-          }
-          
-          // Send notifications to all unique users
-          for (const userObj of usersToNotify.values()) {
+          // Send notifications
+          for (const userObj of usersToNotify) {
             const payload = {
               writer_firstname: user.firstname,
               writer_lastname: user.lastname,

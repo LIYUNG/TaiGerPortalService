@@ -384,25 +384,44 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
     // Treat undefined as 'EASY' (default to editor assignment flow)
     if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
       // EASY essay: Use editor flow (same as CV/ML/RL)
-      // Notify existing student editors
-      for (let i = 0; i < student.editors.length; i += 1) {
-        if (isNotArchiv(student.editors[i])) {
-          assignDocumentTaskToEditorEmail(
-            {
-              firstname: student.editors[i].firstname,
-              lastname: student.editors[i].lastname,
-              address: student.editors[i].email
-            },
-            {
-              student_firstname: student.firstname,
-              student_lastname: student.lastname,
-              thread_id: newAppRecord.doc_thread_id._id,
-              documentname: document_category,
-              program_name,
-              updatedAt: new Date()
-            }
-          );
+      // Check if thread has existing outsourced_user_id
+      const threadWithOutsourcer = await req.db
+        .model('Documentthread')
+        .findById(newAppRecord.doc_thread_id._id)
+        .populate('outsourced_user_id')
+        .lean();
+      
+      const hasOutsourced = threadWithOutsourcer?.outsourced_user_id && 
+                            threadWithOutsourcer.outsourced_user_id.length > 0;
+      const hasEditors = student.editors && student.editors.length > 0;
+      
+      if (hasOutsourced) {
+        // If outsourcer exists (legacy assignment), do nothing - outsourcer will be notified via postMessages
+        // Do NOT notify editors or set needEditor
+      } else if (hasEditors) {
+        // If no outsourcer but has editors, notify editors
+        for (let i = 0; i < student.editors.length; i += 1) {
+          if (isNotArchiv(student.editors[i])) {
+            assignDocumentTaskToEditorEmail(
+              {
+                firstname: student.editors[i].firstname,
+                lastname: student.editors[i].lastname,
+                address: student.editors[i].email
+              },
+              {
+                student_firstname: student.firstname,
+                student_lastname: student.lastname,
+                thread_id: newAppRecord.doc_thread_id._id,
+                documentname: document_category,
+                program_name,
+                updatedAt: new Date()
+              }
+            );
+          }
         }
+      } else {
+        // No editors and no outsourcer: inform agents and editor leads to assign editor
+        await informNoEditor(req, student);
       }
     } else {
       // HARD essay: Keep current behavior (notify editor leads for assignment)

@@ -826,17 +826,35 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
       });
 
       // Update thread.outsourced_user_id for each EASY essay thread
+      // Append editor IDs and remove duplicates
       if (easyEssays.length > 0) {
         const updatedEditorIdsMongoose = updatedEditorIds.map(
           (id) => new mongoose.Types.ObjectId(id)
         );
 
         await Promise.all(
-          easyEssays.map((essay) =>
-            DocumentThreadService.updateThreadById(req, essay._id, {
-              outsourced_user_id: updatedEditorIdsMongoose
-            })
-          )
+          easyEssays.map(async (essay) => {
+            // Get existing outsourced_user_id
+            // Handle both populated (object) and non-populated (string/ObjectId) IDs
+            const existingOutsourcedIds = (essay.outsourced_user_id || []).map(
+              (id) => {
+                if (typeof id === 'object' && id._id) {
+                  return id._id.toString();
+                }
+                return id.toString();
+              }
+            );
+            
+            // Merge with new editor IDs and remove duplicates
+            const mergedIds = [...new Set([
+              ...existingOutsourcedIds,
+              ...updatedEditorIds.map((id) => id.toString())
+            ])].map((id) => new mongoose.Types.ObjectId(id));
+
+            await DocumentThreadService.updateThreadById(req, essay._id, {
+              outsourced_user_id: mergedIds
+            });
+          })
         );
 
         // Send informEssayWriterNewEssayEmail to newly added editors for each EASY essay

@@ -499,12 +499,20 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
               if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
                 const hasEditors = student.editors && student.editors.length > 0;
                 if (hasEditors) {
-                  // Sync student.editors to thread.outsourced_user_id
-                  const editorIds = student.editors.map(
-                    (editorId) => new mongoose.Types.ObjectId(editorId.toString())
+                  // Get existing thread to check for existing outsourced_user_id
+                  const existingThread = await DocumentThreadService.getThreadById(req, new_doc_thread._id);
+                  const existingOutsourcedIds = (existingThread.outsourced_user_id || []).map(
+                    (id) => (typeof id === 'object' ? id._id : id).toString()
                   );
+                  
+                  // Merge student.editors with existing outsourced_user_id and remove duplicates
+                  const editorIds = student.editors.map((editorId) => editorId.toString());
+                  const mergedIds = [...new Set([...existingOutsourcedIds, ...editorIds])].map(
+                    (id) => new mongoose.Types.ObjectId(id)
+                  );
+                  
                   await DocumentThreadService.updateThreadById(req, new_doc_thread._id, {
-                    outsourced_user_id: editorIds
+                    outsourced_user_id: mergedIds
                   });
                 }
               }

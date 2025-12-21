@@ -508,6 +508,9 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
     throw new ErrorResponse(400, err);
   }
 
+  logger.info(
+    `[${event_id}] Confirm event called with addMeetingAssistant: ${addMeetingAssistant}`
+  );
   if (addMeetingAssistant) {
     handleTAScheduling(taigerRep, student, user, updated_event, event_id);
   }
@@ -571,6 +574,9 @@ const updateEvent = asyncHandler(async (req, res, next) => {
     throw new ErrorResponse(400, err);
   }
 
+  logger.info(
+    `[${event_id}] Confirm event called with addMeetingAssistant: ${addMeetingAssistant}`
+  );
   if (addMeetingAssistant) {
     handleTAScheduling(taigerRep, student, user, updated_event, event_id);
   }

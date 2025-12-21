@@ -10,6 +10,8 @@ const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
 const logger = require('../services/logger');
 const { ten_minutes_cache } = require('../cache/node-cache');
 
+const { instantInviteTA } = require('../utils/meeting-assistant.service');
+
 /**
  * Retrieves CRM statistics including weekly counts and total/recent counts for leads and meetings.
  *
@@ -648,6 +650,20 @@ const updateDeal = asyncHandler(async (req, res) => {
   });
 });
 
+const instantInviteMeetingAssistant = asyncHandler(async (req, res) => {
+  const { meetingSummary, meetingLink } = req.body;
+  if (!meetingSummary || !meetingLink) {
+    return res.status(400).send({
+      success: false,
+      message: 'meetingSummary and meetingLink are required'
+    });
+  }
+  const result = await instantInviteTA(meetingSummary, meetingLink);
+  const isSuccess = result && result.success === true;
+  const statusCode = isSuccess ? 200 : 500;
+  res.status(statusCode).send(result);
+});
+
 module.exports = {
   getCRMStats,
   getLeads,
@@ -660,5 +676,6 @@ module.exports = {
   getSalesReps,
   getDeals,
   createDeal,
-  updateDeal
+  updateDeal,
+  instantInviteMeetingAssistant
 };

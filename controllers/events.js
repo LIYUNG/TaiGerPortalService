@@ -17,6 +17,40 @@ const logger = require('../services/logger');
 const { TENANT_SHORT_NAME } = require('../constants/common');
 const EventQueryBuilder = require('../builders/EventQueryBuilder');
 
+const { scheduleInviteTA } = require('../utils/meeting-assistant.service');
+
+const handleTAScheduling = async (
+  taigerRep,
+  student,
+  user,
+  updatedEvent,
+  eventId
+) => {
+  try {
+    // success response example:
+    // {success: true, meetingId: 'sk3s965j2qle9jtm6sufprc53s', meetingUrl: 'https://meet.jit.si/AJ-student_taiger_2025-…-23T06_00_00_000Z_6945cba8822419e279cf5f11', start: '2025-12-23T07:00:00+01:00', end: '2025-12-23T07:30:00+01:00', …}
+    const data = await scheduleInviteTA(
+      `[${taigerRep.firstname} OH] ${student?.firstname || user?.firstname} ${
+        student?.lastname || user?.lastname
+      } ###${student?._id || user?._id}###`,
+      updatedEvent.meetingLink,
+      updatedEvent.start,
+      updatedEvent.end
+    );
+    if (!data.success) {
+      logger.error(
+        `TA schedule invite failed: ${JSON.stringify(
+          data
+        )} for event_id: ${eventId}`
+      );
+    } else {
+      logger.info(`TA schedule invite succeeded for event_id: ${eventId}`);
+    }
+  } catch (err) {
+    logger.error(err);
+  }
+};
+
 const MeetingAdjustReminder = (receiver, user, meeting_event) => {
   MeetingAdjustReminderEmail(
     {
@@ -393,6 +427,11 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
   const { event_id } = req.params;
   const { user } = req;
   const updated_event = req.body;
+  const { addMeetingAssistant = true } = updated_event;
+
+  let student;
+  let taigerRep;
+
   try {
     const date = new Date(updated_event.start);
     if (is_TaiGer_Student(user)) {
@@ -450,28 +489,43 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
       res.status(404).json({ error: 'event is not found' });
     }
     // TODO Sent email to requester
-
     if (is_TaiGer_Student(user)) {
+      student = user;
+      taigerRep = event.receiver_id[0];
       event.receiver_id.forEach((receiver) => {
         meetingInvitation(receiver, user, event);
       });
     }
     if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
+      student = event.requester_id[0];
+      taigerRep = user;
       event.requester_id.forEach((requester) => {
         meetingInvitation(requester, user, event);
       });
     }
-    next();
   } catch (err) {
     logger.error(err);
     throw new ErrorResponse(400, err);
   }
+
+  logger.info(
+    `[${event_id}] Confirm event called with addMeetingAssistant: ${addMeetingAssistant}`
+  );
+  if (addMeetingAssistant) {
+    handleTAScheduling(taigerRep, student, user, updated_event, event_id);
+  }
+  next();
 });
 
 const updateEvent = asyncHandler(async (req, res, next) => {
   const { event_id } = req.params;
   const { user } = req;
   const updated_event = req.body;
+  const { addMeetingAssistant = true } = updated_event;
+
+  let student;
+  let taigerRep;
+
   try {
     const date = new Date(updated_event.start);
     if (is_TaiGer_Student(user)) {
@@ -501,11 +555,15 @@ const updateEvent = asyncHandler(async (req, res, next) => {
     // Sent email to receiver
     // sync with google calendar.
     if (is_TaiGer_Student(user)) {
+      student = user;
+      taigerRep = event.receiver_id[0];
       event.receiver_id.forEach((receiver) => {
         MeetingAdjustReminder(receiver, user, event);
       });
     }
     if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
+      student = event.requester_id[0];
+      taigerRep = user;
       event.requester_id.forEach((requester) => {
         MeetingAdjustReminder(requester, user, event);
       });
@@ -514,6 +572,13 @@ const updateEvent = asyncHandler(async (req, res, next) => {
   } catch (err) {
     logger.error(err);
     throw new ErrorResponse(400, err);
+  }
+
+  logger.info(
+    `[${event_id}] Update event called with addMeetingAssistant: ${addMeetingAssistant}`
+  );
+  if (addMeetingAssistant) {
+    handleTAScheduling(taigerRep, student, user, updated_event, event_id);
   }
 });
 

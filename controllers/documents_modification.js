@@ -12,7 +12,7 @@ const {
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const { ten_minutes_cache } = require('../cache/node-cache');
-const { informOnSurveyUpdate } = require('../utils/informEditor');
+const { informOnSurveyUpdate, informNoEditor } = require('../utils/informEditor');
 const {
   sendNewApplicationMessageInThreadEmail,
   sendAssignEditorReminderEmail,
@@ -377,39 +377,93 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   )?.programId;
   const Essay_Writer_Scope = Object.keys(ESSAY_WRITER_SCOPE);
   const program_name = `${program.school} - ${program.program_name}`;
+  const essayDifficulty = program?.essay_difficulty;
+  
   if (Essay_Writer_Scope.includes(document_category)) {
-    const permissions = await req.db
-      .model('Permission')
-      .find({
-        canAssignEditors: true
-      })
-      .populate('user_id', 'firstname lastname email archiv pictureUrl')
-      .lean();
-    if (permissions) {
-      for (let x = 0; x < permissions.length; x += 1) {
-        if (isNotArchiv(permissions[x].user_id)) {
-          assignEssayTaskToEditorEmail(
-            {
-              firstname: permissions[x].user_id.firstname,
-              lastname: permissions[x].user_id.lastname,
-              address: permissions[x].user_id.email
-            },
-            {
-              student_firstname: student.firstname,
-              student_lastname: student.lastname,
-              student_id: student._id.toString(),
-              thread_id: newAppRecord.doc_thread_id._id,
-              document_category,
-              program_name,
-              updatedAt: new Date()
-            }
-          );
+    // Check essay difficulty
+    // Treat undefined as 'EASY' (default to editor assignment flow)
+    if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
+      // EASY essay: sync student.editors to thread.outsourced_user_id
+      const threadId = newAppRecord.doc_thread_id._id;
+      const hasEditors = student.editors && student.editors.length > 0;
+      
+      if (hasEditors) {
+        // Get existing thread to check for existing outsourced_user_id
+        const existingThread = await DocumentThreadService.getThreadById(req, threadId);
+        const existingOutsourcedIds = (existingThread.outsourced_user_id || []).map(
+          (id) => (typeof id === 'object' ? id._id : id).toString()
+        );
+        
+        // Merge student.editors with existing outsourced_user_id and remove duplicates
+        const editorIds = student.editors.map((editorId) => editorId.toString());
+        const mergedIds = [...new Set([...existingOutsourcedIds, ...editorIds])].map(
+          (id) => new mongoose.Types.ObjectId(id)
+        );
+        
+        await DocumentThreadService.updateThreadById(req, threadId, {
+          outsourced_user_id: mergedIds
+        });
+        
+        // Notify editors using informEssayWriterNewEssayEmail
+        for (let i = 0; i < student.editors.length; i += 1) {
+          if (isNotArchiv(student.editors[i])) {
+            await informEssayWriterNewEssayEmail(
+              {
+                firstname: student.editors[i].firstname,
+                lastname: student.editors[i].lastname,
+                address: student.editors[i].email
+              },
+              {
+                std_firstname: student.firstname,
+                std_lastname: student.lastname,
+                std_id: student._id.toString(),
+                thread_id: threadId.toString(),
+                file_type: document_category,
+                program: program
+              }
+            );
+          }
+        }
+      } else {
+        // No editors: inform agents and editor leads to assign editor
+        await informNoEditor(req, student);
+      }
+    } else {
+      // HARD essay: Keep current behavior (notify editor leads for assignment)
+      const permissions = await req.db
+        .model('Permission')
+        .find({
+          canAssignEditors: true
+        })
+        .populate('user_id', 'firstname lastname email archiv pictureUrl')
+        .lean();
+      if (permissions) {
+        for (let x = 0; x < permissions.length; x += 1) {
+          if (isNotArchiv(permissions[x].user_id)) {
+            assignEssayTaskToEditorEmail(
+              {
+                firstname: permissions[x].user_id.firstname,
+                lastname: permissions[x].user_id.lastname,
+                address: permissions[x].user_id.email
+              },
+              {
+                student_firstname: student.firstname,
+                student_lastname: student.lastname,
+                student_id: student._id.toString(),
+                thread_id: newAppRecord.doc_thread_id._id,
+                document_category,
+                program_name,
+                updatedAt: new Date()
+              }
+            );
+          }
         }
       }
     }
   }
   const documentname = document_category;
 
+  // For non-essay documents (CV/ML/RL), notify student editors
   for (let i = 0; i < student.editors.length; i += 1) {
     if (isNotArchiv(student.editors[i])) {
       if (!Essay_Writer_Scope.includes(document_category)) {
@@ -945,88 +999,148 @@ const postMessages = asyncHandler(async (req, res) => {
         }
       }
     }
-    // Essay-related only notification: if no essay writer: infor agent and editor lead
+    // Essay-related only notification: check essay difficulty
     const Essay_Writer_Scope = Object.keys(ESSAY_WRITER_SCOPE);
     if (Essay_Writer_Scope.includes(document_thread.file_type)) {
-      if (
-        !document_thread.outsourced_user_id ||
-        document_thread.outsourced_user_id.length === 0
-      ) {
-        await req.db
-          .model('Student')
-          .findByIdAndUpdate(user._id, { needEditor: true }, {});
-        const payload = {
-          student_firstname: student.firstname,
-          student_id: student._id.toString(),
-          student_lastname: student.lastname
-        };
-        for (let i = 0; i < student.agents.length; i += 1) {
-          // inform active-agent
-          if (isNotArchiv(student)) {
-            sendAssignEssayWriterReminderEmail(
-              {
-                firstname: student.agents[i].firstname,
-                lastname: student.agents[i].lastname,
-                address: student.agents[i].email
-              },
-              payload
-            );
-          }
-        }
-        // inform editor-lead
-        const permissions = await req.db
-          .model('Permission')
-          .find({
-            canAssignEditors: true
-          })
-          .populate('user_id', 'firstname lastname email pictureUrl')
-          .lean();
-        if (permissions) {
-          for (let x = 0; x < permissions.length; x += 1) {
-            sendAssignEssayWriterReminderEmail(
-              {
-                firstname: permissions[x].user_id.firstname,
-                lastname: permissions[x].user_id.lastname,
-                address: permissions[x].user_id.email
-              },
-              payload
-            );
-          }
-        }
-      } else {
-        // Inform outsourcer
-        for (let i = 0; i < document_thread.outsourced_user_id.length; i += 1) {
-          const outsourcer_recipient = {
-            firstname: document_thread.outsourced_user_id[i].firstname,
-            lastname: document_thread.outsourced_user_id[i].lastname,
-            address: document_thread.outsourced_user_id[i].email
-          };
-          const outsourcer_payload = {
-            writer_firstname: user.firstname,
-            writer_lastname: user.lastname,
-            student_firstname: student.firstname,
-            student_lastname: student.lastname,
-            uploaded_documentname: document_thread.file_type,
-            thread_id: document_thread._id.toString(),
-            uploaded_updatedAt: new Date()
-          };
-          if (
-            isNotArchiv(student) &&
-            isNotArchiv(document_thread.outsourced_user_id[i])
-          ) {
+      const program = document_thread.program_id;
+      const essayDifficulty = program?.essay_difficulty;
+      
+      // Treat undefined as 'EASY' (default to editor assignment flow)
+      if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
+        const hasOutsourced = document_thread.outsourced_user_id && 
+                              document_thread.outsourced_user_id.length > 0;
+        
+        if (!hasOutsourced) {
+          // No assignment: send editor reminder
+          await informNoEditor(req, student);
+        } else {
+          // Notify outsourcers (which includes editors for EASY essays)
+          const usersToNotify = [];
+          
+          document_thread.outsourced_user_id.forEach(outsourcer => {
+            if (isNotArchiv(outsourcer)) {
+              usersToNotify.push({
+                firstname: outsourcer.firstname,
+                lastname: outsourcer.lastname,
+                email: outsourcer.email
+              });
+            }
+          });
+          
+          // Send notifications
+          for (const userObj of usersToNotify) {
+            const payload = {
+              writer_firstname: user.firstname,
+              writer_lastname: user.lastname,
+              student_firstname: student.firstname,
+              student_lastname: student.lastname,
+              uploaded_documentname: document_thread.file_type,
+              thread_id: document_thread._id.toString(),
+              uploaded_updatedAt: new Date()
+            };
+            
             if (document_thread.program_id) {
-              outsourcer_payload.school = document_thread.program_id.school;
-              outsourcer_payload.program_name =
-                document_thread.program_id.program_name;
+              payload.school = document_thread.program_id.school;
+              payload.program_name = document_thread.program_id.program_name;
               sendNewApplicationMessageInThreadEmail(
-                outsourcer_recipient,
-                outsourcer_payload
+                {
+                  firstname: userObj.firstname,
+                  lastname: userObj.lastname,
+                  address: userObj.email
+                },
+                payload
               );
             } else {
               sendNewGeneraldocMessageInThreadEmail(
-                outsourcer_recipient,
-                outsourcer_payload
+                {
+                  firstname: userObj.firstname,
+                  lastname: userObj.lastname,
+                  address: userObj.email
+                },
+                payload
               );
+            }
+          }
+        }
+      } else {
+        // HARD essay: Keep current behavior (check thread.outsourced_user_id)
+        if (
+          !document_thread.outsourced_user_id ||
+          document_thread.outsourced_user_id.length === 0
+        ) {
+          const payload = {
+            student_firstname: student.firstname,
+            student_id: student._id.toString(),
+            student_lastname: student.lastname
+          };
+          for (let i = 0; i < student.agents.length; i += 1) {
+            // inform active-agent
+            if (isNotArchiv(student)) {
+              sendAssignEssayWriterReminderEmail(
+                {
+                  firstname: student.agents[i].firstname,
+                  lastname: student.agents[i].lastname,
+                  address: student.agents[i].email
+                },
+                payload
+              );
+            }
+          }
+          // inform editor-lead
+          const permissions = await req.db
+            .model('Permission')
+            .find({
+              canAssignEditors: true
+            })
+            .populate('user_id', 'firstname lastname email pictureUrl')
+            .lean();
+          if (permissions) {
+            for (let x = 0; x < permissions.length; x += 1) {
+              sendAssignEssayWriterReminderEmail(
+                {
+                  firstname: permissions[x].user_id.firstname,
+                  lastname: permissions[x].user_id.lastname,
+                  address: permissions[x].user_id.email
+                },
+                payload
+              );
+            }
+          }
+        } else {
+          // Inform outsourcer
+          for (let i = 0; i < document_thread.outsourced_user_id.length; i += 1) {
+            const outsourcer_recipient = {
+              firstname: document_thread.outsourced_user_id[i].firstname,
+              lastname: document_thread.outsourced_user_id[i].lastname,
+              address: document_thread.outsourced_user_id[i].email
+            };
+            const outsourcer_payload = {
+              writer_firstname: user.firstname,
+              writer_lastname: user.lastname,
+              student_firstname: student.firstname,
+              student_lastname: student.lastname,
+              uploaded_documentname: document_thread.file_type,
+              thread_id: document_thread._id.toString(),
+              uploaded_updatedAt: new Date()
+            };
+            if (
+              isNotArchiv(student) &&
+              isNotArchiv(document_thread.outsourced_user_id[i])
+            ) {
+              if (document_thread.program_id) {
+                outsourcer_payload.school = document_thread.program_id.school;
+                outsourcer_payload.program_name =
+                  document_thread.program_id.program_name;
+                sendNewApplicationMessageInThreadEmail(
+                  outsourcer_recipient,
+                  outsourcer_payload
+                );
+              } else {
+                sendNewGeneraldocMessageInThreadEmail(
+                  outsourcer_recipient,
+                  outsourcer_payload
+                );
+              }
             }
           }
         }

@@ -19,16 +19,22 @@ const AssignOutsourcerFilter = asyncHandler(async (req, res, next) => {
       .model('Documentthread')
       .findById(messagesThreadId)
       .populate('student_id')
+      .populate('program_id', 'essay_difficulty')
       .lean();
     studentId_temp = document_thread.student_id._id.toString();
-    outsourcer_allowed_modify =
-      document_thread.outsourced_user_id?.some(
+    
+    // Determine permission check based on document type
+    if (document_thread.file_type === 'Essay') {
+      outsourcer_allowed_modify = document_thread.outsourced_user_id?.some(
         (outsourcer_id) => outsourcer_id.toString() === user._id.toString()
-      ) ||
-      (document_thread.file_type !== 'Essay' &&
+      );
+    } else {
+      // Non-essay: Check student agents (current behavior)
+      outsourcer_allowed_modify =
         document_thread.student_id?.agents?.some(
           (agent) => agent?.toString() === user._id.toString()
-        ));
+        );
+    }
 
     const student = await req.db
       .model('Student')

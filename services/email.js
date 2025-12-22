@@ -792,7 +792,7 @@ are assigned to student ${msg.std_firstname} ${msg.std_lastname}!</p>
 
 <p>${essay_writers}</p>
 
-<p>Please go to <a href="${CVMLRL_CENTER_URL}">CVMLRL Center</a> , and check if the ${
+<p>Please go to <a href="${CVMLRL_CENTER_URL}">Application Document Editing Center</a> , and check if the ${
     msg.file_type
   } task is assigned correctly!</p>
 
@@ -839,7 +839,7 @@ const informEssayWriterNewEssayEmail = asyncHandler(async (recipient, msg) => {
 <p><a href="${thread_url}">${msg.file_type}${docName} for ${msg.std_firstname} ${msg.std_lastname}</a> -  will be assigned to you!</p>
 
 <p>Please go to
-<a href="${CVMLRL_CENTER_URL}">CVMLRL Center</a> in TaiGer Portal
+<a href="${CVMLRL_CENTER_URL}">Application Document Editing Center</a> in TaiGer Portal
  , and check if the ${msg.file_type} task is created and say hello to your student!</p>
 
 
@@ -926,7 +926,7 @@ const informStudentTheirEssayWriterEmail = asyncHandler(
       ? ` - ${msg.program.school} - ${msg.program.program_name} - ${msg.program.degree} - ${msg.program.semester}`
       : '';
     const subject = `Your ${
-      msg.file_type === 'Essay' ? 'Essay Writor' : 'Editor'
+      msg.file_type === 'Essay' ? 'Essay Writer' : 'Editor'
     } for your ${msg.file_type}${docName}`;
     let editor;
     for (let i = 0; i < msg.editors.length; i += 1) {
@@ -972,7 +972,7 @@ const informStudentTheirEssayWriterEmail = asyncHandler(
 
 <p>If you have any technical problems, please ask your agent for help.</p>
 
-<p>In each Portal's CV/ML/RL Center document discussion thread, please use <b>English</b> to provide your feedback with your ${
+<p>In each Portal's Application Document Editing Center document discussion thread, please use <b>English</b> to provide your feedback with your ${
       msg.file_type === 'Essay' ? 'Essay Writer' : 'Editor'
     }.</p>
 
@@ -1002,7 +1002,7 @@ const informStudentTheirEditorEmail = asyncHandler(async (recipient, msg) => {
 
 <p>從現在開始我們的外籍顧問 ${editor} 會正式開始幫你修改、潤飾申請資料，並且全權負責申請資料(動機信、推薦信、個人履歷)的製作。</p>
 
-<p>若有任何疑問請直接與 ${editor} 在每個修改文件 <a href="${CVMLRL_CENTER_URL}">CV ML RL Center</a> 的討論串做溝通。</p>
+<p>若有任何疑問請直接與 ${editor} 在每個修改文件 <a href="${CVMLRL_CENTER_URL}">Application Document Editing Center</a> 的討論串做溝通。</p>
 
 <p>如果有任何的技術上問題，請詢問您的顧問作協助。</p>
 
@@ -1016,11 +1016,11 @@ const informStudentTheirEditorEmail = asyncHandler(async (recipient, msg) => {
 
 <p>Let me introduce our professional Editor ${editor}. From now on, ${editor} will be fully responsible for editing your application documents (CV, Motivation letters, Recommendation Letters).</p>
 
-<p>Please directly provide your feedback to ${editor} in each documents discussion threads in the <a href="${CVMLRL_CENTER_URL}">CV ML RL Center</a>. </p>
+<p>Please directly provide your feedback to ${editor} in each documents discussion threads in the <a href="${CVMLRL_CENTER_URL}">Application Document Editing Center</a>. </p>
 
 <p>If you have any technical problems, please ask your agent for help.</p>
 
-<p>In each TaiGer Portal's CV/ML/RL Center document discussion thread, please use <b>English</b> to provide your feedback with your edtior.</p>
+<p>In each TaiGer Portal's Application Document Editing Center document discussion thread, please use <b>English</b> to provide your feedback with your edtior.</p>
 
 
 
@@ -1129,7 +1129,7 @@ const UpdateStudentApplicationsEmail = asyncHandler(async (recipient, msg) => {
       msg.student._id.toString()
     )}" class="mui-button" target="_blank">查看細節</a>
 
-<p>並且到 <a href="${CVMLRL_CENTER_URL}">CV ML RL Center</a> 查看對於上述申請學程的新指派的文件任務細節。</p>
+<p>並且到 <a href="${CVMLRL_CENTER_URL}">Application Document Editing Center</a> 查看對於上述申請學程的新指派的文件任務細節。</p>
 
 <br />
 
@@ -1145,7 +1145,7 @@ const UpdateStudentApplicationsEmail = asyncHandler(async (recipient, msg) => {
       msg.student._id.toString()
     )}" class="mui-button" target="_blank">See details</a>
 
-<p>Also go to <a href="${CVMLRL_CENTER_URL}">CV ML RL Center</a> and see the new assigned tasks details for the applications above.</p>
+<p>Also go to <a href="${CVMLRL_CENTER_URL}">Application Document Editing Center</a> and see the new assigned tasks details for the applications above.</p>
 
 
 `; // should be for admin/editor/agent/student
@@ -1165,7 +1165,7 @@ ${applications_name}
 
 <p>請至 <a href="${STUDENT_APPLICATION_URL}">Student Applications</a> 並查看細節。</p>
 
-並且到 <a href="${CVMLRL_CENTER_URL}">CV ML RL Center</a> 查看對於上述申請學程的新指派的文件任務細節。
+並且到 <a href="${CVMLRL_CENTER_URL}">Application Document Editing Center</a> 查看對於上述申請學程的新指派的文件任務細節。
 
 <br />
 
@@ -1181,7 +1181,7 @@ ${applications_name}
 
 <p>Please go to <a href="${STUDENT_APPLICATION_URL}">Student Applications</a> and see details.</p>
 
-<p>Also go to <a href="${CVMLRL_CENTER_URL}">CV ML RL Center</a> and see the new assigned tasks details for the applications above.</p>
+<p>Also go to <a href="${CVMLRL_CENTER_URL}">Application Document Editing Center</a> and see the new assigned tasks details for the applications above.</p>
 
 
 `; // should be for admin/editor/agent/student
@@ -1216,7 +1216,7 @@ ${applications_name}.
 
 <p>The relavant documents tasks are now assigned to you.</p>
 
-<p>Please go to <a href="${CVMLRL_CENTER_URL}">CV ML RL Center</a> and see the new assigned tasks details for the applications above.</p>
+<p>Please go to <a href="${CVMLRL_CENTER_URL}">Application Document Editing Center</a> and see the new assigned tasks details for the applications above.</p>
 
 
 `; // should be for admin/editor/agent/student
@@ -1254,7 +1254,7 @@ ${applications_name}
 
 <p>The relavant documents tasks are now assigned to you.</p>
 
-<p>Please go to <a href="${CVMLRL_CENTER_URL}">CV ML RL Center</a> and see the new assigned tasks details for the applications above.</p>
+<p>Please go to <a href="${CVMLRL_CENTER_URL}">Application Document Editing Center</a> and see the new assigned tasks details for the applications above.</p>
 
 
 `; // should be for admin/editor/agent/student
@@ -1927,7 +1927,7 @@ const sendAssignEditorReminderEmail = asyncHandler(
     const message = `\
 <p>Hi ${recipient.firstname} ${recipient.lastname},</p>
 
-<p>${student_name} has uploaded some input in his/her CVMLRL Center, <b>but she/he did not have any Editor yet.</b></p>
+<p>${student_name} has uploaded some input in his/her Application Document Editing Center, <b>but she/he did not have any Editor yet.</b></p>
 
 <p><b>Please assign an Editor to the student <a href="${baseDocumentLink}">${student_name}</a></b></p>
 
@@ -2392,7 +2392,7 @@ const sendAssignEssayWriterReminderEmail = asyncHandler(
     const message = `\
 <p>Hi ${recipient.firstname} ${recipient.lastname},</p>
 
-<p>${student_name} has uploaded Essay his/her CVMLRL Center, <b>but she/he did not have any Essay Writer yet.</b></p>
+<p>${student_name} has uploaded Essay his/her Application Document Editing Center, <b>but she/he did not have any Essay Writer yet.</b></p>
 
 <p><b>Please assign an Essay Writer to the student <a href="${BASE_DOCUMENT_FOR_AGENT_URL(
       payload.student_id

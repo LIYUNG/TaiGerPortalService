@@ -190,8 +190,10 @@ ComplaintCreate:
   properties:
     title:
       type: string
+      example: 'Portal login issue'
     description:
       type: string
+      example: 'Unable to reset password'
     priority:
       type: string
       enum:
@@ -199,6 +201,7 @@ ComplaintCreate:
         - medium
         - high
         - urgent
+      example: 'high'
     category:
       type: string
       enum:
@@ -206,6 +209,7 @@ ComplaintCreate:
         - billing
         - general
         - other
+      example: 'technical'
   required:
     - title
     - category
@@ -216,8 +220,10 @@ ComplaintUpdate:
   properties:
     title:
       type: string
+      example: 'Portal login issue resolved'
     description:
       type: string
+      example: 'Issue fixed by IT support'
     status:
       type: string
       enum:
@@ -225,6 +231,7 @@ ComplaintUpdate:
         - in_progress
         - resolved
         - closed
+      example: 'resolved'
     priority:
       type: string
       enum:
@@ -232,8 +239,10 @@ ComplaintUpdate:
         - medium
         - high
         - urgent
+      example: 'high'
     assigned_to:
       type: string
+      example: '507f1f77bcf86cd799439001'
   additionalProperties: false
 
 TicketUpdate:
@@ -241,8 +250,10 @@ TicketUpdate:
   properties:
     title:
       type: string
+      example: 'Update issue status'
     description:
       type: string
+      example: 'Please resolve this ticket'
     status:
       type: string
       enum:
@@ -251,6 +262,7 @@ TicketUpdate:
         - waiting_customer
         - on_hold
         - closed
+      example: 'in_progress'
     priority:
       type: string
       enum:
@@ -258,6 +270,7 @@ TicketUpdate:
         - medium
         - high
         - urgent
+      example: 'medium'
     assigned_to:
       type: string
-  additionalProperties: false
+      example: '507f1f77bcf86cd799439001'

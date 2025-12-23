@@ -485,8 +485,11 @@ ArchiveStatusRequest:
   properties:
     isArchived:
       type: boolean
+      example: true
     shouldInform:
       type: boolean
+      example: true
+      description: Whether to send notification to student
   required:
     - isArchived
   additionalProperties: false
@@ -496,6 +499,4 @@ UpdateVPDPaymentRequest:
   properties:
     isPaid:
       type: boolean
-  required:
-    - isPaid
-  additionalProperties: false
+      example: true

@@ -489,6 +489,9 @@ CreateApplicationRequest:
       items:
         type: string
       minItems: 1
+      example:
+        - '507f1f77bcf86cd799439001'
+        - '507f1f77bcf86cd799439002'
   required:
     - program_id_set
   additionalProperties: false
@@ -498,14 +501,19 @@ ApplicationUpdate:
   properties:
     _id:
       type: string
+      example: '507f1f77bcf86cd799439001'
     decided:
       type: string
+      example: 'accepted'
     closed:
       type: string
+      example: 'no'
     admission:
       type: string
+      example: 'admitted'
     finalEnrolment:
       type: string
+      example: 'confirmed'
   additionalProperties: false
 
 UpdateStudentApplicationsRequest:
@@ -515,6 +523,10 @@ UpdateStudentApplicationsRequest:
       type: array
       items:
         $ref: '#/ApplicationUpdate'
+      example:
+        - _id: '507f1f77bcf86cd799439001'
+          decided: 'accepted'
+          admission: 'admitted'
     applying_program_count:
       type: integer
-  additionalProperties: false
+      example: 5

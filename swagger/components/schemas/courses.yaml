@@ -193,22 +193,30 @@ CourseUpdate:
   properties:
     course_name:
       type: string
+      example: 'Advanced Mathematics'
     credits:
       type: number
       format: double
+      example: 4.0
     grade:
       type: string
+      example: 'A'
     gpa_points:
       type: number
       format: double
+      example: 4.0
     description:
       type: string
+      example: 'Calculus and linear algebra'
     semester:
       type: string
+      example: 'Fall 2023'
     year:
       type: integer
+      example: 2023
     institution:
       type: string
+      example: 'University of Example'
   additionalProperties: false
 
 TranscriptTestRequest:
@@ -218,9 +226,17 @@ TranscriptTestRequest:
       type: object
       additionalProperties: true
       description: Raw transcript data to test parsing
+      example:
+        student_name: 'John Doe'
+        gpa: 3.85
+        courses:
+          - name: 'Physics'
+            grade: 'A'
     course_mappings:
       type: array
       items:
         type: object
         additionalProperties: true
-  additionalProperties: false
+      example:
+        - source_name: 'Physics 101'
+          target_course_id: '507f1f77bcf86cd799439001'

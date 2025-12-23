@@ -191,15 +191,20 @@ UserUpdate:
   properties:
     firstname:
       type: string
+      example: 'John'
     lastname:
       type: string
+      example: 'Smith'
     firstname_chinese:
       type: string
+      example: '约翰'
     lastname_chinese:
       type: string
+      example: '史密斯'
     email:
       type: string
       format: email
+      example: 'john.smith@example.com'
     role:
       type: string
       enum:
@@ -209,9 +214,11 @@ UserUpdate:
         - Editor
         - Student
         - Trainer
+      example: 'Agent'
     pictureUrl:
       type: string
       format: uri
+      example: 'https://example.com/pictures/john.jpg'
     archiv:
       type: boolean
-  additionalProperties: false
+      example: false

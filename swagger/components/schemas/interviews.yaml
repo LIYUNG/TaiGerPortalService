@@ -195,19 +195,25 @@ InterviewUpdate:
   properties:
     interview_description:
       type: string
+      example: 'Technical round discussion'
     interviewer:
       type: string
+      example: 'Prof. Johnson'
     interview_duration:
       type: string
+      example: '60 minutes'
     interview_date:
       type: string
       format: date-time
+      example: '2024-12-25T14:00:00Z'
     isClosed:
       type: boolean
+      example: false
     start:
       type: string
       format: date-time
+      example: '2024-12-25T14:00:00Z'
     end:
       type: string
       format: date-time
-  additionalProperties: false
+      example: '2024-12-25T15:00:00Z'

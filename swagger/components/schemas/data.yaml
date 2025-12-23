@@ -250,10 +250,12 @@ SyncAllCoursesRequest:
     source:
       type: string
       description: External source identifier to sync from
+      example: 'universities-api'
     force:
       type: boolean
       description: Force refresh even if data is up to date
       default: false
+      example: false
   additionalProperties: false
 
 Agent:
@@ -261,25 +263,32 @@ Agent:
   properties:
     _id:
       type: string
+      example: '507f1f77bcf86cd799439011'
     name:
       type: string
+      example: 'John Smith'
     email:
       type: string
       format: email
+      example: 'john.smith@taiger.com'
     phone:
       type: string
+      example: '+1-555-0123'
     role:
       type: string
       description: Agent role or designation
+      example: 'Senior Advisor'
     status:
       type: string
       enum:
         - active
         - inactive
         - pending
+      example: 'active'
     created_at:
       type: string
       format: date-time
+      example: '2024-01-15T10:30:00Z'
   required:
     - _id
     - name
@@ -304,18 +313,23 @@ EssayWriter:
   properties:
     _id:
       type: string
+      example: '507f1f77bcf86cd799439012'
     name:
       type: string
+      example: 'Dr. Emily Johnson'
     specialization:
       type: string
       description: Primary subject focus
+      example: 'Business Administration'
     rating:
       type: number
       format: float
+      example: 4.8
     languages:
       type: array
       items:
         type: string
+      example: ['English', 'German', 'French']
   required:
     - _id
     - name
@@ -340,16 +354,21 @@ ExpenseCreate:
   properties:
     amount:
       type: number
+      example: 150.50
     currency:
       type: string
       minLength: 1
+      example: 'USD'
     category:
       type: string
+      example: 'Travel'
     description:
       type: string
+      example: 'Flight booking for student recruitment'
     incurred_at:
       type: string
       format: date-time
+      example: '2024-12-20T14:30:00Z'
     status:
       type: string
       enum:
@@ -357,6 +376,7 @@ ExpenseCreate:
         - approved
         - rejected
       description: Optional status override during creation
+      example: 'pending'
   required:
     - amount
     - currency
@@ -370,12 +390,15 @@ Expense:
       properties:
         _id:
           type: string
+          example: '507f1f77bcf86cd799439013'
         created_at:
           type: string
           format: date-time
+          example: '2024-12-20T14:30:00Z'
         updated_at:
           type: string
           format: date-time
+          example: '2024-12-21T10:15:00Z'
       required:
         - _id
         - created_at
@@ -414,11 +437,16 @@ WidgetConfig:
     script_url:
       type: string
       format: uri
+      example: 'https://widget.taiger.com/embed.js'
     enabled:
       type: boolean
+      example: true
     settings:
       type: object
       additionalProperties: true
+      example:
+        theme: 'light'
+        position: 'bottom-right'
   required:
     - script_url
     - enabled
@@ -442,10 +470,13 @@ WidgetInitRequest:
     source:
       type: string
       description: Origin of the initialization request
+      example: 'student-portal'
     config:
       type: object
       additionalProperties: true
       description: Arbitrary widget configuration overrides
+      example:
+        notification_enabled: true
   additionalProperties: false
 
 WidgetInitResponse:
@@ -456,11 +487,13 @@ WidgetInitResponse:
       example: true
     message:
       type: string
+      example: 'Widget initialized successfully'
     status:
       type: string
       enum:
         - initialized
         - pending
+      example: 'initialized'
   required:
     - success
   additionalProperties: false

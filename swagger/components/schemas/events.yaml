@@ -100,9 +100,7 @@ EventCountResponse:
       properties:
         active_count:
           type: integer
+          example: 3
         pending_count:
           type: integer
-      additionalProperties: true
-  required:
-    - success
-    - data
+          example: 2

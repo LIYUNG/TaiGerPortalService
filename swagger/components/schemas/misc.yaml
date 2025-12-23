@@ -221,6 +221,11 @@ PermissionsListResponse:
       items:
         type: object
         additionalProperties: true
+      example:
+        - id: '507f1f77bcf86cd799439001'
+          name: 'Admin'
+        - id: '507f1f77bcf86cd799439002'
+          name: 'User'
   required:
     - success
     - data
@@ -234,6 +239,10 @@ PortalInformationResponse:
     data:
       type: object
       additionalProperties: true
+      example:
+        site_name: 'TaiGer Portal'
+        support_email: 'support@taiger.com'
+        timezone: 'UTC'
   required:
     - success
     - data

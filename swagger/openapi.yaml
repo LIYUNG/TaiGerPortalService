@@ -1,24 +1,2551 @@
 openapi: 3.0.0
 info:
-  title: My API
+  title: TaiGer Portal API
   version: 1.0.0
-  description: API documentation
+  description: |
+    Comprehensive API documentation for TaiGer Portal Service - A student application management platform.
+
+    ## Authentication
+    All protected endpoints require authentication via JWT token stored in HTTP-only cookie (x-auth).
+
+    ## Roles
+    - **Admin**: Full system access
+    - **Manager**: Management access to student data and operations
+    - **Agent**: Student counseling and application management
+    - **Editor**: Document editing and review
+    - **Student**: Limited access to own data
+    - **Guest**: Minimal access for new users
+    - **External**: External partners with limited access
+
+  contact:
+    name: TaiGer Team
+    email: support@taiger.com
+
+servers:
+  - url: /api
+    description: API Base Path
+  - url: /auth
+    description: Authentication Base Path
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: x-auth
+      description: JWT token stored in HTTP-only cookie
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        error:
+          type: string
+
+    Success:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: User ID
+        firstname:
+          type: string
+        lastname:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [Admin, Manager, Agent, Editor, Student, Guest, External]
+        archiv:
+          type: boolean
+          description: Whether user is archived
+        pictureUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Student:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            agents:
+              type: array
+              items:
+                type: string
+              description: Array of agent user IDs
+            editors:
+              type: array
+              items:
+                type: string
+              description: Array of editor user IDs
+            applications:
+              type: array
+              items:
+                type: string
+              description: Array of application IDs
+            generaldocs_threads:
+              type: array
+              items:
+                type: object
+
+    Application:
+      type: object
+      properties:
+        _id:
+          type: string
+        student_id:
+          type: string
+          description: Reference to Student
+        program_id:
+          type: string
+          description: Reference to Program
+        decided:
+          type: string
+          enum: ['O', 'X', '-']
+        closed:
+          type: string
+          enum: ['O', 'X', '-']
+        admission:
+          type: string
+          enum: ['O', 'X', '-']
+        reject:
+          type: string
+          enum: ['O', 'X', '-']
+        isLocked:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Program:
+      type: object
+      properties:
+        _id:
+          type: string
+        school:
+          type: string
+        program_name:
+          type: string
+        degree:
+          type: string
+          enum: [Bachelor, Master, PhD]
+        semester:
+          type: string
+        application_deadline:
+          type: string
+        lang:
+          type: string
+        uni_assist:
+          type: string
+          enum: ['O', 'X', '-']
+        country:
+          type: string
+        city:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Documentation:
+      type: object
+      properties:
+        _id:
+          type: string
+        category:
+          type: string
+        title:
+          type: string
+        text:
+          type: string
+        isDeleted:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    Event:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        receiver_id:
+          type: string
+        host_user_id:
+          type: string
+        confirmed:
+          type: boolean
+        event_description:
+          type: string
+
+    Ticket:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [Open, In Progress, Closed]
+        priority:
+          type: string
+          enum: [Low, Medium, High]
+        created_by:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Interview:
+      type: object
+      properties:
+        _id:
+          type: string
+        program_id:
+          type: string
+        student_id:
+          type: string
+        status:
+          type: string
+        interview_date:
+          type: string
+          format: date-time
+        questions:
+          type: array
+          items:
+            type: string
+
+    MessageThread:
+      type: object
+      properties:
+        _id:
+          type: string
+        student_id:
+          type: string
+        file_type:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+        isFinalVersion:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+
+    Communication:
+      type: object
+      properties:
+        _id:
+          type: string
+        student_id:
+          type: string
+        user_id:
+          type: string
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Course:
+      type: object
+      properties:
+        _id:
+          type: string
+        course_name:
+          type: string
+        credits:
+          type: number
+        grade:
+          type: string
+
+security:
+  - cookieAuth: []
+
 paths:
-  /users:
-    get:
-      summary: Get all users
-      operationId: getUsers
+  # ==========================================
+  # Authentication Routes (Base: /auth)
+  # ==========================================
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user with email and password. Returns JWT token in HTTP-only cookie.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  example: securePassword123
       responses:
         '200':
-          description: A list of users
+          description: Login successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: x-auth=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=None
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    name:
-                      type: string
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    get:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Logout current user and clear authentication cookie
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /auth/verify:
+    get:
+      tags:
+        - Authentication
+      summary: Verify current user
+      description: Check if user is authenticated and return user data
+      responses:
+        '200':
+          description: User verified and authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Not authenticated or token expired
+
+  /auth/activation:
+    post:
+      tags:
+        - Authentication
+      summary: Activate user account
+      description: Activate a new user account with activation token received via email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: Activation token from email
+      responses:
+        '200':
+          description: Account activated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '400':
+          description: Invalid or expired token
+
+  /auth/resend-activation:
+    post:
+      tags:
+        - Authentication
+      summary: Resend activation email
+      description: Resend account activation email to user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Activation email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Request password reset
+      description: Send password reset email to user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Reset email sent if account exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      summary: Reset password
+      description: Reset user password with reset token from email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - password
+              properties:
+                token:
+                  type: string
+                  description: Reset token from email
+                password:
+                  type: string
+                  format: password
+                  description: New password
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '400':
+          description: Invalid or expired token
+
+  /auth/oauth/google/callback:
+    post:
+      tags:
+        - Authentication
+      summary: Google OAuth callback
+      description: Handle Google OAuth authentication callback
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: OAuth authorization code
+      responses:
+        '200':
+          description: OAuth authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/User'
+
+  # ==========================================
+  # Users Routes (Base: /api/users)
+  # ==========================================
+  /api/users:
+    get:
+      tags:
+        - Users
+      summary: Get all users
+      description: Get list of all users (Admin, Agent, Editor access)
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [Admin, Manager, Agent, Editor, Student, Guest, External]
+          description: Filter by role
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+    post:
+      tags:
+        - Users
+      summary: Add new user
+      description: Create a new user (Admin, Agent, Editor access)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - firstname
+                - lastname
+                - email
+                - role
+              properties:
+                firstname:
+                  type: string
+                lastname:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [Admin, Manager, Agent, Editor, Student, Guest, External]
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/User'
+
+  /api/users/overview:
+    get:
+      tags:
+        - Users
+      summary: Get users overview
+      description: Get summary statistics of users
+      responses:
+        '200':
+          description: Users overview data
+
+  /api/users/count:
+    get:
+      tags:
+        - Users
+      summary: Get user counts
+      description: Get count of users by role
+      responses:
+        '200':
+          description: User count statistics
+
+  /api/users/{user_id}:
+    get:
+      tags:
+        - Users
+      summary: Get user by ID
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User details
+    post:
+      tags:
+        - Users
+      summary: Update user
+      description: Update user information (Admin only)
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User updated
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Delete a user (Admin only)
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted
+
+  # ==========================================
+  # Students Routes (Base: /api/students)
+  # ==========================================
+  /api/students:
+    get:
+      tags:
+        - Students
+      summary: Get all students
+      description: Get list of all students with filters
+      parameters:
+        - name: archiv
+          in: query
+          schema:
+            type: boolean
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of students
+
+  /api/students/v3:
+    get:
+      tags:
+        - Students
+      summary: Get students (v3)
+      description: Get students with enhanced data
+      responses:
+        '200':
+          description: Enhanced student list
+
+  /api/students/doc-links/{studentId}:
+    get:
+      tags:
+        - Students
+      summary: Get student documentation links
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student documentation links
+
+  /api/students/{studentId}/agents:
+    post:
+      tags:
+        - Students
+      summary: Assign agents to student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                agent_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Agents assigned
+
+  /api/students/{studentId}/editors:
+    post:
+      tags:
+        - Students
+      summary: Assign editors to student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Editors assigned
+
+  # ==========================================
+  # Applications Routes (Base: /api/applications)
+  # ==========================================
+  /api/applications:
+    get:
+      tags:
+        - Applications
+      summary: Get all applications
+      description: Get list of all student applications
+      responses:
+        '200':
+          description: List of applications
+
+  /api/applications/student/{studentId}:
+    get:
+      tags:
+        - Applications
+      summary: Get student applications
+      description: Get all applications for a specific student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student applications
+    post:
+      tags:
+        - Applications
+      summary: Create application
+      description: Create new application for student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                program_id:
+                  type: string
+      responses:
+        '201':
+          description: Application created
+
+  /api/applications/application/{application_id}:
+    delete:
+      tags:
+        - Applications
+      summary: Delete application
+      parameters:
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Application deleted
+
+  # ==========================================
+  # Programs Routes (Base: /api/programs)
+  # ==========================================
+  /api/programs:
+    get:
+      tags:
+        - Programs
+      summary: Get all programs
+      description: Get list of university programs
+      parameters:
+        - name: country
+          in: query
+          schema:
+            type: string
+        - name: degree
+          in: query
+          schema:
+            type: string
+            enum: [Bachelor, Master, PhD]
+      responses:
+        '200':
+          description: List of programs
+    post:
+      tags:
+        - Programs
+      summary: Create program
+      description: Create new university program
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                school:
+                  type: string
+                program_name:
+                  type: string
+                degree:
+                  type: string
+      responses:
+        '201':
+          description: Program created
+
+  /api/programs/{programId}:
+    get:
+      tags:
+        - Programs
+      summary: Get program by ID
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Program details
+    put:
+      tags:
+        - Programs
+      summary: Update program
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Program updated
+    delete:
+      tags:
+        - Programs
+      summary: Delete program
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Program deleted
+
+  # ==========================================
+  # Communications Routes (Base: /api/communications)
+  # ==========================================
+  /api/communications/{studentId}:
+    get:
+      tags:
+        - Communications
+      summary: Get student messages
+      description: Get all messages for a student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student messages
+    post:
+      tags:
+        - Communications
+      summary: Post message
+      description: Send a new message to student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Message sent
+
+  /api/communications/all:
+    get:
+      tags:
+        - Communications
+      summary: Get all my messages
+      description: Get all messages for current user
+      responses:
+        '200':
+          description: All messages
+
+  # ==========================================
+  # Events Routes (Base: /api/events)
+  # ==========================================
+  /api/events:
+    get:
+      tags:
+        - Events
+      summary: Get all events
+      description: Get calendar events
+      responses:
+        '200':
+          description: List of events
+    post:
+      tags:
+        - Events
+      summary: Create event
+      description: Create new calendar event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                start:
+                  type: string
+                  format: date-time
+                end:
+                  type: string
+                  format: date-time
+                receiver_id:
+                  type: string
+      responses:
+        '201':
+          description: Event created
+
+  /api/events/{event_id}:
+    put:
+      tags:
+        - Events
+      summary: Update event
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event updated
+    delete:
+      tags:
+        - Events
+      summary: Delete event
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event deleted
+
+  /api/events/{event_id}/confirm:
+    put:
+      tags:
+        - Events
+      summary: Confirm event
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event confirmed
+
+  # ==========================================
+  # Documentations Routes (Base: /api/docs)
+  # ==========================================
+  /api/docs:
+    post:
+      tags:
+        - Documentations
+      summary: Create documentation
+      description: Create new documentation article
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                title:
+                  type: string
+                text:
+                  type: string
+      responses:
+        '201':
+          description: Documentation created
+
+  /api/docs/all:
+    get:
+      tags:
+        - Documentations
+      summary: Get all documentations
+      description: Get all documentation articles
+      responses:
+        '200':
+          description: List of documentations
+
+  /api/docs/{category}:
+    get:
+      tags:
+        - Documentations
+      summary: Get category documentations
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category documentations
+
+  /api/docs/{id}:
+    put:
+      tags:
+        - Documentations
+      summary: Update documentation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Documentation updated
+    delete:
+      tags:
+        - Documentations
+      summary: Delete documentation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Documentation deleted
+
+  # ==========================================
+  # Document Threads Routes (Base: /api/document-threads)
+  # ==========================================
+  /api/document-threads/overview/all:
+    get:
+      tags:
+        - Document Threads
+      summary: Get active threads overview
+      description: Get overview of all active document threads
+      responses:
+        '200':
+          description: Active threads overview
+
+  /api/document-threads/init/general/{studentId}/{document_category}:
+    post:
+      tags:
+        - Document Threads
+      summary: Initialize general thread
+      description: Initialize a general document thread for student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: document_category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Thread initialized
+
+  /api/document-threads/init/application/{studentId}/{application_id}/{document_category}:
+    post:
+      tags:
+        - Document Threads
+      summary: Initialize application thread
+      description: Initialize an application-specific document thread
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: document_category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Application thread initialized
+
+  /api/document-threads/{messagesThreadId}:
+    get:
+      tags:
+        - Document Threads
+      summary: Get thread messages
+      description: Get all messages in a document thread
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thread messages
+
+  /api/document-threads/{messagesThreadId}/{studentId}:
+    post:
+      tags:
+        - Document Threads
+      summary: Post message in thread
+      description: Post a new message in document thread
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Message posted
+    put:
+      tags:
+        - Document Threads
+      summary: Set thread status
+      description: Update document thread status
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status updated
+
+  # ==========================================
+  # Tickets Routes (Base: /api/tickets)
+  # ==========================================
+  /api/tickets:
+    get:
+      tags:
+        - Tickets
+      summary: Get all tickets
+      description: Get list of support tickets
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [Open, In Progress, Closed]
+      responses:
+        '200':
+          description: List of tickets
+    post:
+      tags:
+        - Tickets
+      summary: Create ticket
+      description: Create new support ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                priority:
+                  type: string
+                  enum: [Low, Medium, High]
+      responses:
+        '201':
+          description: Ticket created
+
+  /api/tickets/{ticket_id}:
+    put:
+      tags:
+        - Tickets
+      summary: Update ticket
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ticket updated
+    delete:
+      tags:
+        - Tickets
+      summary: Delete ticket
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ticket deleted
+
+  # ==========================================
+  # Interviews Routes (Base: /api/interviews)
+  # ==========================================
+  /api/interviews:
+    get:
+      tags:
+        - Interviews
+      summary: Get all interviews
+      description: Get list of all interviews
+      responses:
+        '200':
+          description: List of interviews
+
+  /api/interviews/my-interviews:
+    get:
+      tags:
+        - Interviews
+      summary: Get my interviews
+      description: Get interviews for current user
+      responses:
+        '200':
+          description: My interviews
+
+  /api/interviews/{interview_id}:
+    get:
+      tags:
+        - Interviews
+      summary: Get interview by ID
+      parameters:
+        - name: interview_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Interview details
+    put:
+      tags:
+        - Interviews
+      summary: Update interview
+      parameters:
+        - name: interview_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Interview updated
+    delete:
+      tags:
+        - Interviews
+      summary: Delete interview
+      parameters:
+        - name: interview_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Interview deleted
+
+  /api/interviews/create/{program_id}/{studentId}:
+    post:
+      tags:
+        - Interviews
+      summary: Create interview
+      description: Create new interview for student and program
+      parameters:
+        - name: program_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Interview created
+
+  # ==========================================
+  # Teams Routes (Base: /api/teams)
+  # ==========================================
+  /api/teams:
+    get:
+      tags:
+        - Teams
+      summary: Get team members
+      description: Get list of team members
+      responses:
+        '200':
+          description: Team members
+
+  /api/teams/statistics/overview:
+    get:
+      tags:
+        - Teams
+      summary: Get statistics overview
+      description: Get team statistics overview
+      responses:
+        '200':
+          description: Statistics overview
+
+  /api/teams/statistics/agents:
+    get:
+      tags:
+        - Teams
+      summary: Get agent statistics
+      description: Get statistics for all agents
+      responses:
+        '200':
+          description: Agent statistics
+
+  /api/teams/statistics/kpi:
+    get:
+      tags:
+        - Teams
+      summary: Get KPI statistics
+      description: Get key performance indicators
+      responses:
+        '200':
+          description: KPI data
+
+  # ==========================================
+  # Courses Routes (Base: /api/courses)
+  # ==========================================
+  /api/courses/{studentId}:
+    get:
+      tags:
+        - Courses
+      summary: Get student courses
+      description: Get all courses for a student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student courses
+    put:
+      tags:
+        - Courses
+      summary: Update student courses
+      description: Update courses for a student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Courses updated
+    delete:
+      tags:
+        - Courses
+      summary: Delete student course
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Course deleted
+
+  # ==========================================
+  # TaiGer AI Routes (Base: /api/taigerai)
+  # ==========================================
+  /api/taigerai/general:
+    post:
+      tags:
+        - TaiGer AI
+      summary: General AI query
+      description: Make a general AI query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+      responses:
+        '200':
+          description: AI response
+
+  /api/taigerai/chat/{studentId}:
+    post:
+      tags:
+        - TaiGer AI
+      summary: Chat with AI about student
+      description: AI-powered chat about specific student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+      responses:
+        '200':
+          description: AI chat response
+
+  /api/taigerai/cvmlrl:
+    post:
+      tags:
+        - TaiGer AI
+      summary: CV/ML/RL AI assistance
+      description: AI assistance for CV, Motivation Letter, Recommendation Letter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '200':
+          description: AI suggestions
+
+  /api/taigerai/program/{programId}:
+    get:
+      tags:
+        - TaiGer AI
+      summary: AI program analysis
+      description: Get AI analysis of a program
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Program AI analysis
+
+  # ==========================================
+  # Admissions Routes (Base: /api/admissions)
+  # ==========================================
+  /api/admissions:
+    get:
+      tags:
+        - Admissions
+      summary: Get all admissions
+      description: Get list of all admission results
+      responses:
+        '200':
+          description: List of admissions
+
+  /api/admissions/overview:
+    get:
+      tags:
+        - Admissions
+      summary: Get admissions overview
+      description: Get overview statistics of admissions
+      responses:
+        '200':
+          description: Admissions overview
+
+  /api/admissions/{studentId}/admission/{fileName}:
+    get:
+      tags:
+        - Admissions
+      summary: Get admission letter
+      description: Download admission letter file
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Admission letter file
+
+  # ==========================================
+  # Account Routes (Base: /api/account)
+  # ==========================================
+  /api/account/survey:
+    get:
+      tags:
+        - Account
+      summary: Get academic background
+      description: Get user's academic background survey data
+      responses:
+        '200':
+          description: Academic background data
+
+  /api/account/survey/university/{studentId}:
+    post:
+      tags:
+        - Account
+      summary: Update academic background
+      description: Update student's academic background information
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Academic background updated
+
+  /api/account/survey/language/{studentId}:
+    post:
+      tags:
+        - Account
+      summary: Update language skills
+      description: Update student's language proficiency
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Language skills updated
+
+  /api/account/survey/preferences/{studentId}:
+    post:
+      tags:
+        - Account
+      summary: Update application preferences
+      description: Update student's application preferences
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Preferences updated
+
+  /api/account/profile/{user_id}:
+    post:
+      tags:
+        - Account
+      summary: Update personal data
+      description: Update user's personal information
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Profile updated
+
+  /api/account/credentials:
+    post:
+      tags:
+        - Account
+      summary: Update credentials
+      description: Update user login credentials (email/password)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+      responses:
+        '200':
+          description: Credentials updated
+
+  # ==========================================
+  # Search Routes (Base: /api/search)
+  # ==========================================
+  /api/search:
+    get:
+      tags:
+        - Search
+      summary: Search query
+      description: General search across the platform
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+      responses:
+        '200':
+          description: Search results
+
+  /api/search/students:
+    get:
+      tags:
+        - Search
+      summary: Search students
+      description: Search for students
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student search results
+
+  # ==========================================
+  # CRM Routes (Base: /api/crm)
+  # ==========================================
+  /api/crm/stats:
+    get:
+      tags:
+        - CRM
+      summary: Get CRM statistics
+      description: Get CRM overview statistics
+      responses:
+        '200':
+          description: CRM statistics
+
+  /api/crm/leads:
+    get:
+      tags:
+        - CRM
+      summary: Get all leads
+      description: Get list of all CRM leads
+      responses:
+        '200':
+          description: List of leads
+
+  /api/crm/leads/{leadId}:
+    get:
+      tags:
+        - CRM
+      summary: Get lead by ID
+      parameters:
+        - name: leadId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lead details
+    put:
+      tags:
+        - CRM
+      summary: Update lead
+      parameters:
+        - name: leadId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lead updated
+
+  /api/crm/meetings:
+    get:
+      tags:
+        - CRM
+      summary: Get all meetings
+      description: Get list of all CRM meetings
+      responses:
+        '200':
+          description: List of meetings
+
+  /api/crm/meetings/{meetingId}:
+    get:
+      tags:
+        - CRM
+      summary: Get meeting by ID
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Meeting details
+    put:
+      tags:
+        - CRM
+      summary: Update meeting
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Meeting updated
+
+  /api/crm/deals:
+    get:
+      tags:
+        - CRM
+      summary: Get all deals
+      description: Get list of all CRM deals
+      responses:
+        '200':
+          description: List of deals
+    post:
+      tags:
+        - CRM
+      summary: Create deal
+      description: Create new CRM deal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Deal created
+
+  /api/crm/deals/{dealId}:
+    put:
+      tags:
+        - CRM
+      summary: Update deal
+      parameters:
+        - name: dealId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deal updated
+
+  /api/crm/instant-invite:
+    post:
+      tags:
+        - CRM
+      summary: Instant meeting invite
+      description: Send instant meeting invitation via assistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Invitation sent
+
+  # ==========================================
+  # Permissions Routes (Base: /api/permissions)
+  # ==========================================
+  /api/permissions/{user_id}:
+    get:
+      tags:
+        - Permissions
+      summary: Get user permissions
+      description: Get permissions for a specific user (Admin only)
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User permissions
+    post:
+      tags:
+        - Permissions
+      summary: Update user permissions
+      description: Update user permissions (Admin only)
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Permissions updated
+
+  # ==========================================
+  # Audit Routes (Base: /api/audit)
+  # ==========================================
+  /api/audit:
+    get:
+      tags:
+        - Audit
+      summary: Get audit logs
+      description: Get system audit logs (Admin, Manager, Agent, Editor)
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: userId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audit logs
+
+  # ==========================================
+  # User Logs Routes (Base: /api/userlogs)
+  # ==========================================
+  /api/userlogs:
+    get:
+      tags:
+        - User Logs
+      summary: Get user logs
+      description: Get activity logs for all users
+      responses:
+        '200':
+          description: User logs
+
+  /api/userlogs/{user_id}:
+    get:
+      tags:
+        - User Logs
+      summary: Get user log by ID
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User log details
+
+  # ==========================================
+  # Agents Routes (Base: /api/agents)
+  # ==========================================
+  /api/agents/profile/{agent_id}:
+    get:
+      tags:
+        - Agents
+      summary: Get agent profile
+      description: Get detailed agent profile information
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent profile
+    put:
+      tags:
+        - Agents
+      summary: Update agent profile
+      description: Update agent profile information
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent profile updated
+
+  # ==========================================
+  # Essay Writers Routes (Base: /api/essay-writers)
+  # ==========================================
+  /api/essay-writers:
+    get:
+      tags:
+        - Essay Writers
+      summary: Get essay writers
+      description: Get list of available essay writers/editors
+      responses:
+        '200':
+          description: List of essay writers
+
+  # ==========================================
+  # Expenses Routes (Base: /api/expenses)
+  # ==========================================
+  /api/expenses:
+    get:
+      tags:
+        - Expenses
+      summary: Get all expenses
+      description: Get list of all expenses
+      responses:
+        '200':
+          description: List of expenses
+
+  /api/expenses/users/{taiger_user_id}:
+    get:
+      tags:
+        - Expenses
+      summary: Get user expenses
+      description: Get expenses for specific user
+      parameters:
+        - name: taiger_user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User expenses
+
+  # ==========================================
+  # Notes Routes (Base: /api/notes)
+  # ==========================================
+  /api/notes/{student_id}:
+    get:
+      tags:
+        - Notes
+      summary: Get student notes
+      description: Get notes for a specific student
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student notes
+    put:
+      tags:
+        - Notes
+      summary: Update student notes
+      description: Update notes for a specific student
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Notes updated
+
+  # ==========================================
+  # Complaints Routes (Base: /api/complaints)
+  # ==========================================
+  /api/complaints:
+    get:
+      tags:
+        - Complaints
+      summary: Get all complaints
+      description: Get list of all complaints/feedback
+      responses:
+        '200':
+          description: List of complaints
+    post:
+      tags:
+        - Complaints
+      summary: Create complaint
+      description: Create new complaint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Complaint created
+
+  /api/complaints/{ticketId}:
+    get:
+      tags:
+        - Complaints
+      summary: Get complaint by ID
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Complaint details
+    put:
+      tags:
+        - Complaints
+      summary: Update complaint
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Complaint updated
+    delete:
+      tags:
+        - Complaints
+      summary: Delete complaint
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Complaint deleted
+
+  # ==========================================
+  # UniAssist Routes (Base: /api/uniassist)
+  # ==========================================
+  /api/uniassist/{studentId}:
+    get:
+      tags:
+        - UniAssist
+      summary: Get UniAssist data
+      description: Get UniAssist application data for student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: UniAssist data
+
+  # ==========================================
+  # Widgets Routes (Base: /api/widgets)
+  # ==========================================
+  /api/widgets/messages/export/{studentId}:
+    get:
+      tags:
+        - Widgets
+      summary: Export messages to PDF
+      description: Export student messages as PDF
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: PDF export
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /api/widgets/transcript/engine/v2/{language}:
+    post:
+      tags:
+        - Widgets
+      summary: Process transcript
+      description: Process student transcript with AI
+      parameters:
+        - name: language
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [en, de, zh]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Transcript processed
+
+  # ==========================================
+  # All Courses Routes (Base: /api/all-courses)
+  # ==========================================
+  /api/all-courses:
+    get:
+      tags:
+        - All Courses
+      summary: Get all courses
+      description: Get list of all available courses
+      responses:
+        '200':
+          description: List of courses
+    post:
+      tags:
+        - All Courses
+      summary: Create course
+      description: Create new course
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Course created
+
+  /api/all-courses/{courseId}:
+    get:
+      tags:
+        - All Courses
+      summary: Get course by ID
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Course details
+    put:
+      tags:
+        - All Courses
+      summary: Update course
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Course updated
+    delete:
+      tags:
+        - All Courses
+      summary: Delete course
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Course deleted
+
+  # ==========================================
+  # Course Keywords Routes (Base: /api/course-keywords)
+  # ==========================================
+  /api/course-keywords:
+    get:
+      tags:
+        - Course Keywords
+      summary: Get keyword sets
+      description: Get all course keyword sets
+      responses:
+        '200':
+          description: List of keyword sets
+
+  /api/course-keywords/{keywordsSetId}:
+    get:
+      tags:
+        - Course Keywords
+      summary: Get keyword set by ID
+      parameters:
+        - name: keywordsSetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Keyword set details
+    post:
+      tags:
+        - Course Keywords
+      summary: Create keyword set
+      parameters:
+        - name: keywordsSetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Keyword set created
+    put:
+      tags:
+        - Course Keywords
+      summary: Update keyword set
+      parameters:
+        - name: keywordsSetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Keyword set updated
+    delete:
+      tags:
+        - Course Keywords
+      summary: Delete keyword set
+      parameters:
+        - name: keywordsSetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Keyword set deleted
+
+  # ==========================================
+  # Program Requirements Routes (Base: /api/program-requirements)
+  # ==========================================
+  /api/program-requirements:
+    get:
+      tags:
+        - Program Requirements
+      summary: Get program requirements
+      description: Get all program requirements
+      responses:
+        '200':
+          description: List of program requirements
+
+  /api/program-requirements/new:
+    post:
+      tags:
+        - Program Requirements
+      summary: Create program requirement
+      description: Create new program requirement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Requirement created
+
+  /api/program-requirements/programs-and-keywords:
+    get:
+      tags:
+        - Program Requirements
+      summary: Get programs and keywords
+      description: Get distinct programs and keyword sets
+      responses:
+        '200':
+          description: Programs and keywords
+
+  /api/program-requirements/{requirementId}:
+    get:
+      tags:
+        - Program Requirements
+      summary: Get requirement by ID
+      parameters:
+        - name: requirementId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Requirement details
+    put:
+      tags:
+        - Program Requirements
+      summary: Update requirement
+      parameters:
+        - name: requirementId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Requirement updated
+    delete:
+      tags:
+        - Program Requirements
+      summary: Delete requirement
+      parameters:
+        - name: requirementId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Requirement deleted
+
+  # ==========================================
+  # Portal Informations Routes (Base: /api/portal-informations)
+  # ==========================================
+  /api/portal-informations/{studentId}:
+    get:
+      tags:
+        - Portal Informations
+      summary: Get portal credentials
+      description: Get portal login credentials for student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Portal credentials
+
+  /api/portal-informations/{studentId}/{applicationId}:
+    post:
+      tags:
+        - Portal Informations
+      summary: Create portal credentials
+      description: Create new portal credentials for application
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Portal credentials created
+
+  # ==========================================
+  # Student Applications Routes (Base: /api/student-applications)
+  # ==========================================
+  /api/student-applications/conflicts:
+    get:
+      tags:
+        - Student Applications
+      summary: Get application conflicts
+      description: Get conflicting applications
+      responses:
+        '200':
+          description: Application conflicts
+
+  /api/student-applications/deltas:
+    get:
+      tags:
+        - Student Applications
+      summary: Get application deltas
+      description: Get application changes/deltas
+      responses:
+        '200':
+          description: Application deltas

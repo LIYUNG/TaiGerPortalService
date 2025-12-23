@@ -1,0 +1,265 @@
+TeamMember:
+  type: object
+  properties:
+    _id:
+      type: string
+    user_id:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    team_id:
+      type: string
+    role:
+      type: string
+      enum:
+        - manager
+        - agent
+        - editor
+        - viewer
+    status:
+      type: string
+      enum:
+        - active
+        - inactive
+        - on_leave
+    assigned_students:
+      type: array
+      items:
+        type: string
+    managed_programs:
+      type: array
+      items:
+        type: string
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - user_id
+    - team_id
+    - role
+  additionalProperties: false
+
+TeamMemberCreate:
+  type: object
+  properties:
+    user_id:
+      type: string
+    role:
+      type: string
+      enum:
+        - manager
+        - agent
+        - editor
+        - viewer
+    assigned_students:
+      type: array
+      items:
+        type: string
+    managed_programs:
+      type: array
+      items:
+        type: string
+  required:
+    - user_id
+    - role
+  additionalProperties: false
+
+TeamMemberUpdate:
+  type: object
+  properties:
+    role:
+      type: string
+      enum:
+        - manager
+        - agent
+        - editor
+        - viewer
+    status:
+      type: string
+      enum:
+        - active
+        - inactive
+        - on_leave
+    assigned_students:
+      type: array
+      items:
+        type: string
+    managed_programs:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+StatisticsMetric:
+  type: object
+  properties:
+    name:
+      type: string
+    value:
+      type: number
+      format: float
+    unit:
+      type: string
+    trend:
+      type: string
+      enum:
+        - up
+        - down
+        - stable
+    trend_percentage:
+      type: number
+      format: float
+  additionalProperties: false
+
+TeamStatistics:
+  type: object
+  properties:
+    team_id:
+      type: string
+    period:
+      type: string
+      enum:
+        - daily
+        - weekly
+        - monthly
+        - yearly
+    total_students:
+      type: integer
+    active_applications:
+      type: integer
+    admitted_count:
+      type: integer
+    enrolled_count:
+      type: integer
+    response_time:
+      type: object
+      properties:
+        average_hours:
+          type: number
+          format: float
+        min_hours:
+          type: number
+          format: float
+        max_hours:
+          type: number
+          format: float
+    completion_rate:
+      type: number
+      format: float
+    satisfaction_score:
+      type: number
+      format: float
+    metrics:
+      type: array
+      items:
+        $ref: '#/StatisticsMetric'
+  required:
+    - team_id
+    - period
+  additionalProperties: false
+
+TeamPerformance:
+  type: object
+  properties:
+    member_id:
+      type: string
+    member_name:
+      type: string
+    role:
+      type: string
+    students_managed:
+      type: integer
+    active_applications:
+      type: integer
+    applications_completed:
+      type: integer
+    average_response_time:
+      type: number
+      format: float
+    satisfaction_rating:
+      type: number
+      format: float
+    documents_processed:
+      type: integer
+    interviews_conducted:
+      type: integer
+  additionalProperties: false
+
+StatisticsOverview:
+  type: object
+  properties:
+    total_team_members:
+      type: integer
+    active_members:
+      type: integer
+    total_students:
+      type: integer
+    active_applications:
+      type: integer
+    overall_completion_rate:
+      type: number
+      format: float
+    average_response_time:
+      type: number
+      format: float
+    team_statistics:
+      $ref: '#/TeamStatistics'
+    member_performances:
+      type: array
+      items:
+        $ref: '#/TeamPerformance'
+  additionalProperties: false
+
+TeamMemberResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/TeamMember'
+  required:
+    - success
+    - data
+
+TeamMemberListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/TeamMember'
+  required:
+    - success
+    - data
+
+StatisticsOverviewResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/StatisticsOverview'
+  required:
+    - success
+    - data
+
+TeamStatisticsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/TeamStatistics'
+  required:
+    - success
+    - data

@@ -1,0 +1,262 @@
+Template:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    type:
+      type: string
+      enum:
+        - email
+        - document
+        - sms
+    subject:
+      type: string
+    body:
+      type: string
+    variables:
+      type: array
+      items:
+        type: string
+    created_by:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - name
+    - type
+    - body
+  additionalProperties: false
+
+TemplateCreate:
+  type: object
+  properties:
+    name:
+      type: string
+    type:
+      type: string
+      enum:
+        - email
+        - document
+        - sms
+    subject:
+      type: string
+    body:
+      type: string
+    variables:
+      type: array
+      items:
+        type: string
+  required:
+    - name
+    - type
+    - body
+  additionalProperties: false
+
+TemplateUpdate:
+  type: object
+  properties:
+    name:
+      type: string
+    subject:
+      type: string
+    body:
+      type: string
+    variables:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+ApiCredential:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    type:
+      type: string
+      enum:
+        - stripe
+        - sendgrid
+        - aws
+        - google
+        - linkedin
+        - other
+    key:
+      type: string
+    secret:
+      type: string
+    is_active:
+      type: boolean
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - name
+    - type
+    - key
+  additionalProperties: false
+
+ApiCredentialCreate:
+  type: object
+  properties:
+    name:
+      type: string
+    type:
+      type: string
+      enum:
+        - stripe
+        - sendgrid
+        - aws
+        - google
+        - linkedin
+        - other
+    key:
+      type: string
+    secret:
+      type: string
+  required:
+    - name
+    - type
+    - key
+  additionalProperties: false
+
+AccountPreferences:
+  type: object
+  properties:
+    _id:
+      type: string
+    user_id:
+      type: string
+    language:
+      type: string
+      enum:
+        - en
+        - de
+        - zh
+        - ja
+    timezone:
+      type: string
+    notification_email:
+      type: boolean
+    notification_sms:
+      type: boolean
+    notification_push:
+      type: boolean
+    theme:
+      type: string
+      enum:
+        - light
+        - dark
+        - auto
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+AccountPreferencesUpdate:
+  type: object
+  properties:
+    language:
+      type: string
+      enum:
+        - en
+        - de
+        - zh
+        - ja
+    timezone:
+      type: string
+    notification_email:
+      type: boolean
+    notification_sms:
+      type: boolean
+    notification_push:
+      type: boolean
+    theme:
+      type: string
+      enum:
+        - light
+        - dark
+        - auto
+  additionalProperties: false
+
+TemplateResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Template'
+  required:
+    - success
+    - data
+
+TemplateListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Template'
+  required:
+    - success
+    - data
+
+ApiCredentialResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ApiCredential'
+  required:
+    - success
+    - data
+
+ApiCredentialListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/ApiCredential'
+  required:
+    - success
+    - data
+
+AccountPreferencesResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/AccountPreferences'
+  required:
+    - success
+    - data

@@ -1,0 +1,244 @@
+Admission:
+  type: object
+  properties:
+    _id:
+      type: string
+    student_id:
+      oneOf:
+        - type: string
+        - $ref: './students.yaml#/StudentBase'
+    program_id:
+      oneOf:
+        - type: string
+        - $ref: './programs.yaml#/Program'
+    status:
+      type: string
+      enum:
+        - applied
+        - under_review
+        - interview_scheduled
+        - admitted
+        - rejected
+        - waitlisted
+        - accepted
+        - enrolled
+    decision_date:
+      type: string
+      format: date-time
+    offer_letter:
+      type: string
+      format: uri
+    letter_issue_date:
+      type: string
+      format: date-time
+    letter_expiry_date:
+      type: string
+      format: date-time
+    scholarship_amount:
+      type: number
+      format: float
+    scholarship_currency:
+      type: string
+    scholarship_type:
+      type: string
+      enum:
+        - full_tuition
+        - partial_tuition
+        - merit_based
+        - need_based
+        - other
+    notes:
+      type: string
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - student_id
+    - program_id
+    - status
+  additionalProperties: false
+
+AdmissionLetter:
+  type: object
+  properties:
+    _id:
+      type: string
+    admission_id:
+      type: string
+    letter_type:
+      type: string
+      enum:
+        - acceptance
+        - rejection
+        - waitlist
+        - conditional_acceptance
+    issue_date:
+      type: string
+      format: date-time
+    expiry_date:
+      type: string
+      format: date-time
+    document_url:
+      type: string
+      format: uri
+    status:
+      type: string
+      enum:
+        - draft
+        - sent
+        - viewed
+        - downloaded
+  required:
+    - _id
+    - admission_id
+    - letter_type
+  additionalProperties: false
+
+AdmissionCreate:
+  type: object
+  properties:
+    student_id:
+      type: string
+    program_id:
+      type: string
+    status:
+      type: string
+      enum:
+        - applied
+        - under_review
+        - interview_scheduled
+        - admitted
+        - rejected
+        - waitlisted
+        - accepted
+        - enrolled
+    scholarship_amount:
+      type: number
+      format: float
+    scholarship_currency:
+      type: string
+    scholarship_type:
+      type: string
+      enum:
+        - full_tuition
+        - partial_tuition
+        - merit_based
+        - need_based
+        - other
+    notes:
+      type: string
+  required:
+    - student_id
+    - program_id
+    - status
+  additionalProperties: false
+
+AdmissionUpdate:
+  type: object
+  properties:
+    status:
+      type: string
+      enum:
+        - applied
+        - under_review
+        - interview_scheduled
+        - admitted
+        - rejected
+        - waitlisted
+        - accepted
+        - enrolled
+    scholarship_amount:
+      type: number
+      format: float
+    scholarship_currency:
+      type: string
+    scholarship_type:
+      type: string
+      enum:
+        - full_tuition
+        - partial_tuition
+        - merit_based
+        - need_based
+        - other
+    notes:
+      type: string
+  additionalProperties: false
+
+AdmissionsOverview:
+  type: object
+  properties:
+    total_applications:
+      type: integer
+    total_admitted:
+      type: integer
+    total_rejected:
+      type: integer
+    total_waitlisted:
+      type: integer
+    total_enrolled:
+      type: integer
+    acceptance_rate:
+      type: number
+      format: float
+    status_breakdown:
+      type: object
+      properties:
+        applied:
+          type: integer
+        under_review:
+          type: integer
+        interview_scheduled:
+          type: integer
+        admitted:
+          type: integer
+        rejected:
+          type: integer
+        waitlisted:
+          type: integer
+        accepted:
+          type: integer
+        enrolled:
+          type: integer
+  additionalProperties: false
+
+AdmissionResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Admission'
+  required:
+    - success
+    - data
+
+AdmissionListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Admission'
+  required:
+    - success
+    - data
+
+AdmissionsOverviewResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/AdmissionsOverview'
+  required:
+    - success
+    - data

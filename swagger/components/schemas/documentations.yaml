@@ -1,0 +1,213 @@
+Documentation:
+  type: object
+  properties:
+    _id:
+      type: string
+    title:
+      type: string
+    category:
+      type: string
+    content:
+      type: string
+    markdown_content:
+      type: string
+    slug:
+      type: string
+    is_published:
+      type: boolean
+    is_internal:
+      type: boolean
+    author:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    tags:
+      type: array
+      items:
+        type: string
+    views:
+      type: integer
+    last_updated_by:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - title
+    - content
+  additionalProperties: false
+
+DocumentationCreate:
+  type: object
+  properties:
+    title:
+      type: string
+    category:
+      type: string
+    content:
+      type: string
+    markdown_content:
+      type: string
+    tags:
+      type: array
+      items:
+        type: string
+  required:
+    - title
+    - content
+  additionalProperties: false
+
+DocumentationUpdate:
+  type: object
+  properties:
+    title:
+      type: string
+    category:
+      type: string
+    content:
+      type: string
+    markdown_content:
+      type: string
+    tags:
+      type: array
+      items:
+        type: string
+    is_published:
+      type: boolean
+  additionalProperties: false
+
+DocumentationPage:
+  type: object
+  properties:
+    _id:
+      type: string
+    title:
+      type: string
+    slug:
+      type: string
+    category:
+      type: string
+    summary:
+      type: string
+      description: Short excerpt from content
+    content:
+      type: string
+    is_published:
+      type: boolean
+    author:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    tags:
+      type: array
+      items:
+        type: string
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+DocumentationCategory:
+  type: object
+  properties:
+    name:
+      type: string
+    slug:
+      type: string
+    description:
+      type: string
+    page_count:
+      type: integer
+    icon:
+      type: string
+  additionalProperties: false
+
+DocumentationSearchResult:
+  type: object
+  properties:
+    _id:
+      type: string
+    title:
+      type: string
+    slug:
+      type: string
+    category:
+      type: string
+    summary:
+      type: string
+    relevance_score:
+      type: number
+      format: float
+  additionalProperties: false
+
+DocumentationResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Documentation'
+  required:
+    - success
+    - data
+
+DocumentationListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/DocumentationPage'
+  required:
+    - success
+    - data
+
+DocumentationCategoryListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/DocumentationCategory'
+  required:
+    - success
+    - data
+
+DocumentationSearchResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/DocumentationSearchResult'
+    pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+  required:
+    - success
+    - data

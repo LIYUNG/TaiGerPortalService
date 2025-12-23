@@ -11,15 +11,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/support.yaml#/TicketListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   post:
@@ -40,11 +32,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/support.yaml#/TicketResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -65,13 +53,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/support.yaml#/TicketResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
@@ -121,15 +103,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/support.yaml#/ComplaintListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   post:
@@ -175,13 +149,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/support.yaml#/ComplaintResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
@@ -199,18 +167,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/support.yaml#/ComplaintUpdate'
     responses:
       '200':
         description: Complaint updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/support.yaml#/ComplaintResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':

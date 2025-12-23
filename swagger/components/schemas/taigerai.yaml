@@ -1,0 +1,189 @@
+AIStatus:
+  type: object
+  properties:
+    service_status:
+      type: string
+      enum:
+        - online
+        - offline
+        - maintenance
+        - degraded
+    api_version:
+      type: string
+    last_updated:
+      type: string
+      format: date-time
+    processing_queue:
+      type: integer
+    average_processing_time:
+      type: number
+      format: float
+      description: Average processing time in seconds
+  additionalProperties: false
+
+ProcessingRequest:
+  type: object
+  properties:
+    analysis_type:
+      type: string
+      enum:
+        - profile_analysis
+        - document_analysis
+        - application_strength
+        - recommendation_generation
+        - interview_preparation
+    parameters:
+      type: object
+      additionalProperties: {}
+  required:
+    - analysis_type
+  additionalProperties: false
+
+ProcessingResult:
+  type: object
+  properties:
+    _id:
+      type: string
+    student_id:
+      type: string
+    analysis_type:
+      type: string
+    status:
+      type: string
+      enum:
+        - processing
+        - completed
+        - failed
+    result:
+      type: object
+      additionalProperties: {}
+    insights:
+      type: array
+      items:
+        type: object
+        properties:
+          key:
+            type: string
+          value:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+              - type: array
+    recommendations:
+      type: array
+      items:
+        type: object
+        properties:
+          priority:
+            type: string
+            enum:
+              - high
+              - medium
+              - low
+          action:
+            type: string
+          description:
+            type: string
+    processing_time:
+      type: number
+      format: float
+      description: Processing time in seconds
+    created_at:
+      type: string
+      format: date-time
+    completed_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+ChatMessage:
+  type: object
+  properties:
+    _id:
+      type: string
+    session_id:
+      type: string
+    role:
+      type: string
+      enum:
+        - user
+        - assistant
+    content:
+      type: string
+    context:
+      type: object
+      additionalProperties: {}
+    timestamp:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+ChatSession:
+  type: object
+  properties:
+    _id:
+      type: string
+    student_id:
+      type: string
+    topic:
+      type: string
+    messages:
+      type: array
+      items:
+        $ref: '#/ChatMessage'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+AIStatusResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/AIStatus'
+  required:
+    - success
+    - data
+
+ProcessingResultResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ProcessingResult'
+  required:
+    - success
+    - data
+
+ChatSessionResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ChatSession'
+  required:
+    - success
+    - data
+
+ChatMessageResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ChatMessage'
+  required:
+    - success
+    - data

@@ -1,0 +1,188 @@
+SearchQuery:
+  type: object
+  properties:
+    query:
+      type: string
+      description: Search query string
+    filters:
+      type: object
+      properties:
+        type:
+          type: array
+          items:
+            type: string
+            enum:
+              - student
+              - application
+              - program
+              - user
+              - document
+        status:
+          type: array
+          items:
+            type: string
+        date_from:
+          type: string
+          format: date-time
+        date_to:
+          type: string
+          format: date-time
+  required:
+    - query
+  additionalProperties: false
+
+SearchResult:
+  type: object
+  properties:
+    _id:
+      type: string
+    type:
+      type: string
+      enum:
+        - student
+        - application
+        - program
+        - user
+        - document
+    title:
+      type: string
+    description:
+      type: string
+    relevance_score:
+      type: number
+      format: float
+    url:
+      type: string
+      format: uri
+    created_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+SearchResults:
+  type: object
+  properties:
+    students:
+      type: array
+      items:
+        allOf:
+          - $ref: '#/SearchResult'
+          - type: object
+            properties:
+              student_id:
+                type: string
+              email:
+                type: string
+                format: email
+              phone:
+                type: string
+    applications:
+      type: array
+      items:
+        allOf:
+          - $ref: '#/SearchResult'
+          - type: object
+            properties:
+              program:
+                type: string
+              status:
+                type: string
+              student:
+                type: string
+    programs:
+      type: array
+      items:
+        allOf:
+          - $ref: '#/SearchResult'
+          - type: object
+            properties:
+              university:
+                type: string
+              degree:
+                type: string
+    users:
+      type: array
+      items:
+        allOf:
+          - $ref: '#/SearchResult'
+          - type: object
+            properties:
+              email:
+                type: string
+                format: email
+              role:
+                type: string
+    documents:
+      type: array
+      items:
+        allOf:
+          - $ref: '#/SearchResult'
+          - type: object
+            properties:
+              document_type:
+                type: string
+              file_url:
+                type: string
+                format: uri
+  additionalProperties: false
+
+AdvancedSearchOptions:
+  type: object
+  properties:
+    field:
+      type: string
+      enum:
+        - name
+        - email
+        - phone
+        - student_id
+        - program
+        - status
+        - university
+        - created_at
+        - updated_at
+    operator:
+      type: string
+      enum:
+        - equals
+        - contains
+        - starts_with
+        - ends_with
+        - greater_than
+        - less_than
+        - between
+        - in
+    value:
+      oneOf:
+        - type: string
+        - type: number
+        - type: boolean
+        - type: array
+  required:
+    - field
+    - operator
+    - value
+  additionalProperties: false
+
+SearchResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/SearchResults'
+    pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        pages:
+          type: integer
+  required:
+    - success
+    - data

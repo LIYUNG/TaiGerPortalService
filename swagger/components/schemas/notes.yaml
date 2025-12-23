@@ -1,0 +1,120 @@
+Note:
+  type: object
+  properties:
+    _id:
+      type: string
+    student_id:
+      type: string
+    content:
+      type: string
+    type:
+      type: string
+      enum:
+        - general
+        - follow_up
+        - important
+        - reminder
+        - action_item
+    priority:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+    created_by:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    tags:
+      type: array
+      items:
+        type: string
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - student_id
+    - content
+  additionalProperties: false
+
+NoteCreate:
+  type: object
+  properties:
+    content:
+      type: string
+    type:
+      type: string
+      enum:
+        - general
+        - follow_up
+        - important
+        - reminder
+        - action_item
+    priority:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+    tags:
+      type: array
+      items:
+        type: string
+  required:
+    - content
+  additionalProperties: false
+
+NoteUpdate:
+  type: object
+  properties:
+    content:
+      type: string
+    type:
+      type: string
+      enum:
+        - general
+        - follow_up
+        - important
+        - reminder
+        - action_item
+    priority:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+    tags:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+NoteResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Note'
+  required:
+    - success
+    - data
+
+NoteListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Note'
+  required:
+    - success
+    - data

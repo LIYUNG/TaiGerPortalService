@@ -1,0 +1,310 @@
+CRMLead:
+  type: object
+  properties:
+    _id:
+      type: string
+    first_name:
+      type: string
+    last_name:
+      type: string
+    email:
+      type: string
+      format: email
+    phone:
+      type: string
+    source:
+      type: string
+      enum:
+        - web
+        - email
+        - phone
+        - referral
+        - social_media
+        - event
+        - other
+    status:
+      type: string
+      enum:
+        - new
+        - contacted
+        - qualified
+        - converted
+        - lost
+        - nurturing
+    interest_programs:
+      type: array
+      items:
+        type: string
+    company:
+      type: string
+    location:
+      type: string
+    notes:
+      type: string
+    assigned_to:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    last_contact_date:
+      type: string
+      format: date-time
+    next_follow_up:
+      type: string
+      format: date-time
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - first_name
+    - email
+  additionalProperties: false
+
+CRMLeadCreate:
+  type: object
+  properties:
+    first_name:
+      type: string
+    last_name:
+      type: string
+    email:
+      type: string
+      format: email
+    phone:
+      type: string
+    source:
+      type: string
+      enum:
+        - web
+        - email
+        - phone
+        - referral
+        - social_media
+        - event
+        - other
+    status:
+      type: string
+      enum:
+        - new
+        - contacted
+        - qualified
+        - converted
+        - lost
+        - nurturing
+    interest_programs:
+      type: array
+      items:
+        type: string
+    company:
+      type: string
+    location:
+      type: string
+    notes:
+      type: string
+  required:
+    - first_name
+    - email
+  additionalProperties: false
+
+CRMLeadUpdate:
+  type: object
+  properties:
+    first_name:
+      type: string
+    last_name:
+      type: string
+    phone:
+      type: string
+    status:
+      type: string
+      enum:
+        - new
+        - contacted
+        - qualified
+        - converted
+        - lost
+        - nurturing
+    interest_programs:
+      type: array
+      items:
+        type: string
+    company:
+      type: string
+    location:
+      type: string
+    notes:
+      type: string
+    assigned_to:
+      type: string
+    next_follow_up:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+CRMInteraction:
+  type: object
+  properties:
+    _id:
+      type: string
+    lead_id:
+      type: string
+    type:
+      type: string
+      enum:
+        - call
+        - email
+        - meeting
+        - event
+        - chat
+        - other
+    date:
+      type: string
+      format: date-time
+    notes:
+      type: string
+    outcome:
+      type: string
+      enum:
+        - positive
+        - neutral
+        - negative
+    created_by:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    created_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - lead_id
+    - type
+  additionalProperties: false
+
+CRMInteractionCreate:
+  type: object
+  properties:
+    type:
+      type: string
+      enum:
+        - call
+        - email
+        - meeting
+        - event
+        - chat
+        - other
+    date:
+      type: string
+      format: date-time
+    notes:
+      type: string
+    outcome:
+      type: string
+      enum:
+        - positive
+        - neutral
+        - negative
+  required:
+    - type
+  additionalProperties: false
+
+CRMConversion:
+  type: object
+  properties:
+    _id:
+      type: string
+    lead_id:
+      type: string
+    conversion_date:
+      type: string
+      format: date-time
+    conversion_type:
+      type: string
+      enum:
+        - application_started
+        - application_submitted
+        - enrollment
+        - other
+    converted_to:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - student
+            - application
+        id:
+          type: string
+    notes:
+      type: string
+  required:
+    - _id
+    - lead_id
+  additionalProperties: false
+
+CRMLeadResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/CRMLead'
+  required:
+    - success
+    - data
+
+CRMLeadListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/CRMLead'
+  required:
+    - success
+    - data
+
+CRMInteractionResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/CRMInteraction'
+  required:
+    - success
+    - data
+
+CRMInteractionListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/CRMInteraction'
+  required:
+    - success
+    - data
+
+CRMConversionResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/CRMConversion'
+  required:
+    - success
+    - data

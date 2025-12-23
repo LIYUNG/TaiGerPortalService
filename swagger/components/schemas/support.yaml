@@ -1,0 +1,226 @@
+Ticket:
+  type: object
+  properties:
+    _id:
+      type: string
+    title:
+      type: string
+    description:
+      type: string
+    student_id:
+      oneOf:
+        - type: string
+        - $ref: './students.yaml#/StudentBase'
+    created_by:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    assigned_to:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    status:
+      type: string
+      enum:
+        - open
+        - in_progress
+        - waiting_customer
+        - on_hold
+        - closed
+    priority:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+        - urgent
+    category:
+      type: string
+      enum:
+        - technical
+        - billing
+        - general
+        - other
+    messages:
+      type: array
+      items:
+        type: object
+        properties:
+          sender_id:
+            oneOf:
+              - type: string
+              - $ref: './users.yaml#/UserPreview'
+          message:
+            type: string
+          created_at:
+            type: string
+            format: date-time
+    attachments:
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          url:
+            type: string
+            format: uri
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+Complaint:
+  type: object
+  properties:
+    _id:
+      type: string
+    student_id:
+      oneOf:
+        - type: string
+        - $ref: './students.yaml#/StudentBase'
+    subject:
+      type: string
+    description:
+      type: string
+    type:
+      type: string
+      enum:
+        - service_quality
+        - billing
+        - staff_conduct
+        - other
+    severity:
+      type: string
+      enum:
+        - minor
+        - moderate
+        - major
+    status:
+      type: string
+      enum:
+        - open
+        - under_review
+        - resolved
+        - dismissed
+    resolution:
+      type: string
+    resolution_date:
+      type: string
+      format: date-time
+    assigned_to:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TicketResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Ticket'
+  required:
+    - success
+    - data
+
+TicketListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Ticket'
+  required:
+    - success
+    - data
+
+ComplaintResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Complaint'
+  required:
+    - success
+    - data
+
+ComplaintListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Complaint'
+  required:
+    - success
+    - data
+ComplaintUpdate:
+  type: object
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    status:
+      type: string
+      enum:
+        - open
+        - in_progress
+        - resolved
+        - closed
+    priority:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+        - urgent
+    assigned_to:
+      type: string
+  additionalProperties: false
+
+TicketUpdate:
+  type: object
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    status:
+      type: string
+      enum:
+        - open
+        - in_progress
+        - waiting_customer
+        - on_hold
+        - closed
+    priority:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+        - urgent
+    assigned_to:
+      type: string
+  additionalProperties: false

@@ -1,0 +1,245 @@
+ProgramRequirement:
+  type: object
+  properties:
+    _id:
+      type: string
+    program_id:
+      oneOf:
+        - type: string
+        - $ref: './programs.yaml#/Program'
+    requirement_type:
+      type: string
+      enum:
+        - gpa
+        - test_score
+        - language_proficiency
+        - work_experience
+        - document
+        - certification
+        - other
+    name:
+      type: string
+    description:
+      type: string
+    is_mandatory:
+      type: boolean
+    minimum_value:
+      oneOf:
+        - type: number
+        - type: string
+    maximum_value:
+      oneOf:
+        - type: number
+        - type: string
+    unit:
+      type: string
+    deadline:
+      type: string
+      format: date-time
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - program_id
+    - requirement_type
+    - name
+  additionalProperties: false
+
+ProgramRequirementCreate:
+  type: object
+  properties:
+    program_id:
+      type: string
+    requirement_type:
+      type: string
+      enum:
+        - gpa
+        - test_score
+        - language_proficiency
+        - work_experience
+        - document
+        - certification
+        - other
+    name:
+      type: string
+    description:
+      type: string
+    is_mandatory:
+      type: boolean
+    minimum_value:
+      oneOf:
+        - type: number
+        - type: string
+    maximum_value:
+      oneOf:
+        - type: number
+        - type: string
+    unit:
+      type: string
+    deadline:
+      type: string
+      format: date-time
+  required:
+    - program_id
+    - requirement_type
+    - name
+  additionalProperties: false
+
+ProgramRequirementUpdate:
+  type: object
+  properties:
+    name:
+      type: string
+    description:
+      type: string
+    is_mandatory:
+      type: boolean
+    minimum_value:
+      oneOf:
+        - type: number
+        - type: string
+    maximum_value:
+      oneOf:
+        - type: number
+        - type: string
+    unit:
+      type: string
+    deadline:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+Language:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    code:
+      type: string
+    native_name:
+      type: string
+  required:
+    - _id
+    - name
+    - code
+  additionalProperties: false
+
+University:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    country:
+      type: string
+    city:
+      type: string
+    world_ranking:
+      type: integer
+    website:
+      type: string
+      format: uri
+    description:
+      type: string
+  required:
+    - _id
+    - name
+  additionalProperties: false
+
+Degree:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    level:
+      type: string
+      enum:
+        - bachelor
+        - master
+        - phd
+        - diploma
+        - certificate
+    description:
+      type: string
+  required:
+    - _id
+    - name
+    - level
+  additionalProperties: false
+
+ProgramRequirementResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ProgramRequirement'
+  required:
+    - success
+    - data
+
+ProgramRequirementListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/ProgramRequirement'
+  required:
+    - success
+    - data
+
+LanguageListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Language'
+  required:
+    - success
+    - data
+
+UniversityListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/University'
+  required:
+    - success
+    - data
+
+DegreeListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Degree'
+  required:
+    - success
+    - data

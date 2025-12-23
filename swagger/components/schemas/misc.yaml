@@ -1,0 +1,250 @@
+UserLog:
+  type: object
+  properties:
+    _id:
+      type: string
+    user_id:
+      type: string
+    action:
+      type: string
+      enum:
+        - login
+        - logout
+        - create
+        - update
+        - delete
+        - view
+        - download
+        - upload
+        - approve
+        - reject
+        - other
+    resource_type:
+      type: string
+      enum:
+        - student
+        - application
+        - document
+        - user
+        - program
+        - interview
+        - event
+        - communication
+        - other
+    resource_id:
+      type: string
+    description:
+      type: string
+    ip_address:
+      type: string
+    user_agent:
+      type: string
+    status:
+      type: string
+      enum:
+        - success
+        - failed
+        - partial
+    timestamp:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - user_id
+    - action
+  additionalProperties: false
+
+UserLogFilter:
+  type: object
+  properties:
+    user_id:
+      type: string
+    action:
+      type: array
+      items:
+        type: string
+    resource_type:
+      type: array
+      items:
+        type: string
+    date_from:
+      type: string
+      format: date-time
+    date_to:
+      type: string
+      format: date-time
+    status:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+AuditLog:
+  type: object
+  properties:
+    _id:
+      type: string
+    entity_type:
+      type: string
+      enum:
+        - student
+        - application
+        - user
+        - program
+        - document
+        - other
+    entity_id:
+      type: string
+    action:
+      type: string
+      enum:
+        - create
+        - update
+        - delete
+        - restore
+    changes:
+      type: object
+      properties:
+        before:
+          type: object
+        after:
+          type: object
+    changed_by:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    timestamp:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - entity_type
+    - entity_id
+    - action
+  additionalProperties: false
+
+SystemStatus:
+  type: object
+  properties:
+    status:
+      type: string
+      enum:
+        - operational
+        - degraded
+        - maintenance
+        - offline
+    message:
+      type: string
+    last_checked:
+      type: string
+      format: date-time
+    services:
+      type: object
+      properties:
+        api:
+          type: string
+          enum:
+            - operational
+            - degraded
+            - offline
+        database:
+          type: string
+          enum:
+            - operational
+            - degraded
+            - offline
+        cache:
+          type: string
+          enum:
+            - operational
+            - degraded
+            - offline
+        storage:
+          type: string
+          enum:
+            - operational
+            - degraded
+            - offline
+    uptime_percentage:
+      type: number
+      format: float
+  additionalProperties: false
+
+HealthCheck:
+  type: object
+  properties:
+    status:
+      type: string
+      enum:
+        - healthy
+        - degraded
+        - unhealthy
+    timestamp:
+      type: string
+      format: date-time
+    services:
+      type: object
+      additionalProperties:
+        type: object
+        properties:
+          status:
+            type: string
+          response_time:
+            type: number
+            format: float
+          message:
+            type: string
+  additionalProperties: false
+
+UserLogResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/UserLog'
+  required:
+    - success
+    - data
+
+AuditLogResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/AuditLog'
+  required:
+    - success
+    - data
+
+SystemStatusResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/SystemStatus'
+  required:
+    - success
+    - data
+
+HealthCheckResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/HealthCheck'
+  required:
+    - success
+    - data
+

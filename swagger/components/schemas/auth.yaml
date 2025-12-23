@@ -1,0 +1,202 @@
+LoginRequest:
+  type: object
+  properties:
+    email:
+      type: string
+      format: email
+      example: user@example.com
+    password:
+      type: string
+      format: password
+      example: SecurePassword123
+  required:
+    - email
+    - password
+  additionalProperties: false
+
+LoginResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        user:
+          $ref: './users.yaml#/User'
+        token:
+          type: string
+          description: Authentication token
+        refresh_token:
+          type: string
+          description: Refresh token for getting new access token
+        expires_in:
+          type: integer
+          description: Token expiration time in seconds
+  required:
+    - success
+    - data
+
+RegisterRequest:
+  type: object
+  properties:
+    email:
+      type: string
+      format: email
+    password:
+      type: string
+      format: password
+      minLength: 8
+    first_name:
+      type: string
+    last_name:
+      type: string
+    role:
+      type: string
+      enum:
+        - student
+        - agent
+        - editor
+        - manager
+        - admin
+  required:
+    - email
+    - password
+    - first_name
+    - last_name
+    - role
+  additionalProperties: false
+
+PasswordResetRequest:
+  type: object
+  properties:
+    email:
+      type: string
+      format: email
+  required:
+    - email
+  additionalProperties: false
+
+PasswordResetConfirm:
+  type: object
+  properties:
+    token:
+      type: string
+    password:
+      type: string
+      format: password
+      minLength: 8
+    password_confirm:
+      type: string
+      format: password
+      minLength: 8
+  required:
+    - token
+    - password
+    - password_confirm
+  additionalProperties: false
+
+PasswordChangeRequest:
+  type: object
+  properties:
+    old_password:
+      type: string
+      format: password
+    new_password:
+      type: string
+      format: password
+      minLength: 8
+    new_password_confirm:
+      type: string
+      format: password
+      minLength: 8
+  required:
+    - old_password
+    - new_password
+    - new_password_confirm
+  additionalProperties: false
+
+TokenRefreshRequest:
+  type: object
+  properties:
+    refresh_token:
+      type: string
+  required:
+    - refresh_token
+  additionalProperties: false
+
+TokenRefreshResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        token:
+          type: string
+        expires_in:
+          type: integer
+  required:
+    - success
+    - data
+
+VerifyEmailRequest:
+  type: object
+  properties:
+    email:
+      type: string
+      format: email
+    code:
+      type: string
+  required:
+    - email
+    - code
+  additionalProperties: false
+
+SessionInfo:
+  type: object
+  properties:
+    user_id:
+      type: string
+    email:
+      type: string
+      format: email
+    role:
+      type: string
+    login_time:
+      type: string
+      format: date-time
+    last_activity:
+      type: string
+      format: date-time
+    ip_address:
+      type: string
+    user_agent:
+      type: string
+  additionalProperties: false
+
+AuthResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+  required:
+    - success
+
+SessionResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/SessionInfo'
+  required:
+    - success
+    - data

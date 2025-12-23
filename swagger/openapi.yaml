@@ -19,7 +19,6 @@ info:
 
   contact:
     name: TaiGer Team
-    email: support@taiger.com
 
 servers:
   - url: /api
@@ -1796,6 +1795,134 @@ paths:
         '201':
           description: Documentation created
 
+  /api/docs/internal:
+    post:
+      tags:
+        - Documentations
+      summary: Create internal documentation
+      responses:
+        '201':
+          description: Internal documentation created
+
+  /api/docs/internal/all:
+    get:
+      tags:
+        - Documentations
+      summary: Get all internal documentations
+      responses:
+        '200':
+          description: List of internal documentations
+
+  /api/docs/internal/search/{doc_id}:
+    get:
+      tags:
+        - Documentations
+      summary: Get internal documentation by ID
+      parameters:
+        - name: doc_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Internal documentation
+
+  /api/docs/internal/{id}:
+    put:
+      tags:
+        - Documentations
+      summary: Update internal documentation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Internal documentation updated
+    delete:
+      tags:
+        - Documentations
+      summary: Delete internal documentation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Internal documentation deleted
+
+  /api/docs/taiger/internal/confidential:
+    get:
+      tags:
+        - Documentations
+      summary: Get confidential documentation page
+      responses:
+        '200':
+          description: Confidential documentation page
+    put:
+      tags:
+        - Documentations
+      summary: Update confidential documentation page
+      responses:
+        '200':
+          description: Confidential documentation page updated
+
+  /api/docs/upload/image:
+    post:
+      tags:
+        - Documentations
+      summary: Upload documentation image
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Image uploaded
+
+  /api/docs/file/{object_key}:
+    get:
+      tags:
+        - Documentations
+      summary: Get documentation file
+      parameters:
+        - name: object_key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content
+
+  /api/docs/upload/docs:
+    post:
+      tags:
+        - Documentations
+      summary: Upload documentation file
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: File uploaded
+
   /api/docs/all:
     get:
       tags:
@@ -1922,6 +2049,51 @@ paths:
   # ==========================================
   # Document Threads Routes (Base: /api/document-threads)
   # ==========================================
+  /api/document-threads/pattern/check/{messagesThreadId}/{file_type}:
+    get:
+      tags:
+        - Document Threads
+      summary: Check document pattern
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: file_type
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pattern check result
+
+  /api/document-threads/overview/my-student-metrics:
+    get:
+      tags:
+        - Document Threads
+      summary: Get my student metrics
+      description: Get metrics for my students
+      responses:
+        '200':
+          description: Student metrics
+
+  /api/document-threads/overview/taiger-user/{userId}:
+    get:
+      tags:
+        - Document Threads
+      summary: Get user threads
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User threads
+
   /api/document-threads/overview/all:
     get:
       tags:
@@ -2109,29 +2281,6 @@ paths:
           description: Ticket created
 
   /api/tickets/{ticket_id}:
-    get:
-      tags:
-        - Tickets
-      summary: Get ticket by ID
-      description: Get ticket details
-      parameters:
-        - name: ticket_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Ticket details
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/Ticket'
     put:
       tags:
         - Tickets
@@ -2475,6 +2624,78 @@ paths:
         '200':
           description: KPI data
 
+  /api/teams/statistics/response-time:
+    get:
+      tags:
+        - Teams
+      summary: Get response time statistics
+      responses:
+        '200':
+          description: Response time statistics
+
+  /api/teams/is-manager:
+    get:
+      tags:
+        - Teams
+      summary: Check if user is manager
+      responses:
+        '200':
+          description: Is manager status
+
+  /api/teams/tasks-overview:
+    get:
+      tags:
+        - Teams
+      summary: Get tasks overview
+      responses:
+        '200':
+          description: Tasks overview
+
+  /api/teams/response-interval/{studentId}:
+    get:
+      tags:
+        - Teams
+      summary: Get response interval by student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Response interval
+
+  /api/teams/response-time/{studentId}:
+    get:
+      tags:
+        - Teams
+      summary: Get response time by student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Response time
+
+  /api/teams/archiv/{TaiGerStaffId}:
+    get:
+      tags:
+        - Teams
+      summary: Get archived students for staff
+      parameters:
+        - name: TaiGerStaffId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Archived students
+
   # ==========================================
   # Courses Routes (Base: /api/courses)
   # ==========================================
@@ -2718,9 +2939,178 @@ paths:
         '200':
           description: Admission letter file
 
+  /api/admissions/{applications_year}:
+    get:
+      tags:
+        - Admissions
+      summary: Get admissions by year
+      parameters:
+        - name: applications_year
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Admissions for year
+
   # ==========================================
   # Account Routes (Base: /api/account)
   # ==========================================
+  /api/account/files/template:
+    get:
+      tags:
+        - Account
+      summary: Get templates
+      description: Get list of available templates
+      responses:
+        '200':
+          description: List of templates
+
+  /api/account/files/template/{category_name}:
+    get:
+      tags:
+        - Account
+      summary: Download template
+      parameters:
+        - name: category_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template file
+    post:
+      tags:
+        - Account
+      summary: Upload template
+      parameters:
+        - name: category_name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Template uploaded
+    delete:
+      tags:
+        - Account
+      summary: Delete template
+      parameters:
+        - name: category_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template deleted
+
+  /api/account/applications/result/v2/{studentId}/{programId}/{admission}:
+    post:
+      tags:
+        - Account
+      summary: Update application result (v2)
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: admission
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Application result updated
+
+  /api/account/applications/result/{studentId}/{applicationId}/{programId}/{result}:
+    post:
+      tags:
+        - Account
+      summary: Update application result
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: result
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Application result updated
+
+  /api/account/student/notifications:
+    post:
+      tags:
+        - Account
+      summary: Remove student notification
+      responses:
+        '200':
+          description: Notification removed
+
+  /api/account/agent/notifications:
+    post:
+      tags:
+        - Account
+      summary: Remove agent notification
+      responses:
+        '200':
+          description: Notification removed
+
   /api/account/survey:
     get:
       tags:
@@ -2790,6 +3180,27 @@ paths:
       responses:
         '200':
           description: Preferences updated
+
+  /api/account/profile/officehours/{user_id}:
+    put:
+      tags:
+        - Account
+      summary: Update office hours
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Office hours updated
 
   /api/account/profile/{user_id}:
     post:
@@ -2877,6 +3288,16 @@ paths:
         '200':
           description: CRM statistics
 
+  /api/crm/sales-reps:
+    get:
+      tags:
+        - CRM
+      summary: Get sales reps
+      description: Get list of sales representatives
+      responses:
+        '200':
+          description: Sales reps list
+
   /api/crm/leads:
     get:
       tags:
@@ -2886,6 +3307,21 @@ paths:
       responses:
         '200':
           description: List of leads
+
+  /api/crm/students/{studentId}/lead:
+    get:
+      tags:
+        - CRM
+      summary: Get lead by student ID
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lead details
 
   /api/crm/leads/{leadId}:
     get:
@@ -3293,6 +3729,75 @@ paths:
         '200':
           description: Complaint deleted
 
+  /api/complaints/{ticketId}/{messageId}:
+    put:
+      tags:
+        - Complaints
+      summary: Update complaint message
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Message updated
+    delete:
+      tags:
+        - Complaints
+      summary: Delete complaint message
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Message deleted
+
+  /api/complaints/{studentId}/{ticketId}/{fileKey}:
+    get:
+      tags:
+        - Complaints
+      summary: Get complaint file
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content
+
   # ==========================================
   # UniAssist Routes (Base: /api/uniassist)
   # ==========================================
@@ -3362,6 +3867,26 @@ paths:
       responses:
         '200':
           description: Transcript processed
+
+  /api/widgets/transcript/v2/{adminId}:
+    get:
+      tags:
+        - Widgets
+      summary: Download transcript JSON
+      description: Download processed transcript JSON
+      parameters:
+        - name: adminId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transcript JSON
+          content:
+            application/json:
+              schema:
+                type: object
 
   # ==========================================
   # All Courses Routes (Base: /api/all-courses)

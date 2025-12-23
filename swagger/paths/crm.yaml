@@ -11,15 +11,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/crm.yaml#/CRMLeadListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
 
@@ -38,13 +30,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/crm.yaml#/CRMLeadResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
@@ -62,18 +48,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/crm.yaml#/CRMLeadUpdate'
     responses:
       '200':
         description: Lead updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/crm.yaml#/CRMLeadResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -96,13 +78,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/crm.yaml#/CRMLeadResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
@@ -121,15 +97,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/crm.yaml#/CRMMeetingListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
 
@@ -148,13 +116,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/crm.yaml#/CRMMeetingResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
@@ -172,18 +134,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/crm.yaml#/CRMMeeting'
     responses:
       '200':
         description: Meeting updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/crm.yaml#/CRMMeetingResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -204,13 +162,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/crm.yaml#/CRMStatsResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
 
@@ -227,15 +179,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/crm.yaml#/SalesRepListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
 
@@ -252,15 +196,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/crm.yaml#/CRMDealListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   post:
@@ -274,20 +210,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/crm.yaml#/CRMDeal'
     responses:
       '201':
         description: Deal created successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/crm.yaml#/CRMDealResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -307,18 +237,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/crm.yaml#/CRMDeal'
     responses:
       '200':
         description: Deal updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/crm.yaml#/CRMDealResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -338,18 +264,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/crm.yaml#/CRMInteractionCreate'
     responses:
       '200':
         description: Meeting invitation sent successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/crm.yaml#/MeetingInviteResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':

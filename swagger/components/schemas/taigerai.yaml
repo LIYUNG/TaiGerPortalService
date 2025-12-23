@@ -187,3 +187,37 @@ ChatMessageResponse:
   required:
     - success
     - data
+
+AIRecommendation:
+  type: object
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    priority:
+      type: string
+      enum:
+        - high
+        - medium
+        - low
+    category:
+      type: string
+    created_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+AIRecommendationListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/AIRecommendation'
+  required:
+    - success
+    - data

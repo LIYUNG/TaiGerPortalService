@@ -11,15 +11,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/misc.yaml#/UserLogResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -37,22 +29,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/misc.yaml#/UserLogFilter'
     responses:
       '200':
         description: User logs search completed successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/misc.yaml#/UserLogResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':

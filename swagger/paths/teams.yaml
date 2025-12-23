@@ -11,15 +11,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/teams.yaml#/TeamMemberListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -38,13 +30,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/teams.yaml#/StatisticsOverviewResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -63,15 +49,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/teams.yaml#/TeamPerformanceListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -90,13 +68,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/teams.yaml#/TeamStatisticsResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -115,13 +87,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/teams.yaml#/TeamStatisticsResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -163,13 +129,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/teams.yaml#/StatisticsOverviewResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -190,13 +150,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: number
+              $ref: '../components/schemas/teams.yaml#/ResponseIntervalResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -219,13 +173,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/teams.yaml#/ResponseTimeMetricsResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -248,15 +196,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/students.yaml#/StudentsListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':

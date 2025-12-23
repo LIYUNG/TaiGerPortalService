@@ -1,6 +1,7 @@
 # OpenAPI Schema Documentation Summary
 
 ## Overview
+
 Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensive schema definitions for all major endpoint groups.
 
 **Validation Status**: ✅ PASSING (`swagger/openapi.yaml is valid`)
@@ -8,7 +9,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 ## Schema Files Created/Updated
 
 ### 1. Document Management
+
 **File**: `swagger/components/schemas/document-threads.yaml`
+
 - DocumentThreadPopulated
 - DocumentThreadPreview
 - SurveyInput
@@ -22,7 +25,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - And 4 more response wrappers
 
 ### 2. Interviews
+
 **File**: `swagger/components/schemas/interviews.yaml`
+
 - Interview
 - InterviewQuestion
 - InterviewSurvey
@@ -34,7 +39,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - InterviewAvailabilityResponse
 
 ### 3. Communications
+
 **File**: `swagger/components/schemas/communications.yaml`
+
 - CommunicationMessage
 - CommunicationThread
 - MessageCreate
@@ -45,7 +52,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - CommunicationThreadListResponse
 
 ### 4. Events
+
 **File**: `swagger/components/schemas/events.yaml`
+
 - Event
 - EventCreate
 - EventUpdate
@@ -55,7 +64,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - EventUpdateResponse
 
 ### 5. Applications
+
 **File**: `swagger/components/schemas/applications.yaml`
+
 - Application
 - ApplicationConflicts
 - ApplicationListResponse
@@ -65,7 +76,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - ApplicationDetailResponseV2
 
 ### 6. Users & Teams
+
 **File**: `swagger/components/schemas/users.yaml`
+
 - User
 - UserPreview
 - Permission
@@ -76,6 +89,7 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - PermissionListResponse
 
 **File**: `swagger/components/schemas/teams.yaml`
+
 - TeamMember
 - TeamMemberCreate
 - TeamMemberUpdate
@@ -89,7 +103,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - TeamStatisticsResponse
 
 ### 7. Courses & Education
+
 **File**: `swagger/components/schemas/courses.yaml`
+
 - Course
 - CourseKeyword
 - Transcript
@@ -101,7 +117,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - And more transcript-related schemas
 
 ### 8. Support System
+
 **File**: `swagger/components/schemas/support.yaml`
+
 - Ticket
 - Complaint
 - TicketCreate
@@ -114,7 +132,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - ComplaintListResponse
 
 ### 9. Admissions
+
 **File**: `swagger/components/schemas/admissions.yaml`
+
 - Admission
 - AdmissionLetter
 - AdmissionCreate
@@ -125,7 +145,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - AdmissionsOverviewResponse
 
 ### 10. Account Management
+
 **File**: `swagger/components/schemas/account.yaml`
+
 - Template
 - TemplateCreate
 - TemplateUpdate
@@ -140,7 +162,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - AccountPreferencesResponse
 
 ### 11. Search
+
 **File**: `swagger/components/schemas/search.yaml`
+
 - SearchQuery
 - SearchResult
 - SearchResults
@@ -148,7 +172,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - SearchResponse
 
 ### 12. CRM System
+
 **File**: `swagger/components/schemas/crm.yaml`
+
 - CRMLead
 - CRMLeadCreate
 - CRMLeadUpdate
@@ -162,7 +188,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - CRMConversionResponse
 
 ### 13. TaiGer AI
+
 **File**: `swagger/components/schemas/taigerai.yaml`
+
 - AIStatus
 - ProcessingRequest
 - ProcessingResult
@@ -174,7 +202,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - ChatMessageResponse
 
 ### 14. Documentation
+
 **File**: `swagger/components/schemas/documentations.yaml`
+
 - Documentation
 - DocumentationCreate
 - DocumentationUpdate
@@ -187,7 +217,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - DocumentationSearchResponse
 
 ### 15. Notes
+
 **File**: `swagger/components/schemas/notes.yaml`
+
 - Note
 - NoteCreate
 - NoteUpdate
@@ -195,7 +227,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - NoteListResponse
 
 ### 16. Program Requirements & Data
+
 **File**: `swagger/components/schemas/data.yaml`
+
 - ProgramRequirement
 - ProgramRequirementCreate
 - ProgramRequirementUpdate
@@ -209,7 +243,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - DegreeListResponse
 
 ### 17. Authentication
+
 **File**: `swagger/components/schemas/auth.yaml`
+
 - LoginRequest
 - LoginResponse
 - RegisterRequest
@@ -224,7 +260,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 - SessionResponse
 
 ### 18. Miscellaneous (Logging & Monitoring)
+
 **File**: `swagger/components/schemas/misc.yaml`
+
 - UserLog
 - UserLogFilter
 - AuditLog
@@ -238,7 +276,9 @@ Complete OpenAPI 3.0.0 specification for TaiGer Portal Service with comprehensiv
 ## Schema Design Patterns
 
 ### Response Wrappers
+
 All API responses follow a consistent pattern:
+
 ```yaml
 SomeResponse:
   type: object
@@ -254,7 +294,9 @@ SomeResponse:
 ```
 
 ### List Responses
+
 Collections are wrapped similarly:
+
 ```yaml
 SomeListResponse:
   type: object
@@ -272,7 +314,9 @@ SomeListResponse:
 ```
 
 ### Nested References
+
 References to related entities use `oneOf` for flexibility:
+
 ```yaml
 user_id:
   oneOf:
@@ -281,7 +325,9 @@ user_id:
 ```
 
 ### Property Validation
+
 All schemas include:
+
 - Required fields marked explicitly
 - `additionalProperties: false` to prevent unexpected fields
 - Proper type definitions with formats where applicable
@@ -290,7 +336,9 @@ All schemas include:
 ## Related Files
 
 ### Shared Components
+
 - **Parameters**: `swagger/components/parameters/common.yaml`
+
   - Pagination parameters (page, limit, search)
   - Common path parameters (id, studentId, programId, etc.)
 
@@ -299,6 +347,7 @@ All schemas include:
   - Success pattern definitions
 
 ### Path Definitions
+
 - `swagger/paths/` - Contains all endpoint definitions referencing these schemas
   - 21 path files with complete endpoint documentation
   - All paths properly reference schemas using `$ref` syntax
@@ -322,6 +371,7 @@ All schemas include:
 ## Recent Updates
 
 ### Session 5 - Comprehensive Schema Expansion
+
 1. Created Admissions schemas (8 schemas)
 2. Created Account Management schemas (9 schemas)
 3. Created Search schemas (5 schemas)
@@ -344,4 +394,3 @@ All schemas include:
 4. **Security**: Add security scheme definitions for API key, OAuth2, etc.
 5. **Rate Limiting**: Document rate limit headers
 6. **Versioning**: Implement API versioning strategy
-

@@ -10,34 +10,14 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              query:
-                type: string
-              filters:
-                type: object
+            $ref: '../components/schemas/search.yaml#/SearchQuery'
     responses:
       '200':
         description: Search results retrieved successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
-                  properties:
-                    students:
-                      type: array
-                      items:
-                        type: object
-                    applications:
-                      type: array
-                      items:
-                        type: object
+              $ref: '../components/schemas/search.yaml#/SearchResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -55,27 +35,14 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              query:
-                type: string
-              filters:
-                type: object
-              sort:
-                type: object
+            $ref: '../components/schemas/search.yaml#/SearchQuery'
     responses:
       '200':
         description: Advanced search results retrieved successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/search.yaml#/SearchResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':

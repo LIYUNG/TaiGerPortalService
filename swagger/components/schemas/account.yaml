@@ -260,3 +260,173 @@ AccountPreferencesResponse:
   required:
     - success
     - data
+
+ApplicationResult:
+  type: object
+  properties:
+    student_id:
+      type: string
+    status:
+      type: string
+    remarks:
+      type: string
+    updated_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+ApplicationResultUpdate:
+  type: object
+  properties:
+    status:
+      type: string
+    remarks:
+      type: string
+  additionalProperties: false
+
+ApplicationResultResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ApplicationResult'
+  required:
+    - success
+    - data
+
+AccountCredentials:
+  type: object
+  properties:
+    email:
+      type: string
+      format: email
+    password_set:
+      type: boolean
+    last_changed:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+AccountCredentialsUpdate:
+  type: object
+  properties:
+    old_password:
+      type: string
+    new_password:
+      type: string
+  required:
+    - old_password
+    - new_password
+  additionalProperties: false
+
+AccountCredentialsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/AccountCredentials'
+  required:
+    - success
+    - data
+
+PersonalData:
+  type: object
+  properties:
+    first_name:
+      type: string
+    last_name:
+      type: string
+    phone:
+      type: string
+    address:
+      type: string
+    city:
+      type: string
+    country:
+      type: string
+    timezone:
+      type: string
+  additionalProperties: false
+
+PersonalDataUpdate:
+  type: object
+  properties:
+    first_name:
+      type: string
+    last_name:
+      type: string
+    phone:
+      type: string
+    address:
+      type: string
+    city:
+      type: string
+    country:
+      type: string
+    timezone:
+      type: string
+  additionalProperties: false
+
+PersonalDataResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/PersonalData'
+  required:
+    - success
+    - data
+
+OfficeHours:
+  type: object
+  properties:
+    timezone:
+      type: string
+    availability:
+      type: array
+      items:
+        type: object
+        properties:
+          day:
+            type: string
+          start:
+            type: string
+          end:
+            type: string
+  additionalProperties: false
+
+OfficeHoursUpdate:
+  type: object
+  properties:
+    timezone:
+      type: string
+    availability:
+      type: array
+      items:
+        type: object
+        properties:
+          day:
+            type: string
+          start:
+            type: string
+          end:
+            type: string
+  additionalProperties: false
+
+OfficeHoursResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/OfficeHours'
+  required:
+    - success
+    - data

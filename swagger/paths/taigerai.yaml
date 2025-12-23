@@ -11,13 +11,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/taigerai.yaml#/AIStatusResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
 
@@ -35,20 +29,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/taigerai.yaml#/ProcessingRequest'
     responses:
       '200':
         description: AI processing completed successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/taigerai.yaml#/ProcessingResultResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -66,20 +54,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/taigerai.yaml#/ProcessingRequest'
     responses:
       '200':
         description: Analysis completed successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/taigerai.yaml#/ProcessingResultResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -100,15 +82,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/taigerai.yaml#/AIRecommendationListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':

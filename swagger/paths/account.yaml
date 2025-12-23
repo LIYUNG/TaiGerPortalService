@@ -11,15 +11,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/account.yaml#/TemplateListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   post:
@@ -33,18 +25,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/account.yaml#/TemplateCreate'
     responses:
       '201':
         description: Template created successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/account.yaml#/TemplateResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -64,18 +52,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/account.yaml#/TemplateUpdate'
     responses:
       '200':
         description: Template updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/account.yaml#/TemplateResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -96,11 +80,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/account.yaml#/TemplateResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -123,13 +103,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/account.yaml#/ApplicationResultResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
@@ -147,18 +121,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/account.yaml#/ApplicationResultUpdate'
     responses:
       '200':
         description: Application result updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/account.yaml#/ApplicationResultResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -179,13 +149,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/account.yaml#/AccountCredentialsResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   put:
@@ -199,23 +163,14 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              old_password:
-                type: string
-              new_password:
-                type: string
+            $ref: '../components/schemas/account.yaml#/AccountCredentialsUpdate'
     responses:
       '200':
         description: Credentials updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/account.yaml#/AccountCredentialsResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -234,13 +189,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/account.yaml#/AccountPreferencesResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   put:
@@ -254,18 +203,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/account.yaml#/AccountPreferencesUpdate'
     responses:
       '200':
         description: Preferences updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/account.yaml#/AccountPreferencesResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -284,13 +229,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/account.yaml#/PersonalDataResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   put:
@@ -304,18 +243,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/account.yaml#/PersonalDataUpdate'
     responses:
       '200':
         description: Personal data updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/account.yaml#/PersonalDataResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -334,13 +269,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/account.yaml#/OfficeHoursResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   put:
@@ -354,18 +283,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/account.yaml#/OfficeHoursUpdate'
     responses:
       '200':
         description: Office hours set successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/account.yaml#/OfficeHoursResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':

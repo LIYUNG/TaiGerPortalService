@@ -10,19 +10,7 @@
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - email
-              - password
-            properties:
-              email:
-                type: string
-                format: email
-                example: user@example.com
-              password:
-                type: string
-                format: password
-                example: SecurePassword123
+            $ref: '../components/schemas/auth.yaml#/LoginRequest'
     responses:
       '200':
         description: Login successful
@@ -34,14 +22,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
-                  description: User data
+              $ref: '../components/schemas/auth.yaml#/LoginResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -61,11 +42,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/auth.yaml#/AuthResponse'
     security: []
 
 /auth/verify:
@@ -81,14 +58,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
-                  description: Current user data
+              $ref: '../components/schemas/auth.yaml#/SessionResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
 
@@ -104,24 +74,14 @@
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - token
-            properties:
-              token:
-                type: string
-                description: Activation token received via email
+            $ref: '../components/schemas/auth.yaml#/VerifyEmailRequest'
     responses:
       '200':
         description: Account activated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/auth.yaml#/AuthResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
     security: []
@@ -138,24 +98,14 @@
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - email
-            properties:
-              email:
-                type: string
-                format: email
+            $ref: '../components/schemas/auth.yaml#/PasswordResetRequest'
     responses:
       '200':
         description: Activation email sent successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/auth.yaml#/AuthResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
     security: []
@@ -206,29 +156,14 @@
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - token
-              - password
-            properties:
-              token:
-                type: string
-                description: Password reset token received via email
-              password:
-                type: string
-                format: password
-                description: New password
+            $ref: '../components/schemas/auth.yaml#/PasswordResetConfirm'
     responses:
       '200':
         description: Password reset successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/auth.yaml#/AuthResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
     security: []
@@ -245,13 +180,7 @@
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - code
-            properties:
-              code:
-                type: string
-                description: Authorization code from Google OAuth
+            $ref: '../components/schemas/auth.yaml#/TokenRefreshRequest'
     responses:
       '200':
         description: OAuth authentication successful
@@ -263,14 +192,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
-                  description: User data
+              $ref: '../components/schemas/auth.yaml#/LoginResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':

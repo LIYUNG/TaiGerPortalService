@@ -27,6 +27,9 @@ SearchQuery:
         date_to:
           type: string
           format: date-time
+    sort:
+      type: object
+      additionalProperties: {}
   required:
     - query
   additionalProperties: false

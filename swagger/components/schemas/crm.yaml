@@ -308,3 +308,204 @@ CRMConversionResponse:
   required:
     - success
     - data
+
+CRMMeeting:
+  type: object
+  properties:
+    _id:
+      type: string
+    lead_id:
+      type: string
+    title:
+      type: string
+    start_time:
+      type: string
+      format: date-time
+    end_time:
+      type: string
+      format: date-time
+    location:
+      type: string
+    attendees:
+      type: array
+      items:
+        type: string
+    notes:
+      type: string
+    created_by:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - title
+    - start_time
+  additionalProperties: false
+
+CRMMeetingResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/CRMMeeting'
+  required:
+    - success
+    - data
+
+CRMMeetingListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/CRMMeeting'
+  required:
+    - success
+    - data
+
+CRMDeal:
+  type: object
+  properties:
+    _id:
+      type: string
+    lead_id:
+      type: string
+    name:
+      type: string
+    stage:
+      type: string
+    amount:
+      type: number
+      format: float
+    currency:
+      type: string
+    close_date:
+      type: string
+      format: date-time
+    probability:
+      type: number
+      format: float
+    owner:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - name
+  additionalProperties: false
+
+CRMDealResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/CRMDeal'
+  required:
+    - success
+    - data
+
+CRMDealListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/CRMDeal'
+  required:
+    - success
+    - data
+
+CRMStats:
+  type: object
+  properties:
+    weekly_leads:
+      type: integer
+    weekly_deals:
+      type: integer
+    conversion_rate:
+      type: number
+      format: float
+    pipeline_value:
+      type: number
+      format: float
+    won_deals:
+      type: integer
+    lost_deals:
+      type: integer
+  additionalProperties: false
+
+CRMStatsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/CRMStats'
+  required:
+    - success
+    - data
+
+SalesRep:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    email:
+      type: string
+      format: email
+    phone:
+      type: string
+  required:
+    - _id
+    - name
+  additionalProperties: false
+
+SalesRepListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/SalesRep'
+  required:
+    - success
+    - data
+
+MeetingInviteResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+  required:
+    - success

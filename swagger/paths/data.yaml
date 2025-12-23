@@ -11,15 +11,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/data.yaml#/ProgramRequirementListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   post:
@@ -33,18 +25,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/data.yaml#/ProgramRequirementCreate'
     responses:
       '201':
         description: Program requirement created successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/data.yaml#/ProgramRequirementResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -65,13 +53,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/data.yaml#/ProgramRequirementResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
@@ -89,18 +71,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/data.yaml#/ProgramRequirementUpdate'
     responses:
       '200':
         description: Program requirement updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/data.yaml#/ProgramRequirementResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -121,11 +99,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/data.yaml#/ProgramRequirementResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -146,15 +120,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/courses.yaml#/CourseKeywordListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   post:
@@ -168,18 +134,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/courses.yaml#/CourseKeyword'
     responses:
       '201':
         description: Course keywords created successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/courses.yaml#/CourseKeywordListResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -198,15 +160,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/courses.yaml#/CourseListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   post:
@@ -227,11 +181,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/courses.yaml#/CourseListResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':

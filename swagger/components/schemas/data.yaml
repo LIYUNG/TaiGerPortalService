@@ -6,7 +6,7 @@ ProgramRequirement:
     program_id:
       oneOf:
         - type: string
-        - $ref: './programs.yaml#/Program'
+        - $ref: './programs.yaml#/ProgramListItem'
     requirement_type:
       type: string
       enum:

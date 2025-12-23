@@ -211,3 +211,20 @@ DocumentationSearchResponse:
   required:
     - success
     - data
+
+DocumentationUploadResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        object_key:
+          type: string
+  required:
+    - success

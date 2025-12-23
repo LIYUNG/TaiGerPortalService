@@ -263,3 +263,65 @@ TeamStatisticsResponse:
   required:
     - success
     - data
+
+TeamPerformanceListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/TeamPerformance'
+  required:
+    - success
+    - data
+
+ResponseTimeMetrics:
+  type: object
+  properties:
+    student_id:
+      type: string
+    average_hours:
+      type: number
+      format: float
+    median_hours:
+      type: number
+      format: float
+    min_hours:
+      type: number
+      format: float
+    max_hours:
+      type: number
+      format: float
+    messages_count:
+      type: integer
+    last_response_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+ResponseTimeMetricsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ResponseTimeMetrics'
+  required:
+    - success
+    - data
+
+ResponseIntervalResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: number
+  required:
+    - success
+    - data

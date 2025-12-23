@@ -693,6 +693,31 @@ paths:
         '200':
           description: User deleted
 
+  /api/users/archiv/{user_id}:
+    post:
+      tags:
+        - Users
+      summary: Archive/unarchive user
+      description: Toggle user archive status (Admin only)
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                archiv:
+                  type: boolean
+      responses:
+        '200':
+          description: User archive status updated
+
   # ==========================================
   # Students Routes (Base: /api/students)
   # ==========================================
@@ -747,6 +772,57 @@ paths:
                     items:
                       $ref: '#/components/schemas/Student'
 
+  /api/students/batch:
+    get:
+      tags:
+        - Students
+      summary: Get students by IDs
+      description: Get multiple students by their IDs
+      parameters:
+        - name: ids
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          description: Students list
+
+  /api/students/active:
+    get:
+      tags:
+        - Students
+      summary: Get active students
+      description: Get all active (non-archived) students
+      responses:
+        '200':
+          description: Active students list
+
+  /api/students/doc-links:
+    get:
+      tags:
+        - Students
+      summary: Get all students with doc links
+      description: Get students and their documentation links
+      responses:
+        '200':
+          description: Students with documentation links
+    post:
+      tags:
+        - Students
+      summary: Update documentation helper link
+      description: Update documentation helper link for student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Documentation link updated
+
   /api/students/doc-links/{studentId}:
     get:
       tags:
@@ -761,6 +837,31 @@ paths:
       responses:
         '200':
           description: Student documentation links
+
+  /api/students/archiv/{studentId}:
+    post:
+      tags:
+        - Students
+      summary: Archive/unarchive student
+      description: Toggle student archive status
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                archiv:
+                  type: boolean
+      responses:
+        '200':
+          description: Student archive status updated
 
   /api/students/{studentId}/agents:
     post:
@@ -802,6 +903,28 @@ paths:
       responses:
         '200':
           description: Editors assigned
+
+  /api/students/{studentId}/attributes:
+    post:
+      tags:
+        - Students
+      summary: Assign attributes to student
+      description: Update student attributes/metadata
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Attributes assigned
 
   # ==========================================
   # Applications Routes (Base: /api/applications)
@@ -876,6 +999,26 @@ paths:
       responses:
         '201':
           description: Application created
+    put:
+      tags:
+        - Applications
+      summary: Update student applications
+      description: Batch update applications for student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Applications updated
 
   /api/applications/application/{application_id}:
     delete:
@@ -892,9 +1035,136 @@ paths:
         '200':
           description: Application deleted
 
+  /api/applications/{applicationId}/refresh:
+    post:
+      tags:
+        - Applications
+      summary: Refresh application
+      description: Refresh application data from external sources
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Application refreshed
+
+  /api/applications/all/active/applications:
+    get:
+      tags:
+        - Applications
+      summary: Get active applications
+      description: Get all active student applications
+      responses:
+        '200':
+          description: Active applications list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+
+  /api/applications/student/{studentId}/{application_id}:
+    put:
+      tags:
+        - Applications
+      summary: Update application
+      description: Update specific application for student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Application updated
+
+  /api/applications/taiger-user/{userId}:
+    get:
+      tags:
+        - Applications
+      summary: Get applications by user
+      description: Get applications for a specific TaiGer user (agent/editor)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User's student applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+
   # ==========================================
   # Programs Routes (Base: /api/programs)
   # ==========================================
+  /api/programs/overview:
+    get:
+      tags:
+        - Programs
+      summary: Get programs overview
+      description: Get overview of all programs
+      responses:
+        '200':
+          description: Programs overview
+
+  /api/programs/schools-distribution:
+    get:
+      tags:
+        - Programs
+      summary: Get schools distribution
+      description: Get distribution of students across schools
+      responses:
+        '200':
+          description: Schools distribution data
+
+  /api/programs/same-program-students/{programId}:
+    get:
+      tags:
+        - Programs
+      summary: Get students in same program
+      description: Get list of students applying to the same program
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Students in same program
+
   /api/programs:
     get:
       tags:
@@ -947,6 +1217,30 @@ paths:
         '201':
           description: Program created
 
+  /api/programs/schools:
+    get:
+      tags:
+        - Programs
+      summary: Get distinct schools
+      description: Get list of distinct school attributes
+      responses:
+        '200':
+          description: Distinct schools list
+    put:
+      tags:
+        - Programs
+      summary: Update batch school attributes
+      description: Update attributes for multiple schools
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Schools updated
+
   /api/programs/{programId}:
     get:
       tags:
@@ -997,9 +1291,202 @@ paths:
         '200':
           description: Program deleted
 
+  /api/programs/{programId}/refresh:
+    post:
+      tags:
+        - Programs
+      summary: Refresh program
+      description: Refresh program data from external sources
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Program refreshed
+
+  /api/programs/{programId}/change-requests:
+    get:
+      tags:
+        - Programs
+      summary: Get program change requests
+      description: Get pending change requests for program
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Change requests list
+    post:
+      tags:
+        - Programs
+      summary: Submit program change request
+      description: Submit a change request for program
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Change request submitted
+
+  /api/programs/review-changes/{requestId}:
+    post:
+      tags:
+        - Programs
+      summary: Review program change request
+      description: Approve or reject program change request
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+      responses:
+        '200':
+          description: Change request reviewed
+
   # ==========================================
   # Communications Routes (Base: /api/communications)
   # ==========================================
+  /api/communications:
+    get:
+      tags:
+        - Communications
+      summary: Search user messages
+      description: Search messages by user or keyword (Admin, Manager, Agent, Editor only)
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search query
+      responses:
+        '200':
+          description: Search results
+
+  /api/communications/ping/all:
+    get:
+      tags:
+        - Communications
+      summary: Get unread messages count
+      description: Get number of unread messages for current user
+      responses:
+        '200':
+          description: Unread messages count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /api/communications/all:
+    get:
+      tags:
+        - Communications
+      summary: Get all my messages
+      description: Get all messages for current user
+      responses:
+        '200':
+          description: All messages
+
+  /api/communications/{studentId}/{communication_messageId}/{ignoreMessageState}/ignore:
+    put:
+      tags:
+        - Communications
+      summary: Ignore/unignore message
+      description: Toggle ignore status of a message
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: communication_messageId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ignoreMessageState
+          in: path
+          required: true
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Message ignore status updated
+
+  /api/communications/{studentId}/{messageId}:
+    put:
+      tags:
+        - Communications
+      summary: Update message in thread
+      description: Update a specific message in communication thread
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Message updated
+    delete:
+      tags:
+        - Communications
+      summary: Delete message in thread
+      description: Delete a specific message in communication thread
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Message deleted
+
   /api/communications/{studentId}:
     get:
       tags:
@@ -1053,19 +1540,91 @@ paths:
         '201':
           description: Message sent
 
-  /api/communications/all:
+  /api/communications/{studentId}/chat/{fileName}:
     get:
       tags:
         - Communications
-      summary: Get all my messages
-      description: Get all messages for current user
+      summary: Get chat file
+      description: Download file from chat messages
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileName
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          description: All messages
+          description: File content
+
+  /api/communications/{studentId}/pages/{pageNumber}:
+    get:
+      tags:
+        - Communications
+      summary: Load messages by page
+      description: Get paginated messages for student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: pageNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated messages
 
   # ==========================================
   # Events Routes (Base: /api/events)
   # ==========================================
+  /api/events/ping:
+    get:
+      tags:
+        - Events
+      summary: Get active events count
+      description: Get number of active/pending events
+      responses:
+        '200':
+          description: Active events count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+
+  /api/events/booked:
+    get:
+      tags:
+        - Events
+      summary: Get booked events
+      description: Get all booked/confirmed events
+      responses:
+        '200':
+          description: List of booked events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+
   /api/events:
     get:
       tags:
@@ -1112,7 +1671,57 @@ paths:
         '201':
           description: Event created
 
+  /api/events/{studentId}/show:
+    get:
+      tags:
+        - Events
+      summary: Show student events
+      description: Get events for a specific student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+
   /api/events/{event_id}:
+    get:
+      tags:
+        - Events
+      summary: Get event by ID
+      description: Get event details
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Event'
     put:
       tags:
         - Events
@@ -1123,6 +1732,12 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         '200':
           description: Event updated
@@ -1202,11 +1817,64 @@ paths:
                     items:
                       $ref: '#/components/schemas/Documentation'
 
+  /api/docs/pages/{category}:
+    get:
+      tags:
+        - Documentations
+      summary: Get category documentation page
+      description: Get documentation page for a specific category
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category documentation page
+    put:
+      tags:
+        - Documentations
+      summary: Update documentation page
+      description: Update documentation page content
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Documentation page updated
+
+  /api/docs/search/{doc_id}:
+    get:
+      tags:
+        - Documentations
+      summary: Get documentation by ID
+      description: Search and get specific documentation article
+      parameters:
+        - name: doc_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Documentation article
+
   /api/docs/{category}:
     get:
       tags:
         - Documentations
       summary: Get category documentations
+      description: Get all documentations in a category
       parameters:
         - name: category
           in: path
@@ -1228,6 +1896,12 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         '200':
           description: Documentation updated
@@ -1435,6 +2109,29 @@ paths:
           description: Ticket created
 
   /api/tickets/{ticket_id}:
+    get:
+      tags:
+        - Tickets
+      summary: Get ticket by ID
+      description: Get ticket details
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ticket details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Ticket'
     put:
       tags:
         - Tickets
@@ -1445,6 +2142,12 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         '200':
           description: Ticket updated
@@ -1486,12 +2189,112 @@ paths:
                     items:
                       $ref: '#/components/schemas/Interview'
 
+  /api/interviews/open:
+    get:
+      tags:
+        - Interviews
+      summary: Get open interviews
+      description: Get all open/available interview slots
+      responses:
+        '200':
+          description: List of open interviews
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Interview'
+
+  /api/interviews/interview/{programId}:
+    get:
+      tags:
+        - Interviews
+      summary: Get interviews by program
+      description: Get interviews for specific program
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Program interviews
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Interview'
+
+  /api/interviews/interviews/{studentId}:
+    get:
+      tags:
+        - Interviews
+      summary: Get interviews by student
+      description: Get interviews for specific student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student interviews
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Interview'
+
+  /api/interviews/questions/{programId}:
+    get:
+      tags:
+        - Interviews
+      summary: Get interview questions
+      description: Get interview questions for specific program
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Interview questions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+
   /api/interviews/my-interviews:
     get:
       tags:
         - Interviews
       summary: Get my interviews
-      description: Get interviews for current user
+      description: Get interviews for current user (including students)
       responses:
         '200':
           description: My interviews
@@ -1545,6 +2348,68 @@ paths:
       responses:
         '200':
           description: Interview deleted
+
+  /api/interviews/{interview_id}/survey:
+    get:
+      tags:
+        - Interviews
+      summary: Get interview survey
+      description: Get interview feedback/survey data
+      parameters:
+        - name: interview_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Interview survey data
+    put:
+      tags:
+        - Interviews
+      summary: Update interview survey
+      description: Submit interview feedback/survey
+      parameters:
+        - name: interview_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Survey updated
+
+  /api/interviews/time/{interview_id}:
+    post:
+      tags:
+        - Interviews
+      summary: Add interview training time
+      description: Add training date/time for interview
+      parameters:
+        - name: interview_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Training time added
 
   /api/interviews/create/{program_id}/{studentId}:
     post:
@@ -1613,6 +2478,16 @@ paths:
   # ==========================================
   # Courses Routes (Base: /api/courses)
   # ==========================================
+  /api/courses/transcript/test:
+    get:
+      tags:
+        - Courses
+      summary: Test transcript analyzer
+      description: Test endpoint for transcript analyzer (Admin, Manager, Agent, Editor only)
+      responses:
+        '200':
+          description: Test result
+
   /api/courses/{studentId}:
     get:
       tags:
@@ -1666,6 +2541,54 @@ paths:
       responses:
         '200':
           description: Course deleted
+
+  /api/courses/transcript/v2/{studentId}/{language}:
+    post:
+      tags:
+        - Courses
+      summary: Process transcript
+      description: Process student transcript using AI/Python backend
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: language
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [en, de, zh]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Transcript processed
+
+  /api/courses/transcript/v2/{studentId}:
+    get:
+      tags:
+        - Courses
+      summary: Download transcript JSON
+      description: Download processed transcript data as JSON
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transcript JSON data
 
   # ==========================================
   # TaiGer AI Routes (Base: /api/taigerai)

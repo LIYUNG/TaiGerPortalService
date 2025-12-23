@@ -174,7 +174,7 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/data.yaml#/SyncAllCoursesRequest'
     responses:
       '200':
         description: Courses synced successfully
@@ -200,15 +200,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/data.yaml#/AgentListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -227,15 +219,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/data.yaml#/EssayWriterListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
 
@@ -252,15 +236,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/data.yaml#/ExpenseListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   post:
@@ -274,18 +250,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/data.yaml#/ExpenseCreate'
     responses:
       '201':
         description: Expense created successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/data.yaml#/ExpenseResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -304,13 +276,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/data.yaml#/WidgetConfigResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
 
@@ -328,18 +294,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/data.yaml#/WidgetInitRequest'
     responses:
       '200':
         description: Widget initialized successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/data.yaml#/WidgetInitResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -360,13 +322,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/data.yaml#/WidgetStatusResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
@@ -385,15 +341,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/data.yaml#/AuditLogListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -412,12 +360,6 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/data.yaml#/UniassistResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'

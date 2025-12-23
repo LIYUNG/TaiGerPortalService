@@ -243,3 +243,327 @@ DegreeListResponse:
   required:
     - success
     - data
+
+SyncAllCoursesRequest:
+  type: object
+  properties:
+    source:
+      type: string
+      description: External source identifier to sync from
+    force:
+      type: boolean
+      description: Force refresh even if data is up to date
+      default: false
+  additionalProperties: false
+
+Agent:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    email:
+      type: string
+      format: email
+    phone:
+      type: string
+    role:
+      type: string
+      description: Agent role or designation
+    status:
+      type: string
+      enum:
+        - active
+        - inactive
+        - pending
+    created_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - name
+  additionalProperties: false
+
+AgentListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Agent'
+  required:
+    - success
+    - data
+
+EssayWriter:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    specialization:
+      type: string
+      description: Primary subject focus
+    rating:
+      type: number
+      format: float
+    languages:
+      type: array
+      items:
+        type: string
+  required:
+    - _id
+    - name
+  additionalProperties: false
+
+EssayWriterListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/EssayWriter'
+  required:
+    - success
+    - data
+
+ExpenseCreate:
+  type: object
+  properties:
+    amount:
+      type: number
+    currency:
+      type: string
+      minLength: 1
+    category:
+      type: string
+    description:
+      type: string
+    incurred_at:
+      type: string
+      format: date-time
+    status:
+      type: string
+      enum:
+        - pending
+        - approved
+        - rejected
+      description: Optional status override during creation
+  required:
+    - amount
+    - currency
+    - category
+  additionalProperties: false
+
+Expense:
+  allOf:
+    - $ref: '#/ExpenseCreate'
+    - type: object
+      properties:
+        _id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - _id
+        - created_at
+        - updated_at
+      additionalProperties: false
+
+ExpenseResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Expense'
+  required:
+    - success
+    - data
+
+ExpenseListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Expense'
+  required:
+    - success
+    - data
+
+WidgetConfig:
+  type: object
+  properties:
+    script_url:
+      type: string
+      format: uri
+    enabled:
+      type: boolean
+    settings:
+      type: object
+      additionalProperties: true
+  required:
+    - script_url
+    - enabled
+  additionalProperties: false
+
+WidgetConfigResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/WidgetConfig'
+  required:
+    - success
+    - data
+
+WidgetInitRequest:
+  type: object
+  properties:
+    source:
+      type: string
+      description: Origin of the initialization request
+    config:
+      type: object
+      additionalProperties: true
+      description: Arbitrary widget configuration overrides
+  additionalProperties: false
+
+WidgetInitResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+    status:
+      type: string
+      enum:
+        - initialized
+        - pending
+  required:
+    - success
+  additionalProperties: false
+
+WidgetStatus:
+  type: object
+  properties:
+    status:
+      type: string
+      enum:
+        - active
+        - inactive
+        - pending
+    last_updated:
+      type: string
+      format: date-time
+    metadata:
+      type: object
+      additionalProperties: true
+  required:
+    - status
+  additionalProperties: false
+
+WidgetStatusResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/WidgetStatus'
+  required:
+    - success
+    - data
+
+AuditLog:
+  type: object
+  properties:
+    _id:
+      type: string
+    action:
+      type: string
+    actor_id:
+      type: string
+    actor_type:
+      type: string
+    entity_type:
+      type: string
+    entity_id:
+      type: string
+    metadata:
+      type: object
+      additionalProperties: true
+    created_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - action
+    - created_at
+  additionalProperties: false
+
+AuditLogListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/AuditLog'
+  required:
+    - success
+    - data
+
+UniassistData:
+  type: object
+  properties:
+    status:
+      type: string
+      enum:
+        - active
+        - disabled
+        - error
+    last_synced_at:
+      type: string
+      format: date-time
+    metadata:
+      type: object
+      additionalProperties: true
+  required:
+    - status
+  additionalProperties: false
+
+UniassistResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/UniassistData'
+  required:
+    - success
+    - data

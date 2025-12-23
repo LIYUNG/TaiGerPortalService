@@ -17,7 +17,7 @@
         content:
           application/json:
             schema:
-                  $ref: '../components/schemas/documentations.yaml#/DocumentationListResponse'
+              $ref: '../components/schemas/documentations.yaml#/DocumentationListResponse'
 
 /api/docs/internal:
   post:
@@ -197,15 +197,23 @@
     operationId: uploadDocImage
     requestBody:
       required: true
-                $ref: '../components/schemas/documentations.yaml#/DocumentationUploadResponse'
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
                 format: binary
+            required:
+              - file
     responses:
       '200':
         description: Image uploaded successfully
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/documentations.yaml#/DocumentationResponse'
+              $ref: '../components/schemas/documentations.yaml#/DocumentationUploadResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -246,21 +254,23 @@
     operationId: uploadDocDocs
     requestBody:
       required: true
-                $ref: '../components/schemas/documentations.yaml#/DocumentationUploadResponse'
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
                 format: binary
+            required:
+              - file
     responses:
       '200':
         description: Document uploaded successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/documentations.yaml#/DocumentationUploadResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':

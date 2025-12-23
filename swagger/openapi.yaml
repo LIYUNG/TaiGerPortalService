@@ -416,8 +416,12 @@ paths:
             schema:
               type: object
               required:
+                - email
                 - token
               properties:
+                email:
+                  type: string
+                  format: email
                 token:
                   type: string
                   description: Activation token from email
@@ -503,9 +507,13 @@ paths:
             schema:
               type: object
               required:
+                - email
                 - token
                 - password
               properties:
+                email:
+                  type: string
+                  format: email
                 token:
                   type: string
                   description: Reset token from email
@@ -573,6 +581,21 @@ paths:
             type: string
             enum: [Admin, Manager, Agent, Editor, Student, Guest, External]
           description: Filter by role
+        - name: agents
+          in: query
+          schema:
+            type: string
+          description: Filter by agent ID
+        - name: editors
+          in: query
+          schema:
+            type: string
+          description: Filter by editor ID
+        - name: archiv
+          in: query
+          schema:
+            type: string
+          description: Filter by archive status (true/false)
       responses:
         '200':
           description: List of users
@@ -674,6 +697,20 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum:
+                    [Admin, Manager, Agent, Editor, Student, Guest, External]
       responses:
         '200':
           description: User updated
@@ -711,7 +748,7 @@ paths:
             schema:
               type: object
               properties:
-                archiv:
+                isArchived:
                   type: boolean
       responses:
         '200':
@@ -756,6 +793,22 @@ paths:
         - Students
       summary: Get students (v3)
       description: Get students with enhanced data
+      parameters:
+        - name: editors
+          in: query
+          schema:
+            type: string
+          description: Filter by editor ID
+        - name: agents
+          in: query
+          schema:
+            type: string
+          description: Filter by agent ID
+        - name: archiv
+          in: query
+          schema:
+            type: string
+          description: Filter by archive status (true/false)
       responses:
         '200':
           description: Enhanced student list
@@ -818,6 +871,13 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                link:
+                  type: string
+                key:
+                  type: string
+                category:
+                  type: string
       responses:
         '200':
           description: Documentation link updated
@@ -856,7 +916,9 @@ paths:
             schema:
               type: object
               properties:
-                archiv:
+                isArchived:
+                  type: boolean
+                shouldInform:
                   type: boolean
       responses:
         '200':
@@ -920,7 +982,9 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              type: array
+              items:
+                type: string
       responses:
         '200':
           description: Attributes assigned
@@ -941,6 +1005,15 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isPaid:
+                  type: boolean
       responses:
         '200':
           description: VPD payment updated
@@ -1201,8 +1274,10 @@ paths:
             schema:
               type: object
               properties:
-                program_id:
-                  type: string
+                program_id_set:
+                  type: array
+                  items:
+                    type: string
       responses:
         '201':
           description: Application created
@@ -1301,7 +1376,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/Application'
       responses:
         '200':
           description: Application updated
@@ -1481,6 +1556,12 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Program'
       responses:
         '200':
           description: Program updated
@@ -1545,7 +1626,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/Program'
       responses:
         '201':
           description: Change request submitted
@@ -1562,16 +1643,6 @@ paths:
           required: true
           schema:
             type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [approved, rejected]
       responses:
         '200':
           description: Change request reviewed
@@ -1671,6 +1742,9 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                message:
+                  type: string
       responses:
         '200':
           description: Message updated
@@ -1740,9 +1814,11 @@ paths:
               properties:
                 message:
                   type: string
-                file:
-                  type: string
-                  format: binary
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
       responses:
         '201':
           description: Message sent
@@ -1862,18 +1938,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                start:
-                  type: string
-                  format: date-time
-                end:
-                  type: string
-                  format: date-time
-                receiver_id:
-                  type: string
+              $ref: '#/components/schemas/Event'
       responses:
         '201':
           description: Event created
@@ -1944,7 +2009,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/Event'
       responses:
         '200':
           description: Event updated
@@ -1973,6 +2038,12 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
       responses:
         '200':
           description: Event confirmed
@@ -1991,14 +2062,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                category:
-                  type: string
-                title:
-                  type: string
-                text:
-                  type: string
+              $ref: '#/components/schemas/Documentation'
       responses:
         '201':
           description: Documentation created
@@ -2008,6 +2072,12 @@ paths:
       tags:
         - Documentations
       summary: Create internal documentation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Documentation'
       responses:
         '201':
           description: Internal documentation created
@@ -2047,6 +2117,12 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Documentation'
       responses:
         '200':
           description: Internal documentation updated
@@ -2076,6 +2152,12 @@ paths:
       tags:
         - Documentations
       summary: Update confidential documentation page
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         '200':
           description: Confidential documentation page updated
@@ -2234,7 +2316,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/Documentation'
       responses:
         '200':
           description: Documentation updated
@@ -2310,6 +2392,58 @@ paths:
         '200':
           description: Active threads overview
 
+  /api/document-threads/survey-input/{surveyInputId}:
+    put:
+      tags:
+        - Document Threads
+      summary: Update survey input
+      parameters:
+        - name: surveyInputId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Survey input updated
+    delete:
+      tags:
+        - Document Threads
+      summary: Reset survey input
+      parameters:
+        - name: surveyInputId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Survey input reset
+
+  /api/document-threads/survey-input:
+    post:
+      tags:
+        - Document Threads
+      summary: Create survey input
+      responses:
+        '201':
+          description: Survey input created
+
+  /api/document-threads/student-threads/{studentId}:
+    get:
+      tags:
+        - Document Threads
+      summary: Get threads by student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of student threads
+
   /api/document-threads/init/general/{studentId}/{document_category}:
     post:
       tags:
@@ -2357,12 +2491,62 @@ paths:
         '201':
           description: Application thread initialized
 
-  /api/document-threads/{messagesThreadId}:
-    get:
+  /api/document-threads/{messagesThreadId}/essay:
+    post:
       tags:
         - Document Threads
-      summary: Get thread messages
-      description: Get all messages in a document thread
+      summary: Assign essay writers
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                editorsId:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Essay writers assigned
+
+  /api/document-threads/{messagesThreadId}/{messageId}/{ignoreMessageState}/ignored:
+    put:
+      tags:
+        - Document Threads
+      summary: Ignore message in thread
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ignoreMessageState
+          in: path
+          required: true
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Message ignore state updated
+
+  /api/document-threads/{messagesThreadId}/favorite:
+    put:
+      tags:
+        - Document Threads
+      summary: Toggle thread favorite
       parameters:
         - name: messagesThreadId
           in: path
@@ -2371,18 +2555,66 @@ paths:
             type: string
       responses:
         '200':
-          description: Thread messages
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/MessageThread'
+          description: Favorite state toggled
+
+  /api/document-threads/{messagesThreadId}/{studentId}/origin-author:
+    put:
+      tags:
+        - Document Threads
+      summary: Confirm origin author
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                checked:
+                  type: boolean
+      responses:
+        '200':
+          description: Origin author confirmed
 
   /api/document-threads/{messagesThreadId}/{studentId}:
+    put:
+      tags:
+        - Document Threads
+      summary: Set thread status
+      description: Update document thread status (e.g., set as final)
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                application_id:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
     post:
       tags:
         - Document Threads
@@ -2408,17 +2640,18 @@ paths:
               properties:
                 message:
                   type: string
-                file:
-                  type: string
-                  format: binary
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
       responses:
         '201':
           description: Message posted
-    put:
+    delete:
       tags:
         - Document Threads
-      summary: Set thread status
-      description: Update document thread status
+      summary: Delete general thread
       parameters:
         - name: messagesThreadId
           in: path
@@ -2432,7 +2665,163 @@ paths:
             type: string
       responses:
         '200':
-          description: Status updated
+          description: Thread deleted
+
+  /api/document-threads/delete/{messagesThreadId}/{messageId}:
+    delete:
+      tags:
+        - Document Threads
+      summary: Delete message in thread
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Message deleted
+
+  /api/document-threads/image/{messagesThreadId}/{studentId}/{file_name}:
+    get:
+      tags:
+        - Document Threads
+      summary: Download image from thread
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: file_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image file
+
+  /api/document-threads/image/{messagesThreadId}/{studentId}:
+    post:
+      tags:
+        - Document Threads
+      summary: Post image in thread
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Image posted
+
+  /api/document-threads/{messagesThreadId}/survey-inputs:
+    get:
+      tags:
+        - Document Threads
+      summary: Get survey inputs for thread
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Survey inputs
+
+  /api/document-threads/{messagesThreadId}:
+    get:
+      tags:
+        - Document Threads
+      summary: Get thread messages
+      description: Get all messages in a document thread
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thread messages
+
+  /api/document-threads/{studentId}/{messagesThreadId}/{file_key}:
+    get:
+      tags:
+        - Document Threads
+      summary: Download file from thread
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: file_key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document file
+
+  /api/document-threads/{messagesThreadId}/{application_id}/{studentId}:
+    delete:
+      tags:
+        - Document Threads
+      summary: Delete application thread
+      parameters:
+        - name: messagesThreadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Application thread deleted
 
   # ==========================================
   # Tickets Routes (Base: /api/tickets)
@@ -2442,27 +2831,23 @@ paths:
       tags:
         - Tickets
       summary: Get all tickets
-      description: Get list of support tickets
+      description: Get list of support tickets with optional filters
       parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: program_id
+          in: query
+          schema:
+            type: string
         - name: status
           in: query
           schema:
             type: string
-            enum: [Open, In Progress, Closed]
       responses:
         '200':
           description: List of tickets
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Ticket'
     post:
       tags:
         - Tickets
@@ -2475,13 +2860,14 @@ paths:
             schema:
               type: object
               properties:
-                title:
+                type:
+                  type: string
+                program_id:
+                  type: string
+                status:
                   type: string
                 description:
                   type: string
-                priority:
-                  type: string
-                  enum: [Low, Medium, High]
       responses:
         '201':
           description: Ticket created
@@ -2503,6 +2889,11 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                status:
+                  type: string
+                description:
+                  type: string
       responses:
         '200':
           description: Ticket updated
@@ -2528,21 +2919,23 @@ paths:
       tags:
         - Interviews
       summary: Get all interviews
-      description: Get list of all interviews
+      description: Get list of all interviews with optional filters
+      parameters:
+        - name: isClosed
+          in: query
+          schema:
+            type: string
+        - name: trainer_id
+          in: query
+          schema:
+            type: string
+        - name: no_trainer
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: List of interviews
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Interview'
 
   /api/interviews/open:
     get:
@@ -2553,17 +2946,6 @@ paths:
       responses:
         '200':
           description: List of open interviews
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Interview'
 
   /api/interviews/interview/{programId}:
     get:
@@ -2580,17 +2962,6 @@ paths:
       responses:
         '200':
           description: Program interviews
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Interview'
 
   /api/interviews/interviews/{studentId}:
     get:
@@ -2607,17 +2978,6 @@ paths:
       responses:
         '200':
           description: Student interviews
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Interview'
 
   /api/interviews/questions/{programId}:
     get:
@@ -2634,17 +2994,6 @@ paths:
       responses:
         '200':
           description: Interview questions
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      type: object
 
   /api/interviews/my-interviews:
     get:
@@ -2670,15 +3019,6 @@ paths:
       responses:
         '200':
           description: Interview details
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/Interview'
     put:
       tags:
         - Interviews
@@ -2689,6 +3029,19 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isClosed:
+                  type: boolean
+                trainer_id:
+                  type: array
+                  items:
+                    type: string
       responses:
         '200':
           description: Interview updated
@@ -2738,6 +3091,9 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                isFinal:
+                  type: boolean
       responses:
         '200':
           description: Survey updated
@@ -2761,9 +3117,17 @@ paths:
             schema:
               type: object
               properties:
-                date:
+                start:
                   type: string
                   format: date-time
+                requester_id:
+                  type: array
+                  items:
+                    type: string
+                receiver_id:
+                  type: array
+                  items:
+                    type: string
       responses:
         '200':
           description: Training time added
@@ -2805,6 +3169,101 @@ paths:
   /api/teams/statistics/overview:
     get:
       tags:
+        - Teams
+      summary: Get statistics overview
+      responses:
+        '200':
+          description: Statistics overview
+
+  /api/teams/statistics/agents:
+    get:
+      tags:
+        - Teams
+      summary: Get agents statistics
+      responses:
+        '200':
+          description: Agents statistics
+
+  /api/teams/statistics/kpi:
+    get:
+      tags:
+        - Teams
+      summary: Get KPI statistics
+      responses:
+        '200':
+          description: KPI statistics
+
+  /api/teams/statistics/response-time:
+    get:
+      tags:
+        - Teams
+      summary: Get response time statistics
+      responses:
+        '200':
+          description: Response time statistics
+
+  /api/teams/is-manager:
+    get:
+      tags:
+        - Teams
+      summary: Check if user is manager
+      responses:
+        '200':
+          description: Manager status
+
+  /api/teams/tasks-overview:
+    get:
+      tags:
+        - Teams
+      summary: Get tasks overview
+      responses:
+        '200':
+          description: Tasks overview
+
+  /api/teams/response-interval/{studentId}:
+    get:
+      tags:
+        - Teams
+      summary: Get response interval by student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Response interval data
+
+  /api/teams/response-time/{studentId}:
+    get:
+      tags:
+        - Teams
+      summary: Get response time by student
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Response time data
+
+  /api/teams/archiv/{TaiGerStaffId}:
+    get:
+      tags:
+        - Teams
+      summary: Get archived students for staff
+      parameters:
+        - name: TaiGerStaffId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Archived students list
         - Teams
       summary: Get statistics overview
       description: Get team statistics overview
@@ -2932,17 +3391,6 @@ paths:
       responses:
         '200':
           description: Student courses
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Course'
     put:
       tags:
         - Courses
@@ -2954,6 +3402,19 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                table_data_string:
+                  type: string
+                table_data_string_taiger_guided:
+                  type: string
+                table_data_string_locked:
+                  type: boolean
       responses:
         '200':
           description: Courses updated
@@ -2992,13 +3453,16 @@ paths:
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
               properties:
-                file:
-                  type: string
-                  format: binary
+                requirementIds:
+                  type: array
+                  items:
+                    type: string
+                factor:
+                  type: number
       responses:
         '200':
           description: Transcript processed
@@ -3027,7 +3491,7 @@ paths:
       tags:
         - TaiGer AI
       summary: General AI query
-      description: Make a general AI query
+      description: Make a general AI query (streaming response)
       requestBody:
         required: true
         content:
@@ -3037,16 +3501,18 @@ paths:
               properties:
                 prompt:
                   type: string
+                model:
+                  type: string
       responses:
         '200':
-          description: AI response
+          description: AI response stream
 
   /api/taigerai/chat/{studentId}:
     post:
       tags:
         - TaiGer AI
       summary: Chat with AI about student
-      description: AI-powered chat about specific student
+      description: AI-powered chat about specific student (streaming response)
       parameters:
         - name: studentId
           in: path
@@ -3064,14 +3530,14 @@ paths:
                   type: string
       responses:
         '200':
-          description: AI chat response
+          description: AI chat response stream
 
   /api/taigerai/cvmlrl:
     post:
       tags:
         - TaiGer AI
       summary: CV/ML/RL AI assistance
-      description: AI assistance for CV, Motivation Letter, Recommendation Letter
+      description: AI assistance for CV, Motivation Letter, Recommendation Letter (streaming response)
       requestBody:
         required: true
         content:
@@ -3079,13 +3545,22 @@ paths:
             schema:
               type: object
               properties:
-                type:
+                student_input:
                   type: string
-                content:
+                document_requirements:
+                  type: string
+                editor_requirements:
+                  type: string
+                  description: JSON string containing gptModel etc.
+                program_full_name:
+                  type: string
+                file_type:
+                  type: string
+                student_id:
                   type: string
       responses:
         '200':
-          description: AI suggestions
+          description: AI suggestions stream
 
   /api/taigerai/program/{programId}:
     get:
@@ -3111,10 +3586,38 @@ paths:
       tags:
         - Admissions
       summary: Get all admissions
-      description: Get list of all admission results
+      description: Get list of all admission results with optional filters
+      parameters:
+        - name: decided
+          in: query
+          schema:
+            type: string
+        - name: closed
+          in: query
+          schema:
+            type: string
+        - name: admission
+          in: query
+          schema:
+            type: string
       responses:
         '200':
-          description: List of admissions
+          description: List of admissions and program statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  result:
+                    type: array
+                    items:
+                      type: object
 
   /api/admissions/overview:
     get:
@@ -3125,6 +3628,24 @@ paths:
       responses:
         '200':
           description: Admissions overview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      admission:
+                        type: integer
+                      rejection:
+                        type: integer
+                      pending:
+                        type: integer
+                      notYetSubmitted:
+                        type: integer
 
   /api/admissions/{studentId}/admission/{fileName}:
     get:
@@ -3248,7 +3769,6 @@ paths:
           schema:
             type: string
       requestBody:
-        required: true
         content:
           multipart/form-data:
             schema:
@@ -3257,6 +3777,8 @@ paths:
                 file:
                   type: string
                   format: binary
+                closed:
+                  type: string
       responses:
         '200':
           description: Application result updated
@@ -3288,7 +3810,6 @@ paths:
           schema:
             type: string
       requestBody:
-        required: true
         content:
           multipart/form-data:
             schema:
@@ -3306,6 +3827,15 @@ paths:
       tags:
         - Account
       summary: Remove student notification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notification_key:
+                  type: string
       responses:
         '200':
           description: Notification removed
@@ -3315,6 +3845,17 @@ paths:
       tags:
         - Account
       summary: Remove agent notification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notification_key:
+                  type: string
+                student_id:
+                  type: string
       responses:
         '200':
           description: Notification removed
@@ -3328,6 +3869,19 @@ paths:
       responses:
         '200':
           description: Academic background data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                  survey_link:
+                    type: array
+                    items:
+                      type: object
 
   /api/account/survey/university/{studentId}:
     post:
@@ -3347,6 +3901,9 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                university:
+                  type: object
       responses:
         '200':
           description: Academic background updated
@@ -3369,6 +3926,9 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                language:
+                  type: object
       responses:
         '200':
           description: Language skills updated
@@ -3385,6 +3945,15 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                application_preference:
+                  type: object
       responses:
         '200':
           description: Preferences updated
@@ -3405,6 +3974,62 @@ paths:
         content:
           application/json:
             schema:
+              type: object
+              properties:
+                officehours:
+                  type: array
+                  items:
+                    type: object
+                timezone:
+                  type: string
+      responses:
+        '200':
+          description: Office hours updated
+
+  /api/account/profile/personal-data/{user_id}:
+    put:
+      tags:
+        - Account
+      summary: Update personal data
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                personaldata:
+                  type: object
+      responses:
+        '200':
+          description: Personal data updated
+
+  /api/account/profile/credentials:
+    put:
+      tags:
+        - Account
+      summary: Update credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                credentials:
+                  type: object
+                  properties:
+                    new_password:
+                      type: string
+      responses:
+        '200':
+          description: Credentials updated
               type: object
       responses:
         '200':

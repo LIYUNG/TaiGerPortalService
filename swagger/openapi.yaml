@@ -351,6 +351,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad request - missing or invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/logout:
     get:
@@ -365,6 +371,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Success'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/verify:
     get:
@@ -386,6 +398,10 @@ paths:
                     $ref: '#/components/schemas/User'
         '401':
           description: Not authenticated or token expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/activation:
     post:
@@ -415,6 +431,10 @@ paths:
                 $ref: '#/components/schemas/Success'
         '400':
           description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/resend-activation:
     post:
@@ -503,6 +523,10 @@ paths:
                 $ref: '#/components/schemas/Success'
         '400':
           description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/oauth/google/callback:
     post:
@@ -560,6 +584,7 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   data:
                     type: array
                     items:
@@ -590,7 +615,8 @@ paths:
                   format: email
                 role:
                   type: string
-                  enum: [Admin, Manager, Agent, Editor, Student, Guest, External]
+                  enum:
+                    [Admin, Manager, Agent, Editor, Student, Guest, External]
       responses:
         '201':
           description: User created successfully
@@ -688,6 +714,17 @@ paths:
       responses:
         '200':
           description: List of students
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Student'
 
   /api/students/v3:
     get:
@@ -698,6 +735,17 @@ paths:
       responses:
         '200':
           description: Enhanced student list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Student'
 
   /api/students/doc-links/{studentId}:
     get:
@@ -767,6 +815,17 @@ paths:
       responses:
         '200':
           description: List of applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
 
   /api/applications/student/{studentId}:
     get:
@@ -783,6 +842,17 @@ paths:
       responses:
         '200':
           description: Student applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
     post:
       tags:
         - Applications
@@ -844,6 +914,17 @@ paths:
       responses:
         '200':
           description: List of programs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Program'
     post:
       tags:
         - Programs
@@ -880,6 +961,15 @@ paths:
       responses:
         '200':
           description: Program details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Program'
     put:
       tags:
         - Programs
@@ -925,6 +1015,17 @@ paths:
       responses:
         '200':
           description: Student messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Communication'
     post:
       tags:
         - Communications
@@ -974,6 +1075,17 @@ paths:
       responses:
         '200':
           description: List of events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
     post:
       tags:
         - Events
@@ -1078,6 +1190,17 @@ paths:
       responses:
         '200':
           description: List of documentations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Documentation'
 
   /api/docs/{category}:
     get:
@@ -1197,6 +1320,15 @@ paths:
       responses:
         '200':
           description: Thread messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/MessageThread'
 
   /api/document-threads/{messagesThreadId}/{studentId}:
     post:
@@ -1268,6 +1400,17 @@ paths:
       responses:
         '200':
           description: List of tickets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Ticket'
     post:
       tags:
         - Tickets
@@ -1331,6 +1474,17 @@ paths:
       responses:
         '200':
           description: List of interviews
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Interview'
 
   /api/interviews/my-interviews:
     get:
@@ -1356,6 +1510,15 @@ paths:
       responses:
         '200':
           description: Interview details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Interview'
     put:
       tags:
         - Interviews
@@ -1465,6 +1628,17 @@ paths:
       responses:
         '200':
           description: Student courses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Course'
     put:
       tags:
         - Courses

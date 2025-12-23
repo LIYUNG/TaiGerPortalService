@@ -11,15 +11,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/courses.yaml#/AllCoursesResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
 
@@ -102,13 +94,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/courses.yaml#/TranscriptResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -129,15 +115,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/courses.yaml#/TranscriptListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':

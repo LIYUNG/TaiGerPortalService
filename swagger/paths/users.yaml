@@ -11,15 +11,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/users.yaml#/UserListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -40,13 +32,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/users.yaml#/UserResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
@@ -123,15 +109,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: string
+              $ref: '../components/schemas/users.yaml#/PermissionListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
@@ -188,13 +166,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/users.yaml#/UserResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':

@@ -1,0 +1,180 @@
+Course:
+  type: object
+  properties:
+    _id:
+      type: string
+    course_id:
+      type: string
+    course_name:
+      type: string
+    credits:
+      type: number
+      format: double
+    grade:
+      type: string
+    gpa_points:
+      type: number
+      format: double
+    description:
+      type: string
+    semester:
+      type: string
+    year:
+      type: integer
+    institution:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+Transcript:
+  type: object
+  properties:
+    _id:
+      type: string
+    student_id:
+      oneOf:
+        - type: string
+        - $ref: './students.yaml#/StudentBase'
+    program_id:
+      oneOf:
+        - type: string
+        - $ref: './programs.yaml#/ProgramListItem'
+    courses:
+      type: array
+      items:
+        $ref: '#/Course'
+    overall_gpa:
+      type: number
+      format: double
+    cumulative_credits:
+      type: number
+      format: double
+    transcript_url:
+      type: string
+      format: uri
+    verified:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+CourseKeyword:
+  type: object
+  properties:
+    _id:
+      type: string
+    keyword:
+      type: string
+    category:
+      type: string
+      enum:
+        - science
+        - math
+        - business
+        - engineering
+        - humanities
+        - arts
+        - other
+    description:
+      type: string
+    related_keywords:
+      type: array
+      items:
+        type: string
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+CourseResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Course'
+  required:
+    - success
+    - data
+
+CourseListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Course'
+  required:
+    - success
+    - data
+
+TranscriptResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Transcript'
+  required:
+    - success
+    - data
+
+TranscriptListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Transcript'
+  required:
+    - success
+    - data
+
+CourseKeywordListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/CourseKeyword'
+  required:
+    - success
+    - data
+
+AllCoursesResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+  required:
+    - success
+    - data

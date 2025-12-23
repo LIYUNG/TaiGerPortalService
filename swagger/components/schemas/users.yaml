@@ -1,0 +1,178 @@
+User:
+  type: object
+  properties:
+    _id:
+      type: string
+    firstname:
+      type: string
+    lastname:
+      type: string
+    firstname_chinese:
+      type: string
+    lastname_chinese:
+      type: string
+    email:
+      type: string
+      format: email
+    role:
+      type: string
+      enum:
+        - Admin
+        - Manager
+        - Agent
+        - Editor
+        - Student
+        - Trainer
+    pictureUrl:
+      type: string
+      format: uri
+    archiv:
+      type: boolean
+      default: false
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+UserPreview:
+  type: object
+  properties:
+    _id:
+      type: string
+    firstname:
+      type: string
+    lastname:
+      type: string
+    email:
+      type: string
+      format: email
+    role:
+      type: string
+    pictureUrl:
+      type: string
+      format: uri
+  additionalProperties: false
+
+Permission:
+  type: object
+  properties:
+    _id:
+      type: string
+    user_id:
+      oneOf:
+        - type: string
+        - $ref: '#/User'
+    canAssignEditors:
+      type: boolean
+      default: false
+    canAssignAgents:
+      type: boolean
+      default: false
+    canManageStudents:
+      type: boolean
+      default: false
+    canManageTeam:
+      type: boolean
+      default: false
+    canAccessReports:
+      type: boolean
+      default: false
+    canAccessAudit:
+      type: boolean
+      default: false
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+TeamStatistics:
+  type: object
+  properties:
+    total_students:
+      type: integer
+    active_students:
+      type: integer
+    archived_students:
+      type: integer
+    total_applications:
+      type: integer
+    completed_applications:
+      type: integer
+    pending_applications:
+      type: integer
+    response_time_avg:
+      type: number
+      format: double
+    completion_rate:
+      type: number
+      format: double
+
+UserResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/User'
+  required:
+    - success
+    - data
+
+UserListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/User'
+  required:
+    - success
+    - data
+
+PermissionResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Permission'
+  required:
+    - success
+    - data
+
+PermissionListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Permission'
+  required:
+    - success
+    - data
+
+TeamStatisticsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/TeamStatistics'
+  required:
+    - success
+    - data

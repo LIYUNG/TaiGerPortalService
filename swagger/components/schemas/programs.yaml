@@ -1,0 +1,754 @@
+ProgramSubject:
+  type: string
+  description: Program subject code
+  enum:
+    - LING
+    - MUS
+    - THEO
+    - ARCH
+    - ARCH-BE
+    - ART-DES
+    - CLAH
+    - ELL
+    - HIST
+    - ARTH
+    - MOD-LANG
+    - PERF-ART
+    - PHIL
+    - CHEM-ENG
+    - CIV-STR-ENG
+    - CSIS
+    - DS-AI
+    - ELEC-ENG
+    - PETRO-ENG
+    - MECH-ENG
+    - MIN-MIN-ENG
+    - AG-FOR
+    - ANA-PHYS
+    - BIO-SCI
+    - DENT
+    - MED
+    - NURS
+    - PHARM
+    - PSYCH
+    - VET-SCI
+    - CHEM
+    - EAR-MAR-SCI
+    - ENV-SCI
+    - GEO
+    - GEOL
+    - GEOPH
+    - MAT-SCI
+    - MATH
+    - PHYS-ASTRO
+    - ACC-FIN
+    - ANTH
+    - BUS-MGMT
+    - COMM-MEDIA
+    - DEV-STUD
+    - ECON
+    - EDU-TRAIN
+    - HOSP-MGMT
+    - LAW
+    - LIB-INFO
+    - MKT
+    - POL
+    - SOC-POL
+    - SOC
+    - SPORT
+    - STAT-OR
+
+SchoolTag:
+  type: string
+  description: School tag identifier
+  enum:
+    - U15
+    - TU9
+    - EUROTECH
+    - GERMAN_ELITE
+    - TIME
+    - TOP50
+    - TOP100
+    - TOP150
+    - TOP250
+    - TOP500
+
+SchoolType:
+  type: string
+  enum:
+    - University
+    - University_of_Applied_Sciences
+
+Difficulty:
+  type: string
+  enum:
+    - EASY
+    - MEDIUM
+    - HARD
+
+ProgramSharedFields:
+  type: object
+  description: Common program attributes returned by list and detail endpoints.
+  properties:
+    isArchiv:
+      type: boolean
+    school:
+      type: string
+    program_name:
+      type: string
+    programSubjects:
+      type: array
+      items:
+        $ref: '#/ProgramSubject'
+    degree:
+      type: string
+    semester:
+      type: string
+      description: Semester code (SS, WS, Rolling) or free text
+    lang:
+      type: string
+    gpa_requirement:
+      type: string
+    allowOnlyGraduatedApplicant:
+      type: boolean
+      default: false
+    application_start:
+      type: string
+    application_deadline:
+      type: string
+    englishTestHandLater:
+      type: boolean
+      default: false
+    toefl:
+      type: string
+    toefl_reading:
+      type: number
+    toefl_listening:
+      type: number
+    toefl_writing:
+      type: number
+    toefl_speaking:
+      type: number
+    ielts:
+      type: string
+    ielts_reading:
+      type: number
+    ielts_listening:
+      type: number
+    ielts_writing:
+      type: number
+    ielts_speaking:
+      type: number
+    germanTestHandLater:
+      type: boolean
+      default: false
+    goetheZertifikat:
+      type: string
+    testdaf:
+      type: string
+    dsh:
+      type: string
+    gre:
+      type: string
+    gre_verbal:
+      type: number
+    gre_quantitative:
+      type: number
+    gre_analytical_writing:
+      type: number
+    gmat:
+      type: string
+    is_rl_specific:
+      type: boolean
+    essay_difficulty:
+      $ref: '#/Difficulty'
+    portfolio_required:
+      type: string
+    portfolio_requirements:
+      type: string
+    supplementary_form_required:
+      type: string
+    supplementary_form_requirements:
+      type: string
+    curriculum_analysis_required:
+      type: string
+    curriculum_analysis_requirements:
+      type: string
+    scholarship_form_required:
+      type: string
+    scholarship_form_requirements:
+      type: string
+    module_description_required:
+      type: string
+    ects_requirements:
+      type: string
+    application_portal_a_instructions:
+      type: string
+    application_portal_b_instructions:
+      type: string
+    uni_assist_link:
+      type: string
+    contact:
+      type: string
+    country:
+      type: string
+    isPrivateSchool:
+      type: boolean
+    isPartnerSchool:
+      type: boolean
+    schoolType:
+      $ref: '#/SchoolType'
+    isEssayConsultantNeeded:
+      type: boolean
+      default: false
+    tags:
+      type: array
+      items:
+        $ref: '#/SchoolTag'
+    url:
+      type: string
+    vcId:
+      type: string
+
+ProgramDetailOnlyFields:
+  type: object
+  description: Fields only returned on program detail requests and accepted in create/update.
+  properties:
+    uni_assist:
+      type: string
+    ml_required:
+      type: string
+    ml_requirements:
+      type: string
+    rl_required:
+      type: string
+    rl_requirements:
+      type: string
+    essay_required:
+      type: string
+    essay_requirements:
+      type: string
+    application_portal_a:
+      type: string
+    application_portal_b:
+      type: string
+    fpso:
+      type: string
+    tuition_fees:
+      type: string
+    website:
+      type: string
+    special_notes:
+      type: string
+    comments:
+      type: string
+
+ProgramListItem:
+  allOf:
+    - $ref: '#/ProgramSharedFields'
+    - type: object
+      properties:
+        _id:
+          type: string
+          readOnly: true
+        whoupdated:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        __v:
+          type: integer
+          readOnly: true
+      required:
+        - _id
+        - school
+        - program_name
+
+ProgramDetail:
+  allOf:
+    - $ref: '#/ProgramListItem'
+    - $ref: '#/ProgramDetailOnlyFields'
+
+ProgramAttributes:
+  allOf:
+    - $ref: '#/ProgramSharedFields'
+    - $ref: '#/ProgramDetailOnlyFields'
+
+ProgramCreateRequest:
+  allOf:
+    - $ref: '#/ProgramAttributes'
+    - type: object
+      required:
+        - school
+        - program_name
+
+ProgramUpdateRequest:
+  $ref: '#/ProgramAttributes'
+
+ProgramListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/ProgramListItem'
+  required:
+    - success
+    - data
+
+ProgramDetailResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ProgramDetail'
+  required:
+    - success
+    - data
+
+ProgramDetailWithVCResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ProgramDetail'
+    vc:
+      $ref: '#/VersionControl'
+      nullable: true
+  required:
+    - success
+    - data
+
+SchoolAttributesSummary:
+  type: object
+  properties:
+    school:
+      type: string
+    isPrivateSchool:
+      type: boolean
+    isPartnerSchool:
+      type: boolean
+    schoolType:
+      $ref: '#/SchoolType'
+    country:
+      type: string
+    tags:
+      type: array
+      items:
+        $ref: '#/SchoolTag'
+    count:
+      type: integer
+      format: int32
+  required:
+    - school
+
+SchoolAttributesSummaryResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/SchoolAttributesSummary'
+  required:
+    - success
+    - data
+
+SchoolAttributesUpdateRequest:
+  type: object
+  required:
+    - school
+  properties:
+    school:
+      type: string
+    isPrivateSchool:
+      type: boolean
+    isPartnerSchool:
+      type: boolean
+    schoolType:
+      $ref: '#/SchoolType'
+    country:
+      type: string
+    tags:
+      type: array
+      items:
+        $ref: '#/SchoolTag'
+
+SchoolDistributionItem:
+  type: object
+  properties:
+    school:
+      type: string
+    country:
+      type: string
+    city:
+      type: string
+    programCount:
+      type: integer
+      format: int32
+  required:
+    - programCount
+
+SchoolDistributionResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/SchoolDistributionItem'
+  required:
+    - success
+    - data
+
+ProgramOverview:
+  type: object
+  properties:
+    totalPrograms:
+      type: integer
+      format: int32
+    totalSchools:
+      type: integer
+      format: int32
+    byCountry:
+      type: array
+      items:
+        type: object
+        properties:
+          country:
+            type: string
+          count:
+            type: integer
+            format: int32
+    byDegree:
+      type: array
+      items:
+        type: object
+        properties:
+          degree:
+            type: string
+          count:
+            type: integer
+            format: int32
+    byLanguage:
+      type: array
+      items:
+        type: object
+        properties:
+          language:
+            type: string
+          count:
+            type: integer
+            format: int32
+    bySubject:
+      type: array
+      items:
+        type: object
+        properties:
+          subject:
+            type: string
+          count:
+            type: integer
+            format: int32
+    bySchoolType:
+      type: array
+      items:
+        type: object
+        properties:
+          schoolType:
+            $ref: '#/SchoolType'
+          isPrivateSchool:
+            type: boolean
+          isPartnerSchool:
+            type: boolean
+          count:
+            type: integer
+            format: int32
+    topSchools:
+      type: array
+      items:
+        type: object
+        properties:
+          school:
+            type: string
+          country:
+            type: string
+          city:
+            type: string
+          programCount:
+            type: integer
+            format: int32
+    topContributors:
+      type: array
+      items:
+        type: object
+        properties:
+          contributor:
+            type: string
+          updateCount:
+            type: integer
+            format: int32
+          lastUpdate:
+            type: string
+            format: date-time
+    recentlyUpdated:
+      type: array
+      items:
+        type: object
+        properties:
+          _id:
+            type: string
+          school:
+            type: string
+          program_name:
+            type: string
+          degree:
+            type: string
+          semester:
+            type: string
+          updatedAt:
+            type: string
+            format: date-time
+          whoupdated:
+            type: string
+    topApplicationPrograms:
+      type: array
+      items:
+        type: object
+        properties:
+          programId:
+            type: string
+          school:
+            type: string
+          program_name:
+            type: string
+          degree:
+            type: string
+          semester:
+            type: string
+          country:
+            type: string
+          totalApplications:
+            type: integer
+            format: int32
+          submittedCount:
+            type: integer
+            format: int32
+          admittedCount:
+            type: integer
+            format: int32
+          rejectedCount:
+            type: integer
+            format: int32
+          pendingCount:
+            type: integer
+            format: int32
+          admissionRate:
+            type: number
+            format: float
+    generatedAt:
+      type: string
+      format: date-time
+
+ProgramOverviewResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ProgramOverview'
+  required:
+    - success
+    - data
+
+ProgramPeerUser:
+  type: object
+  properties:
+    _id:
+      type: string
+    firstname:
+      type: string
+    lastname:
+      type: string
+    pictureUrl:
+      type: string
+  required:
+    - _id
+
+ProgramStudentPeer:
+  type: object
+  properties:
+    _id:
+      type: string
+    firstname:
+      type: string
+    lastname:
+      type: string
+    pictureUrl:
+      type: string
+    agents:
+      type: array
+      items:
+        $ref: '#/ProgramPeerUser'
+    editors:
+      type: array
+      items:
+        $ref: '#/ProgramPeerUser'
+    application_year:
+      type: string
+    closed:
+      type: string
+    admission:
+      type: string
+  required:
+    - _id
+
+ProgramPeerListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/ProgramStudentPeer'
+  required:
+    - success
+    - data
+
+ProgramChangeRequestPayload:
+  allOf:
+    - $ref: '#/ProgramAttributes'
+
+RequestUser:
+  type: object
+  properties:
+    _id:
+      type: string
+    firstname:
+      type: string
+    lastname:
+      type: string
+  required:
+    - _id
+
+ProgramChangeRequest:
+  type: object
+  properties:
+    _id:
+      type: string
+    programId:
+      type: string
+    programChanges:
+      allOf:
+        - $ref: '#/ProgramAttributes'
+    sources:
+      type: object
+      additionalProperties:
+        type: string
+    comment:
+      type: string
+    requestedBy:
+      oneOf:
+        - type: string
+        - $ref: '#/RequestUser'
+    reviewedBy:
+      type: string
+    reviewedAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - programId
+
+ProgramChangeRequestListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/ProgramChangeRequest'
+  required:
+    - success
+    - data
+
+ProgramChangeRequestResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ProgramChangeRequest'
+  required:
+    - success
+    - data
+
+VersionChange:
+  type: object
+  properties:
+    originalValues:
+      type: object
+      nullable: true
+    updatedValues:
+      type: object
+    changedAt:
+      type: string
+      format: date-time
+    changedBy:
+      type: string
+    changeRequest:
+      type: string
+  required:
+    - updatedValues
+
+VersionControl:
+  type: object
+  properties:
+    _id:
+      type: string
+    docId:
+      type: string
+    collectionName:
+      type: string
+    changes:
+      type: array
+      items:
+        $ref: '#/VersionChange'
+
+SuccessResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+  required:
+    - success

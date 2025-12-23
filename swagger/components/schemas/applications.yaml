@@ -1,0 +1,461 @@
+UserPreview:
+  type: object
+  properties:
+    _id:
+      type: string
+    firstname:
+      type: string
+    lastname:
+      type: string
+    email:
+      type: string
+      format: email
+    archiv:
+      type: boolean
+    pictureUrl:
+      type: string
+  required:
+    - _id
+
+DocumentThreadMessage:
+  type: object
+  properties:
+    user_id:
+      type: string
+    message:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    file:
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          path:
+            type: string
+    ignore_message:
+      type: boolean
+
+DocumentThread:
+  type: object
+  properties:
+    _id:
+      type: string
+    student_id:
+      type: string
+    program_id:
+      type: string
+    application_id:
+      type: string
+    file_type:
+      type: string
+    isFinalVersion:
+      type: boolean
+    isOriginAuthorDeclarationConfirmedByStudent:
+      type: boolean
+    isOriginAuthorDeclarationConfirmedByStudentTimestamp:
+      type: string
+      format: date-time
+    messages:
+      type: array
+      items:
+        $ref: '#/DocumentThreadMessage'
+    isEssayConsultantNeeded:
+      type: boolean
+    essayConsultantIds:
+      type: array
+      items:
+        type: string
+    updatedAt:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - file_type
+
+DocumentThreadLink:
+  type: object
+  properties:
+    _id:
+      type: string
+    isFinalVersion:
+      type: boolean
+    latest_message_left_by_id:
+      type: string
+    doc_thread_id:
+      oneOf:
+        - type: string
+        - $ref: '#/DocumentThread'
+    updatedAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+
+PortalCredentials:
+  type: object
+  properties:
+    application_portal_a:
+      type: object
+      properties:
+        account:
+          type: string
+        password:
+          type: string
+    application_portal_b:
+      type: object
+      properties:
+        account:
+          type: string
+        password:
+          type: string
+
+AdmissionLetter:
+  type: object
+  properties:
+    status:
+      type: string
+      default: notstarted
+    admission_file_path:
+      type: string
+    comments:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+
+UniAssist:
+  type: object
+  properties:
+    status:
+      type: string
+      default: notstarted
+    vpd_file_path:
+      type: string
+    vpd_paid_confirmation_file_path:
+      type: string
+    vpd_paid_confirmation_file_status:
+      type: string
+    isPaid:
+      type: boolean
+    updatedAt:
+      type: string
+      format: date-time
+
+ApplicationBase:
+  type: object
+  properties:
+    _id:
+      type: string
+    programId:
+      oneOf:
+        - type: string
+        - $ref: '../schemas/programs.yaml#/ProgramListItem'
+    studentId:
+      oneOf:
+        - type: string
+        - $ref: '#/UserPreview'
+    uni_assist:
+      $ref: '#/UniAssist'
+    portal_credentials:
+      $ref: '#/PortalCredentials'
+    doc_modification_thread:
+      type: array
+      items:
+        $ref: '#/DocumentThreadLink'
+    reject_reason:
+      type: string
+    admission_letter:
+      $ref: '#/AdmissionLetter'
+    finalEnrolment:
+      type: boolean
+    decided:
+      type: string
+    closed:
+      type: string
+    admission:
+      type: string
+    application_year:
+      type: string
+    isLocked:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+ApplicationListItem:
+  allOf:
+    - $ref: '#/ApplicationBase'
+
+ApplicationWithProgramAndThreads:
+  allOf:
+    - $ref: '#/ApplicationBase'
+    - type: object
+      properties:
+        programId:
+          oneOf:
+            - type: string
+            - type: object
+              properties:
+                _id:
+                  type: string
+                school:
+                  type: string
+                program_name:
+                  type: string
+                degree:
+                  type: string
+                semester:
+                  type: string
+            - $ref: '../schemas/programs.yaml#/ProgramListItem'
+        doc_modification_thread:
+          type: array
+          items:
+            $ref: '#/DocumentThreadLink'
+
+StudentApplicationView:
+  type: object
+  description: Student document with populated agents/editors and applications as returned by getStudentApplications.
+  properties:
+    _id:
+      type: string
+    firstname:
+      type: string
+    lastname:
+      type: string
+    email:
+      type: string
+    archiv:
+      type: boolean
+    agents:
+      type: array
+      items:
+        $ref: '#/UserPreview'
+    editors:
+      type: array
+      items:
+        $ref: '#/UserPreview'
+    applications:
+      type: array
+      items:
+        $ref: '#/ApplicationWithProgramAndThreads'
+    generaldocs_threads:
+      type: array
+      items:
+        $ref: '#/DocumentThreadLink'
+    applying_program_count:
+      type: integer
+    application_preference:
+      type: object
+      additionalProperties: true
+    profile:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    attributes:
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          value:
+            type: number
+    needEditor:
+      type: boolean
+    lastLoginAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: true
+
+ApplicationListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/ApplicationListItem'
+  required:
+    - success
+    - data
+
+ApplicationDetailResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ApplicationWithProgramAndThreads'
+  required:
+    - success
+    - data
+
+StudentApplicationsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/StudentApplicationView'
+  required:
+    - success
+    - data
+
+CreateApplicationsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/ApplicationWithProgramAndThreads'
+  required:
+    - success
+    - data
+
+ApplicationsWithUserResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        applications:
+          type: array
+          items:
+            $ref: '#/ApplicationListItem'
+        user:
+          $ref: '#/UserPreview'
+      required:
+        - applications
+        - user
+  required:
+    - success
+    - data
+
+ApplicationConflictsItem:
+  type: object
+  properties:
+    programId:
+      type: string
+    program:
+      type: object
+      properties:
+        _id:
+          type: string
+        school:
+          type: string
+        program_name:
+          type: string
+        application_deadline:
+          type: string
+        degree:
+          type: string
+        semester:
+          type: string
+    application_year:
+      type: string
+    applicationCount:
+      type: integer
+    students:
+      type: array
+      items:
+        type: object
+        properties:
+          _id:
+            type: string
+          firstname:
+            type: string
+          lastname:
+            type: string
+  required:
+    - programId
+    - program
+    - applicationCount
+
+ApplicationConflictsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/ApplicationConflictsItem'
+  required:
+    - success
+    - data
+
+ApplicationDeltasResponse:
+  type: object
+  description: Array of per-program student delta summaries returned by teams.getApplicationDeltas.
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        type: object
+        properties:
+          program:
+            type: object
+            properties:
+              _id:
+                type: string
+              school:
+                type: string
+              program_name:
+                type: string
+              degree:
+                type: string
+              semester:
+                type: string
+          students:
+            type: array
+            items:
+              type: object
+              additionalProperties: true
+        additionalProperties: false
+  required:
+    - success
+    - data
+
+SuccessWithMessage:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        message:
+          type: string
+  required:
+    - success
+    - data

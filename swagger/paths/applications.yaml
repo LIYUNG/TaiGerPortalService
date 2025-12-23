@@ -42,15 +42,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/applications.yaml#/ApplicationListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -71,17 +63,13 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-      '400':
-        $ref: '../components/responses/common.yaml#/Error'
+              $ref: '../components/schemas/applications.yaml#/SuccessWithMessage'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
         $ref: '../components/responses/common.yaml#/Forbidden'
+      '409':
+        $ref: '../components/responses/common.yaml#/Error'
       '404':
         $ref: '../components/responses/common.yaml#/NotFound'
 
@@ -100,11 +88,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/applications.yaml#/ApplicationDetailResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -127,15 +111,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/applications.yaml#/ApplicationListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -156,16 +132,7 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              decided:
-                type: string
-              closed:
-                type: string
-              admission:
-                type: string
-              finalEnrolment:
-                type: string
+            $ref: '../components/schemas/applications.yaml#/ApplicationBase'
     responses:
       '200':
         description: Application updated successfully
@@ -216,20 +183,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
-                  properties:
-                    applications:
-                      type: array
-                      items:
-                        type: object
-                    user:
-                      type: object
+              $ref: '../components/schemas/applications.yaml#/ApplicationsWithUserResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -252,14 +206,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
-                  description: Student data with applications
+              $ref: '../components/schemas/applications.yaml#/StudentApplicationsResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -281,25 +228,19 @@
           schema:
             type: object
             properties:
-              programId:
-                type: string
-                description: Program ID to apply to
-              application_year:
-                type: string
-                description: Application year
+              program_id_set:
+                type: array
+                items:
+                  type: string
+            required:
+              - program_id_set
     responses:
       '201':
         description: Application created successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/applications.yaml#/CreateApplicationsResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -341,16 +282,12 @@
               applying_program_count:
                 type: integer
     responses:
-      '200':
+      '201':
         description: Applications updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/applications.yaml#/StudentApplicationsResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -373,15 +310,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/applications.yaml#/ApplicationConflictsResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -400,15 +329,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/applications.yaml#/ApplicationDeltasResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':

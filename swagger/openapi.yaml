@@ -340,10 +340,6 @@ paths:
     $ref: './paths/crm.yaml#/~1api~1crm~1deals~1{dealId}'
   /api/crm/meetings/{meetingId}:
     $ref: './paths/crm.yaml#/~1api~1crm~1meetings~1{meetingId}'
-  /api/crm/sync:
-    $ref: './paths/crm.yaml#/~1api~1crm~1sync'
-  /api/crm/analytics:
-    $ref: './paths/crm.yaml#/~1api~1crm~1analytics'
 
   # TaiGer AI endpoints
   /api/taigerai:

@@ -11,14 +11,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
-                  description: Aggregated program statistics
+              $ref: '../components/schemas/programs.yaml#/ProgramOverviewResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -37,24 +30,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      school:
-                        type: string
-                      country:
-                        type: string
-                      city:
-                        type: string
-                      programCount:
-                        type: integer
+              $ref: '../components/schemas/programs.yaml#/SchoolDistributionResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -75,15 +51,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/programs.yaml#/ProgramPeerListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -96,49 +64,15 @@
     tags:
       - Programs
     summary: Get all programs
-    description: Retrieve a list of all programs with optional filters
+    description: Retrieve a list of all programs
     operationId: getPrograms
-    parameters:
-      - name: school
-        in: query
-        description: Filter by school name
-        schema:
-          type: string
-      - name: degree
-        in: query
-        description: Filter by degree type
-        schema:
-          type: string
-      - name: semester
-        in: query
-        description: Filter by semester
-        schema:
-          type: string
-      - name: lang
-        in: query
-        description: Filter by language
-        schema:
-          type: string
-      - name: country
-        in: query
-        description: Filter by country
-        schema:
-          type: string
     responses:
       '200':
         description: Programs retrieved successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/programs.yaml#/ProgramListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -154,37 +88,14 @@
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - school
-              - degree
-              - program_name
-            properties:
-              school:
-                type: string
-              degree:
-                type: string
-              program_name:
-                type: string
-              semester:
-                type: string
-              lang:
-                type: string
-              country:
-                type: string
+            $ref: '../components/schemas/programs.yaml#/ProgramCreateRequest'
     responses:
       '201':
         description: Program created successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/programs.yaml#/ProgramDetailResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -205,32 +116,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      school:
-                        type: string
-                      isPrivateSchool:
-                        type: boolean
-                      isPartnerSchool:
-                        type: boolean
-                      schoolType:
-                        type: string
-                      country:
-                        type: string
-                      tags:
-                        type: array
-                        items:
-                          type: string
-                      count:
-                        type: integer
+              $ref: '../components/schemas/programs.yaml#/SchoolAttributesSummaryResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -246,33 +132,14 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              school:
-                type: string
-              isPrivateSchool:
-                type: boolean
-              isPartnerSchool:
-                type: boolean
-              schoolType:
-                type: string
-              country:
-                type: string
-              tags:
-                type: array
-                items:
-                  type: string
+            $ref: '../components/schemas/programs.yaml#/SchoolAttributesUpdateRequest'
     responses:
       '200':
         description: School attributes updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/programs.yaml#/SuccessResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -295,13 +162,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/programs.yaml#/ProgramDetailWithVCResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -321,20 +182,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/programs.yaml#/ProgramUpdateRequest'
     responses:
       '200':
         description: Program updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/programs.yaml#/ProgramDetailWithVCResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -357,11 +212,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/programs.yaml#/SuccessResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -376,7 +227,7 @@
     tags:
       - Programs
     summary: Refresh program
-    description: Refresh program data from external sources
+    description: Refresh program data and version control entry
     operationId: refreshProgram
     parameters:
       - $ref: '../components/parameters/common.yaml#/programId'
@@ -386,11 +237,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/programs.yaml#/ProgramDetailWithVCResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -405,7 +252,7 @@
     tags:
       - Programs
     summary: Get program change requests
-    description: Retrieve all change requests for a specific program
+    description: Retrieve pending change requests for a specific program
     operationId: getProgramChangeRequests
     parameters:
       - $ref: '../components/parameters/common.yaml#/programId'
@@ -415,15 +262,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/programs.yaml#/ProgramChangeRequestListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -443,25 +282,14 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              changes:
-                type: object
-                description: Proposed changes to the program
-              reason:
-                type: string
-                description: Reason for the change request
+            $ref: '../components/schemas/programs.yaml#/ProgramChangeRequestPayload'
     responses:
-      '201':
+      '200':
         description: Change request submitted successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/programs.yaml#/SuccessResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -476,35 +304,17 @@
     tags:
       - Programs
     summary: Review program change request
-    description: Approve or reject a program change request
+    description: Mark a program change request as reviewed
     operationId: reviewProgramChangeRequest
     parameters:
       - $ref: '../components/parameters/common.yaml#/requestId'
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              status:
-                type: string
-                enum: [approved, rejected]
-                description: Review decision
-              comments:
-                type: string
-                description: Review comments
     responses:
       '200':
         description: Change request reviewed successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/programs.yaml#/ProgramChangeRequestResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':

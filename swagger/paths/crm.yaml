@@ -1,0 +1,215 @@
+/api/crm/leads:
+  get:
+    tags:
+      - CRM
+    summary: Get leads
+    description: Get all CRM leads
+    operationId: getLeads
+    responses:
+      '200':
+        description: Leads retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  post:
+    tags:
+      - CRM
+    summary: Create lead
+    description: Create a new CRM lead
+    operationId: createLead
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '201':
+        description: Lead created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/crm/leads/{leadId}:
+  get:
+    tags:
+      - CRM
+    summary: Get lead
+    description: Get lead details
+    operationId: getLead
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    responses:
+      '200':
+        description: Lead retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - CRM
+    summary: Update lead
+    description: Update lead
+    operationId: updateLead
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Lead updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/deals/{dealId}:
+  get:
+    tags:
+      - CRM
+    summary: Get deal
+    description: Get CRM deal details
+    operationId: getDeal
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/dealId'
+    responses:
+      '200':
+        description: Deal retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/meetings/{meetingId}:
+  get:
+    tags:
+      - CRM
+    summary: Get meeting
+    description: Get CRM meeting details
+    operationId: getMeeting
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/meetingId'
+    responses:
+      '200':
+        description: Meeting retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/sync:
+  post:
+    tags:
+      - CRM
+    summary: Sync CRM data
+    description: Sync with external CRM system
+    operationId: syncCRM
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: CRM sync completed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/crm/analytics:
+  get:
+    tags:
+      - CRM
+    summary: Get CRM analytics
+    description: Get CRM analytics and metrics
+    operationId: getCRMAnalytics
+    responses:
+      '200':
+        description: CRM analytics retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'

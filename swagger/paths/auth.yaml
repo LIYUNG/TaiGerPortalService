@@ -1,0 +1,278 @@
+/auth/login:
+  post:
+    tags:
+      - Authentication
+    summary: User login
+    description: Authenticate user with email and password
+    operationId: login
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - email
+              - password
+            properties:
+              email:
+                type: string
+                format: email
+                example: user@example.com
+              password:
+                type: string
+                format: password
+                example: SecurePassword123
+    responses:
+      '200':
+        description: Login successful
+        headers:
+          Set-Cookie:
+            schema:
+              type: string
+              example: x-auth=token; HttpOnly; Secure; SameSite=None
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  description: User data
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+    security: []
+
+/auth/logout:
+  get:
+    tags:
+      - Authentication
+    summary: User logout
+    description: Clear authentication cookie and end session
+    operationId: logout
+    responses:
+      '200':
+        description: Logout successful
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+    security: []
+
+/auth/verify:
+  get:
+    tags:
+      - Authentication
+    summary: Verify current user
+    description: Check if the current authentication token is valid and return user data
+    operationId: verify
+    responses:
+      '200':
+        description: User verified successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  description: Current user data
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/auth/activation:
+  post:
+    tags:
+      - Authentication
+    summary: Activate user account
+    description: Activate a user account using the activation token sent via email
+    operationId: activateAccount
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - token
+            properties:
+              token:
+                type: string
+                description: Activation token received via email
+    responses:
+      '200':
+        description: Account activated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+    security: []
+
+/auth/resend-activation:
+  post:
+    tags:
+      - Authentication
+    summary: Resend activation email
+    description: Resend the account activation email to the user
+    operationId: resendActivation
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - email
+            properties:
+              email:
+                type: string
+                format: email
+    responses:
+      '200':
+        description: Activation email sent successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+    security: []
+
+/auth/forgot-password:
+  post:
+    tags:
+      - Authentication
+    summary: Request password reset
+    description: Send a password reset email to the user
+    operationId: forgotPassword
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - email
+            properties:
+              email:
+                type: string
+                format: email
+    responses:
+      '200':
+        description: Password reset email sent successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+    security: []
+
+/auth/reset-password:
+  post:
+    tags:
+      - Authentication
+    summary: Reset password
+    description: Reset user password using the reset token sent via email
+    operationId: resetPassword
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - token
+              - password
+            properties:
+              token:
+                type: string
+                description: Password reset token received via email
+              password:
+                type: string
+                format: password
+                description: New password
+    responses:
+      '200':
+        description: Password reset successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+    security: []
+
+/auth/oauth/google/callback:
+  post:
+    tags:
+      - Authentication
+    summary: Google OAuth callback
+    description: Handle Google OAuth authentication callback
+    operationId: googleOAuthCallback
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - code
+            properties:
+              code:
+                type: string
+                description: Authorization code from Google OAuth
+    responses:
+      '200':
+        description: OAuth authentication successful
+        headers:
+          Set-Cookie:
+            schema:
+              type: string
+              example: x-auth=token; HttpOnly; Secure; SameSite=None
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  description: User data
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+    security: []

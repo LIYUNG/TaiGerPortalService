@@ -1,0 +1,794 @@
+/api/document-threads/pattern/check/{messagesThreadId}/{file_type}:
+  get:
+    tags:
+      - Document Threads
+    summary: Check document pattern
+    description: Check if a document matches the required pattern for a thread
+    operationId: checkDocumentPattern
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/file_type'
+    responses:
+      '200':
+        description: Pattern check result retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/document-threads/overview/my-student-metrics:
+  get:
+    tags:
+      - Document Threads
+    summary: Get my student metrics
+    description: Get document completion metrics for my assigned students
+    operationId: getMyStudentMetrics
+    responses:
+      '200':
+        description: Student metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/document-threads/overview/taiger-user/{userId}:
+  get:
+    tags:
+      - Document Threads
+    summary: Get threads for TaiGer user
+    description: Get all document threads for a specific TaiGer user's students
+    operationId: getMyStudentsThreads
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/userId'
+    responses:
+      '200':
+        description: Document threads retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/overview/all:
+  get:
+    tags:
+      - Document Threads
+    summary: Get all active threads
+    description: Get all active document threads in the system
+    operationId: getActiveThreads
+    responses:
+      '200':
+        description: Active threads retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/document-threads/survey-input/{surveyInputId}:
+  put:
+    tags:
+      - Document Threads
+    summary: Update survey input
+    description: Update a survey response in a document thread
+    operationId: putSurveyInput
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/surveyInputId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Survey input updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Document Threads
+    summary: Reset survey input
+    description: Reset/delete a survey response
+    operationId: resetSurveyInput
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/surveyInputId'
+    responses:
+      '200':
+        description: Survey input reset successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/survey-input:
+  post:
+    tags:
+      - Document Threads
+    summary: Create survey input
+    description: Create a new survey response in a document thread
+    operationId: postSurveyInput
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '201':
+        description: Survey input created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/document-threads/student-threads/{studentId}:
+  get:
+    tags:
+      - Document Threads
+    summary: Get student threads
+    description: Get all document threads for a specific student
+    operationId: getThreadsByStudent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Student threads retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/init/general/{studentId}/{document_category}:
+  post:
+    tags:
+      - Document Threads
+    summary: Initialize general document thread
+    description: Create a new general document discussion thread
+    operationId: initGeneralMessagesThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/document_category'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '201':
+        description: General thread initialized successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/init/application/{studentId}/{application_id}/{document_category}:
+  post:
+    tags:
+      - Document Threads
+    summary: Initialize application document thread
+    description: Create a new document discussion thread for a specific application
+    operationId: initApplicationMessagesThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/application_id'
+      - $ref: '../components/parameters/common.yaml#/document_category'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '201':
+        description: Application thread initialized successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/{messagesThreadId}/essay:
+  post:
+    tags:
+      - Document Threads
+    summary: Assign essay writers
+    description: Assign essay writers to work on documents in a thread
+    operationId: assignEssayWritersToEssayTask
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              editorIds:
+                type: array
+                items:
+                  type: string
+    responses:
+      '200':
+        description: Essay writers assigned successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/{messagesThreadId}/{messageId}/{ignoreMessageState}/ignored:
+  put:
+    tags:
+      - Document Threads
+    summary: Mark message as ignored
+    description: Set ignore status on a message in a document thread
+    operationId: IgnoreMessageInDocumentThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/messageId'
+      - $ref: '../components/parameters/common.yaml#/ignoreMessageState'
+    responses:
+      '200':
+        description: Message ignore status updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/{messagesThreadId}/favorite:
+  put:
+    tags:
+      - Document Threads
+    summary: Toggle thread favorite
+    description: Mark/unmark a document thread as favorite
+    operationId: putThreadFavorite
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              isFavorite:
+                type: boolean
+    responses:
+      '200':
+        description: Thread favorite status updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/{messagesThreadId}/{studentId}/origin-author:
+  put:
+    tags:
+      - Document Threads
+    summary: Confirm origin author
+    description: Student confirms they are the original author of documents
+    operationId: putOriginAuthorConfirmedByStudent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Origin author confirmation updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/{messagesThreadId}/{studentId}:
+  get:
+    tags:
+      - Document Threads
+    summary: Get thread messages
+    description: Get all messages in a specific document thread
+    operationId: getMessages
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Thread messages retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Document Threads
+    summary: Update thread status
+    description: Update the status/state of a document thread
+    operationId: SetStatusMessagesThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+    responses:
+      '200':
+        description: Thread status updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  post:
+    tags:
+      - Document Threads
+    summary: Post message to thread
+    description: Add a new message to a document thread
+    operationId: postMessages
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              file:
+                type: string
+                format: binary
+    responses:
+      '201':
+        description: Message posted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Document Threads
+    summary: Delete thread
+    description: Delete an entire general document thread
+    operationId: handleDeleteGeneralThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Thread deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/delete/{messagesThreadId}/{messageId}:
+  delete:
+    tags:
+      - Document Threads
+    summary: Delete message
+    description: Delete a specific message from a document thread
+    operationId: deleteAMessageInThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/messageId'
+    responses:
+      '200':
+        description: Message deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/image/{messagesThreadId}/{studentId}/{file_name}:
+  get:
+    tags:
+      - Document Threads
+    summary: Download thread image
+    description: Download an image file from a document thread
+    operationId: getMessageImageDownload
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/file_name'
+    responses:
+      '200':
+        description: Image retrieved successfully
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/image/{messagesThreadId}/{studentId}:
+  post:
+    tags:
+      - Document Threads
+    summary: Upload image to thread
+    description: Upload an image to a document thread
+    operationId: postImageInThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+    responses:
+      '200':
+        description: Image uploaded successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/{messagesThreadId}/survey-inputs:
+  get:
+    tags:
+      - Document Threads
+    summary: Get survey inputs
+    description: Get all survey responses in a document thread
+    operationId: getSurveyInputs
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+    responses:
+      '200':
+        description: Survey inputs retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/{messagesThreadId}:
+  get:
+    tags:
+      - Document Threads
+    summary: Get thread
+    description: Get detailed information about a document thread
+    operationId: getThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+    responses:
+      '200':
+        description: Thread retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/{studentId}/{messagesThreadId}/{file_key}:
+  get:
+    tags:
+      - Document Threads
+    summary: Download thread file
+    description: Download a file from a document thread
+    operationId: getMessageFileDownload
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/file_key'
+    responses:
+      '200':
+        description: File retrieved successfully
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/document-threads/{messagesThreadId}/{application_id}/{studentId}:
+  delete:
+    tags:
+      - Document Threads
+    summary: Delete application thread
+    description: Delete a document thread for a specific application
+    operationId: handleDeleteProgramThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/messagesThreadId'
+      - $ref: '../components/parameters/common.yaml#/application_id'
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Application thread deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

@@ -1,0 +1,535 @@
+/api/docs:
+  post:
+    tags:
+      - Documentation
+    summary: Create documentation
+    description: Create a new public documentation page
+    operationId: createDocumentation
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              title:
+                type: string
+              category:
+                type: string
+              content:
+                type: string
+    responses:
+      '201':
+        description: Documentation created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/docs/internal:
+  post:
+    tags:
+      - Documentation
+    summary: Create internal documentation
+    description: Create a new internal (staff-only) documentation page
+    operationId: createInternalDocumentation
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '201':
+        description: Internal documentation created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/docs/internal/all:
+  get:
+    tags:
+      - Documentation
+    summary: Get all internal documentations
+    description: Retrieve all internal documentation pages
+    operationId: getAllInternalDocumentations
+    responses:
+      '200':
+        description: Internal documentations retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/docs/internal/search/{doc_id}:
+  get:
+    tags:
+      - Documentation
+    summary: Get internal documentation by ID
+    description: Retrieve a specific internal documentation page
+    operationId: getInternalDocumentation
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/doc_id'
+    responses:
+      '200':
+        description: Internal documentation retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/docs/internal/{id}:
+  put:
+    tags:
+      - Documentation
+    summary: Update internal documentation
+    description: Update an internal documentation page
+    operationId: updateInternalDocumentation
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/id'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Internal documentation updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Documentation
+    summary: Delete internal documentation
+    description: Delete an internal documentation page
+    operationId: deleteInternalDocumentation
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/id'
+    responses:
+      '200':
+        description: Internal documentation deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/docs/taiger/internal/confidential:
+  get:
+    tags:
+      - Documentation
+    summary: Get internal documentation page
+    description: Get consolidated internal documentation page
+    operationId: getInternalDocumentationsPage
+    responses:
+      '200':
+        description: Internal documentation page retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+  put:
+    tags:
+      - Documentation
+    summary: Update internal documentation page
+    description: Update the consolidated internal documentation page
+    operationId: updateInternalDocumentationPage
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Internal documentation page updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/docs/upload/image:
+  post:
+    tags:
+      - Documentation
+    summary: Upload documentation image
+    description: Upload an image for use in documentation
+    operationId: uploadDocImage
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+    responses:
+      '200':
+        description: Image uploaded successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/docs/file/{object_key}:
+  get:
+    tags:
+      - Documentation
+    summary: Download documentation file
+    description: Download a file attached to documentation
+    operationId: getDocFile
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/object_key'
+    responses:
+      '200':
+        description: File retrieved successfully
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/docs/upload/docs:
+  post:
+    tags:
+      - Documentation
+    summary: Upload documentation file
+    description: Upload a document/file for documentation
+    operationId: uploadDocDocs
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+    responses:
+      '200':
+        description: Document uploaded successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/docs/all:
+  get:
+    tags:
+      - Documentation
+    summary: Get all documentations
+    description: Retrieve all public documentation pages
+    operationId: getAllDocumentations
+    responses:
+      '200':
+        description: Documentations retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/docs/pages/{category}:
+  get:
+    tags:
+      - Documentation
+    summary: Get category documentation page
+    description: Get consolidated documentation page for a category
+    operationId: getCategoryDocumentationsPage
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/category'
+    responses:
+      '200':
+        description: Category documentation page retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Documentation
+    summary: Update documentation page
+    description: Update a documentation page
+    operationId: updateDocumentationPage
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/category'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Documentation page updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/docs/{category}:
+  get:
+    tags:
+      - Documentation
+    summary: Get category documentations
+    description: Get all documentation pages in a category
+    operationId: getCategoryDocumentations
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/category'
+    responses:
+      '200':
+        description: Category documentations retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/docs/search/{doc_id}:
+  get:
+    tags:
+      - Documentation
+    summary: Get documentation by ID
+    description: Retrieve a specific documentation page
+    operationId: getDocumentation
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/doc_id'
+    responses:
+      '200':
+        description: Documentation retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/docs/{id}:
+  put:
+    tags:
+      - Documentation
+    summary: Update documentation
+    description: Update a documentation page
+    operationId: updateDocumentation
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/id'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Documentation updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Documentation
+    summary: Delete documentation
+    description: Delete a documentation page
+    operationId: deleteDocumentation
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/id'
+    responses:
+      '200':
+        description: Documentation deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

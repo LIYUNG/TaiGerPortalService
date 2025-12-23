@@ -1,0 +1,265 @@
+/api/teams:
+  get:
+    tags:
+      - Teams
+    summary: Get team members
+    description: Get all team members
+    operationId: getTeamMembers
+    responses:
+      '200':
+        description: Team members retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/teams/statistics/overview:
+  get:
+    tags:
+      - Teams
+    summary: Get statistics overview
+    description: Get team performance and statistics overview
+    operationId: getStatisticsOverview
+    responses:
+      '200':
+        description: Statistics overview retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/teams/statistics/agents:
+  get:
+    tags:
+      - Teams
+    summary: Get agent statistics
+    description: Get performance statistics for all agents
+    operationId: getStatisticsAgents
+    responses:
+      '200':
+        description: Agent statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/teams/statistics/kpi:
+  get:
+    tags:
+      - Teams
+    summary: Get KPI statistics
+    description: Get key performance indicators
+    operationId: getStatisticsKPI
+    responses:
+      '200':
+        description: KPI statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/teams/statistics/response-time:
+  get:
+    tags:
+      - Teams
+    summary: Get response time statistics
+    description: Get team response time metrics
+    operationId: getStatisticsResponseTime
+    responses:
+      '200':
+        description: Response time statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/teams/is-manager:
+  get:
+    tags:
+      - Teams
+    summary: Check if manager
+    description: Check if current user is a manager
+    operationId: getIsManager
+    responses:
+      '200':
+        description: Manager status retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: boolean
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/teams/tasks-overview:
+  get:
+    tags:
+      - Teams
+    summary: Get tasks overview
+    description: Get overview of team tasks and workload
+    operationId: getTasksOverview
+    responses:
+      '200':
+        description: Tasks overview retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/teams/response-interval/{studentId}:
+  get:
+    tags:
+      - Teams
+    summary: Get response interval
+    description: Get average response time interval for a student
+    operationId: getResponseIntervalByStudent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Response interval retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: number
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/teams/response-time/{studentId}:
+  get:
+    tags:
+      - Teams
+    summary: Get response time
+    description: Get detailed response time metrics for a student
+    operationId: getResponseTimeByStudent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Response time metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/teams/archiv/{TaiGerStaffId}:
+  get:
+    tags:
+      - Teams
+    summary: Get archived students
+    description: Get all archived students for a staff member
+    operationId: getArchivStudents
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/TaiGerStaffId'
+    responses:
+      '200':
+        description: Archived students retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

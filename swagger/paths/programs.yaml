@@ -1,0 +1,515 @@
+/api/programs/overview:
+  get:
+    tags:
+      - Programs
+    summary: Get programs overview
+    description: Retrieve high-level overview and aggregated statistics about programs including metrics for dashboards
+    operationId: getProgramsOverview
+    responses:
+      '200':
+        description: Programs overview retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  description: Aggregated program statistics
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/programs/schools-distribution:
+  get:
+    tags:
+      - Programs
+    summary: Get schools distribution
+    description: Retrieve all schools with their program counts
+    operationId: getSchoolsDistribution
+    responses:
+      '200':
+        description: Schools distribution retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      school:
+                        type: string
+                      country:
+                        type: string
+                      city:
+                        type: string
+                      programCount:
+                        type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/programs/same-program-students/{programId}:
+  get:
+    tags:
+      - Programs
+    summary: Get students applying to same program
+    description: Retrieve students who have applied to the same program
+    operationId: getSameProgramStudents
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/programId'
+    responses:
+      '200':
+        description: Students retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/programs:
+  get:
+    tags:
+      - Programs
+    summary: Get all programs
+    description: Retrieve a list of all programs with optional filters
+    operationId: getPrograms
+    parameters:
+      - name: school
+        in: query
+        description: Filter by school name
+        schema:
+          type: string
+      - name: degree
+        in: query
+        description: Filter by degree type
+        schema:
+          type: string
+      - name: semester
+        in: query
+        description: Filter by semester
+        schema:
+          type: string
+      - name: lang
+        in: query
+        description: Filter by language
+        schema:
+          type: string
+      - name: country
+        in: query
+        description: Filter by country
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Programs retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+  post:
+    tags:
+      - Programs
+    summary: Create program
+    description: Create a new program
+    operationId: createProgram
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - school
+              - degree
+              - program_name
+            properties:
+              school:
+                type: string
+              degree:
+                type: string
+              program_name:
+                type: string
+              semester:
+                type: string
+              lang:
+                type: string
+              country:
+                type: string
+    responses:
+      '201':
+        description: Program created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/programs/schools:
+  get:
+    tags:
+      - Programs
+    summary: Get distinct school attributes
+    description: Retrieve distinct combinations of school attributes
+    operationId: getDistinctSchoolsAttributes
+    responses:
+      '200':
+        description: School attributes retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      school:
+                        type: string
+                      isPrivateSchool:
+                        type: boolean
+                      isPartnerSchool:
+                        type: boolean
+                      schoolType:
+                        type: string
+                      country:
+                        type: string
+                      tags:
+                        type: array
+                        items:
+                          type: string
+                      count:
+                        type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+  put:
+    tags:
+      - Programs
+    summary: Update school attributes (batch)
+    description: Update attributes for all programs of a specific school
+    operationId: updateBatchSchoolAttributes
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              school:
+                type: string
+              isPrivateSchool:
+                type: boolean
+              isPartnerSchool:
+                type: boolean
+              schoolType:
+                type: string
+              country:
+                type: string
+              tags:
+                type: array
+                items:
+                  type: string
+    responses:
+      '200':
+        description: School attributes updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/programs/{programId}:
+  get:
+    tags:
+      - Programs
+    summary: Get program by ID
+    description: Retrieve a specific program's details
+    operationId: getProgram
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/programId'
+    responses:
+      '200':
+        description: Program retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Programs
+    summary: Update program
+    description: Update a specific program's details
+    operationId: updateProgram
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/programId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Program updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Programs
+    summary: Delete program
+    description: Delete a specific program
+    operationId: deleteProgram
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/programId'
+    responses:
+      '200':
+        description: Program deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/programs/{programId}/refresh:
+  post:
+    tags:
+      - Programs
+    summary: Refresh program
+    description: Refresh program data from external sources
+    operationId: refreshProgram
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/programId'
+    responses:
+      '200':
+        description: Program refreshed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/programs/{programId}/change-requests:
+  get:
+    tags:
+      - Programs
+    summary: Get program change requests
+    description: Retrieve all change requests for a specific program
+    operationId: getProgramChangeRequests
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/programId'
+    responses:
+      '200':
+        description: Change requests retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  post:
+    tags:
+      - Programs
+    summary: Submit program change request
+    description: Submit a change request for a program
+    operationId: submitProgramChangeRequests
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/programId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              changes:
+                type: object
+                description: Proposed changes to the program
+              reason:
+                type: string
+                description: Reason for the change request
+    responses:
+      '201':
+        description: Change request submitted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/programs/review-changes/{requestId}:
+  post:
+    tags:
+      - Programs
+    summary: Review program change request
+    description: Approve or reject a program change request
+    operationId: reviewProgramChangeRequest
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/requestId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [approved, rejected]
+                description: Review decision
+              comments:
+                type: string
+                description: Review comments
+    responses:
+      '200':
+        description: Change request reviewed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

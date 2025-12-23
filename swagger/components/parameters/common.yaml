@@ -1,0 +1,375 @@
+studentId:
+  name: studentId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Student ID
+
+applicationId:
+  name: applicationId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Application ID
+
+application_id:
+  name: application_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Application ID
+
+programId:
+  name: programId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Program ID
+
+program_id:
+  name: program_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Program ID
+
+fileType:
+  name: fileType
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Type of file
+
+file_type:
+  name: file_type
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Type of file
+
+file_key:
+  name: file_key
+  in: path
+  required: true
+  schema:
+    type: string
+  description: File key/identifier
+
+fileKey:
+  name: fileKey
+  in: path
+  required: true
+  schema:
+    type: string
+  description: File key/identifier
+
+category:
+  name: category
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Document category
+
+userId:
+  name: userId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: User ID
+
+user_id:
+  name: user_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: User ID
+
+requestId:
+  name: requestId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Request ID
+
+communication_messageId:
+  name: communication_messageId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Communication message ID
+
+ignoreMessageState:
+  name: ignoreMessageState
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Ignore message state
+
+messageId:
+  name: messageId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Message ID
+
+fileName:
+  name: fileName
+  in: path
+  required: true
+  schema:
+    type: string
+  description: File name
+
+file_name:
+  name: file_name
+  in: path
+  required: true
+  schema:
+    type: string
+  description: File name
+
+pageNumber:
+  name: pageNumber
+  in: path
+  required: true
+  schema:
+    type: integer
+  description: Page number
+
+event_id:
+  name: event_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Event ID
+
+doc_id:
+  name: doc_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Document ID
+
+id:
+  name: id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Generic ID
+
+object_key:
+  name: object_key
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Object key
+
+messagesThreadId:
+  name: messagesThreadId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Messages thread ID
+
+document_category:
+  name: document_category
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Document category
+
+interview_id:
+  name: interview_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Interview ID
+
+TaiGerStaffId:
+  name: TaiGerStaffId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: TaiGer staff member ID
+
+language:
+  name: language
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Language code
+
+applications_year:
+  name: applications_year
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Applications year
+
+admission:
+  name: admission
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Admission status
+
+result:
+  name: result
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Result status
+
+ticket_id:
+  name: ticket_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Ticket ID
+
+ticketId:
+  name: ticketId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Ticket ID
+
+courseId:
+  name: courseId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Course ID
+
+keywordsSetId:
+  name: keywordsSetId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Keywords set ID
+
+requirementId:
+  name: requirementId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Requirement ID
+
+agent_id:
+  name: agent_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Agent ID
+
+taiger_user_id:
+  name: taiger_user_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: TaiGer user ID
+
+student_id:
+  name: student_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Student ID
+
+leadId:
+  name: leadId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Lead ID
+
+meetingId:
+  name: meetingId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Meeting ID
+
+dealId:
+  name: dealId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Deal ID
+
+surveyInputId:
+  name: surveyInputId
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Survey input ID
+
+input_id:
+  name: input_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Input ID
+
+course_id:
+  name: course_id
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Course ID
+
+year:
+  name: year
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Year
+
+category_name:
+  name: category_name
+  in: path
+  required: true
+  schema:
+    type: string
+  description: Category name

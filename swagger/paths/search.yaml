@@ -1,0 +1,82 @@
+/api/search:
+  post:
+    tags:
+      - Search
+    summary: Search
+    description: Global search across students, applications, and programs
+    operationId: search
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              query:
+                type: string
+              filters:
+                type: object
+    responses:
+      '200':
+        description: Search results retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    students:
+                      type: array
+                      items:
+                        type: object
+                    applications:
+                      type: array
+                      items:
+                        type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/search/advanced:
+  post:
+    tags:
+      - Search
+    summary: Advanced search
+    description: Advanced search with complex filters
+    operationId: advancedSearch
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              query:
+                type: string
+              filters:
+                type: object
+              sort:
+                type: object
+    responses:
+      '200':
+        description: Advanced search results retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'

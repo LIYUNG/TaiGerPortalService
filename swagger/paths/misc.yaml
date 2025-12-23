@@ -1,0 +1,136 @@
+/api/user-logs:
+  get:
+    tags:
+      - User Logs
+    summary: Get user logs
+    description: Get user activity logs
+    operationId: getUserLogs
+    responses:
+      '200':
+        description: User logs retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/user-logs/search:
+  post:
+    tags:
+      - User Logs
+    summary: Search user logs
+    description: Search user activity logs with filters
+    operationId: searchUserLogs
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: User logs search completed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/permissions:
+  get:
+    tags:
+      - Permissions
+    summary: Get all permissions
+    description: Get all available permissions
+    operationId: getAllPermissions
+    responses:
+      '200':
+        description: Permissions retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/portal-informations:
+  get:
+    tags:
+      - Portal
+    summary: Get portal information
+    description: Get general portal information and settings
+    operationId: getPortalInformations
+    responses:
+      '200':
+        description: Portal information retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/portal-informations/{category}:
+  get:
+    tags:
+      - Portal
+    summary: Get portal information by category
+    description: Get portal information for specific category
+    operationId: getPortalInformationsByCategory
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/category'
+    responses:
+      '200':
+        description: Portal information retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

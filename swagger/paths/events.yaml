@@ -1,0 +1,234 @@
+/api/events/ping:
+  get:
+    tags:
+      - Events
+    summary: Get active events count
+    description: Get the number of active/pending events
+    operationId: getActiveEventsNumber
+    responses:
+      '200':
+        description: Active events count retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/events/booked:
+  get:
+    tags:
+      - Events
+    summary: Get booked events
+    description: Get all booked/confirmed events
+    operationId: getBookedEvents
+    responses:
+      '200':
+        description: Booked events retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/events:
+  get:
+    tags:
+      - Events
+    summary: Get all events
+    description: Get all events for the current user
+    operationId: getEvents
+    responses:
+      '200':
+        description: Events retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  post:
+    tags:
+      - Events
+    summary: Create event
+    description: Create a new event/meeting
+    operationId: postEvent
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              title:
+                type: string
+              start:
+                type: string
+                format: date-time
+              end:
+                type: string
+                format: date-time
+              receiver_id:
+                type: string
+    responses:
+      '201':
+        description: Event created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/events/{studentId}/show:
+  get:
+    tags:
+      - Events
+    summary: Show student events
+    description: Get all events for a specific student
+    operationId: showEvent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Student events retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/events/{event_id}:
+  put:
+    tags:
+      - Events
+    summary: Update event
+    description: Update an existing event
+    operationId: updateEvent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/event_id'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Event updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Events
+    summary: Delete event
+    description: Delete an event
+    operationId: deleteEvent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/event_id'
+    responses:
+      '200':
+        description: Event deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/events/{event_id}/confirm:
+  put:
+    tags:
+      - Events
+    summary: Confirm event
+    description: Confirm/accept an event invitation
+    operationId: confirmEvent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/event_id'
+    responses:
+      '200':
+        description: Event confirmed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

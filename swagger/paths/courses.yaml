@@ -1,0 +1,146 @@
+/api/courses:
+  get:
+    tags:
+      - Courses
+    summary: Get courses
+    description: Get all available courses
+    operationId: getCourses
+    responses:
+      '200':
+        description: Courses retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/courses/{course_id}:
+  put:
+    tags:
+      - Courses
+    summary: Update course
+    description: Update course details
+    operationId: updateCourse
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/course_id'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Course updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Courses
+    summary: Delete course
+    description: Delete a course
+    operationId: deleteCourse
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/course_id'
+    responses:
+      '200':
+        description: Course deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/courses/test/transcript:
+  post:
+    tags:
+      - Courses
+    summary: Test transcript parsing
+    description: Test and validate transcript data parsing
+    operationId: testTranscript
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Transcript test completed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/courses/v2/transcript/{studentId}:
+  get:
+    tags:
+      - Courses
+    summary: Get student transcript
+    description: Get detailed transcript for a student (v2 endpoint)
+    operationId: getTranscriptV2
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Student transcript retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

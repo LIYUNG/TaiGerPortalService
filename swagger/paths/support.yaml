@@ -1,0 +1,244 @@
+/api/tickets:
+  get:
+    tags:
+      - Tickets
+    summary: Get all tickets
+    description: Get all support tickets
+    operationId: getAllTickets
+    responses:
+      '200':
+        description: Tickets retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  post:
+    tags:
+      - Tickets
+    summary: Create ticket
+    description: Create a new support ticket
+    operationId: createTicket
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '201':
+        description: Ticket created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/tickets/{ticket_id}:
+  get:
+    tags:
+      - Tickets
+    summary: Get ticket
+    description: Get ticket details
+    operationId: getTicket
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ticket_id'
+    responses:
+      '200':
+        description: Ticket retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Tickets
+    summary: Update ticket
+    description: Update ticket
+    operationId: updateTicket
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ticket_id'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Ticket updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/complaints:
+  get:
+    tags:
+      - Complaints
+    summary: Get all complaints
+    description: Get all complaints
+    operationId: getAllComplaints
+    responses:
+      '200':
+        description: Complaints retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  post:
+    tags:
+      - Complaints
+    summary: Create complaint
+    description: Create a new complaint
+    operationId: createComplaint
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '201':
+        description: Complaint created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/complaints/{id}:
+  get:
+    tags:
+      - Complaints
+    summary: Get complaint
+    description: Get complaint details
+    operationId: getComplaint
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/id'
+    responses:
+      '200':
+        description: Complaint retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Complaints
+    summary: Update complaint
+    description: Update complaint
+    operationId: updateComplaint
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/id'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Complaint updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Complaints
+    summary: Delete complaint
+    description: Delete complaint
+    operationId: deleteComplaint
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/id'
+    responses:
+      '200':
+        description: Complaint deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

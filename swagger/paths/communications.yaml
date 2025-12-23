@@ -1,0 +1,292 @@
+/api/communications:
+  get:
+    tags:
+      - Communications
+    summary: Search user messages
+    description: Search for messages across users
+    operationId: getSearchUserMessages
+    responses:
+      '200':
+        description: Messages retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/communications/ping/all:
+  get:
+    tags:
+      - Communications
+    summary: Get unread messages count
+    description: Get the number of unread messages for the current user
+    operationId: getUnreadNumberMessages
+    responses:
+      '200':
+        description: Unread count retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/communications/all:
+  get:
+    tags:
+      - Communications
+    summary: Get my messages
+    description: Get all messages for the current user
+    operationId: getMyMessages
+    responses:
+      '200':
+        description: Messages retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/communications/{studentId}/{communication_messageId}/{ignoreMessageState}/ignore:
+  put:
+    tags:
+      - Communications
+    summary: Ignore/unignore message
+    description: Set ignore status for a specific message
+    operationId: IgnoreMessage
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/communication_messageId'
+      - $ref: '../components/parameters/common.yaml#/ignoreMessageState'
+    responses:
+      '200':
+        description: Message ignore status updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/communications/{studentId}/{messageId}:
+  put:
+    tags:
+      - Communications
+    summary: Update message
+    description: Update a specific message in a conversation thread
+    operationId: updateAMessageInThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/messageId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Message updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Communications
+    summary: Delete message
+    description: Delete a specific message from a conversation
+    operationId: deleteAMessageInCommunicationThread
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/messageId'
+    responses:
+      '200':
+        description: Message deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/communications/{studentId}:
+  get:
+    tags:
+      - Communications
+    summary: Get student messages
+    description: Get all messages for a specific student
+    operationId: getMessages
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Messages retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  post:
+    tags:
+      - Communications
+    summary: Post message
+    description: Send a new message to a student
+    operationId: postMessages
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              file:
+                type: string
+                format: binary
+    responses:
+      '201':
+        description: Message sent successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/communications/{studentId}/chat/{fileName}:
+  get:
+    tags:
+      - Communications
+    summary: Download chat file
+    description: Download a file attached to a chat message
+    operationId: getChatFile
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/fileName'
+    responses:
+      '200':
+        description: File retrieved successfully
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/communications/{studentId}/pages/{pageNumber}:
+  get:
+    tags:
+      - Communications
+    summary: Load messages page
+    description: Load a specific page of messages (pagination)
+    operationId: loadMessages
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/pageNumber'
+    responses:
+      '200':
+        description: Messages page retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

@@ -1,0 +1,147 @@
+/api/admissions:
+  get:
+    tags:
+      - Admissions
+    summary: Get all admissions
+    description: Get all admission records
+    operationId: getAllAdmissions
+    responses:
+      '200':
+        description: Admissions retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/admissions/overview:
+  get:
+    tags:
+      - Admissions
+    summary: Get admissions overview
+    description: Get overview of admissions statistics and status
+    operationId: getAdmissionsOverview
+    responses:
+      '200':
+        description: Admissions overview retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/admissions/student/{studentId}:
+  get:
+    tags:
+      - Admissions
+    summary: Get student admission
+    description: Get admission record for a specific student
+    operationId: getAdmissionByStudent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Student admission retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/admissions/letter/{studentId}:
+  get:
+    tags:
+      - Admissions
+    summary: Get admission letter
+    description: Download admission letter for a student
+    operationId: getAdmissionLetter
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Admission letter retrieved successfully
+        content:
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: string
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/admissions/year/{year}:
+  get:
+    tags:
+      - Admissions
+    summary: Get admissions by year
+    description: Get all admissions for a specific year
+    operationId: getAdmissionsByYear
+    parameters:
+      - name: year
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Academic year
+    responses:
+      '200':
+        description: Year admissions retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'

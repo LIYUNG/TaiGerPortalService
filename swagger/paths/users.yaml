@@ -1,0 +1,201 @@
+/api/users:
+  get:
+    tags:
+      - Users
+    summary: Get all users
+    description: Get all users in the system
+    operationId: getAllUsers
+    responses:
+      '200':
+        description: Users retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/users/{userId}:
+  get:
+    tags:
+      - Users
+    summary: Get user
+    description: Get a specific user
+    operationId: getUser
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/userId'
+    responses:
+      '200':
+        description: User retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Users
+    summary: Update user
+    description: Update user information
+    operationId: updateUser
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/userId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: User updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Users
+    summary: Delete user
+    description: Delete a user
+    operationId: deleteUser
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/userId'
+    responses:
+      '200':
+        description: User deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/users/{userId}/permissions:
+  get:
+    tags:
+      - Users
+    summary: Get user permissions
+    description: Get permissions for a user
+    operationId: getUserPermissions
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/userId'
+    responses:
+      '200':
+        description: User permissions retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: string
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Users
+    summary: Update user permissions
+    description: Update permissions for a user
+    operationId: updateUserPermissions
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/userId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              permissions:
+                type: array
+                items:
+                  type: string
+    responses:
+      '200':
+        description: User permissions updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/users/agent/{agent_id}:
+  get:
+    tags:
+      - Users
+    summary: Get agent user
+    description: Get user information for an agent
+    operationId: getAgentUser
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/agent_id'
+    responses:
+      '200':
+        description: Agent user retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

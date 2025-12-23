@@ -1,0 +1,415 @@
+/api/applications:
+  get:
+    tags:
+      - Applications
+    summary: Get all applications
+    description: Retrieve a list of applications with optional filters
+    operationId: getApplications
+    parameters:
+      - name: decided
+        in: query
+        description: Filter by decided status
+        schema:
+          type: string
+      - name: closed
+        in: query
+        description: Filter by closed status
+        schema:
+          type: string
+      - name: admission
+        in: query
+        description: Filter by admission status
+        schema:
+          type: string
+      - name: finalEnrolment
+        in: query
+        description: Filter by final enrollment status
+        schema:
+          type: string
+      - name: year
+        in: query
+        description: Filter by application year
+        schema:
+          type: string
+      - name: populate
+        in: query
+        description: Whether to populate related fields
+        schema:
+          type: boolean
+    responses:
+      '200':
+        description: Applications retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/applications/application/{application_id}:
+  delete:
+    tags:
+      - Applications
+    summary: Delete application
+    description: Delete a specific application
+    operationId: deleteApplication
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/application_id'
+    responses:
+      '200':
+        description: Application deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/applications/{applicationId}/refresh:
+  post:
+    tags:
+      - Applications
+    summary: Refresh application
+    description: Refresh application data from external sources
+    operationId: refreshApplication
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/applicationId'
+    responses:
+      '200':
+        description: Application refreshed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/applications/all/active/applications:
+  get:
+    tags:
+      - Applications
+    summary: Get all active applications
+    description: Retrieve all active student applications
+    operationId: getActiveStudentsApplications
+    responses:
+      '200':
+        description: Active applications retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/applications/student/{studentId}/{application_id}:
+  put:
+    tags:
+      - Applications
+    summary: Update application
+    description: Update a specific application for a student
+    operationId: updateApplication
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/application_id'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              decided:
+                type: string
+              closed:
+                type: string
+              admission:
+                type: string
+              finalEnrolment:
+                type: string
+    responses:
+      '200':
+        description: Application updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/applications/taiger-user/{userId}:
+  get:
+    tags:
+      - Applications
+    summary: Get applications by TaiGer user
+    description: Retrieve all applications for students assigned to a specific TaiGer user (agent/editor)
+    operationId: getMyStudentsApplications
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/userId'
+      - name: decided
+        in: query
+        description: Filter by decided status
+        schema:
+          type: string
+      - name: closed
+        in: query
+        description: Filter by closed status
+        schema:
+          type: string
+      - name: admission
+        in: query
+        description: Filter by admission status
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Applications retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    applications:
+                      type: array
+                      items:
+                        type: object
+                    user:
+                      type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/applications/student/{studentId}:
+  get:
+    tags:
+      - Applications
+    summary: Get student applications
+    description: Retrieve all applications for a specific student
+    operationId: getStudentApplications
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Student applications retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  description: Student data with applications
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  post:
+    tags:
+      - Applications
+    summary: Create application
+    description: Create a new application for a student
+    operationId: createApplicationV2
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              programId:
+                type: string
+                description: Program ID to apply to
+              application_year:
+                type: string
+                description: Application year
+    responses:
+      '201':
+        description: Application created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Applications
+    summary: Update student applications (bulk)
+    description: Update multiple applications for a student
+    operationId: updateStudentApplications
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              applications:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                    decided:
+                      type: string
+                    closed:
+                      type: string
+                    admission:
+                      type: string
+                    finalEnrolment:
+                      type: string
+              applying_program_count:
+                type: integer
+    responses:
+      '200':
+        description: Applications updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/student-applications/conflicts:
+  get:
+    tags:
+      - Applications
+    summary: Get application conflicts
+    description: Retrieve applications with conflicts or issues
+    operationId: getApplicationConflicts
+    responses:
+      '200':
+        description: Application conflicts retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/student-applications/deltas:
+  get:
+    tags:
+      - Applications
+    summary: Get application deltas
+    description: Retrieve changes/deltas in student applications
+    operationId: getApplicationDeltas
+    responses:
+      '200':
+        description: Application deltas retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'

@@ -1,0 +1,654 @@
+/api/students:
+  get:
+    tags:
+      - Students
+    summary: Get all students
+    description: Retrieve a list of all students. Access controlled by role and permissions.
+    operationId: getStudents
+    responses:
+      '200':
+        description: List of students retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/students/v3:
+  get:
+    tags:
+      - Students
+    summary: Get students (v3)
+    description: Retrieve students with enhanced data structure
+    operationId: getStudentsV3
+    responses:
+      '200':
+        description: Students retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/students/batch:
+  get:
+    tags:
+      - Students
+    summary: Get students by IDs
+    description: Retrieve multiple students by their IDs (batch operation)
+    operationId: getStudentsByIds
+    parameters:
+      - name: ids
+        in: query
+        description: Comma-separated list of student IDs
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Students retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/students/active:
+  get:
+    tags:
+      - Students
+    summary: Get active students
+    description: Retrieve all active (non-archived) students
+    operationId: getActiveStudents
+    responses:
+      '200':
+        description: Active students retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/students/doc-links:
+  get:
+    tags:
+      - Students
+    summary: Get students with documentation links
+    description: Retrieve all students along with their documentation helper links
+    operationId: getStudentsAndDocLinks
+    responses:
+      '200':
+        description: Students and documentation links retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+  post:
+    tags:
+      - Students
+    summary: Update documentation helper link
+    description: Update the documentation helper link for students
+    operationId: updateDocumentationHelperLink
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Documentation link updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/students/doc-links/{studentId}:
+  get:
+    tags:
+      - Students
+    summary: Get student with documentation links
+    description: Retrieve a specific student's profile with documentation links, applications, and audit logs
+    operationId: getStudentAndDocLinks
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Student and documentation links retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/students/archiv/{studentId}:
+  post:
+    tags:
+      - Students
+    summary: Archive or unarchive student
+    description: Update student's archive status
+    operationId: updateStudentsArchivStatus
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              archiv:
+                type: boolean
+                description: Whether to archive (true) or unarchive (false) the student
+    responses:
+      '200':
+        description: Student archive status updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/students/{studentId}/agents:
+  post:
+    tags:
+      - Students
+    summary: Assign agent to student
+    description: Assign one or more agents to a student
+    operationId: assignAgentToStudent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              agents:
+                type: array
+                items:
+                  type: string
+                description: Array of agent user IDs
+    responses:
+      '200':
+        description: Agent(s) assigned successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/students/{studentId}/editors:
+  post:
+    tags:
+      - Students
+    summary: Assign editor to student
+    description: Assign one or more editors to a student
+    operationId: assignEditorToStudent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              editors:
+                type: array
+                items:
+                  type: string
+                description: Array of editor user IDs
+    responses:
+      '200':
+        description: Editor(s) assigned successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/students/{studentId}/attributes:
+  post:
+    tags:
+      - Students
+    summary: Assign attributes to student
+    description: Update student attributes and properties
+    operationId: assignAttributesToStudent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Attributes assigned successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/students/{studentId}/vpd/{applicationId}/payments:
+  post:
+    tags:
+      - Students
+    summary: Update VPD payment status
+    description: Update payment status for VPD (Vorprüfungsdokumentation) documents
+    operationId: updateVPDPayment
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/applicationId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              isPaid:
+                type: boolean
+    responses:
+      '200':
+        description: VPD payment status updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/students/{studentId}/vpd/{applicationId}/{fileType}:
+  get:
+    tags:
+      - Students
+    summary: Download VPD file
+    description: Download a specific VPD file for an application
+    operationId: downloadVPDFile
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/applicationId'
+      - $ref: '../components/parameters/common.yaml#/fileType'
+    responses:
+      '200':
+        description: VPD file retrieved successfully
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  post:
+    tags:
+      - Students
+    summary: Upload VPD file
+    description: Upload a VPD file for an application
+    operationId: saveVPDFilePath
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/applicationId'
+      - $ref: '../components/parameters/common.yaml#/fileType'
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+    responses:
+      '200':
+        description: VPD file uploaded successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Students
+    summary: Update VPD file necessity
+    description: Update whether a VPD file is required or optional
+    operationId: updateVPDFileNecessity
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/applicationId'
+      - $ref: '../components/parameters/common.yaml#/fileType'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: VPD file necessity updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Students
+    summary: Delete VPD file
+    description: Delete a VPD file from an application
+    operationId: deleteVPDFile
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/applicationId'
+      - $ref: '../components/parameters/common.yaml#/fileType'
+    responses:
+      '200':
+        description: VPD file deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/students/{studentId}/files/{file_key}:
+  get:
+    tags:
+      - Students
+    summary: Download profile file
+    description: Download a student's profile file by file key
+    operationId: downloadProfileFileURL
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/file_key'
+    responses:
+      '200':
+        description: Profile file retrieved successfully
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/students/{studentId}/files/{category}:
+  post:
+    tags:
+      - Students
+    summary: Upload profile file
+    description: Upload a profile file for a student in a specific category
+    operationId: saveProfileFilePath
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/category'
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+    responses:
+      '200':
+        description: Profile file uploaded successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Students
+    summary: Delete profile file
+    description: Delete a student's profile file from a specific category
+    operationId: deleteProfileFile
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/category'
+    responses:
+      '200':
+        description: Profile file deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/students/{studentId}/{category}/status:
+  post:
+    tags:
+      - Students
+    summary: Update profile document status
+    description: Update the status of a profile document category
+    operationId: updateProfileDocumentStatus
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+      - $ref: '../components/parameters/common.yaml#/category'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                description: Document status
+    responses:
+      '200':
+        description: Profile document status updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

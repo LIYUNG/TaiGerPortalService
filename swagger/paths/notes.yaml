@@ -1,0 +1,33 @@
+/api/notes/{studentId}:
+  post:
+    tags:
+      - Notes
+    summary: Create note
+    description: Create a note for a student
+    operationId: createNote
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              content:
+                type: string
+    responses:
+      '201':
+        description: Note created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'

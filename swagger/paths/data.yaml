@@ -1,0 +1,473 @@
+/api/program-requirements:
+  get:
+    tags:
+      - Program Requirements
+    summary: Get program requirements
+    description: Get all program requirements
+    operationId: getProgramRequirements
+    responses:
+      '200':
+        description: Program requirements retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  post:
+    tags:
+      - Program Requirements
+    summary: Create program requirement
+    description: Create a new program requirement
+    operationId: createProgramRequirement
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '201':
+        description: Program requirement created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/program-requirements/{requirementId}:
+  get:
+    tags:
+      - Program Requirements
+    summary: Get program requirement
+    description: Get a specific program requirement
+    operationId: getProgramRequirement
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/requirementId'
+    responses:
+      '200':
+        description: Program requirement retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Program Requirements
+    summary: Update program requirement
+    description: Update a program requirement
+    operationId: updateProgramRequirement
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/requirementId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Program requirement updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Program Requirements
+    summary: Delete program requirement
+    description: Delete a program requirement
+    operationId: deleteProgramRequirement
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/requirementId'
+    responses:
+      '200':
+        description: Program requirement deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/course-keywords:
+  get:
+    tags:
+      - Course Keywords
+    summary: Get course keywords
+    description: Get all course keyword sets
+    operationId: getCourseKeywords
+    responses:
+      '200':
+        description: Course keywords retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  post:
+    tags:
+      - Course Keywords
+    summary: Create course keywords
+    description: Create a new course keywords set
+    operationId: createCourseKeywords
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '201':
+        description: Course keywords created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/all-courses:
+  get:
+    tags:
+      - All Courses
+    summary: Get all courses
+    description: Get comprehensive list of all available courses
+    operationId: getAllCourses
+    responses:
+      '200':
+        description: All courses retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  post:
+    tags:
+      - All Courses
+    summary: Sync all courses
+    description: Sync all courses from external sources
+    operationId: syncAllCourses
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Courses synced successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/agents:
+  get:
+    tags:
+      - Agents
+    summary: Get all agents
+    description: Get all agents in the system
+    operationId: getAllAgents
+    responses:
+      '200':
+        description: Agents retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/essay-writers:
+  get:
+    tags:
+      - Essay Writers
+    summary: Get essay writers
+    description: Get all available essay writers
+    operationId: getEssayWriters
+    responses:
+      '200':
+        description: Essay writers retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/expenses:
+  get:
+    tags:
+      - Expenses
+    summary: Get expenses
+    description: Get all expenses
+    operationId: getExpenses
+    responses:
+      '200':
+        description: Expenses retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  post:
+    tags:
+      - Expenses
+    summary: Create expense
+    description: Create a new expense record
+    operationId: createExpense
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '201':
+        description: Expense created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/widget:
+  get:
+    tags:
+      - Widget
+    summary: Get widget configuration
+    description: Get widget configuration for portal integration
+    operationId: getWidgetConfig
+    responses:
+      '200':
+        description: Widget configuration retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/widget/{studentId}:
+  post:
+    tags:
+      - Widget
+    summary: Initialize widget
+    description: Initialize widget for a student
+    operationId: initializeWidget
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Widget initialized successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/widget/status/{studentId}:
+  get:
+    tags:
+      - Widget
+    summary: Get widget status
+    description: Get widget status for a student
+    operationId: getWidgetStatus
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Widget status retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/audit:
+  get:
+    tags:
+      - Audit
+    summary: Get audit logs
+    description: Get system audit logs
+    operationId: getAuditLogs
+    responses:
+      '200':
+        description: Audit logs retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/uniassist:
+  get:
+    tags:
+      - Uniassist
+    summary: Get uniassist data
+    description: Get uniassist integration data
+    operationId: getUniassistData
+    responses:
+      '200':
+        description: Uniassist data retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'

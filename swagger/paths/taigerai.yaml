@@ -1,0 +1,115 @@
+/api/taigerai:
+  get:
+    tags:
+      - TaiGer AI
+    summary: Get AI status
+    description: Get TaiGer AI service status
+    operationId: getAIStatus
+    responses:
+      '200':
+        description: AI status retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/taigerai/process/{studentId}:
+  post:
+    tags:
+      - TaiGer AI
+    summary: Process student data
+    description: Process student data using AI
+    operationId: processStudentWithAI
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: AI processing completed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/taigerai/analyze:
+  post:
+    tags:
+      - TaiGer AI
+    summary: Analyze content
+    description: Analyze content using AI models
+    operationId: analyzeContent
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+    responses:
+      '200':
+        description: Analysis completed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/taigerai/recommendations/{studentId}:
+  get:
+    tags:
+      - TaiGer AI
+    summary: Get AI recommendations
+    description: Get AI-generated recommendations for a student
+    operationId: getAIRecommendations
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Recommendations retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: array
+                  items:
+                    type: object
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'

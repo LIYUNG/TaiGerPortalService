@@ -925,6 +925,214 @@ paths:
         '200':
           description: Attributes assigned
 
+  /api/students/{studentId}/vpd/{applicationId}/payments:
+    post:
+      tags:
+        - Students
+      summary: Update VPD payment
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: VPD payment updated
+
+  /api/students/{studentId}/vpd/{applicationId}/{fileType}:
+    get:
+      tags:
+        - Students
+      summary: Download VPD file
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileType
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: VPD file content
+    put:
+      tags:
+        - Students
+      summary: Update VPD file necessity
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileType
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: VPD necessity updated
+    post:
+      tags:
+        - Students
+      summary: Upload VPD file
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileType
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: VPD file uploaded
+    delete:
+      tags:
+        - Students
+      summary: Delete VPD file
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileType
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: VPD file deleted
+
+  /api/students/{studentId}/files/{file_key_or_category}:
+    get:
+      tags:
+        - Students
+      summary: Download profile file
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: file_key_or_category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content
+    post:
+      tags:
+        - Students
+      summary: Upload profile file
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: file_key_or_category
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: File uploaded
+    delete:
+      tags:
+        - Students
+      summary: Delete profile file
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: file_key_or_category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File deleted
+
+  /api/students/{studentId}/{category}/status:
+    post:
+      tags:
+        - Students
+      summary: Update profile document status
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document status updated
+
   # ==========================================
   # Applications Routes (Base: /api/applications)
   # ==========================================
@@ -1996,14 +2204,14 @@ paths:
         '200':
           description: Documentation article
 
-  /api/docs/{category}:
+  /api/docs/{category_or_id}:
     get:
       tags:
         - Documentations
       summary: Get category documentations
       description: Get all documentations in a category
       parameters:
-        - name: category
+        - name: category_or_id
           in: path
           required: true
           schema:
@@ -2011,14 +2219,12 @@ paths:
       responses:
         '200':
           description: Category documentations
-
-  /api/docs/{id}:
     put:
       tags:
         - Documentations
       summary: Update documentation
       parameters:
-        - name: id
+        - name: category_or_id
           in: path
           required: true
           schema:
@@ -2037,7 +2243,7 @@ paths:
         - Documentations
       summary: Delete documentation
       parameters:
-        - name: id
+        - name: category_or_id
           in: path
           required: true
           schema:
@@ -2437,6 +2643,8 @@ paths:
                     type: boolean
                   data:
                     type: array
+                    items:
+                      type: object
 
   /api/interviews/my-interviews:
     get:

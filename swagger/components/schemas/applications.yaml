@@ -59,6 +59,18 @@ DocumentThread:
     isOriginAuthorDeclarationConfirmedByStudentTimestamp:
       type: string
       format: date-time
+    outsourced_user_id:
+      type: array
+      items:
+        type: string
+    pin_by_user_id:
+      type: array
+      items:
+        type: string
+    flag_by_user_id:
+      type: array
+      items:
+        type: string
     messages:
       type: array
       items:

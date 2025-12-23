@@ -14,13 +14,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/document-threads.yaml#/MetricResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -39,13 +33,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/document-threads.yaml#/MetricResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -66,15 +54,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/document-threads.yaml#/DocumentThreadWithUserResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -95,15 +75,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/document-threads.yaml#/DocumentThreadListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -124,17 +96,18 @@
         application/json:
           schema:
             type: object
+            properties:
+              input:
+                $ref: '../components/schemas/document-threads.yaml#/SurveyInput'
+              informEditor:
+                type: boolean
     responses:
       '200':
         description: Survey input updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/document-threads.yaml#/SurveyInputResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -157,11 +130,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/document-threads.yaml#/SurveyInputResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -182,17 +151,18 @@
         application/json:
           schema:
             type: object
+            properties:
+              input:
+                $ref: '../components/schemas/document-threads.yaml#/SurveyInput'
+              informEditor:
+                type: boolean
     responses:
       '201':
         description: Survey input created successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/document-threads.yaml#/SurveyInputResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -215,15 +185,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/document-threads.yaml#/DocumentThreadsWrapperResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -322,23 +284,14 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              editorIds:
-                type: array
-                items:
-                  type: string
+            $ref: '../components/schemas/students.yaml#/AssignUsersPayload'
     responses:
       '200':
         description: Essay writers assigned successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/document-threads.yaml#/DocumentThreadResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -365,11 +318,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/document-threads.yaml#/DocumentThreadResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -401,11 +350,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/document-threads.yaml#/FavoriteStateResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -467,13 +412,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/document-threads.yaml#/DocumentThreadDetailResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -498,17 +437,15 @@
             properties:
               status:
                 type: string
+              application_id:
+                type: string
     responses:
       '200':
         description: Thread status updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/document-threads.yaml#/FinalVersionToggleResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -544,11 +481,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/document-threads.yaml#/ThreadMessagePostResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -693,15 +626,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/document-threads.yaml#/DocumentThreadWithSurveyResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -724,13 +649,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/document-threads.yaml#/DocumentThreadResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':

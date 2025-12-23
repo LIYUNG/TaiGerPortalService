@@ -294,6 +294,96 @@ components:
         grade:
           type: string
 
+    UsersCountResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            totalUsers:
+              type: integer
+              example: 120
+            adminCount:
+              type: integer
+              example: 5
+            agentCount:
+              type: integer
+              example: 30
+            editorCount:
+              type: integer
+              example: 25
+            studentCount:
+              type: integer
+              example: 50
+            guestCount:
+              type: integer
+              example: 8
+            externalCount:
+              type: integer
+              example: 2
+
+    UsersOverviewResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            byTargetDegree:
+              type: array
+              items:
+                type: object
+                properties:
+                  degree:
+                    type: string
+                  count:
+                    type: integer
+            byApplicationSemester:
+              type: array
+              items:
+                type: object
+                properties:
+                  semester:
+                    type: string
+                  count:
+                    type: integer
+            byTargetField:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  count:
+                    type: integer
+            byProgramLanguage:
+              type: array
+              items:
+                type: object
+                properties:
+                  language:
+                    type: string
+                  count:
+                    type: integer
+            byUniversity:
+              type: array
+              items:
+                type: object
+                properties:
+                  university:
+                    type: string
+                  count:
+                    type: integer
+            generatedAt:
+              type: string
+              format: date-time
+              description: Timestamp when overview was generated
+
 security:
   - cookieAuth: []
 
@@ -331,672 +421,1148 @@ paths:
           description: Login successful
           headers:
             Set-Cookie:
-              schema:
-                type: string
-                example: x-auth=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=None
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/User'
-        '401':
-          description: Invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '400':
-          description: Bad request - missing or invalid parameters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
-  /auth/logout:
-    get:
-      tags:
-        - Authentication
-      summary: User logout
-      description: Logout current user and clear authentication cookie
-      responses:
-        '200':
-          description: Logout successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                /api/document-threads/{messagesThreadId}/{studentId}/origin-author:
+                  put:
+                    tags:
+                      - Document Threads
+                    summary: Confirm origin author
+                    parameters:
+                      - name: messagesThreadId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                      - name: studentId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                    requestBody:
+                      required: true
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                            properties:
+                              checked:
+                                type: boolean
+                    responses:
+                      '200':
+                        description: Origin author confirmed
+                        content:
+                          application/json:
+                            schema:
+                              type: object
+                              properties:
+                                success:
+                                  type: boolean
+                      '404':
+                        description: Thread Id not found
 
-  /auth/verify:
-    get:
-      tags:
-        - Authentication
-      summary: Verify current user
-      description: Check if user is authenticated and return user data
-      responses:
-        '200':
-          description: User verified and authenticated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/User'
-        '401':
-          description: Not authenticated or token expired
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                /api/document-threads/{messagesThreadId}/{studentId}:
+                  put:
+                    tags:
+                      - Document Threads
+                    summary: Set thread status
+                    description: Update document thread status (e.g., set as final)
+                    parameters:
+                      - name: messagesThreadId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                      - name: studentId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                    requestBody:
+                      required: true
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                            properties:
+                              application_id:
+                                type: string
+                    responses:
+                      '200':
+                        description: Status updated
+                        content:
+                          application/json:
+                            schema:
+                              type: object
+                              properties:
+                                success:
+                                  type: boolean
+                                data:
+                                  type: object
+                                  properties:
+                                    isFinalVersion:
+                                      type: boolean
+                                    updatedAt:
+                                      type: string
+                                      format: date-time
+                      '404':
+                        description: Thread or Student not found
+                  post:
+                    tags:
+                      - Document Threads
+                    summary: Post message in thread
+                    description: Post a new message in document thread
+                    parameters:
+                      - name: messagesThreadId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                      - name: studentId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                    requestBody:
+                      required: true
+                      content:
+                        multipart/form-data:
+                          schema:
+                            type: object
+                            properties:
+                              message:
+                                type: string
+                              files:
+                                type: array
+                                items:
+                                  type: string
+                                  format: binary
+                    responses:
+                      '200':
+                        description: Message posted
+                        content:
+                          application/json:
+                            schema:
+                              type: object
+                              properties:
+                                success:
+                                  type: boolean
+                                data:
+                                  type: object
+                      '400':
+                        description: message collapse
+                      '403':
+                        description: Thread closed or unauthorized
+                      '404':
+                        description: Thread Id not found
+                      '423':
+                        description: Duplicate file extensions found
+                  delete:
+                    tags:
+                      - Document Threads
+                    summary: Delete general thread
+                    parameters:
+                      - name: messagesThreadId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                      - name: studentId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                    responses:
+                      '200':
+                        description: Thread deleted
+                        content:
+                          application/json:
+                            schema:
+                              type: object
+                              properties:
+                                success:
+                                  type: boolean
+                      '404':
+                        description: Message or student not found
 
-  /auth/activation:
-    post:
-      tags:
-        - Authentication
-      summary: Activate user account
-      description: Activate a new user account with activation token received via email
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - email
-                - token
-              properties:
-                email:
-                  type: string
-                  format: email
-                token:
-                  type: string
-                  description: Activation token from email
-      responses:
-        '200':
-          description: Account activated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
-        '400':
-          description: Invalid or expired token
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                /api/document-threads/delete/{messagesThreadId}/{messageId}:
+                  delete:
+                    tags:
+                      - Document Threads
+                    summary: Delete message in thread
+                    parameters:
+                      - name: messagesThreadId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                      - name: messageId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                    responses:
+                      '200':
+                        description: Message deleted
+                        content:
+                          application/json:
+                            schema:
+                              type: object
+                              properties:
+                                success:
+                                  type: boolean
+                      '404':
+                        description: Thread or Message not found
+                      '409':
+                        description: You can only delete your own message
+                      '423':
+                        description: FinalVersion is read only
+                      '500':
+                        description: Error occurs while deleting thread files
 
-  /auth/resend-activation:
-    post:
-      tags:
-        - Authentication
-      summary: Resend activation email
-      description: Resend account activation email to user
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - email
-              properties:
-                email:
-                  type: string
-                  format: email
-      responses:
-        '200':
-          description: Activation email sent
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
+                /api/document-threads/image/{messagesThreadId}/{studentId}/{file_name}:
+                  get:
+                    tags:
+                      - Document Threads
+                    summary: Download image from thread
+                    parameters:
+                      - name: messagesThreadId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                      - name: studentId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                      - name: file_name
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                    responses:
+                      '200':
+                        description: Image file
+                        content:
+                          application/octet-stream:
+                            schema:
+                              type: string
+                              format: binary
 
-  /auth/forgot-password:
-    post:
-      tags:
-        - Authentication
-      summary: Request password reset
-      description: Send password reset email to user
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - email
-              properties:
-                email:
-                  type: string
-                  format: email
-      responses:
-        '200':
-          description: Reset email sent if account exists
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
+                /api/document-threads/image/{messagesThreadId}/{studentId}:
+                  post:
+                    tags:
+                      - Document Threads
+                    summary: Post image in thread
+                    parameters:
+                      - name: messagesThreadId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                      - name: studentId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                    requestBody:
+                      required: true
+                      content:
+                        multipart/form-data:
+                          schema:
+                            type: object
+                            properties:
+                              image:
+                                type: string
+                                format: binary
+                    responses:
+                      '200':
+                        description: Image posted
+                        content:
+                          application/json:
+                            schema:
+                              type: object
+                              properties:
+                                success:
+                                  type: boolean
+                                data:
+                                  type: string
+                                  description: URL of uploaded image
 
-  /auth/reset-password:
-    post:
-      tags:
-        - Authentication
-      summary: Reset password
-      description: Reset user password with reset token from email
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - email
-                - token
-                - password
-              properties:
-                email:
-                  type: string
-                  format: email
-                token:
-                  type: string
-                  description: Reset token from email
-                password:
-                  type: string
-                  format: password
-                  description: New password
-      responses:
-        '200':
-          description: Password reset successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
-        '400':
-          description: Invalid or expired token
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                /api/document-threads/{messagesThreadId}/survey-inputs:
+                  get:
+                    tags:
+                      - Document Threads
+                    summary: Get survey inputs for thread
+                    parameters:
+                      - name: messagesThreadId
+                        in: path
+                        required: true
+                        schema:
+                          type: string
+                    responses:
+                      '200':
+                        description: Survey inputs
+                        content:
+                          application/json:
+                            schema:
+                              type: object
+                              properties:
+                                success:
+                                  type: boolean
+                                data:
+                                  type: object
+                      '404':
+                        description: Message thread not found
 
-  /auth/oauth/google/callback:
-    post:
-      tags:
-        - Authentication
-      summary: Google OAuth callback
-      description: Handle Google OAuth authentication callback
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                code:
-                  type: string
-                  description: OAuth authorization code
-      responses:
-        '200':
-          description: OAuth authentication successful
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/User'
+                /api/document-threads/{messagesThreadId}:
+                  get:
+                    tags:
+                      - Document Threads
+                    summary: Get thread messages
+                    description: Get all messages in a document thread
+                    parameters:
+                    /api/document-threads/pattern/check/{messagesThreadId}/{file_type}:
+                      get:
+                        tags:
+                          - Document Threads
+                        summary: Check document pattern
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: file_type
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Pattern check result
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    isPassed:
+                                      type: boolean
+                                    reason:
+                                      type: string
+                          '404':
+                            description: Thread Id not found
 
-  # ==========================================
-  # Users Routes (Base: /api/users)
-  # ==========================================
-  /api/users:
-    get:
-      tags:
-        - Users
-      summary: Get all users
-      description: Get list of all users (Admin, Agent, Editor access)
-      parameters:
-        - name: role
-          in: query
-          schema:
-            type: string
-            enum: [Admin, Manager, Agent, Editor, Student, Guest, External]
-          description: Filter by role
-        - name: agents
-          in: query
-          schema:
-            type: string
-          description: Filter by agent ID
-        - name: editors
-          in: query
-          schema:
-            type: string
-          description: Filter by editor ID
-        - name: archiv
-          in: query
-          schema:
-            type: string
-          description: Filter by archive status (true/false)
-      responses:
-        '200':
-          description: List of users
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/User'
-    post:
-      tags:
-        - Users
-      summary: Add new user
-      description: Create a new user (Admin, Agent, Editor access)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - firstname
-                - lastname
-                - email
-                - role
-              properties:
-                firstname:
-                  type: string
-                lastname:
-                  type: string
-                email:
-                  type: string
-                  format: email
-                role:
-                  type: string
-                  enum:
-                    [Admin, Manager, Agent, Editor, Student, Guest, External]
-      responses:
-        '201':
-          description: User created successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/User'
+                    /api/document-threads/overview/my-student-metrics:
+                      get:
+                        tags:
+                          - Document Threads
+                        summary: Get my student metrics
+                        description: Get metrics for my students
+                        responses:
+                          '200':
+                            description: Student metrics
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
+                                      properties:
+                                        students:
+                                          type: array
+                                          items:
+                                            type: object
 
-  /api/users/overview:
-    get:
-      tags:
-        - Users
-      summary: Get users overview
-      description: Get summary statistics of users
-      responses:
-        '200':
-          description: Users overview data
+                    /api/document-threads/overview/taiger-user/{userId}:
+                      get:
+                        tags:
+                          - Document Threads
+                        summary: Get user threads
+                        parameters:
+                          - name: userId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: isFinalVersion
+                            in: query
+                            schema:
+                              type: boolean
+                          - name: fileType
+                            in: query
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: User threads
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
+                                      properties:
+                                        threads:
+                                          type: array
+                                          items:
+                                            type: object
+                                        user:
+                                          type: object
 
-  /api/users/count:
-    get:
-      tags:
-        - Users
-      summary: Get user counts
-      description: Get count of users by role
-      responses:
-        '200':
-          description: User count statistics
+                    /api/document-threads/overview/all:
+                      get:
+                        tags:
+                          - Document Threads
+                        summary: Get active threads overview
+                        description: Get overview of all active document threads
+                        parameters:
+                          - name: file_type
+                            in: query
+                            schema:
+                              type: string
+                          - name: isFinalVersion
+                            in: query
+                            schema:
+                              type: boolean
+                          - name: hasOutsourcedUserId
+                            in: query
+                            schema:
+                              type: boolean
+                          - name: hasMessages
+                            in: query
+                            schema:
+                              type: boolean
+                          - name: outsourcedUserId
+                            in: query
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Active threads overview
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: array
+                                      items:
+                                        type: object
 
-  /api/users/{user_id}:
-    get:
-      tags:
-        - Users
-      summary: Get user by ID
-      parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: User details
-    post:
-      tags:
-        - Users
-      summary: Update user
-      description: Update user information (Admin only)
-      parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
-                role:
-                  type: string
-                  enum:
-                    [Admin, Manager, Agent, Editor, Student, Guest, External]
-      responses:
-        '200':
-          description: User updated
-    delete:
-      tags:
-        - Users
-      summary: Delete user
-      description: Delete a user (Admin only)
-      parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: User deleted
+                    /api/document-threads/survey-input/{surveyInputId}:
+                      put:
+                        tags:
+                          - Document Threads
+                        summary: Update survey input
+                        parameters:
+                          - name: surveyInputId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        requestBody:
+                          required: true
+                          content:
+                            application/json:
+                              schema:
+                                type: object
+                                properties:
+                                  input:
+                                    type: object
+                                  informEditor:
+                                    type: boolean
+                        responses:
+                          '200':
+                            description: Survey input updated
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
+                      delete:
+                        tags:
+                          - Document Threads
+                        summary: Reset survey input
+                        parameters:
+                          - name: surveyInputId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        requestBody:
+                          required: false
+                          content:
+                            application/json:
+                              schema:
+                                type: object
+                                properties:
+                                  informEditor:
+                                    type: boolean
+                        responses:
+                          '200':
+                            description: Survey input reset
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
 
-  /api/users/archiv/{user_id}:
-    post:
-      tags:
-        - Users
-      summary: Archive/unarchive user
-      description: Toggle user archive status (Admin only)
-      parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                isArchived:
-                  type: boolean
-      responses:
-        '200':
-          description: User archive status updated
+                    /api/document-threads/survey-input:
+                      post:
+                        tags:
+                          - Document Threads
+                        summary: Create survey input
+                        requestBody:
+                          required: true
+                          content:
+                            application/json:
+                              schema:
+                                type: object
+                                properties:
+                                  input:
+                                    type: object
+                                  informEditor:
+                                    type: boolean
+                        responses:
+                          '200':
+                            description: Survey input created
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
 
-  # ==========================================
-  # Students Routes (Base: /api/students)
-  # ==========================================
-  /api/students:
-    get:
-      tags:
-        - Students
-      summary: Get all students
-      description: Get list of all students with filters
-      parameters:
-        - name: archiv
-          in: query
-          schema:
-            type: boolean
-        - name: agent_id
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: List of students
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Student'
+                    /api/document-threads/student-threads/{studentId}:
+                      get:
+                        tags:
+                          - Document Threads
+                        summary: Get threads by student
+                        parameters:
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: List of student threads
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
+                                      properties:
+                                        threads:
+                                          type: array
+                                          items:
+                                            type: object
 
-  /api/students/v3:
-    get:
-      tags:
-        - Students
-      summary: Get students (v3)
-      description: Get students with enhanced data
-      parameters:
-        - name: editors
-          in: query
-          schema:
-            type: string
-          description: Filter by editor ID
-        - name: agents
-          in: query
-          schema:
-            type: string
-          description: Filter by agent ID
-        - name: archiv
-          in: query
-          schema:
-            type: string
-          description: Filter by archive status (true/false)
-      responses:
-        '200':
-          description: Enhanced student list
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Student'
+                    /api/document-threads/init/general/{studentId}/{document_category}:
+                      post:
+                        tags:
+                          - Document Threads
+                        summary: Initialize general thread
+                        description: Initialize a general document thread for student
+                        parameters:
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: document_category
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Thread initialized
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
+                          '404':
+                            description: Student Id not found
+                          '409':
+                            description: Document Thread already existed
 
-  /api/students/batch:
-    get:
-      tags:
-        - Students
-      summary: Get students by IDs
-      description: Get multiple students by their IDs
-      parameters:
-        - name: ids
-          in: query
-          schema:
-            type: array
-            items:
-              type: string
-      responses:
-        '200':
-          description: Students list
+                    /api/document-threads/init/application/{studentId}/{application_id}/{document_category}:
+                      post:
+                        tags:
+                          - Document Threads
+                        summary: Initialize application thread
+                        description: Initialize an application-specific document thread
+                        parameters:
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: application_id
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: document_category
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Application thread initialized
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
 
-  /api/students/active:
-    get:
-      tags:
-        - Students
-      summary: Get active students
-      description: Get all active (non-archived) students
-      responses:
-        '200':
-          description: Active students list
+                    /api/document-threads/{messagesThreadId}/essay:
+                      post:
+                        tags:
+                          - Document Threads
+                        summary: Assign essay writers
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        requestBody:
+                          required: true
+                          content:
+                            application/json:
+                              schema:
+                                type: object
+                                properties:
+                                  editorsId:
+                                    type: array
+                                    items:
+                                      type: string
+                        responses:
+                          '200':
+                            description: Essay writers assigned
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
+                          '400':
+                            description: Invalid input data
+                          '404':
+                            description: Essay thread not found
 
-  /api/students/doc-links:
-    get:
-      tags:
-        - Students
-      summary: Get all students with doc links
-      description: Get students and their documentation links
-      responses:
-        '200':
-          description: Students with documentation links
-    post:
-      tags:
-        - Students
-      summary: Update documentation helper link
-      description: Update documentation helper link for student
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                link:
-                  type: string
-                key:
-                  type: string
-                category:
-                  type: string
-      responses:
-        '200':
-          description: Documentation link updated
+                    /api/document-threads/{messagesThreadId}/{messageId}/{ignoreMessageState}/ignored:
+                      put:
+                        tags:
+                          - Document Threads
+                        summary: Ignore message in thread
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: messageId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: ignoreMessageState
+                            in: path
+                            required: true
+                            schema:
+                              type: boolean
+                        responses:
+                          '200':
+                            description: Message ignore state updated
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
 
-  /api/students/doc-links/{studentId}:
-    get:
-      tags:
-        - Students
-      summary: Get student documentation links
-      parameters:
-        - name: studentId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Student documentation links
+                    /api/document-threads/{messagesThreadId}/favorite:
+                      put:
+                        tags:
+                          - Document Threads
+                        summary: Toggle thread favorite
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Favorite state toggled
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
+                                      properties:
+                                        isFlagged:
+                                          type: boolean
+                          '500':
+                            description: Failed to update favorite status
 
-  /api/students/archiv/{studentId}:
-    post:
-      tags:
-        - Students
-      summary: Archive/unarchive student
-      description: Toggle student archive status
-      parameters:
-        - name: studentId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                isArchived:
-                  type: boolean
-                shouldInform:
-                  type: boolean
-      responses:
-        '200':
-          description: Student archive status updated
+                    /api/document-threads/{messagesThreadId}/{studentId}/origin-author:
+                      put:
+                        tags:
+                          - Document Threads
+                        summary: Confirm origin author
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        requestBody:
+                          required: true
+                          content:
+                            application/json:
+                              schema:
+                                type: object
+                                properties:
+                                  checked:
+                                    type: boolean
+                        responses:
+                          '200':
+                            description: Origin author confirmed
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                          '404':
+                            description: Thread or student not found
+                          '500':
+                            description: Error occurs while saving origin author
 
-  /api/students/{studentId}/agents:
-    post:
-      tags:
-        - Students
-      summary: Assign agents to student
-      parameters:
-        - name: studentId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                agent_ids:
-                  type: array
-                  items:
-                    type: string
-      responses:
-        '200':
-          description: Agents assigned
+                    /api/document-threads/{messagesThreadId}/{studentId}:
+                      get:
+                        tags:
+                          - Document Threads
+                        summary: Get thread messages
+                        description: Get all messages in a document thread
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Thread messages
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: array
+                                      items:
+                                        type: object
+                      put:
+                        tags:
+                          - Document Threads
+                        summary: Set thread status
+                        description: Update document thread status (e.g., set as final)
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        requestBody:
+                          required: true
+                          content:
+                            application/json:
+                              schema:
+                                type: object
+                                properties:
+                                  application_id:
+                                    type: string
+                        responses:
+                          '200':
+                            description: Status updated
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
+                                      properties:
+                                        isFinalVersion:
+                                          type: boolean
+                                        updatedAt:
+                                          type: string
+                                          format: date-time
+                          '404':
+                            description: Thread or Student not found
+                      post:
+                        tags:
+                          - Document Threads
+                        summary: Post message in thread
+                        description: Post a new message in document thread
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        requestBody:
+                          required: true
+                          content:
+                            multipart/form-data:
+                              schema:
+                                type: object
+                                properties:
+                                  message:
+                                    type: string
+                                  files:
+                                    type: array
+                                    items:
+                                      type: string
+                                      format: binary
+                        responses:
+                          '200':
+                            description: Message posted
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: object
+                          '400':
+                            description: message collapse
+                          '403':
+                            description: Thread closed or unauthorized
+                          '404':
+                            description: Thread Id not found
+                          '423':
+                            description: Duplicate file extensions found
+                      delete:
+                        tags:
+                          - Document Threads
+                        summary: Delete general thread
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Thread deleted
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                          '404':
+                            description: Message or student not found
 
-  /api/students/{studentId}/editors:
-    post:
-      tags:
-        - Students
-      summary: Assign editors to student
-      parameters:
-        - name: studentId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Editors assigned
+                    /api/document-threads/delete/{messagesThreadId}/{messageId}:
+                      delete:
+                        tags:
+                          - Document Threads
+                        summary: Delete message in thread
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: messageId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Message deleted
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                          '404':
+                            description: Thread or Message not found
+                          '409':
+                            description: You can only delete your own message
+                          '423':
+                            description: FinalVersion is read only
+                          '500':
+                            description: Error occurs while deleting thread files
 
-  /api/students/{studentId}/attributes:
-    post:
-      tags:
-        - Students
-      summary: Assign attributes to student
-      description: Update student attributes/metadata
-      parameters:
-        - name: studentId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                type: string
-      responses:
-        '200':
-          description: Attributes assigned
+                    /api/document-threads/image/{messagesThreadId}/{studentId}/{file_name}:
+                      get:
+                        tags:
+                          - Document Threads
+                        summary: Download image from thread
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: file_name
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Image file
+                            content:
+                              application/octet-stream:
+                                schema:
+                                  type: string
+                                  format: binary
 
-  /api/students/{studentId}/vpd/{applicationId}/payments:
-    post:
-      tags:
-        - Students
-      summary: Update VPD payment
-      parameters:
-        - name: studentId
-          in: path
+                    /api/document-threads/image/{messagesThreadId}/{studentId}:
+                      post:
+                        tags:
+                          - Document Threads
+                        summary: Post image in thread
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        requestBody:
+                          required: true
+                          content:
+                            multipart/form-data:
+                              schema:
+                                type: object
+                                properties:
+                                  image:
+                                    type: string
+                                    format: binary
+                        responses:
+                          '200':
+                            description: Image posted
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: string
+                                      description: URL of uploaded image
+
+                    /api/document-threads/{messagesThreadId}/survey-inputs:
+                      get:
+                        tags:
+                          - Document Threads
+                        summary: Get survey inputs for thread
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Survey inputs
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: array
+                                      items:
+                                        type: object
+
+                    /api/document-threads/{messagesThreadId}:
+                      get:
+                        tags:
+                          - Document Threads
+                        summary: Get thread messages
+                        description: Get all messages in a document thread
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Thread messages
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
+                                    data:
+                                      type: array
+                                      items:
+                                        type: object
+
+                    /api/document-threads/{studentId}/{messagesThreadId}/{file_key}:
+                      get:
+                        tags:
+                          - Document Threads
+                        summary: Download file from thread
+                        parameters:
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: file_key
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Document file
+                            content:
+                              application/octet-stream:
+                                schema:
+                                  type: string
+                                  format: binary
+
+                    /api/document-threads/{messagesThreadId}/{application_id}/{studentId}:
+                      delete:
+                        tags:
+                          - Document Threads
+                        summary: Delete application thread
+                        parameters:
+                          - name: messagesThreadId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: application_id
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                          - name: studentId
+                            in: path
+                            required: true
+                            schema:
+                              type: string
+                        responses:
+                          '200':
+                            description: Application thread deleted
+                            content:
+                              application/json:
+                                schema:
+                                  type: object
+                                  properties:
+                                    success:
+                                      type: boolean
           required: true
           schema:
             type: string
@@ -1015,8 +1581,17 @@ paths:
                 isPaid:
                   type: boolean
       responses:
-        '200':
+        '201':
           description: VPD payment updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Application'
 
   /api/students/{studentId}/vpd/{applicationId}/{fileType}:
     get:
@@ -1063,8 +1638,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        '201':
           description: VPD necessity updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Application'
     post:
       tags:
         - Students
@@ -1095,8 +1679,17 @@ paths:
                   type: string
                   format: binary
       responses:
-        '200':
+        '201':
           description: VPD file uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Application'
     delete:
       tags:
         - Students
@@ -1121,7 +1714,7 @@ paths:
         '200':
           description: VPD file deleted
 
-  /api/students/{studentId}/files/{file_key_or_category}:
+  /api/students/{studentId}/files/{file_key}:
     get:
       tags:
         - Students
@@ -1132,7 +1725,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: file_key_or_category
+        - name: file_key
           in: path
           required: true
           schema:
@@ -1140,6 +1733,8 @@ paths:
       responses:
         '200':
           description: File content
+
+  /api/students/{studentId}/files/{category}:
     post:
       tags:
         - Students
@@ -1150,7 +1745,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: file_key_or_category
+        - name: category
           in: path
           required: true
           schema:
@@ -1165,8 +1760,18 @@ paths:
                   type: string
                   format: binary
       responses:
-        '200':
+        '201':
           description: File uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    description: Updated document record
     delete:
       tags:
         - Students
@@ -1177,7 +1782,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: file_key_or_category
+        - name: category
           in: path
           required: true
           schema:
@@ -1203,8 +1808,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        '201':
           description: Document status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    description: Updated document entry
 
   # ==========================================
   # Applications Routes (Base: /api/applications)
@@ -1214,7 +1829,38 @@ paths:
       tags:
         - Applications
       summary: Get all applications
-      description: Get list of all student applications
+      description: Get list of all student applications with filters
+      parameters:
+        - name: decided
+          in: query
+          schema:
+            type: string
+            description: Decision status filter (O/X/-)
+        - name: closed
+          in: query
+          schema:
+            type: string
+            description: Closed status filter (O/X/-)
+        - name: admission
+          in: query
+          schema:
+            type: string
+            description: Admission status filter (O/X/-)
+        - name: finalEnrolment
+          in: query
+          schema:
+            type: string
+            description: Final enrolment status filter (O/X/-)
+        - name: year
+          in: query
+          schema:
+            type: string
+          description: Application year filter
+        - name: populate
+          in: query
+          schema:
+            type: boolean
+          description: Populate referenced fields
       responses:
         '200':
           description: List of applications
@@ -1253,9 +1899,7 @@ paths:
                   success:
                     type: boolean
                   data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Application'
+                    $ref: '#/components/schemas/Student'
     post:
       tags:
         - Applications
@@ -1281,6 +1925,17 @@ paths:
       responses:
         '201':
           description: Application created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
     put:
       tags:
         - Applications
@@ -1298,9 +1953,25 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                applications:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Application'
+                applying_program_count:
+                  type: integer
       responses:
-        '200':
+        '201':
           description: Applications updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Student'
 
   /api/applications/application/{application_id}:
     delete:
@@ -1316,6 +1987,18 @@ paths:
       responses:
         '200':
           description: Application deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
 
   /api/applications/{applicationId}/refresh:
     post:
@@ -1332,6 +2015,17 @@ paths:
       responses:
         '200':
           description: Application refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Application'
+        '404':
+          description: Application not found
 
   /api/applications/all/active/applications:
     get:
@@ -1380,6 +2074,15 @@ paths:
       responses:
         '200':
           description: Application updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Application'
 
   /api/applications/taiger-user/{userId}:
     get:
@@ -1404,9 +2107,59 @@ paths:
                   success:
                     type: boolean
                   data:
+                    type: object
+                    properties:
+                      applications:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Application'
+                      user:
+                        $ref: '#/components/schemas/User'
+
+# ==========================================
+# Student Applications Routes (Base: /api/student-applications)
+# ==========================================
+  /api/student-applications/conflicts:
+    get:
+      tags:
+        - Applications
+      summary: Get application conflicts
+      description: Retrieve conflicts across applications
+      responses:
+        '200':
+          description: Application conflicts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Application'
+                      type: object
+
+  /api/student-applications/deltas:
+    get:
+      tags:
+        - Applications
+      summary: Get application deltas
+      description: Retrieve program change deltas for active applications
+      responses:
+        '200':
+          description: Application deltas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
 
   # ==========================================
   # Programs Routes (Base: /api/programs)
@@ -1416,10 +2169,92 @@ paths:
       tags:
         - Programs
       summary: Get programs overview
-      description: Get overview of all programs
+      description: Get aggregated program metrics
       responses:
         '200':
           description: Programs overview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      totalPrograms:
+                        type: integer
+                      totalSchools:
+                        type: integer
+                      byCountry:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            country:
+                              type: string
+                            count:
+                              type: integer
+                      byDegree:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            degree:
+                              type: string
+                            count:
+                              type: integer
+                      byLanguage:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            language:
+                              type: string
+                            count:
+                              type: integer
+                      bySubject:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            subject:
+                              type: string
+                            count:
+                              type: integer
+                      bySchoolType:
+                        type: array
+                        items:
+                          type: object
+                      topSchools:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            school:
+                              type: string
+                            country:
+                              type: string
+                            city:
+                              type: string
+                            programCount:
+                              type: integer
+                      topContributors:
+                        type: array
+                        items:
+                          type: object
+                      recentlyUpdated:
+                        type: array
+                        items:
+                          type: object
+                      topApplicationPrograms:
+                        type: array
+                        items:
+                          type: object
+                      generatedAt:
+                        type: string
+                        format: date-time
 
   /api/programs/schools-distribution:
     get:
@@ -1430,6 +2265,26 @@ paths:
       responses:
         '200':
           description: Schools distribution data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        school:
+                          type: string
+                        country:
+                          type: string
+                        city:
+                          type: string
+                        programCount:
+                          type: integer
 
   /api/programs/same-program-students/{programId}:
     get:
@@ -1446,6 +2301,17 @@ paths:
       responses:
         '200':
           description: Students in same program
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Student'
 
   /api/programs:
     get:
@@ -1453,16 +2319,6 @@ paths:
         - Programs
       summary: Get all programs
       description: Get list of university programs
-      parameters:
-        - name: country
-          in: query
-          schema:
-            type: string
-        - name: degree
-          in: query
-          schema:
-            type: string
-            enum: [Bachelor, Master, PhD]
       responses:
         '200':
           description: List of programs
@@ -1495,9 +2351,24 @@ paths:
                   type: string
                 degree:
                   type: string
+                semester:
+                  type: string
+                country:
+                  type: string
+                lang:
+                  type: string
       responses:
         '201':
           description: Program created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Program'
 
   /api/programs/schools:
     get:
@@ -1508,6 +2379,34 @@ paths:
       responses:
         '200':
           description: Distinct schools list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        school:
+                          type: string
+                        isPrivateSchool:
+                          type: boolean
+                        isPartnerSchool:
+                          type: boolean
+                        schoolType:
+                          type: string
+                        country:
+                          type: string
+                        tags:
+                          type: array
+                          items:
+                            type: string
+                        count:
+                          type: integer
     put:
       tags:
         - Programs
@@ -1519,9 +2418,31 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                school:
+                  type: string
+                isPrivateSchool:
+                  type: boolean
+                isPartnerSchool:
+                  type: boolean
+                schoolType:
+                  type: string
+                country:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
       responses:
         '200':
           description: Schools updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
 
   /api/programs/{programId}:
     get:
@@ -1546,6 +2467,11 @@ paths:
                     type: boolean
                   data:
                     $ref: '#/components/schemas/Program'
+                  vc:
+                    type: object
+                    nullable: true
+        '404':
+          description: Program not found
     put:
       tags:
         - Programs
@@ -1565,6 +2491,17 @@ paths:
       responses:
         '200':
           description: Program updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Program'
+                  vc:
+                    type: object
     delete:
       tags:
         - Programs
@@ -1578,13 +2515,20 @@ paths:
       responses:
         '200':
           description: Program deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
 
   /api/programs/{programId}/refresh:
     post:
       tags:
         - Programs
       summary: Refresh program
-      description: Refresh program data from external sources
+      description: Refresh program metadata (marks verified)
       parameters:
         - name: programId
           in: path
@@ -1594,6 +2538,19 @@ paths:
       responses:
         '200':
           description: Program refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Program'
+                  vc:
+                    type: object
+        '404':
+          description: Program not found
 
   /api/programs/{programId}/change-requests:
     get:
@@ -1610,6 +2567,19 @@ paths:
       responses:
         '200':
           description: Change requests list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+        '404':
+          description: Change requests not found
     post:
       tags:
         - Programs
@@ -1626,10 +2596,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Program'
+              type: object
       responses:
-        '201':
+        '200':
           description: Change request submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
 
   /api/programs/review-changes/{requestId}:
     post:
@@ -1646,6 +2623,19 @@ paths:
       responses:
         '200':
           description: Change request reviewed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+        '400':
+          description: Request already reviewed
+        '404':
+          description: Change request not found
 
   # ==========================================
   # Communications Routes (Base: /api/communications)
@@ -1664,7 +2654,41 @@ paths:
           description: Search query
       responses:
         '200':
-          description: Search results
+          description: Search results with latest communication per matching student
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      students:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            _id:
+                              type: string
+                            firstname:
+                              type: string
+                            lastname:
+                              type: string
+                            firstname_chinese:
+                              type: string
+                            lastname_chinese:
+                              type: string
+                            role:
+                              type: string
+                            pictureUrl:
+                              type: string
+                            latestCommunication:
+                              type: object
+                              description: Most recent communication document for the student
+                      user:
+                        type: object
 
   /api/communications/ping/all:
     get:
@@ -1674,13 +2698,15 @@ paths:
       description: Get number of unread messages for current user
       responses:
         '200':
-          description: Unread messages count
+          description: Unread messages count for current user
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  count:
+                  success:
+                    type: boolean
+                  data:
                     type: integer
 
   /api/communications/all:
@@ -1691,7 +2717,24 @@ paths:
       description: Get all messages for current user
       responses:
         '200':
-          description: All messages
+          description: Latest communication per student for current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      students:
+                        type: array
+                        items:
+                          type: object
+                          description: Student with latest communication
+                      user:
+                        type: object
 
   /api/communications/{studentId}/{communication_messageId}/{ignoreMessageState}/ignore:
     put:
@@ -1718,6 +2761,15 @@ paths:
       responses:
         '200':
           description: Message ignore status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '400':
+          description: message collapse
 
   /api/communications/{studentId}/{messageId}:
     put:
@@ -1748,6 +2800,19 @@ paths:
       responses:
         '200':
           description: Message updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+        '400':
+          description: message collapse
+        '404':
+          description: Thread not found
     delete:
       tags:
         - Communications
@@ -1767,6 +2832,17 @@ paths:
       responses:
         '200':
           description: Message deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '400':
+          description: message collapse
+        '500':
+          description: Error occurs while deleting
 
   /api/communications/{studentId}:
     get:
@@ -1793,7 +2869,12 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Communication'
+                      type: object
+                      description: Communication entry
+                   student:
+                     type: object
+        '404':
+          description: Student not found
     post:
       tags:
         - Communications
@@ -1820,8 +2901,28 @@ paths:
                     type: string
                     format: binary
       responses:
-        '201':
-          description: Message sent
+        '200':
+          description: Message sent and latest message returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      description: Latest communication document
+        '400':
+          description: message collapse
+        '404':
+          description: Student not found
+        '423':
+          description: Duplicate file extensions in upload
+        '429':
+          description: Too many consecutive messages by student
 
   /api/communications/{studentId}/chat/{fileName}:
     get:
@@ -1843,6 +2944,11 @@ paths:
       responses:
         '200':
           description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
 
   /api/communications/{studentId}/pages/{pageNumber}:
     get:
@@ -1864,6 +2970,22 @@ paths:
       responses:
         '200':
           description: Paginated messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      description: Communication entry
+                  student:
+                    type: object
+        '404':
+          description: Student not found
 
   # ==========================================
   # Events Routes (Base: /api/events)
@@ -1873,7 +2995,7 @@ paths:
       tags:
         - Events
       summary: Get active events count
-      description: Get number of active/pending events
+      description: Get number of upcoming confirmed events for current user
       responses:
         '200':
           description: Active events count
@@ -1884,7 +3006,7 @@ paths:
                 properties:
                   success:
                     type: boolean
-                  count:
+                  data:
                     type: integer
 
   /api/events/booked:
@@ -1892,7 +3014,20 @@ paths:
       tags:
         - Events
       summary: Get booked events
-      description: Get all booked/confirmed events
+      description: Get booked events for student's agents within optional time window (students only)
+      parameters:
+        - name: startTime
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: ISO start time filter
+        - name: endTime
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: ISO end time filter
       responses:
         '200':
           description: List of booked events
@@ -1906,14 +3041,50 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Event'
+                      type: object
+                      properties:
+                        start:
+                          type: string
+                          format: date-time
+                        receiver_id:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              firstname:
+                                type: string
+                              lastname:
+                                type: string
+                              email:
+                                type: string
+        '403':
+          description: Booked events only available for students
 
   /api/events:
     get:
       tags:
         - Events
       summary: Get all events
-      description: Get calendar events
+      description: Get calendar events with optional filters
+      parameters:
+        - name: startTime
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endTime
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: requester_id
+          in: query
+          schema:
+            type: string
+        - name: receiver_id
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: List of events
@@ -1924,10 +3095,20 @@ paths:
                 properties:
                   success:
                     type: boolean
+                  agents:
+                    type: array
+                    items:
+                      type: object
+                  editors:
+                    type: array
+                    items:
+                      type: object
                   data:
                     type: array
                     items:
                       $ref: '#/components/schemas/Event'
+                  hasEvents:
+                    type: boolean
     post:
       tags:
         - Events
@@ -1938,17 +3119,57 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Event'
+              type: object
+              properties:
+                requester_id:
+                  type: string
+                receiver_id:
+                  type: string
+                start:
+                  type: string
+                  format: date-time
+                end:
+                  type: string
+                  format: date-time
+                meetingLink:
+                  type: string
+                meetingType:
+                  type: string
+                isConfirmedRequester:
+                  type: boolean
+                isConfirmedReceiver:
+                  type: boolean
       responses:
         '201':
           description: Event created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  agents:
+                    type: array
+                    items:
+                      type: object
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  hasEvents:
+                    type: boolean
+        '403':
+          description: Conflicting timeslot exists
+        '500':
+          description: Failed to create event
 
   /api/events/{studentId}/show:
     get:
       tags:
         - Events
-      summary: Show student events
-      description: Get events for a specific student
+      summary: Show event by id (parameter named studentId in route)
+      description: Get single event by id
       parameters:
         - name: studentId
           in: path
@@ -1957,43 +3178,13 @@ paths:
             type: string
       responses:
         '200':
-          description: Student events
+          description: Event
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Event'
+                $ref: '#/components/schemas/Event'
 
   /api/events/{event_id}:
-    get:
-      tags:
-        - Events
-      summary: Get event by ID
-      description: Get event details
-      parameters:
-        - name: event_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Event details
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/Event'
     put:
       tags:
         - Events
@@ -2013,6 +3204,19 @@ paths:
       responses:
         '200':
           description: Event updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid event payload
+        '404':
+          description: Event not found
     delete:
       tags:
         - Events
@@ -2026,6 +3230,25 @@ paths:
       responses:
         '200':
           description: Event deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  agents:
+                    type: array
+                    items:
+                      type: object
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  hasEvents:
+                    type: boolean
+        '400':
+          description: Failed to delete event
 
   /api/events/{event_id}/confirm:
     put:
@@ -2043,10 +3266,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Event'
+              type: object
+              properties:
+                start:
+                  type: string
+                  format: date-time
+                end:
+                  type: string
+                  format: date-time
+                meetingLink:
+                  type: string
+                isConfirmedRequester:
+                  type: boolean
+                isConfirmedReceiver:
+                  type: boolean
+                addMeetingAssistant:
+                  type: boolean
       responses:
         '200':
           description: Event confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid confirmation payload
+        '404':
+          description: Event not found
 
   # ==========================================
   # Documentations Routes (Base: /api/docs)
@@ -2064,8 +3315,17 @@ paths:
             schema:
               $ref: '#/components/schemas/Documentation'
       responses:
-        '201':
+        '200':
           description: Documentation created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Documentation'
 
   /api/docs/internal:
     post:
@@ -2079,8 +3339,17 @@ paths:
             schema:
               $ref: '#/components/schemas/Documentation'
       responses:
-        '201':
+        '200':
           description: Internal documentation created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Documentation'
 
   /api/docs/internal/all:
     get:
@@ -2090,6 +3359,17 @@ paths:
       responses:
         '200':
           description: List of internal documentations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Documentation'
 
   /api/docs/internal/search/{doc_id}:
     get:
@@ -2105,6 +3385,15 @@ paths:
       responses:
         '200':
           description: Internal documentation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Documentation'
 
   /api/docs/internal/{id}:
     put:
@@ -2124,8 +3413,17 @@ paths:
             schema:
               $ref: '#/components/schemas/Documentation'
       responses:
-        '200':
+        '201':
           description: Internal documentation updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Documentation'
     delete:
       tags:
         - Documentations
@@ -2139,6 +3437,13 @@ paths:
       responses:
         '200':
           description: Internal documentation deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
 
   /api/docs/taiger/internal/confidential:
     get:
@@ -2148,6 +3453,15 @@ paths:
       responses:
         '200':
           description: Confidential documentation page
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
     put:
       tags:
         - Documentations
@@ -2159,8 +3473,17 @@ paths:
             schema:
               type: object
       responses:
-        '200':
+        '201':
           description: Confidential documentation page updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
 
   /api/docs/upload/image:
     post:
@@ -2179,6 +3502,16 @@ paths:
       responses:
         '200':
           description: Image uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: string
+                    description: URL of uploaded image
 
   /api/docs/file/{object_key}:
     get:
@@ -2194,6 +3527,11 @@ paths:
       responses:
         '200':
           description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
 
   /api/docs/upload/docs:
     post:
@@ -2212,6 +3550,19 @@ paths:
       responses:
         '200':
           description: File uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  url:
+                    type: string
+                  title:
+                    type: string
+                  extension:
+                    type: string
 
   /api/docs/all:
     get:
@@ -2249,6 +3600,19 @@ paths:
       responses:
         '200':
           description: Category documentation page
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+        '400':
+          description: invalid category
+        '403':
+          description: Not authorized for internal category
     put:
       tags:
         - Documentations
@@ -2267,8 +3631,17 @@ paths:
             schema:
               type: object
       responses:
-        '200':
+        '201':
           description: Documentation page updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
 
   /api/docs/search/{doc_id}:
     get:
@@ -2285,15 +3658,24 @@ paths:
       responses:
         '200':
           description: Documentation article
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Documentation'
 
-  /api/docs/{category_or_id}:
+  /api/docs/{category}:
     get:
       tags:
         - Documentations
       summary: Get category documentations
       description: Get all documentations in a category
       parameters:
-        - name: category_or_id
+        - name: category
           in: path
           required: true
           schema:
@@ -2301,12 +3683,27 @@ paths:
       responses:
         '200':
           description: Category documentations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Documentation'
+        '400':
+          description: invalid category
+
+  /api/docs/{id}:
     put:
       tags:
         - Documentations
       summary: Update documentation
       parameters:
-        - name: category_or_id
+        - name: id
           in: path
           required: true
           schema:
@@ -2318,14 +3715,23 @@ paths:
             schema:
               $ref: '#/components/schemas/Documentation'
       responses:
-        '200':
+        '201':
           description: Documentation updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Documentation'
     delete:
       tags:
         - Documentations
       summary: Delete documentation
       parameters:
-        - name: category_or_id
+        - name: id
           in: path
           required: true
           schema:
@@ -2333,6 +3739,13 @@ paths:
       responses:
         '200':
           description: Documentation deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
 
   # ==========================================
   # Document Threads Routes (Base: /api/document-threads)
@@ -3184,6 +4597,11 @@ paths:
         '200':
           description: Agents statistics
 
+          - name: archiv
+            in: query
+            schema:
+              type: boolean
+            description: Filter by archive status (true/false)
   /api/teams/statistics/kpi:
     get:
       tags:

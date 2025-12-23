@@ -1,1727 +1,396 @@
-﻿openapi: 3.0.0
+openapi: 3.0.0
 info:
   title: TaiGer Portal API
   version: 1.0.0
-  description: "Comprehensive API documentation for TaiGer Portal Service - A student application management platform."
+  description: |
+    Comprehensive API documentation for TaiGer Portal Service - A student application management platform.
   contact:
     name: TaiGer Team
+
 servers:
   - url: /api
     description: API Base Path
   - url: /auth
     description: Authentication Base Path
-components:
-  securitySchemes:
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: auth_token
-  schemas:
-    GenericResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        message:
-          type: string
-        data:
-          type: object
-          additionalProperties: true
-      required:
-        - success
-    Error:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        message:
-          type: string
-        details:
-          type: object
-          additionalProperties: true
-      required:
-        - message
-  responses:
-    Success:
-      description: Successful operation
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/GenericResponse'
-    Error:
-      description: Error response
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-  parameters:
-    studentId:
-      name: studentId
-      in: path
-      required: true
-      schema:
-        type: string
-    applicationId:
-      name: applicationId
-      in: path
-      required: true
-      schema:
-        type: string
-    application_id:
-      name: application_id
-      in: path
-      required: true
-      schema:
-        type: string
-    programId:
-      name: programId
-      in: path
-      required: true
-      schema:
-        type: string
-    program_id:
-      name: program_id
-      in: path
-      required: true
-      schema:
-        type: string
-    fileType:
-      name: fileType
-      in: path
-      required: true
-      schema:
-        type: string
-    file_type:
-      name: file_type
-      in: path
-      required: true
-      schema:
-        type: string
-    file_key:
-      name: file_key
-      in: path
-      required: true
-      schema:
-        type: string
-    fileKey:
-      name: fileKey
-      in: path
-      required: true
-      schema:
-        type: string
-    category:
-      name: category
-      in: path
-      required: true
-      schema:
-        type: string
-    userId:
-      name: userId
-      in: path
-      required: true
-      schema:
-        type: string
-    requestId:
-      name: requestId
-      in: path
-      required: true
-      schema:
-        type: string
-    communication_messageId:
-      name: communication_messageId
-      in: path
-      required: true
-      schema:
-        type: string
-    ignoreMessageState:
-      name: ignoreMessageState
-      in: path
-      required: true
-      schema:
-        type: string
-    messageId:
-      name: messageId
-      in: path
-      required: true
-      schema:
-        type: string
-    fileName:
-      name: fileName
-      in: path
-      required: true
-      schema:
-        type: string
-    pageNumber:
-      name: pageNumber
-      in: path
-      required: true
-      schema:
-        type: integer
-        format: int32
-    event_id:
-      name: event_id
-      in: path
-      required: true
-      schema:
-        type: string
-    doc_id:
-      name: doc_id
-      in: path
-      required: true
-      schema:
-        type: string
-    id:
-      name: id
-      in: path
-      required: true
-      schema:
-        type: string
-    object_key:
-      name: object_key
-      in: path
-      required: true
-      schema:
-        type: string
-    messagesThreadId:
-      name: messagesThreadId
-      in: path
-      required: true
-      schema:
-        type: string
-    file_name:
-      name: file_name
-      in: path
-      required: true
-      schema:
-        type: string
-    document_category:
-      name: document_category
-      in: path
-      required: true
-      schema:
-        type: string
-    interview_id:
-      name: interview_id
-      in: path
-      required: true
-      schema:
-        type: string
-    TaiGerStaffId:
-      name: TaiGerStaffId
-      in: path
-      required: true
-      schema:
-        type: string
-    language:
-      name: language
-      in: path
-      required: true
-      schema:
-        type: string
-    applications_year:
-      name: applications_year
-      in: path
-      required: true
-      schema:
-        type: string
-    admission:
-      name: admission
-      in: path
-      required: true
-      schema:
-        type: string
-    result:
-      name: result
-      in: path
-      required: true
-      schema:
-        type: string
-    user_id:
-      name: user_id
-      in: path
-      required: true
-      schema:
-        type: string
-    category_name:
-      name: category_name
-      in: path
-      required: true
-      schema:
-        type: string
-    agent_id:
-      name: agent_id
-      in: path
-      required: true
-      schema:
-        type: string
-    taiger_user_id:
-      name: taiger_user_id
-      in: path
-      required: true
-      schema:
-        type: string
-    student_id:
-      name: student_id
-      in: path
-      required: true
-      schema:
-        type: string
-    ticketId:
-      name: ticketId
-      in: path
-      required: true
-      schema:
-        type: string
-    adminId:
-      name: adminId
-      in: path
-      required: true
-      schema:
-        type: string
-    keywordsSetId:
-      name: keywordsSetId
-      in: path
-      required: true
-      schema:
-        type: string
-    requirementId:
-      name: requirementId
-      in: path
-      required: true
-      schema:
-        type: string
-    courseId:
-      name: courseId
-      in: path
-      required: true
-      schema:
-        type: string
-    leadId:
-      name: leadId
-      in: path
-      required: true
-      schema:
-        type: string
-    meetingId:
-      name: meetingId
-      in: path
-      required: true
-      schema:
-        type: string
-    dealId:
-      name: dealId
-      in: path
-      required: true
-      schema:
-        type: string
+
 security:
   - cookieAuth: []
+
+components:
+  securitySchemes:
+    $ref: './components/securitySchemes.yaml'
+
+  parameters:
+    $ref: './components/parameters/common.yaml'
+
+  responses:
+    $ref: './components/responses/common.yaml'
+
 paths:
+  # Authentication endpoints
   /auth/login:
-    post:
-      summary: Login
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/Error'
+    $ref: './paths/auth.yaml#/~1auth~1login'
+  /auth/logout:
+    $ref: './paths/auth.yaml#/~1auth~1logout'
+  /auth/verify:
+    $ref: './paths/auth.yaml#/~1auth~1verify'
+  /auth/activation:
+    $ref: './paths/auth.yaml#/~1auth~1activation'
+  /auth/resend-activation:
+    $ref: './paths/auth.yaml#/~1auth~1resend-activation'
+  /auth/forgot-password:
+    $ref: './paths/auth.yaml#/~1auth~1forgot-password'
+  /auth/reset-password:
+    $ref: './paths/auth.yaml#/~1auth~1reset-password'
+  /auth/oauth/google/callback:
+    $ref: './paths/auth.yaml#/~1auth~1oauth~1google~1callback'
+
+  # Students endpoints
+  /api/students:
+    $ref: './paths/students.yaml#/~1api~1students'
+  /api/students/v3:
+    $ref: './paths/students.yaml#/~1api~1students~1v3'
+  /api/students/batch:
+    $ref: './paths/students.yaml#/~1api~1students~1batch'
+  /api/students/active:
+    $ref: './paths/students.yaml#/~1api~1students~1active'
+  /api/students/doc-links:
+    $ref: './paths/students.yaml#/~1api~1students~1doc-links'
+  /api/students/doc-links/{studentId}:
+    $ref: './paths/students.yaml#/~1api~1students~1doc-links~1{studentId}'
+  /api/students/archiv/{studentId}:
+    $ref: './paths/students.yaml#/~1api~1students~1archiv~1{studentId}'
+  /api/students/{studentId}/agents:
+    $ref: './paths/students.yaml#/~1api~1students~1{studentId}~1agents'
+  /api/students/{studentId}/editors:
+    $ref: './paths/students.yaml#/~1api~1students~1{studentId}~1editors'
+  /api/students/{studentId}/attributes:
+    $ref: './paths/students.yaml#/~1api~1students~1{studentId}~1attributes'
+  /api/students/{studentId}/vpd/{applicationId}/payments:
+    $ref: './paths/students.yaml#/~1api~1students~1{studentId}~1vpd~1{applicationId}~1payments'
   /api/students/{studentId}/vpd/{applicationId}/{fileType}:
-    get:
-      summary: Download VPD file
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/applicationId'
-        - $ref: '#/components/parameters/fileType'
-      responses:
-        '200':
-          description: VPD file content
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
-    put:
-      summary: Update VPD necessity
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/applicationId'
-        - $ref: '#/components/parameters/fileType'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/Error'
-    post:
-      summary: Upload VPD file
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/applicationId'
-        - $ref: '#/components/parameters/fileType'
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/Error'
-    delete:
-      summary: Delete VPD file
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/applicationId'
-        - $ref: '#/components/parameters/fileType'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/Error'
+    $ref: './paths/students.yaml#/~1api~1students~1{studentId}~1vpd~1{applicationId}~1{fileType}'
   /api/students/{studentId}/files/{file_key}:
-    get:
-      summary: Download profile file
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/file_key'
-      responses:
-        '200':
-          description: File content
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
+    $ref: './paths/students.yaml#/~1api~1students~1{studentId}~1files~1{file_key}'
   /api/students/{studentId}/files/{category}:
-    post:
-      summary: Upload profile file
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/category'
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/Error'
-    delete:
-      summary: Delete profile file
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/category'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/Error'
+    $ref: './paths/students.yaml#/~1api~1students~1{studentId}~1files~1{category}'
   /api/students/{studentId}/{category}/status:
-    post:
-      summary: Update profile document status
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/category'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/Error'
+    $ref: './paths/students.yaml#/~1api~1students~1{studentId}~1{category}~1status'
+
+  # Applications endpoints
   /api/applications:
-    get:
-      summary: Get all applications
-      parameters:
-        - name: decided
-          in: query
-          schema:
-            type: string
-        - name: closed
-          in: query
-          schema:
-            type: string
-        - name: admission
-          in: query
-          schema:
-            type: string
-        - name: finalEnrolment
-          in: query
-          schema:
-            type: string
-        - name: year
-          in: query
-          schema:
-            type: string
-        - name: populate
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/applications/student/{studentId}:
-    get:
-      summary: Get applications by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/applications.yaml#/~1api~1applications'
   /api/applications/application/{application_id}:
-    delete:
-      summary: Delete application
-      parameters:
-        - $ref: '#/components/parameters/application_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/applications.yaml#/~1api~1applications~1application~1{application_id}'
   /api/applications/{applicationId}/refresh:
-    post:
-      summary: Refresh application
-      parameters:
-        - $ref: '#/components/parameters/applicationId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/applications.yaml#/~1api~1applications~1{applicationId}~1refresh'
   /api/applications/all/active/applications:
-    get:
-      summary: Get all active applications
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/applications.yaml#/~1api~1applications~1all~1active~1applications'
   /api/applications/student/{studentId}/{application_id}:
-    put:
-      summary: Update student application
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/application_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/applications.yaml#/~1api~1applications~1student~1{studentId}~1{application_id}'
   /api/applications/taiger-user/{userId}:
-    get:
-      summary: Get applications by TaiGer user
-      parameters:
-        - $ref: '#/components/parameters/userId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/applications.yaml#/~1api~1applications~1taiger-user~1{userId}'
+  /api/applications/student/{studentId}:
+    $ref: './paths/applications.yaml#/~1api~1applications~1student~1{studentId}'
   /api/student-applications/conflicts:
-    get:
-      summary: Get student application conflicts
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/applications.yaml#/~1api~1student-applications~1conflicts'
   /api/student-applications/deltas:
-    get:
-      summary: Get student application deltas
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/applications.yaml#/~1api~1student-applications~1deltas'
+
+  # Programs endpoints
   /api/programs/overview:
-    get:
-      summary: Get programs overview
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/programs.yaml#/~1api~1programs~1overview'
   /api/programs/schools-distribution:
-    get:
-      summary: Get schools distribution for programs
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/programs.yaml#/~1api~1programs~1schools-distribution'
   /api/programs/same-program-students/{programId}:
-    get:
-      summary: Get students in the same program
-      parameters:
-        - $ref: '#/components/parameters/programId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/programs.yaml#/~1api~1programs~1same-program-students~1{programId}'
   /api/programs:
-    get:
-      summary: List programs
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/programs.yaml#/~1api~1programs'
   /api/programs/schools:
-    get:
-      summary: List schools in programs
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/programs.yaml#/~1api~1programs~1schools'
   /api/programs/{programId}:
-    get:
-      summary: Get program by ID
-      parameters:
-        - $ref: '#/components/parameters/programId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/programs.yaml#/~1api~1programs~1{programId}'
   /api/programs/{programId}/refresh:
-    post:
-      summary: Refresh program by ID
-      parameters:
-        - $ref: '#/components/parameters/programId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/programs.yaml#/~1api~1programs~1{programId}~1refresh'
   /api/programs/{programId}/change-requests:
-    get:
-      summary: Get change requests for a program
-      parameters:
-        - $ref: '#/components/parameters/programId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/programs.yaml#/~1api~1programs~1{programId}~1change-requests'
   /api/programs/review-changes/{requestId}:
-    post:
-      summary: Review change requests
-      parameters:
-        - $ref: '#/components/parameters/requestId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/programs.yaml#/~1api~1programs~1review-changes~1{requestId}'
+
+  # Communications endpoints
   /api/communications:
-    get:
-      summary: List communications
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/communications.yaml#/~1api~1communications'
   /api/communications/ping/all:
-    get:
-      summary: Ping all communications
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/communications.yaml#/~1api~1communications~1ping~1all'
   /api/communications/all:
-    get:
-      summary: List all communications
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/communications.yaml#/~1api~1communications~1all'
   /api/communications/{studentId}/{communication_messageId}/{ignoreMessageState}/ignore:
-    put:
-      summary: Ignore communication message
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/communication_messageId'
-        - $ref: '#/components/parameters/ignoreMessageState'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/communications.yaml#/~1api~1communications~1{studentId}~1{communication_messageId}~1{ignoreMessageState}~1ignore'
   /api/communications/{studentId}/{messageId}:
-    put:
-      summary: Update communication by message ID
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/messageId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/communications.yaml#/~1api~1communications~1{studentId}~1{messageId}'
   /api/communications/{studentId}:
-    get:
-      summary: Get communications by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/communications.yaml#/~1api~1communications~1{studentId}'
   /api/communications/{studentId}/chat/{fileName}:
-    get:
-      summary: Get communication chat file
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/fileName'
-      responses:
-        '200':
-          description: Chat file
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
+    $ref: './paths/communications.yaml#/~1api~1communications~1{studentId}~1chat~1{fileName}'
   /api/communications/{studentId}/pages/{pageNumber}:
-    get:
-      summary: Get communications pages by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/pageNumber'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/communications.yaml#/~1api~1communications~1{studentId}~1pages~1{pageNumber}'
+
+  # Events endpoints
   /api/events/ping:
-    get:
-      summary: Ping events
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/events.yaml#/~1api~1events~1ping'
   /api/events/booked:
-    get:
-      summary: Get booked events
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/events.yaml#/~1api~1events~1booked'
   /api/events:
-    get:
-      summary: List events
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/events.yaml#/~1api~1events'
   /api/events/{studentId}/show:
-    get:
-      summary: Show events by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/events.yaml#/~1api~1events~1{studentId}~1show'
   /api/events/{event_id}:
-    put:
-      summary: Update event by ID
-      parameters:
-        - $ref: '#/components/parameters/event_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/events.yaml#/~1api~1events~1{event_id}'
   /api/events/{event_id}/confirm:
-    put:
-      summary: Confirm event by ID
-      parameters:
-        - $ref: '#/components/parameters/event_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/events.yaml#/~1api~1events~1{event_id}~1confirm'
+
+  # Documentation endpoints
   /api/docs:
-    post:
-      summary: Create documentation
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs'
   /api/docs/internal:
-    post:
-      summary: Create internal documentation
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1internal'
   /api/docs/internal/all:
-    get:
-      summary: Get all internal documentation
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1internal~1all'
   /api/docs/internal/search/{doc_id}:
-    get:
-      summary: Search internal documentation by doc ID
-      parameters:
-        - $ref: '#/components/parameters/doc_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1internal~1search~1{doc_id}'
   /api/docs/internal/{id}:
-    put:
-      summary: Update internal documentation
-      parameters:
-        - $ref: '#/components/parameters/id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1internal~1{id}'
   /api/docs/taiger/internal/confidential:
-    get:
-      summary: Get confidential internal documentation
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1taiger~1internal~1confidential'
   /api/docs/upload/image:
-    post:
-      summary: Upload documentation image
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1upload~1image'
   /api/docs/file/{object_key}:
-    get:
-      summary: Get documentation file by object key
-      parameters:
-        - $ref: '#/components/parameters/object_key'
-      responses:
-        '200':
-          description: File content
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1file~1{object_key}'
   /api/docs/upload/docs:
-    post:
-      summary: Upload documentation files
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                files:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1upload~1docs'
   /api/docs/all:
-    get:
-      summary: Get all documentation
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1all'
   /api/docs/pages/{category}:
-    get:
-      summary: Get documentation pages by category
-      parameters:
-        - $ref: '#/components/parameters/category'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/docs/search/{doc_id}:
-    get:
-      summary: Search documentation by doc ID
-      parameters:
-        - $ref: '#/components/parameters/doc_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1pages~1{category}'
   /api/docs/{category}:
-    get:
-      summary: Get documentation by category
-      parameters:
-        - $ref: '#/components/parameters/category'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1{category}'
+  /api/docs/search/{doc_id}:
+    $ref: './paths/documentations.yaml#/~1api~1docs~1search~1{doc_id}'
   /api/docs/{id}:
-    put:
-      summary: Update documentation by ID
-      parameters:
-        - $ref: '#/components/parameters/id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/documentations.yaml#/~1api~1docs~1{id}'
+
+  # Document-Threads endpoints
   /api/document-threads/pattern/check/{messagesThreadId}/{file_type}:
-    get:
-      summary: Check pattern in document thread file
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-        - $ref: '#/components/parameters/file_type'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1pattern~1check~1{messagesThreadId}~1{file_type}'
   /api/document-threads/overview/my-student-metrics:
-    get:
-      summary: Get my student metrics overview
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1overview~1my-student-metrics'
   /api/document-threads/overview/taiger-user/{userId}:
-    get:
-      summary: Get document threads overview by user
-      parameters:
-        - $ref: '#/components/parameters/userId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1overview~1taiger-user~1{userId}'
   /api/document-threads/overview/all:
-    get:
-      summary: Get all document threads overview
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1overview~1all'
   /api/document-threads/survey-input/{surveyInputId}:
-    put:
-      summary: Update survey input
-      parameters:
-        - name: surveyInputId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1survey-input~1{surveyInputId}'
   /api/document-threads/survey-input:
-    post:
-      summary: Create survey input
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1survey-input'
   /api/document-threads/student-threads/{studentId}:
-    get:
-      summary: Get document threads by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1student-threads~1{studentId}'
   /api/document-threads/init/general/{studentId}/{document_category}:
-    post:
-      summary: Initialize general document thread
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/document_category'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1init~1general~1{studentId}~1{document_category}'
   /api/document-threads/init/application/{studentId}/{application_id}/{document_category}:
-    post:
-      summary: Initialize application document thread
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/application_id'
-        - $ref: '#/components/parameters/document_category'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1init~1application~1{studentId}~1{application_id}~1{document_category}'
   /api/document-threads/{messagesThreadId}/essay:
-    post:
-      summary: Create essay in document thread
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1{messagesThreadId}~1essay'
   /api/document-threads/{messagesThreadId}/{messageId}/{ignoreMessageState}/ignored:
-    put:
-      summary: Mark message as ignored
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-        - $ref: '#/components/parameters/messageId'
-        - $ref: '#/components/parameters/ignoreMessageState'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1{messagesThreadId}~1{messageId}~1{ignoreMessageState}~1ignored'
   /api/document-threads/{messagesThreadId}/favorite:
-    put:
-      summary: Mark document thread as favorite
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1{messagesThreadId}~1favorite'
   /api/document-threads/{messagesThreadId}/{studentId}/origin-author:
-    put:
-      summary: Set origin author for thread
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1{messagesThreadId}~1{studentId}~1origin-author'
   /api/document-threads/{messagesThreadId}/{studentId}:
-    put:
-      summary: Update document thread for student
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1{messagesThreadId}~1{studentId}'
   /api/document-threads/delete/{messagesThreadId}/{messageId}:
-    delete:
-      summary: Delete message in document thread
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-        - $ref: '#/components/parameters/messageId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1delete~1{messagesThreadId}~1{messageId}'
   /api/document-threads/image/{messagesThreadId}/{studentId}/{file_name}:
-    get:
-      summary: Get image from document thread
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/file_name'
-      responses:
-        '200':
-          description: Image content
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1image~1{messagesThreadId}~1{studentId}~1{file_name}'
   /api/document-threads/image/{messagesThreadId}/{studentId}:
-    post:
-      summary: Upload image to document thread
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-        - $ref: '#/components/parameters/studentId'
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1image~1{messagesThreadId}~1{studentId}'
   /api/document-threads/{messagesThreadId}/survey-inputs:
-    get:
-      summary: Get survey inputs for thread
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1{messagesThreadId}~1survey-inputs'
   /api/document-threads/{messagesThreadId}:
-    get:
-      summary: Get document thread by ID
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1{messagesThreadId}'
   /api/document-threads/{studentId}/{messagesThreadId}/{file_key}:
-    get:
-      summary: Get file from document thread by key
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/messagesThreadId'
-        - $ref: '#/components/parameters/file_key'
-      responses:
-        '200':
-          description: File content
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1{studentId}~1{messagesThreadId}~1{file_key}'
   /api/document-threads/{messagesThreadId}/{application_id}/{studentId}:
-    delete:
-      summary: Delete document thread for application and student
-      parameters:
-        - $ref: '#/components/parameters/messagesThreadId'
-        - $ref: '#/components/parameters/application_id'
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/tickets:
-    get:
-      summary: List tickets
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/tickets/{ticket_id}:
-    put:
-      summary: Update ticket by ID
-      parameters:
-        - name: ticket_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/document-threads.yaml#/~1api~1document-threads~1{messagesThreadId}~1{application_id}~1{studentId}'
+
+  # Interviews endpoints
   /api/interviews:
-    get:
-      summary: List interviews
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/interviews.yaml#/~1api~1interviews'
   /api/interviews/open:
-    get:
-      summary: List open interviews
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/interviews.yaml#/~1api~1interviews~1open'
   /api/interviews/interview/{programId}:
-    get:
-      summary: Get interview by program ID
-      parameters:
-        - $ref: '#/components/parameters/programId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/interviews.yaml#/~1api~1interviews~1interview~1{programId}'
   /api/interviews/interviews/{studentId}:
-    get:
-      summary: Get interviews by student ID
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/interviews.yaml#/~1api~1interviews~1interviews~1{studentId}'
   /api/interviews/questions/{programId}:
-    get:
-      summary: Get interview questions by program ID
-      parameters:
-        - $ref: '#/components/parameters/programId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/interviews.yaml#/~1api~1interviews~1questions~1{programId}'
   /api/interviews/my-interviews:
-    get:
-      summary: Get my interviews
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/interviews.yaml#/~1api~1interviews~1my-interviews'
   /api/interviews/{interview_id}:
-    get:
-      summary: Get interview by ID
-      parameters:
-        - $ref: '#/components/parameters/interview_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/interviews.yaml#/~1api~1interviews~1{interview_id}'
   /api/interviews/{interview_id}/survey:
-    get:
-      summary: Get interview survey by ID
-      parameters:
-        - $ref: '#/components/parameters/interview_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/interviews.yaml#/~1api~1interviews~1{interview_id}~1survey'
   /api/interviews/time/{interview_id}:
-    post:
-      summary: Set interview time by ID
-      parameters:
-        - $ref: '#/components/parameters/interview_id'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/interviews.yaml#/~1api~1interviews~1time~1{interview_id}'
   /api/interviews/create/{program_id}/{studentId}:
-    post:
-      summary: Create interview for program and student
-      parameters:
-        - $ref: '#/components/parameters/program_id'
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/interviews.yaml#/~1api~1interviews~1create~1{program_id}~1{studentId}'
+
+  # Teams endpoints
   /api/teams:
-    get:
-      summary: List teams
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/teams.yaml#/~1api~1teams'
   /api/teams/statistics/overview:
-    get:
-      summary: Get teams statistics overview
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/teams.yaml#/~1api~1teams~1statistics~1overview'
   /api/teams/statistics/agents:
-    get:
-      summary: Get teams agents statistics
-      parameters:
-        - name: archiv
-          in: query
-          schema:
-            type: boolean
-          description: Filter by archive status
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/teams.yaml#/~1api~1teams~1statistics~1agents'
   /api/teams/statistics/kpi:
-    get:
-      summary: Get teams KPI statistics
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/teams.yaml#/~1api~1teams~1statistics~1kpi'
   /api/teams/statistics/response-time:
-    get:
-      summary: Get teams response time statistics
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/teams.yaml#/~1api~1teams~1statistics~1response-time'
   /api/teams/is-manager:
-    get:
-      summary: Check if current user is manager
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/teams.yaml#/~1api~1teams~1is-manager'
   /api/teams/tasks-overview:
-    get:
-      summary: Get teams tasks overview
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/teams.yaml#/~1api~1teams~1tasks-overview'
   /api/teams/response-interval/{studentId}:
-    get:
-      summary: Get team response interval by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/teams.yaml#/~1api~1teams~1response-interval~1{studentId}'
   /api/teams/response-time/{studentId}:
-    get:
-      summary: Get team response time by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/teams.yaml#/~1api~1teams~1response-time~1{studentId}'
   /api/teams/archiv/{TaiGerStaffId}:
-    get:
-      summary: Get archived items by TaiGer staff ID
-      parameters:
-        - $ref: '#/components/parameters/TaiGerStaffId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/courses/transcript/test:
-    get:
-      summary: Test transcript generation
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/courses/{studentId}:
-    get:
-      summary: Get courses by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/courses/transcript/v2/{studentId}/{language}:
-    post:
-      summary: Generate transcript v2
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/language'
-      responses:
-        '200':
-          description: Transcript file
-          content:
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
-  /api/courses/transcript/v2/{studentId}:
-    get:
-      summary: Get transcript v2 by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          description: Transcript file
-          content:
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
-  /api/taigerai/general:
-    post:
-      summary: General TaiGer AI endpoint
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/taigerai/chat/{studentId}:
-    post:
-      summary: TaiGer AI chat for student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/taigerai/cvmlrl:
-    post:
-      summary: TaiGer AI CV/ML/RL endpoint
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/taigerai/program/{programId}:
-    get:
-      summary: Get TaiGer AI program info
-      parameters:
-        - $ref: '#/components/parameters/programId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/teams.yaml#/~1api~1teams~1archiv~1{TaiGerStaffId}'
+
+  # Courses endpoints
+  /api/courses:
+    $ref: './paths/courses.yaml#/~1api~1courses'
+  /api/courses/{course_id}:
+    $ref: './paths/courses.yaml#/~1api~1courses~1{course_id}'
+  /api/courses/test/transcript:
+    $ref: './paths/courses.yaml#/~1api~1courses~1test~1transcript'
+  /api/courses/v2/transcript/{studentId}:
+    $ref: './paths/courses.yaml#/~1api~1courses~1v2~1transcript~1{studentId}'
+
+  # Admissions endpoints
   /api/admissions:
-    get:
-      summary: List admissions
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/admissions.yaml#/~1api~1admissions'
   /api/admissions/overview:
-    get:
-      summary: Get admissions overview
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/admissions/{studentId}/admission/{fileName}:
-    get:
-      summary: Get admission file for student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/fileName'
-      responses:
-        '200':
-          description: Admission file
-          content:
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
-  /api/admissions/{applications_year}:
-    get:
-      summary: Get admissions by applications year
-      parameters:
-        - $ref: '#/components/parameters/applications_year'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/account/files/template:
-    get:
-      summary: Get account file templates
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/account/files/template/{category_name}:
-    get:
-      summary: Get account file template by category
-      parameters:
-        - $ref: '#/components/parameters/category_name'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/account/applications/result/v2/{studentId}/{programId}/{admission}:
-    post:
-      summary: Set application result v2
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/programId'
-        - $ref: '#/components/parameters/admission'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/account/applications/result/{studentId}/{applicationId}/{programId}/{result}:
-    post:
-      summary: Set application result
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/applicationId'
-        - $ref: '#/components/parameters/programId'
-        - $ref: '#/components/parameters/result'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/account/student/notifications:
-    post:
-      summary: Create student notifications
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/account/agent/notifications:
-    post:
-      summary: Create agent notifications
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/account/survey:
-    get:
-      summary: Get account survey
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/account/survey/university/{studentId}:
-    post:
-      summary: Submit university survey for student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/account/survey/language/{studentId}:
-    post:
-      summary: Submit language survey for student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/account/survey/preferences/{studentId}:
-    post:
-      summary: Submit preferences survey for student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/account/profile/officehours/{user_id}:
-    put:
-      summary: Update office hours for user
-      parameters:
-        - $ref: '#/components/parameters/user_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/account/profile/personal-data/{user_id}:
-    put:
-      summary: Update personal data for user
-      parameters:
-        - $ref: '#/components/parameters/user_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/account/profile/credentials:
-    put:
-      summary: Update profile credentials
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/account/profile/{user_id}:
-    post:
-      summary: Create or update user profile
-      parameters:
-        - $ref: '#/components/parameters/user_id'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/admissions.yaml#/~1api~1admissions~1overview'
+  /api/admissions/student/{studentId}:
+    $ref: './paths/admissions.yaml#/~1api~1admissions~1student~1{studentId}'
+  /api/admissions/letter/{studentId}:
+    $ref: './paths/admissions.yaml#/~1api~1admissions~1letter~1{studentId}'
+  /api/admissions/year/{year}:
+    $ref: './paths/admissions.yaml#/~1api~1admissions~1year~1{year}'
+
+  # Account endpoints
+  /api/account/templates:
+    $ref: './paths/account.yaml#/~1api~1account~1templates'
+  /api/account/templates/{id}:
+    $ref: './paths/account.yaml#/~1api~1account~1templates~1{id}'
+  /api/account/application-result/{studentId}:
+    $ref: './paths/account.yaml#/~1api~1account~1application-result~1{studentId}'
   /api/account/credentials:
-    post:
-      summary: Create account credentials
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/search:
-    get:
-      summary: General search
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/search/students:
-    get:
-      summary: Search students
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/crm/stats:
-    get:
-      summary: CRM statistics
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/crm/sales-reps:
-    get:
-      summary: CRM sales reps
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/crm/leads:
-    get:
-      summary: CRM leads
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/crm/students/{studentId}/lead:
-    get:
-      summary: CRM student lead
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/crm/leads/{leadId}:
-    get:
-      summary: CRM lead by id
-      parameters:
-        - $ref: '#/components/parameters/leadId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/crm/meetings:
-    get:
-      summary: CRM meetings
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/crm/meetings/{meetingId}:
-    get:
-      summary: CRM meeting by id
-      parameters:
-        - $ref: '#/components/parameters/meetingId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/crm/deals:
-    get:
-      summary: CRM deals
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/crm/deals/{dealId}:
-    put:
-      summary: Update CRM deal
-      parameters:
-        - $ref: '#/components/parameters/dealId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/crm/instant-invite:
-    post:
-      summary: CRM instant invite
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/permissions/{user_id}:
-    get:
-      summary: Permissions by user
-      parameters:
-        - $ref: '#/components/parameters/user_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/audit:
-    get:
-      summary: Audit entries
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/userlogs:
-    get:
-      summary: User logs
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/userlogs/{user_id}:
-    get:
-      summary: User logs by user
-      parameters:
-        - $ref: '#/components/parameters/user_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/agents/profile/{agent_id}:
-    get:
-      summary: Agent profile by id
-      parameters:
-        - $ref: '#/components/parameters/agent_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/essay-writers:
-    get:
-      summary: Essay writers list
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/expenses:
-    get:
-      summary: Expenses list
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/expenses/users/{taiger_user_id}:
-    get:
-      summary: Expenses for user
-      parameters:
-        - $ref: '#/components/parameters/taiger_user_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/notes/{student_id}:
-    get:
-      summary: Notes for student
-      parameters:
-        - $ref: '#/components/parameters/student_id'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/account.yaml#/~1api~1account~1credentials'
+  /api/account/preferences:
+    $ref: './paths/account.yaml#/~1api~1account~1preferences'
+  /api/account/personal-data:
+    $ref: './paths/account.yaml#/~1api~1account~1personal-data'
+  /api/account/office-hours:
+    $ref: './paths/account.yaml#/~1api~1account~1office-hours'
+
+  # Users endpoints
+  /api/users:
+    $ref: './paths/users.yaml#/~1api~1users'
+  /api/users/{userId}:
+    $ref: './paths/users.yaml#/~1api~1users~1{userId}'
+  /api/users/{userId}/permissions:
+    $ref: './paths/users.yaml#/~1api~1users~1{userId}~1permissions'
+  /api/users/agent/{agent_id}:
+    $ref: './paths/users.yaml#/~1api~1users~1agent~1{agent_id}'
+
+  # Support endpoints
+  /api/tickets:
+    $ref: './paths/support.yaml#/~1api~1tickets'
+  /api/tickets/{ticket_id}:
+    $ref: './paths/support.yaml#/~1api~1tickets~1{ticket_id}'
   /api/complaints:
-    get:
-      summary: Complaints list
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/complaints/{ticketId}:
-    get:
-      summary: Complaint by ticket
-      parameters:
-        - $ref: '#/components/parameters/ticketId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/complaints/{ticketId}/{messageId}:
-    put:
-      summary: Update complaint message
-      parameters:
-        - $ref: '#/components/parameters/ticketId'
-        - $ref: '#/components/parameters/messageId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/complaints/{studentId}/{ticketId}/{fileKey}:
-    get:
-      summary: Download complaint file
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/ticketId'
-        - $ref: '#/components/parameters/fileKey'
-      responses:
-        '200':
-          description: File content
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
-  /api/uniassist/{studentId}:
-    get:
-      summary: UniAssist data by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/widgets/messages/export/{studentId}:
-    get:
-      summary: Export messages for student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          description: Export file
-          content:
-            application/json:
-              schema:
-                type: object
-        '400':
-          $ref: '#/components/responses/Error'
-  /api/widgets/transcript/engine/v2/{language}:
-    post:
-      summary: Generate transcript via engine
-      parameters:
-        - $ref: '#/components/parameters/language'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/widgets/transcript/v2/{adminId}:
-    get:
-      summary: Transcript v2 for admin
-      parameters:
-        - $ref: '#/components/parameters/adminId'
-      responses:
-        '200':
-          description: Transcript file
-          content:
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/Error'
-  /api/all-courses:
-    get:
-      summary: All courses
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/all-courses/{courseId}:
-    get:
-      summary: Course by id
-      parameters:
-        - $ref: '#/components/parameters/courseId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/course-keywords:
-    get:
-      summary: Course keywords list
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/course-keywords/{keywordsSetId}:
-    get:
-      summary: Course keywords by set id
-      parameters:
-        - $ref: '#/components/parameters/keywordsSetId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/support.yaml#/~1api~1complaints'
+  /api/complaints/{id}:
+    $ref: './paths/support.yaml#/~1api~1complaints~1{id}'
+
+  # Search endpoints
+  /api/search:
+    $ref: './paths/search.yaml#/~1api~1search'
+  /api/search/advanced:
+    $ref: './paths/search.yaml#/~1api~1search~1advanced'
+
+  # CRM endpoints
+  /api/crm/leads:
+    $ref: './paths/crm.yaml#/~1api~1crm~1leads'
+  /api/crm/leads/{leadId}:
+    $ref: './paths/crm.yaml#/~1api~1crm~1leads~1{leadId}'
+  /api/crm/deals/{dealId}:
+    $ref: './paths/crm.yaml#/~1api~1crm~1deals~1{dealId}'
+  /api/crm/meetings/{meetingId}:
+    $ref: './paths/crm.yaml#/~1api~1crm~1meetings~1{meetingId}'
+  /api/crm/sync:
+    $ref: './paths/crm.yaml#/~1api~1crm~1sync'
+  /api/crm/analytics:
+    $ref: './paths/crm.yaml#/~1api~1crm~1analytics'
+
+  # TaiGer AI endpoints
+  /api/taigerai:
+    $ref: './paths/taigerai.yaml#/~1api~1taigerai'
+  /api/taigerai/process/{studentId}:
+    $ref: './paths/taigerai.yaml#/~1api~1taigerai~1process~1{studentId}'
+  /api/taigerai/analyze:
+    $ref: './paths/taigerai.yaml#/~1api~1taigerai~1analyze'
+  /api/taigerai/recommendations/{studentId}:
+    $ref: './paths/taigerai.yaml#/~1api~1taigerai~1recommendations~1{studentId}'
+
+  # Notes endpoints
+  /api/notes/{studentId}:
+    $ref: './paths/notes.yaml#/~1api~1notes~1{studentId}'
+
+  # Miscellaneous endpoints
+  /api/user-logs:
+    $ref: './paths/misc.yaml#/~1api~1user-logs'
+  /api/user-logs/search:
+    $ref: './paths/misc.yaml#/~1api~1user-logs~1search'
+  /api/permissions:
+    $ref: './paths/misc.yaml#/~1api~1permissions'
+  /api/portal-informations:
+    $ref: './paths/misc.yaml#/~1api~1portal-informations'
+  /api/portal-informations/{category}:
+    $ref: './paths/misc.yaml#/~1api~1portal-informations~1{category}'
   /api/program-requirements:
-    get:
-      summary: Program requirements list
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/program-requirements/new:
-    post:
-      summary: Create program requirement
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
-  /api/program-requirements/programs-and-keywords:
-    get:
-      summary: Programs and keywords
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/data.yaml#/~1api~1program-requirements'
   /api/program-requirements/{requirementId}:
-    get:
-      summary: Program requirement by id
-      parameters:
-        - $ref: '#/components/parameters/requirementId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/portal-informations/{studentId}:
-    get:
-      summary: Portal informations by student
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-  /api/portal-informations/{studentId}/{applicationId}:
-    post:
-      summary: Create portal information entry
-      parameters:
-        - $ref: '#/components/parameters/studentId'
-        - $ref: '#/components/parameters/applicationId'
-      responses:
-        '201':
-          $ref: '#/components/responses/Success'
+    $ref: './paths/data.yaml#/~1api~1program-requirements~1{requirementId}'
+  /api/course-keywords:
+    $ref: './paths/data.yaml#/~1api~1course-keywords'
+  /api/all-courses:
+    $ref: './paths/data.yaml#/~1api~1all-courses'
+  /api/agents:
+    $ref: './paths/data.yaml#/~1api~1agents'
+  /api/essay-writers:
+    $ref: './paths/data.yaml#/~1api~1essay-writers'
+  /api/expenses:
+    $ref: './paths/data.yaml#/~1api~1expenses'
+  /api/widget:
+    $ref: './paths/data.yaml#/~1api~1widget'
+  /api/widget/{studentId}:
+    $ref: './paths/data.yaml#/~1api~1widget~1{studentId}'
+  /api/widget/status/{studentId}:
+    $ref: './paths/data.yaml#/~1api~1widget~1status~1{studentId}'
+  /api/audit:
+    $ref: './paths/data.yaml#/~1api~1audit'
+  /api/uniassist:
+    $ref: './paths/data.yaml#/~1api~1uniassist'

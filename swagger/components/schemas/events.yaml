@@ -89,3 +89,20 @@ BookedEventResponse:
   required:
     - success
     - data
+EventCountResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        active_count:
+          type: integer
+        pending_count:
+          type: integer
+      additionalProperties: true
+  required:
+    - success
+    - data

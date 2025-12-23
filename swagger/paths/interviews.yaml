@@ -153,18 +153,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/interviews.yaml#/InterviewUpdate'
     responses:
       '200':
         description: Interview updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/interviews.yaml#/SuccessResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -187,11 +183,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/interviews.yaml#/SuccessResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':

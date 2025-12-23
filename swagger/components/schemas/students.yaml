@@ -480,3 +480,22 @@ AssignAttributesPayload:
   type: array
   items:
     $ref: '#/StudentAttribute'
+ArchiveStatusRequest:
+  type: object
+  properties:
+    isArchived:
+      type: boolean
+    shouldInform:
+      type: boolean
+  required:
+    - isArchived
+  additionalProperties: false
+
+UpdateVPDPaymentRequest:
+  type: object
+  properties:
+    isPaid:
+      type: boolean
+  required:
+    - isPaid
+  additionalProperties: false

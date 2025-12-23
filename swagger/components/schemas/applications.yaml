@@ -471,3 +471,50 @@ SuccessWithMessage:
   required:
     - success
     - data
+SuccessMessageResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+  required:
+    - success
+  additionalProperties: false
+
+CreateApplicationRequest:
+  type: object
+  properties:
+    program_id_set:
+      type: array
+      items:
+        type: string
+      minItems: 1
+  required:
+    - program_id_set
+  additionalProperties: false
+
+ApplicationUpdate:
+  type: object
+  properties:
+    _id:
+      type: string
+    decided:
+      type: string
+    closed:
+      type: string
+    admission:
+      type: string
+    finalEnrolment:
+      type: string
+  additionalProperties: false
+
+UpdateStudentApplicationsRequest:
+  type: object
+  properties:
+    applications:
+      type: array
+      items:
+        $ref: '#/ApplicationUpdate'
+    applying_program_count:
+      type: integer
+  additionalProperties: false

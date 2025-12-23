@@ -110,6 +110,16 @@ UnreadMessagesCountResponse:
     - success
     - data
 
+IgnoreMessageResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+  required:
+    - success
+  additionalProperties: false
+
 CommunicationPaginatedResponse:
   type: object
   properties:

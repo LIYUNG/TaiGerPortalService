@@ -232,14 +232,7 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              isArchived:
-                type: boolean
-              shouldInform:
-                type: boolean
-            required:
-              - isArchived
+            $ref: '../components/schemas/students.yaml#/ArchiveStatusRequest'
     responses:
       '200':
         description: Student archive status updated successfully
@@ -364,12 +357,7 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              isPaid:
-                type: boolean
-            required:
-              - isPaid
+            $ref: '../components/schemas/students.yaml#/UpdateVPDPaymentRequest'
     responses:
       '201':
         description: VPD payment status updated successfully

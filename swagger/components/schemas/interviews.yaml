@@ -180,3 +180,34 @@ InterviewQuestionListResponse:
   required:
     - success
     - data
+SuccessResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+  required:
+    - success
+  additionalProperties: false
+
+InterviewUpdate:
+  type: object
+  properties:
+    interview_description:
+      type: string
+    interviewer:
+      type: string
+    interview_duration:
+      type: string
+    interview_date:
+      type: string
+      format: date-time
+    isClosed:
+      type: boolean
+    start:
+      type: string
+      format: date-time
+    end:
+      type: string
+      format: date-time
+  additionalProperties: false

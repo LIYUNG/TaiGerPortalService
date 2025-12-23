@@ -29,18 +29,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/courses.yaml#/CourseUpdate'
     responses:
       '200':
         description: Course updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/courses.yaml#/CourseResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -63,11 +59,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/courses.yaml#/SuccessResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -87,7 +79,7 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/courses.yaml#/TranscriptTestRequest'
     responses:
       '200':
         description: Transcript test completed successfully

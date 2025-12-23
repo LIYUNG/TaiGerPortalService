@@ -139,11 +139,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/applications.yaml#/SuccessMessageResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -226,14 +222,7 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              program_id_set:
-                type: array
-                items:
-                  type: string
-            required:
-              - program_id_set
+            $ref: '../components/schemas/applications.yaml#/CreateApplicationRequest'
     responses:
       '201':
         description: Application created successfully
@@ -262,25 +251,7 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              applications:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    _id:
-                      type: string
-                    decided:
-                      type: string
-                    closed:
-                      type: string
-                    admission:
-                      type: string
-                    finalEnrolment:
-                      type: string
-              applying_program_count:
-                type: integer
+            $ref: '../components/schemas/applications.yaml#/UpdateStudentApplicationsRequest'
     responses:
       '201':
         description: Applications updated successfully

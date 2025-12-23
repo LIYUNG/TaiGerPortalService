@@ -176,3 +176,42 @@ TeamStatisticsResponse:
   required:
     - success
     - data
+SuccessResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+  required:
+    - success
+  additionalProperties: false
+
+UserUpdate:
+  type: object
+  properties:
+    firstname:
+      type: string
+    lastname:
+      type: string
+    firstname_chinese:
+      type: string
+    lastname_chinese:
+      type: string
+    email:
+      type: string
+      format: email
+    role:
+      type: string
+      enum:
+        - Admin
+        - Manager
+        - Agent
+        - Editor
+        - Student
+        - Trainer
+    pictureUrl:
+      type: string
+      format: uri
+    archiv:
+      type: boolean
+  additionalProperties: false

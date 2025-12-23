@@ -50,18 +50,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/users.yaml#/UserUpdate'
     responses:
       '200':
         description: User updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/users.yaml#/SuccessResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -82,11 +78,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/users.yaml#/SuccessResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':

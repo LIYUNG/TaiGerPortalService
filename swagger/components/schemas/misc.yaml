@@ -210,6 +210,34 @@ UserLogResponse:
     - success
     - data
 
+PermissionsListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+  required:
+    - success
+    - data
+
+PortalInformationResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      additionalProperties: true
+  required:
+    - success
+    - data
+
 AuditLogResponse:
   type: object
   properties:

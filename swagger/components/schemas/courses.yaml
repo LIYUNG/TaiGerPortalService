@@ -178,3 +178,49 @@ AllCoursesResponse:
   required:
     - success
     - data
+SuccessResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+  required:
+    - success
+  additionalProperties: false
+
+CourseUpdate:
+  type: object
+  properties:
+    course_name:
+      type: string
+    credits:
+      type: number
+      format: double
+    grade:
+      type: string
+    gpa_points:
+      type: number
+      format: double
+    description:
+      type: string
+    semester:
+      type: string
+    year:
+      type: integer
+    institution:
+      type: string
+  additionalProperties: false
+
+TranscriptTestRequest:
+  type: object
+  properties:
+    transcript_data:
+      type: object
+      additionalProperties: true
+      description: Raw transcript data to test parsing
+    course_mappings:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+  additionalProperties: false

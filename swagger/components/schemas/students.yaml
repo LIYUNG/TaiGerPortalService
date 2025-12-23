@@ -1,0 +1,482 @@
+DocumentStatus:
+  type: string
+  description: Status values used for profile and general document tracking.
+  enum:
+    - Missing
+    - Uploaded
+    - Accepted
+    - Rejected
+    - NotNeeded
+
+Basedocumentationslink:
+  type: object
+  properties:
+    key:
+      type: string
+    category:
+      type: string
+      example: base-documents
+    link:
+      type: string
+      description: Helper URL shown to the student
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+StudentAttribute:
+  type: object
+  properties:
+    name:
+      type: string
+    value:
+      type: number
+  required:
+    - name
+    - value
+
+ProfileDocument:
+  type: object
+  properties:
+    name:
+      type: string
+    status:
+      $ref: '#/DocumentStatus'
+    required:
+      type: boolean
+    path:
+      type: string
+    feedback:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+  required:
+    - name
+    - status
+    - required
+
+TaigerAIFile:
+  type: object
+  properties:
+    name:
+      type: string
+    status:
+      $ref: '#/DocumentStatus'
+    file_category:
+      type: string
+      default: Others
+    path:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+
+TaigerAIFeedback:
+  type: object
+  properties:
+    message:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+
+TaigerAI:
+  type: object
+  properties:
+    input:
+      $ref: '#/TaigerAIFile'
+    output:
+      $ref: '#/TaigerAIFile'
+    feedback:
+      $ref: '#/TaigerAIFeedback'
+
+ApplicationPreference:
+  type: object
+  properties:
+    expected_application_date:
+      type: string
+    expected_application_semester:
+      type: string
+    target_program_language:
+      type: string
+    target_application_field:
+      type: string
+    targetApplicationSubjects:
+      type: array
+      items:
+        type: string
+    target_degree:
+      type: string
+    considered_privat_universities:
+      type: string
+    special_wished:
+      type: string
+    application_outside_germany:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+
+AcademicBackgroundUniversity:
+  type: object
+  properties:
+    high_school_isGraduated:
+      type: string
+    attended_high_school:
+      type: string
+    high_school_graduated_year:
+      type: string
+    attended_university:
+      type: string
+    attended_university_program:
+      type: string
+    isGraduated:
+      type: string
+    expected_grad_date:
+      type: string
+    Highest_GPA_Uni:
+      type: number
+    Passing_GPA_Uni:
+      type: number
+    My_GPA_Uni:
+      type: number
+    Has_Exchange_Experience:
+      type: string
+    isSecondGraduated:
+      type: string
+    expectedSecondDegreeGradDate:
+      type: string
+    attendedSecondDegreeUniversity:
+      type: string
+    attendedSecondDegreeProgram:
+      type: string
+    highestSecondDegreeGPA:
+      type: number
+    passingSecondDegreeGPA:
+      type: number
+    mySecondDegreeGPA:
+      type: number
+    Has_Internship_Experience:
+      type: string
+    Has_Working_Experience:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+
+AcademicBackgroundLanguage:
+  type: object
+  properties:
+    english_isPassed:
+      type: string
+    english_certificate:
+      type: string
+    english_score:
+      type: string
+    english_score_reading:
+      type: string
+    english_score_listening:
+      type: string
+    english_score_writing:
+      type: string
+    english_score_speaking:
+      type: string
+    english_test_date:
+      type: string
+    german_isPassed:
+      type: string
+    german_certificate:
+      type: string
+    german_score:
+      type: string
+    german_test_date:
+      type: string
+    gre_isPassed:
+      type: string
+    gre_certificate:
+      type: string
+    gre_score:
+      type: string
+    gre_test_date:
+      type: string
+    gmat_isPassed:
+      type: string
+    gmat_certificate:
+      type: string
+    gmat_score:
+      type: string
+    gmat_test_date:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+
+AcademicBackground:
+  type: object
+  properties:
+    university:
+      $ref: '#/AcademicBackgroundUniversity'
+    language:
+      $ref: '#/AcademicBackgroundLanguage'
+
+NotificationFlags:
+  type: object
+  properties:
+    isRead_survey_not_complete:
+      type: boolean
+    isRead_uni_assist_task_assigned:
+      type: boolean
+    isRead_new_agent_assigned:
+      type: boolean
+    isRead_new_editor_assigned:
+      type: boolean
+    isRead_new_cvmlrl_tasks_created:
+      type: boolean
+    isRead_new_cvmlrl_messsage:
+      type: boolean
+    isRead_base_documents_missing:
+      type: boolean
+    isRead_base_documents_rejected:
+      type: boolean
+    isRead_new_programs_assigned:
+      type: boolean
+
+StudentBase:
+  type: object
+  properties:
+    _id:
+      type: string
+    firstname:
+      type: string
+    firstname_chinese:
+      type: string
+    lastname:
+      type: string
+    lastname_chinese:
+      type: string
+    email:
+      type: string
+      format: email
+    archiv:
+      type: boolean
+    birthday:
+      type: string
+    linkedIn:
+      type: string
+    lineId:
+      type: string
+    needEditor:
+      type: boolean
+    applying_program_count:
+      type: integer
+    attributes:
+      type: array
+      items:
+        $ref: '#/StudentAttribute'
+    profile:
+      type: array
+      items:
+        $ref: '#/ProfileDocument'
+    generaldocs_threads:
+      type: array
+      items:
+        $ref: '../schemas/applications.yaml#/DocumentThreadLink'
+    applications:
+      type: array
+      items:
+        $ref: '../schemas/applications.yaml#/ApplicationWithProgramAndThreads'
+    agents:
+      type: array
+      items:
+        $ref: '../schemas/applications.yaml#/UserPreview'
+    editors:
+      type: array
+      items:
+        $ref: '../schemas/applications.yaml#/UserPreview'
+    taigerai:
+      $ref: '#/TaigerAI'
+    application_preference:
+      $ref: '#/ApplicationPreference'
+    academic_background:
+      $ref: '#/AcademicBackground'
+    notification:
+      $ref: '#/NotificationFlags'
+    courses:
+      type: object
+      description: Optional course record joined from Course collection.
+      additionalProperties: true
+    lastLoginAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - firstname
+    - lastname
+    - email
+  additionalProperties: true
+
+StudentListItem:
+  allOf:
+    - $ref: '#/StudentBase'
+
+StudentsListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/StudentListItem'
+    auditLog:
+      type: array
+      description: Included for admin dashboard responses.
+      items:
+        type: object
+        additionalProperties: true
+    notification:
+      type: object
+      description: Agent notification flags when the caller is an agent.
+      additionalProperties: true
+    isCoursesFilled:
+      type: boolean
+      description: Returned for student self-view.
+  required:
+    - success
+    - data
+
+StudentsBatchResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/StudentListItem'
+    message:
+      type: string
+    invalidIds:
+      type: array
+      items:
+        type: string
+  required:
+    - success
+    - data
+
+StudentsAndDocLinksResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/StudentListItem'
+    base_docs_link:
+      description: Helper links; empty object for admins, populated list for students.
+      oneOf:
+        - type: object
+          additionalProperties: true
+        - type: array
+          items:
+            $ref: '#/Basedocumentationslink'
+  required:
+    - success
+    - data
+
+StudentDocLinksResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/StudentListItem'
+    base_docs_link:
+      type: array
+      items:
+        $ref: '#/Basedocumentationslink'
+    survey_link:
+      type: array
+      items:
+        $ref: '#/Basedocumentationslink'
+    audit:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+  required:
+    - success
+    - data
+
+HelperLinksResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    helper_link:
+      type: array
+      items:
+        $ref: '#/Basedocumentationslink'
+  required:
+    - success
+    - helper_link
+
+SingleStudentResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/StudentListItem'
+  required:
+    - success
+    - data
+
+ProfileDocumentResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ProfileDocument'
+  required:
+    - success
+    - data
+
+ApplicationResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '../schemas/applications.yaml#/ApplicationWithProgramAndThreads'
+  required:
+    - success
+    - data
+
+AssignUsersPayload:
+  type: object
+  description: Map of userId to a boolean flag indicating assignment.
+  additionalProperties:
+    type: boolean
+
+AssignAttributesPayload:
+  type: array
+  items:
+    $ref: '#/StudentAttribute'

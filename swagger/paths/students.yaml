@@ -3,23 +3,31 @@
     tags:
       - Students
     summary: Get all students
-    description: Retrieve a list of all students. Access controlled by role and permissions.
+    description: Retrieve students for the current caller role. Admins and managers receive a full list; agents/editors see their students; students receive only themselves.
     operationId: getStudents
+    parameters:
+      - name: archiv
+        in: query
+        schema:
+          type: boolean
+        description: Filter by archive flag for some role combinations.
+      - name: agents
+        in: query
+        schema:
+          type: string
+        description: Optional agent filter.
+      - name: editors
+        in: query
+        schema:
+          type: string
+        description: Optional editor filter.
     responses:
       '200':
         description: List of students retrieved successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/students.yaml#/StudentsListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -30,23 +38,28 @@
     tags:
       - Students
     summary: Get students (v3)
-    description: Retrieve students with enhanced data structure
+    description: Retrieve students with populated agents, editors, and general document threads.
     operationId: getStudentsV3
+    parameters:
+      - name: archiv
+        in: query
+        schema:
+          type: boolean
+      - name: agents
+        in: query
+        schema:
+          type: string
+      - name: editors
+        in: query
+        schema:
+          type: string
     responses:
       '200':
         description: Students retrieved successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/students.yaml#/StudentsListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -57,7 +70,7 @@
     tags:
       - Students
     summary: Get students by IDs
-    description: Retrieve multiple students by their IDs (batch operation)
+    description: Retrieve multiple students and their applications by ID list. Invalid IDs are reported but ignored.
     operationId: getStudentsByIds
     parameters:
       - name: ids
@@ -66,21 +79,16 @@
         required: true
         schema:
           type: string
+          example: 64fe83c7844b5a23873c05a3,64fe83c7844b5a23873c05a4
     responses:
       '200':
         description: Students retrieved successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/students.yaml#/StudentsBatchResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -91,23 +99,28 @@
     tags:
       - Students
     summary: Get active students
-    description: Retrieve all active (non-archived) students
+    description: Retrieve non-archived students with their applications and course data.
     operationId: getActiveStudents
+    parameters:
+      - name: archiv
+        in: query
+        schema:
+          type: boolean
+      - name: agents
+        in: query
+        schema:
+          type: string
+      - name: editors
+        in: query
+        schema:
+          type: string
     responses:
       '200':
         description: Active students retrieved successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/students.yaml#/StudentsListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -118,21 +131,28 @@
     tags:
       - Students
     summary: Get students with documentation links
-    description: Retrieve all students along with their documentation helper links
+    description: Retrieve students plus their base documentation helper links.
     operationId: getStudentsAndDocLinks
+    parameters:
+      - name: archiv
+        in: query
+        schema:
+          type: boolean
+      - name: agents
+        in: query
+        schema:
+          type: string
+      - name: editors
+        in: query
+        schema:
+          type: string
     responses:
       '200':
         description: Students and documentation links retrieved successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/students.yaml#/StudentsAndDocLinksResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -141,7 +161,7 @@
     tags:
       - Students
     summary: Update documentation helper link
-    description: Update the documentation helper link for students
+    description: Create or update a documentation helper link entry.
     operationId: updateDocumentationHelperLink
     requestBody:
       required: true
@@ -149,17 +169,25 @@
         application/json:
           schema:
             type: object
+            properties:
+              link:
+                type: string
+              key:
+                type: string
+              category:
+                type: string
+                example: base-documents
+            required:
+              - link
+              - key
+              - category
     responses:
       '200':
         description: Documentation link updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/HelperLinksResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -172,7 +200,7 @@
     tags:
       - Students
     summary: Get student with documentation links
-    description: Retrieve a specific student's profile with documentation links, applications, and audit logs
+    description: Retrieve a specific student's profile with documentation helper links, applications, and audit logs.
     operationId: getStudentAndDocLinks
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -182,13 +210,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/students.yaml#/StudentDocLinksResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':
@@ -201,7 +223,7 @@
     tags:
       - Students
     summary: Archive or unarchive student
-    description: Update student's archive status
+    description: Update a student's archive status and optionally inform the student.
     operationId: updateStudentsArchivStatus
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -212,20 +234,19 @@
           schema:
             type: object
             properties:
-              archiv:
+              isArchived:
                 type: boolean
-                description: Whether to archive (true) or unarchive (false) the student
+              shouldInform:
+                type: boolean
+            required:
+              - isArchived
     responses:
       '200':
         description: Student archive status updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/StudentsListResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -240,7 +261,7 @@
     tags:
       - Students
     summary: Assign agent to student
-    description: Assign one or more agents to a student
+    description: Add or remove agents on the student. Payload keys are agent IDs with boolean values indicating assignment.
     operationId: assignAgentToStudent
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -249,24 +270,14 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              agents:
-                type: array
-                items:
-                  type: string
-                description: Array of agent user IDs
+            $ref: '../components/schemas/students.yaml#/AssignUsersPayload'
     responses:
       '200':
         description: Agent(s) assigned successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/SingleStudentResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -281,7 +292,7 @@
     tags:
       - Students
     summary: Assign editor to student
-    description: Assign one or more editors to a student
+    description: Add or remove editors on the student. Payload keys are editor IDs with boolean values indicating assignment.
     operationId: assignEditorToStudent
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -290,24 +301,14 @@
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              editors:
-                type: array
-                items:
-                  type: string
-                description: Array of editor user IDs
+            $ref: '../components/schemas/students.yaml#/AssignUsersPayload'
     responses:
       '200':
         description: Editor(s) assigned successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/SingleStudentResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -322,7 +323,7 @@
     tags:
       - Students
     summary: Assign attributes to student
-    description: Update student attributes and properties
+    description: Replace the student's attribute list.
     operationId: assignAttributesToStudent
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -331,18 +332,14 @@
       content:
         application/json:
           schema:
-            type: object
+            $ref: '../components/schemas/students.yaml#/AssignAttributesPayload'
     responses:
       '200':
         description: Attributes assigned successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/SingleStudentResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -357,7 +354,7 @@
     tags:
       - Students
     summary: Update VPD payment status
-    description: Update payment status for VPD (Vorprüfungsdokumentation) documents
+    description: Update the uni-assist payment flag for the application VPD.
     operationId: updateVPDPayment
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -371,17 +368,15 @@
             properties:
               isPaid:
                 type: boolean
+            required:
+              - isPaid
     responses:
-      '200':
+      '201':
         description: VPD payment status updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/ApplicationResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -396,7 +391,7 @@
     tags:
       - Students
     summary: Download VPD file
-    description: Download a specific VPD file for an application
+    description: Download VPD or VPDConfirmation file for an application.
     operationId: downloadVPDFile
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -420,7 +415,7 @@
     tags:
       - Students
     summary: Upload VPD file
-    description: Upload a VPD file for an application
+    description: Upload VPD or VPDConfirmation file for an application.
     operationId: saveVPDFilePath
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -436,17 +431,15 @@
               file:
                 type: string
                 format: binary
+            required:
+              - file
     responses:
-      '200':
+      '201':
         description: VPD file uploaded successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/ApplicationResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -458,30 +451,20 @@
   put:
     tags:
       - Students
-    summary: Update VPD file necessity
-    description: Update whether a VPD file is required or optional
+    summary: Toggle VPD file necessity
+    description: Switch uni-assist VPD status between not-needed and missing.
     operationId: updateVPDFileNecessity
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
       - $ref: '../components/parameters/common.yaml#/applicationId'
       - $ref: '../components/parameters/common.yaml#/fileType'
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            type: object
     responses:
-      '200':
+      '201':
         description: VPD file necessity updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/ApplicationResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -494,7 +477,7 @@
     tags:
       - Students
     summary: Delete VPD file
-    description: Delete a VPD file from an application
+    description: Delete an uploaded VPD or VPDConfirmation file.
     operationId: deleteVPDFile
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -506,11 +489,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/ApplicationResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -525,7 +504,7 @@
     tags:
       - Students
     summary: Download profile file
-    description: Download a student's profile file by file key
+    description: Download a student's profile file by file key.
     operationId: downloadProfileFileURL
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -550,7 +529,7 @@
     tags:
       - Students
     summary: Upload profile file
-    description: Upload a profile file for a student in a specific category
+    description: Upload a profile document in the given category.
     operationId: saveProfileFilePath
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -565,17 +544,15 @@
               file:
                 type: string
                 format: binary
+            required:
+              - file
     responses:
-      '200':
+      '201':
         description: Profile file uploaded successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/ProfileDocumentResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -588,7 +565,7 @@
     tags:
       - Students
     summary: Delete profile file
-    description: Delete a student's profile file from a specific category
+    description: Delete a student's profile file for the given category and reset its status to missing.
     operationId: deleteProfileFile
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -599,11 +576,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/ProfileDocumentResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -618,7 +591,7 @@
     tags:
       - Students
     summary: Update profile document status
-    description: Update the status of a profile document category
+    description: Update the status/feedback of a profile document category.
     operationId: updateProfileDocumentStatus
     parameters:
       - $ref: '../components/parameters/common.yaml#/studentId'
@@ -631,19 +604,18 @@
             type: object
             properties:
               status:
+                $ref: '../components/schemas/students.yaml#/DocumentStatus'
+              feedback:
                 type: string
-                description: Document status
+            required:
+              - status
     responses:
-      '200':
+      '201':
         description: Profile document status updated successfully
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
+              $ref: '../components/schemas/students.yaml#/ProfileDocumentResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':

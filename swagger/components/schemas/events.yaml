@@ -1,0 +1,91 @@
+Event:
+  type: object
+  properties:
+    _id:
+      type: string
+    title:
+      type: string
+    description:
+      type: string
+    location:
+      type: string
+    start:
+      type: string
+      format: date-time
+    end:
+      type: string
+      format: date-time
+    organizer:
+      oneOf:
+        - type: string
+        - $ref: './applications.yaml#/UserPreview'
+    participants:
+      type: array
+      items:
+        oneOf:
+          - type: string
+          - $ref: './students.yaml#/StudentBase'
+    isClosed:
+      type: boolean
+      default: false
+    eventType:
+      type: string
+      enum:
+        - interview
+        - meeting
+        - workshop
+        - other
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+EventResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Event'
+  required:
+    - success
+    - data
+
+EventListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Event'
+  required:
+    - success
+    - data
+
+BookedEventResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        booked_events:
+          type: array
+          items:
+            $ref: '#/Event'
+        count:
+          type: integer
+      required:
+        - booked_events
+  required:
+    - success
+    - data

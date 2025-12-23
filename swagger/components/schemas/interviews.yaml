@@ -1,0 +1,182 @@
+Interview:
+  type: object
+  properties:
+    _id:
+      type: string
+    student_id:
+      oneOf:
+        - type: string
+        - $ref: './students.yaml#/StudentBase'
+    trainer_id:
+      type: array
+      items:
+        oneOf:
+          - type: string
+          - $ref: './applications.yaml#/UserPreview'
+    thread_id:
+      oneOf:
+        - type: string
+        - $ref: './document-threads.yaml#/DocumentThreadPopulated'
+    program_id:
+      oneOf:
+        - type: string
+        - $ref: './programs.yaml#/ProgramListItem'
+    event_id:
+      oneOf:
+        - type: string
+        - type: object
+    interview_description:
+      type: string
+    interviewer:
+      type: string
+    interview_duration:
+      type: string
+    interview_date:
+      type: string
+      format: date-time
+    isClosed:
+      type: boolean
+      default: false
+    start:
+      type: string
+      format: date-time
+    end:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  required:
+    - _id
+  additionalProperties: false
+
+InterviewQuestion:
+  type: object
+  properties:
+    _id:
+      type: string
+    program_id:
+      oneOf:
+        - type: string
+        - $ref: './programs.yaml#/ProgramListItem'
+    questions:
+      type: array
+      items:
+        type: object
+        properties:
+          _id:
+            type: string
+          question:
+            type: string
+          isRequired:
+            type: boolean
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+InterviewSurvey:
+  type: object
+  properties:
+    _id:
+      type: string
+    interview_id:
+      oneOf:
+        - type: string
+        - $ref: '#/Interview'
+    student_id:
+      oneOf:
+        - type: string
+        - $ref: './students.yaml#/StudentBase'
+    answers:
+      type: array
+      items:
+        type: object
+        properties:
+          question_id:
+            type: string
+          answer:
+            type: string
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+InterviewResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Interview'
+  required:
+    - success
+    - data
+
+InterviewListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Interview'
+  required:
+    - success
+    - data
+
+InterviewWithStudentsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Interview'
+    students:
+      type: array
+      items:
+        $ref: './students.yaml#/StudentBase'
+  required:
+    - success
+    - data
+
+InterviewSurveyResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/InterviewSurvey'
+  required:
+    - success
+    - data
+
+InterviewQuestionListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        type: object
+  required:
+    - success
+    - data

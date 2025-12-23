@@ -34,15 +34,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/events.yaml#/BookedEventResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
 
@@ -59,15 +51,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/events.yaml#/EventListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
   post:
@@ -99,13 +83,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
+              $ref: '../components/schemas/events.yaml#/EventResponse'
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -128,15 +106,7 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: array
-                  items:
-                    type: object
+              $ref: '../components/schemas/events.yaml#/EventListResponse'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '403':

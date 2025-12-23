@@ -1,0 +1,136 @@
+CommunicationMessage:
+  type: object
+  properties:
+    _id:
+      type: string
+    message:
+      type: string
+    attachment:
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          key:
+            type: string
+    user_id:
+      oneOf:
+        - type: string
+        - $ref: './applications.yaml#/UserPreview'
+    isIgnored:
+      type: boolean
+    updatedAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+CommunicationThread:
+  type: object
+  properties:
+    _id:
+      type: string
+    student_id:
+      oneOf:
+        - type: string
+        - $ref: './students.yaml#/StudentBase'
+    messages:
+      type: array
+      items:
+        $ref: '#/CommunicationMessage'
+    latest_message_left_by_id:
+      oneOf:
+        - type: string
+        - $ref: './applications.yaml#/UserPreview'
+    updatedAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+CommunicationResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/CommunicationThread'
+  required:
+    - success
+    - data
+
+CommunicationListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/CommunicationThread'
+  required:
+    - success
+    - data
+
+CommunicationMessagesResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/CommunicationMessage'
+  required:
+    - success
+    - data
+
+UnreadMessagesCountResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        unread_count:
+          type: integer
+          example: 5
+      additionalProperties: true
+  required:
+    - success
+    - data
+
+CommunicationPaginatedResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/CommunicationMessage'
+        page:
+          type: integer
+        totalPages:
+          type: integer
+        hasMore:
+          type: boolean
+      required:
+        - messages
+  required:
+    - success
+    - data

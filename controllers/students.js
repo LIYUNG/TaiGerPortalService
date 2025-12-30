@@ -495,7 +495,9 @@ const getStudent = asyncHandler(async (req, res, next) => {
   const student = await StudentService.getStudentById(req, studentId);
 
   if (!student) {
-    return next(new ErrorResponse('Student not found', 404));
+    return res
+      .status(404)
+      .json({ success: false, message: 'Student not found.' });
   }
 
   res.status(200).send({ success: true, data: student });

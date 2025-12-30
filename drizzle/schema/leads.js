@@ -39,9 +39,12 @@ const leads = pgTable('leads', {
   bachelorSchool: text('bachelor_school'),
   bachelorGPA: text('bachelor_gpa'),
   bachelorProgramName: text('bachelor_program_name'),
+
+  // Fields to be clarified, is listed in google sheet survey, but always empty
   graduatedBachelorSchool: text('graduated_bachelor_school'),
   graduatedBachelorProgram: text('graduated_bachelor_program'),
   graduatedBachelorGPA: text('graduated_bachelor_gpa'),
+
   masterSchool: text('master_school'),
   masterProgramName: text('master_program_name'),
   masterGPA: text('master_gpa'),

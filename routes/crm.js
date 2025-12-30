@@ -13,6 +13,7 @@ const {
   getLeads,
   getLead,
   getLeadByStudentId,
+  createLeadFromStudent,
   updateLead,
   getMeetings,
   getMeeting,
@@ -35,7 +36,12 @@ router
 
 router
   .route('/students/:studentId/lead')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLeadByStudentId);
+  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLeadByStudentId)
+  .post(
+    filter_archiv_user,
+    GeneralPUTRequestRateLimiter,
+    createLeadFromStudent
+  );
 
 router
   .route('/leads')

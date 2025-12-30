@@ -405,6 +405,49 @@ const getLeadByStudentId = asyncHandler(async (req, res) => {
   });
 });
 
+const createLeadFromStudent = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+
+  if (!studentId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Student ID is required' });
+  }
+
+  // get student name from mongoDB (select firstname, lastname)
+  const student = await req.db
+    .Model('User')
+    .findById(studentId)
+    .select('firstname lastname firstname_chinese lastname_chinese')
+    .lean();
+
+  newLead = {
+    status: 'migrated',
+    userId: studentId,
+    fullName: `${student.firstname}, ${student.lastname} | ${student.firstname_chinese} ${student.lastname_chinese}`,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  res.status(201).send({
+    success: true,
+    message: 'Lead created successfully',
+    data: newLead
+  });
+
+  // Insert the new deal into the database
+  // const migratedLead = await postgresDb
+  //   .insert(leads)
+  //   .values(newLead)
+  //   .returning();
+
+  // res.status(201).send({
+  //   success: true,
+  //   message: 'Lead created successfully',
+  //   data: migratedLead[0]
+  // });
+});
+
 const updateLead = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
   const updateData = req.body;
@@ -669,6 +712,7 @@ module.exports = {
   getLeads,
   getLead,
   getLeadByStudentId,
+  createLeadFromStudent,
   updateLead,
   getMeetings,
   getMeeting,

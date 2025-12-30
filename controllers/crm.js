@@ -416,7 +416,7 @@ const createLeadFromStudent = asyncHandler(async (req, res) => {
 
   // get student name from mongoDB (select firstname, lastname)
   const student = await req.db
-    .Model('User')
+    .model('User')
     .findById(studentId)
     .select('firstname lastname firstname_chinese lastname_chinese')
     .lean();
@@ -429,23 +429,17 @@ const createLeadFromStudent = asyncHandler(async (req, res) => {
     updatedAt: new Date()
   };
 
+  // Insert the new deal into the database
+  const migratedLead = await postgresDb
+    .insert(leads)
+    .values(newLead)
+    .returning();
+
   res.status(201).send({
     success: true,
     message: 'Lead created successfully',
-    data: newLead
+    data: migratedLead[0]
   });
-
-  // Insert the new deal into the database
-  // const migratedLead = await postgresDb
-  //   .insert(leads)
-  //   .values(newLead)
-  //   .returning();
-
-  // res.status(201).send({
-  //   success: true,
-  //   message: 'Lead created successfully',
-  //   data: migratedLead[0]
-  // });
 });
 
 const updateLead = asyncHandler(async (req, res) => {

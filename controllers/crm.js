@@ -409,36 +409,48 @@ const createLeadFromStudent = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
 
   if (!studentId) {
-    return res
-      .status(400)
-      .send({ success: false, message: 'Student ID is required' });
+    return res.status(400).send({
+      success: false,
+      message: 'Student ID is required'
+    });
   }
 
-  // get student name from mongoDB (select firstname, lastname)
+  // Fetch student
   const student = await req.db
     .model('User')
     .findById(studentId)
     .select('firstname lastname firstname_chinese lastname_chinese')
     .lean();
 
-  newLead = {
-    status: 'migrated',
-    userId: studentId,
-    fullName: `${student.firstname}, ${student.lastname} | ${student.firstname_chinese} ${student.lastname_chinese}`,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
+  if (!student) {
+    return res.status(404).send({
+      success: false,
+      message: 'Student not found'
+    });
+  }
 
   // Insert the new deal into the database
-  const migratedLead = await postgresDb
+  const [migratedLead] = await postgresDb
     .insert(leads)
-    .values(newLead)
-    .returning();
+    .values({
+      status: 'migrated',
+      userId: studentId,
+      fullName: `${student.lastname_chinese}${student.firstname_chinese}`
+    })
+    .returning({ id: leads.id, fullName: leads.fullName });
+
+  // Update existing meeting transcripts (related to the student) to link to the new lead
+  const pattern = `%###${studentId}###%`;
+  const meetings = await postgresDb
+    .update(meetingTranscripts)
+    .set({ leadId: migratedLead.id })
+    .where(sql`lead_id IS NULL AND title LIKE ${pattern}`);
 
   res.status(201).send({
     success: true,
     message: 'Lead created successfully',
-    data: migratedLead[0]
+    matchingMeetingCounts: meetings.rowCount,
+    data: migratedLead
   });
 });
 

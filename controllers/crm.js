@@ -405,6 +405,55 @@ const getLeadByStudentId = asyncHandler(async (req, res) => {
   });
 });
 
+const createLeadFromStudent = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+
+  if (!studentId) {
+    return res.status(400).send({
+      success: false,
+      message: 'Student ID is required'
+    });
+  }
+
+  // Fetch student
+  const student = await req.db
+    .model('User')
+    .findById(studentId)
+    .select('firstname lastname firstname_chinese lastname_chinese')
+    .lean();
+
+  if (!student) {
+    return res.status(404).send({
+      success: false,
+      message: 'Student not found'
+    });
+  }
+
+  // Insert the new deal into the database
+  const [migratedLead] = await postgresDb
+    .insert(leads)
+    .values({
+      status: 'migrated',
+      userId: studentId,
+      fullName: `${student.lastname_chinese}${student.firstname_chinese}`
+    })
+    .returning({ id: leads.id, fullName: leads.fullName });
+
+  // Update existing meeting transcripts (related to the student) to link to the new lead
+  const pattern = `%###${studentId}###%`;
+  const meetings = await postgresDb
+    .update(meetingTranscripts)
+    .set({ leadId: migratedLead.id })
+    .where(sql`lead_id IS NULL AND title LIKE ${pattern}`);
+
+  res.status(201).send({
+    success: true,
+    message: 'Lead created successfully',
+    matchingMeetingCounts: meetings.rowCount,
+    data: migratedLead
+  });
+});
+
 const updateLead = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
   const updateData = req.body;
@@ -669,6 +718,7 @@ module.exports = {
   getLeads,
   getLead,
   getLeadByStudentId,
+  createLeadFromStudent,
   updateLead,
   getMeetings,
   getMeeting,

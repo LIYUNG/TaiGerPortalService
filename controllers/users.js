@@ -140,7 +140,8 @@ const addUser = asyncHandler(async (req, res, next) => {
     lastname,
     email,
     role = 'Student',
-    applying_program_count
+    applying_program_count,
+    ...args
   } = req.body;
   const { user } = req;
   const existUser = await req.db.model('User').findOne({ email });
@@ -170,7 +171,8 @@ const addUser = asyncHandler(async (req, res, next) => {
     email,
     role,
     applying_program_count,
-    password
+    password,
+    ...args
   });
 
   const activationToken = generateRandomToken();

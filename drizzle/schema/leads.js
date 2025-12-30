@@ -1,9 +1,12 @@
 const { pgTable, text, varchar, timestamp } = require('drizzle-orm/pg-core');
-const createId = () => import('nanoid').then((mod) => mod.nanoid());
+const { nanoid } = require('nanoid');
 const { salesReps } = require('./salesReps');
 
 const leads = pgTable('leads', {
-  id: text('id').primaryKey().$default(createId).notNull(),
+  id: text('id')
+    .primaryKey()
+    .notNull()
+    .$defaultFn(() => nanoid()),
 
   // Basic info
   fullName: varchar('full_name', { length: 255 }).notNull(),
@@ -36,9 +39,12 @@ const leads = pgTable('leads', {
   bachelorSchool: text('bachelor_school'),
   bachelorGPA: text('bachelor_gpa'),
   bachelorProgramName: text('bachelor_program_name'),
+
+  // Fields to be clarified, is listed in google sheet survey, but always empty
   graduatedBachelorSchool: text('graduated_bachelor_school'),
   graduatedBachelorProgram: text('graduated_bachelor_program'),
   graduatedBachelorGPA: text('graduated_bachelor_gpa'),
+
   masterSchool: text('master_school'),
   masterProgramName: text('master_program_name'),
   masterGPA: text('master_gpa'),

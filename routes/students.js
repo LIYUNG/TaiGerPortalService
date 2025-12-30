@@ -23,6 +23,7 @@ const {
   updateDocumentationHelperLink,
   getStudentsAndDocLinks,
   getStudents,
+  getStudent,
   getStudentsByIds,
   updateStudentsArchivStatus,
   assignAgentToStudent,
@@ -303,6 +304,19 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     updateProfileDocumentStatus,
+    logAccess
+  );
+
+router
+  .route('/:studentId')
+  .get(
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    permission_canAccessStudentDatabase_filter,
+    multitenant_filter,
+    InnerTaigerMultitenantFilter,
+    getStudent,
     logAccess
   );
 module.exports = router;

@@ -89,7 +89,7 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
       .status(404)
       .send({ success: false, message: 'Student not found' });
   }
-  
+
   // Ensure isLocked field exists (default to false if undefined for existing applications)
   // Existing applications should be unlocked to avoid disrupting running workflows
   // Lock mechanism only applies to newly created applications
@@ -99,9 +99,11 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
     }
     return app;
   });
-  
+
   // TODO: remove agent notfication for new documents upload
-  student.applications = add_portals_registered_status(applicationsWithDefaults);
+  student.applications = add_portals_registered_status(
+    applicationsWithDefaults
+  );
 
   res.status(200).send({
     success: true,
@@ -482,6 +484,23 @@ const getStudents = asyncHandler(async (req, res, next) => {
     // Guest
     res.status(200).send({ success: true, data: [user] });
   }
+  next();
+});
+
+const getStudent = asyncHandler(async (req, res, next) => {
+  const {
+    params: { studentId }
+  } = req;
+
+  const student = await StudentService.getStudentById(req, studentId);
+
+  if (!student) {
+    return res
+      .status(404)
+      .json({ success: false, message: 'Student not found.' });
+  }
+
+  res.status(200).send({ success: true, data: student });
   next();
 });
 
@@ -916,6 +935,7 @@ module.exports = {
   getActiveStudents,
   getStudentsV3,
   getStudents,
+  getStudent,
   getStudentsByIds,
   getStudentsAndDocLinks,
   updateStudentsArchivStatus,

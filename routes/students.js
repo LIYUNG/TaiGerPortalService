@@ -315,7 +315,6 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
     multitenant_filter,
-    InnerTaigerMultitenantFilter,
     getStudent,
     logAccess
   );

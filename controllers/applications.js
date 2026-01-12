@@ -19,6 +19,7 @@ const ApplicationService = require('../services/applications');
 const UserService = require('../services/users');
 const StudentService = require('../services/students');
 const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
+const DocumentThreadService = require('../services/documentthreads');
 
 const getApplications = asyncHandler(async (req, res) => {
   const {
@@ -490,6 +491,32 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
             application.doc_modification_thread.push(temp);
             await new_doc_thread.save();
             await application.save();
+
+            // sync student.editors to thread.outsourced_user_id
+            if (doc.fileType === 'Essay') {
+              const essayDifficulty = program.essay_difficulty;
+              // Treat undefined as 'EASY' (default to editor assignment flow)
+              if (essayDifficulty === 'EASY' || essayDifficulty === undefined) {
+                const hasEditors = student.editors && student.editors.length > 0;
+                if (hasEditors) {
+                  // Get existing thread to check for existing outsourced_user_id
+                  const existingThread = await DocumentThreadService.getThreadById(req, new_doc_thread._id);
+                  const existingOutsourcedIds = (existingThread.outsourced_user_id || []).map(
+                    (id) => (typeof id === 'object' ? id._id : id).toString()
+                  );
+                  
+                  // Merge student.editors with existing outsourced_user_id and remove duplicates
+                  const editorIds = student.editors.map((editorId) => editorId.toString());
+                  const mergedIds = [...new Set([...existingOutsourcedIds, ...editorIds])].map(
+                    (id) => new mongoose.Types.ObjectId(id)
+                  );
+                  
+                  await DocumentThreadService.updateThreadById(req, new_doc_thread._id, {
+                    outsourced_user_id: mergedIds
+                  });
+                }
+              }
+            }
           }
         }
       } catch (error) {

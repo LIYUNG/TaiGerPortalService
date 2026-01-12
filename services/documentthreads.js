@@ -25,7 +25,7 @@ const DocumentThreadService = {
       .find({ student_id: studentId })
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang country updatedAt'
+        'school program_name application_deadline degree semester lang country updatedAt essay_difficulty'
       )
       .populate('student_id', 'firstname lastname pictureUrl')
       .populate('application_id')
@@ -63,7 +63,7 @@ const DocumentThreadService = {
       .populate('application_id')
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang application_start country updatedAt'
+        'school program_name application_deadline degree semester lang application_start country updatedAt essay_difficulty'
       )
       .lean();
 
@@ -112,7 +112,7 @@ const DocumentThreadService = {
       .populate('application_id')
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang country updatedAt'
+        'school program_name application_deadline degree semester lang country updatedAt essay_difficulty'
       )
       .lean();
 

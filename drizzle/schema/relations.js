@@ -1,17 +1,47 @@
 const { relations } = require('drizzle-orm');
 const { leads } = require('./leads');
+const { leadAdditional } = require('./leadAdditional');
+const { leadTags } = require('./leadTags');
+const { leadNotes } = require('./leadNotes');
 const { leadSimilarUsers } = require('./leadSimilarUsers');
 const { meetingTranscripts } = require('./meetingTranscripts');
 const { salesReps } = require('./salesReps');
 const { deals } = require('./deals');
 
 const leadsRelations = relations(leads, ({ many, one }) => ({
+  leadAdditional: one(leadAdditional, {
+    fields: [leads.id],
+    references: [leadAdditional.leadId]
+  }),
+  leadTags: many(leadTags),
+  leadNotes: many(leadNotes),
   meetingTranscripts: many(meetingTranscripts),
   leadSimilarUsers: many(leadSimilarUsers),
   deals: many(deals),
   salesRep: one(salesReps, {
     fields: [leads.salesUserId],
     references: [salesReps.userId]
+  })
+}));
+
+const leadAdditionalRelations = relations(leadAdditional, ({ one }) => ({
+  lead: one(leads, {
+    fields: [leadAdditional.leadId],
+    references: [leads.id]
+  })
+}));
+
+const leadTagsRelations = relations(leadTags, ({ one }) => ({
+  lead: one(leads, {
+    fields: [leadTags.leadId],
+    references: [leads.id]
+  })
+}));
+
+const leadNotesRelations = relations(leadNotes, ({ one }) => ({
+  lead: one(leads, {
+    fields: [leadNotes.leadId],
+    references: [leads.id]
   })
 }));
 
@@ -45,6 +75,9 @@ const leadSimilarUsersRelations = relations(leadSimilarUsers, ({ one }) => ({
 
 module.exports = {
   leadsRelations,
+  leadAdditionalRelations,
+  leadTagsRelations,
+  leadNotesRelations,
   dealsRelations,
   meetingTranscriptsRelations,
   leadSimilarUsersRelations

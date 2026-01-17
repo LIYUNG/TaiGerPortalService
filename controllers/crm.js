@@ -630,7 +630,7 @@ const updateLead = asyncHandler(async (req, res) => {
       const noteList = Array.isArray(notes)
         ? notes
         : typeof notes === 'string'
-        ? [notes]
+        ? notes.split('\n')
         : [];
       const normalizedNotes = noteList
         .map((n) => `${n}`.trim())

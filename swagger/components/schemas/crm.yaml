@@ -40,11 +40,16 @@ CRMLead:
       type: string
       example: 'high'
     tags:
-      type: string
-      example: 'vip,德國碩士'
+      type: array
+      items:
+        type: string
+      example:
+        - 'vip'
+        - '德國碩士'
     notes:
-      type: string
-      example: 'Interested in CS programs'
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadNote'
     userId:
       type: string
       nullable: true
@@ -340,9 +345,17 @@ CRMLeadUpdate:
     closeLikelihood:
       type: string
     tags:
-      type: string
+      oneOf:
+        - type: array
+          items:
+            type: string
+        - type: string
     notes:
-      type: string
+      oneOf:
+        - type: array
+          items:
+            type: string
+        - type: string
     salesUserId:
       type: string
     salesNote:
@@ -353,6 +366,100 @@ CRMLeadUpdate:
       type: string
     intendedDirection:
       type: string
+
+CRMLeadNote:
+  type: object
+  properties:
+    id:
+      type: string
+      example: 'note_abc123'
+    note:
+      type: string
+      example: 'Interested in CS programs'
+    createdBy:
+      type: string
+      nullable: true
+      example: 'agent_123'
+    createdAt:
+      type: string
+      format: date-time
+      example: '2024-12-23T15:45:00.000Z'
+  required:
+    - id
+    - note
+    - createdAt
+
+CRMLeadTagsUpdate:
+  type: object
+  properties:
+    tags:
+      type: array
+      items:
+        type: string
+  required:
+    - tags
+
+CRMLeadTagsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        type: string
+  required:
+    - success
+    - data
+
+CRMLeadNoteCreate:
+  type: object
+  properties:
+    note:
+      type: string
+    createdBy:
+      type: string
+  required:
+    - note
+
+CRMLeadNotesUpdate:
+  type: object
+  properties:
+    notes:
+      oneOf:
+        - type: array
+          items:
+            type: string
+        - type: string
+  required:
+    - notes
+
+CRMLeadNotesResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadNote'
+  required:
+    - success
+    - data
+
+CRMLeadNoteResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: './crm.yaml#/CRMLeadNote'
+  required:
+    - success
+    - data
 
 CRMInteraction:
   type: object

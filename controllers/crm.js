@@ -12,6 +12,8 @@ const { ten_minutes_cache } = require('../cache/node-cache');
 
 const { instantInviteTA } = require('../utils/meeting-assistant.service');
 
+const postgres = postgresDb();
+
 /**
  * Retrieves CRM statistics including weekly counts and total/recent counts for leads and meetings.
  *
@@ -35,8 +37,8 @@ const getCRMStats = asyncHandler(async (req, res) => {
 
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   // Prepare CTEs
-  const leadWeeks = postgresDb.$with('lead_weeks').as(
-    postgresDb
+  const leadWeeks = postgres.$with('lead_weeks').as(
+    postgres
       .select({
         year: sql`EXTRACT(YEAR FROM ${leads.createdAt})`.as('year'),
         week: sql`EXTRACT(WEEK FROM ${leads.createdAt})`.as('week'),
@@ -45,8 +47,8 @@ const getCRMStats = asyncHandler(async (req, res) => {
       })
       .from(leads)
   );
-  const meetingWeeks = postgresDb.$with('meeting_weeks').as(
-    postgresDb
+  const meetingWeeks = postgres.$with('meeting_weeks').as(
+    postgres
       .select({
         year: sql`EXTRACT(YEAR FROM to_timestamp(${meetingTranscripts.date} / 1000))`.as(
           'year'
@@ -58,8 +60,8 @@ const getCRMStats = asyncHandler(async (req, res) => {
       .from(meetingTranscripts)
       .where(not(eq(meetingTranscripts.isArchived, true)))
   );
-  const leadTimes = postgresDb.$with('lead_times').as(
-    postgresDb
+  const leadTimes = postgres.$with('lead_times').as(
+    postgres
       .select({
         id: leads.id,
         first_contact: sql`MIN(${leads.createdAt})`.as('first_contact'),
@@ -73,8 +75,8 @@ const getCRMStats = asyncHandler(async (req, res) => {
       .where(not(eq(meetingTranscripts.isArchived, true)))
       .groupBy(leads.id)
   );
-  const leadTimesDeals = postgresDb.$with('lead_times_deals').as(
-    postgresDb
+  const leadTimesDeals = postgres.$with('lead_times_deals').as(
+    postgres
       .select({
         leadId: deals.leadId,
         first_meeting:
@@ -90,7 +92,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
   );
 
   // Prepare all promises first
-  const leadsCountByDatePromise = postgresDb
+  const leadsCountByDatePromise = postgres
     .with(leadWeeks)
     .select({
       week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
@@ -105,7 +107,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
     .groupBy(sql`year, week`)
     .orderBy(sql`year, week`);
 
-  const meetingCountByDatePromise = postgresDb
+  const meetingCountByDatePromise = postgres
     .with(meetingWeeks)
     .select({
       week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
@@ -115,7 +117,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
     .groupBy(sql`year, week`)
     .orderBy(sql`year, week`);
 
-  const meetingCountResultPromise = postgresDb
+  const meetingCountResultPromise = postgres
     .select({
       totalCount: sql`count(*)`.mapWith(Number),
       recentCount: sql`count(*) FILTER (WHERE date >= ${sevenDaysAgo})`.mapWith(
@@ -125,7 +127,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
     .from(meetingTranscripts)
     .where(not(eq(meetingTranscripts.isArchived, true)));
 
-  const leadCountResultPromise = postgresDb
+  const leadCountResultPromise = postgres
     .select({
       totalCount: sql`count(*)`.mapWith(Number),
       recentCount: sql`count(*) FILTER (WHERE created_at >= ${new Date(
@@ -137,7 +139,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
     })
     .from(leads);
 
-  const avgResponseTimeResultPromise = postgresDb
+  const avgResponseTimeResultPromise = postgres
     .with(leadTimes)
     .select({
       avgResponseTimeDays:
@@ -156,7 +158,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
     .from(leadTimes)
     .where(sql`(first_meeting - first_contact) > interval '0'`);
 
-  const avgSalesCycleResultPromise = postgresDb
+  const avgSalesCycleResultPromise = postgres
     .with(leadTimesDeals)
     .select({
       avgSalesCycle:
@@ -175,14 +177,14 @@ const getCRMStats = asyncHandler(async (req, res) => {
     .from(leadTimesDeals)
     .where(sql`(closed_date - first_meeting) > interval '0'`);
 
-  const totalLeadsWithMeetingPromise = postgresDb
+  const totalLeadsWithMeetingPromise = postgres
     .select({
       count: sql`COUNT(DISTINCT lead_id)`.mapWith(Number)
     })
     .from(meetingTranscripts)
     .where(sql`lead_id IS NOT NULL AND is_archived = false`);
 
-  const totalLeadsWithFollowUpPromise = postgresDb
+  const totalLeadsWithFollowUpPromise = postgres
     .select({
       count: sql`COUNT(*)`.mapWith(Number)
     })
@@ -274,8 +276,8 @@ const getCRMStats = asyncHandler(async (req, res) => {
 });
 const getLeads = asyncHandler(async (_req, res) => {
   // Use a CTE to pre-aggregate meeting counts per lead, so we don't need to group by salesReps
-  const meetingCounts = postgresDb.$with('meeting_counts').as(
-    postgresDb
+  const meetingCounts = postgres.$with('meeting_counts').as(
+    postgres
       .select({
         leadId: meetingTranscripts.leadId,
         // Alias the raw SQL so it can be referenced as meetingCounts.meetingCount
@@ -285,7 +287,7 @@ const getLeads = asyncHandler(async (_req, res) => {
       .groupBy(meetingTranscripts.leadId)
   );
 
-  const leadsRecords = await postgresDb
+  const leadsRecords = await postgres
     .with(meetingCounts)
     .select({
       id: leads.id,
@@ -325,7 +327,7 @@ const getLead = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Lead ID is required' });
   }
 
-  const leadRecord = await postgresDb.query.leads.findFirst({
+  const leadRecord = await postgres.query.leads.findFirst({
     where: eq(leads.id, leadId),
     with: {
       salesRep: {
@@ -388,7 +390,7 @@ const getLeadByStudentId = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Student ID is required' });
   }
 
-  const leadRecord = await postgresDb.query.leads.findFirst({
+  const leadRecord = await postgres.query.leads.findFirst({
     columns: { id: true },
     where: eq(leads.userId, studentId)
   });
@@ -430,7 +432,7 @@ const createLeadFromStudent = asyncHandler(async (req, res) => {
   }
 
   // Insert the new deal into the database
-  const [migratedLead] = await postgresDb
+  const [migratedLead] = await postgres
     .insert(leads)
     .values({
       status: 'migrated',
@@ -441,7 +443,7 @@ const createLeadFromStudent = asyncHandler(async (req, res) => {
 
   // Update existing meeting transcripts (related to the student) to link to the new lead
   const pattern = `%###${studentId}###%`;
-  const meetings = await postgresDb
+  const meetings = await postgres
     .update(meetingTranscripts)
     .set({ leadId: migratedLead.id })
     .where(sql`lead_id IS NULL AND title LIKE ${pattern}`);
@@ -471,7 +473,7 @@ const updateLead = asyncHandler(async (req, res) => {
   }
 
   // Perform the update directly
-  const updatedLead = await postgresDb
+  const updatedLead = await postgres
     .update(leads)
     .set(updateData)
     .where(eq(leads.id, leadId))
@@ -489,7 +491,7 @@ const updateLead = asyncHandler(async (req, res) => {
 });
 
 const getMeetings = asyncHandler(async (req, res) => {
-  const meetingSummaries = await postgresDb
+  const meetingSummaries = await postgres
     .select({
       leadId: leads.id,
       leadFullName: leads.fullName,
@@ -515,7 +517,7 @@ const getMeeting = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Meeting ID is required' });
   }
 
-  const meetingRecord = await postgresDb
+  const meetingRecord = await postgres
     .select({
       leadId: leads.id,
       leadFullName: leads.fullName,
@@ -552,7 +554,7 @@ const updateMeeting = asyncHandler(async (req, res) => {
   }
 
   // Perform the update directly
-  const updatedMeeting = await postgresDb
+  const updatedMeeting = await postgres
     .update(meetingTranscripts)
     .set(updateData)
     .where(eq(meetingTranscripts.id, meetingId))
@@ -572,7 +574,7 @@ const updateMeeting = asyncHandler(async (req, res) => {
 });
 
 const getSalesReps = asyncHandler(async (req, res) => {
-  const salesRepsList = await postgresDb.select().from(salesReps);
+  const salesRepsList = await postgres.select().from(salesReps);
 
   res.status(200).send({
     success: true,
@@ -590,7 +592,7 @@ const getDeals = asyncHandler(async (req, res) => {
     ...dealDataCols
   } = dealCols;
 
-  const dealsList = await postgresDb
+  const dealsList = await postgres
     .select({
       id: deals.id, // Include id for editing
       ...dealDataCols, // includes leadId, salesUserId, status, timestamp, etc.
@@ -650,10 +652,7 @@ const createDeal = asyncHandler(async (req, res) => {
   stampDealStatusTimestamps(newDeal);
 
   // Insert the new deal into the database
-  const createdDeal = await postgresDb
-    .insert(deals)
-    .values(newDeal)
-    .returning();
+  const createdDeal = await postgres.insert(deals).values(newDeal).returning();
 
   res.status(201).send({
     success: true,
@@ -682,7 +681,7 @@ const updateDeal = asyncHandler(async (req, res) => {
   stampDealStatusTimestamps(updateData);
 
   // Perform the update directly
-  const updatedDeal = await postgresDb
+  const updatedDeal = await postgres
     .update(deals)
     .set(updateData)
     .where(eq(deals.id, dealId))

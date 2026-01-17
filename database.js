@@ -147,7 +147,7 @@ const disconnectFromDatabase = async (tenant) => {
   }
 };
 
-const postgresDb = drizzle(POSTGRES_URI, { schema: postgresSchema });
+const postgresDb = () => drizzle(POSTGRES_URI, { schema: postgresSchema });
 
 module.exports = {
   mongoDb,

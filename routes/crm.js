@@ -20,8 +20,12 @@ const {
   updateMeeting,
   getLeadTags,
   updateLeadTags,
+  appendLeadTags,
+  deleteLeadTags,
   getLeadNotes,
   createLeadNote,
+  updateLeadNote,
+  deleteLeadNote,
   replaceLeadNotes,
   getSalesReps,
   getDeals,
@@ -42,13 +46,20 @@ router
 router
   .route('/leads/:leadId/tags')
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLeadTags)
-  .put(filter_archiv_user, GeneralPUTRequestRateLimiter, updateLeadTags);
+  .post(filter_archiv_user, GeneralPUTRequestRateLimiter, appendLeadTags)
+  .put(filter_archiv_user, GeneralPUTRequestRateLimiter, updateLeadTags)
+  .delete(filter_archiv_user, GeneralPUTRequestRateLimiter, deleteLeadTags);
 
 router
   .route('/leads/:leadId/notes')
   .get(filter_archiv_user, GeneralGETRequestRateLimiter, getLeadNotes)
   .post(filter_archiv_user, GeneralPUTRequestRateLimiter, createLeadNote)
   .put(filter_archiv_user, GeneralPUTRequestRateLimiter, replaceLeadNotes);
+
+router
+  .route('/leads/:leadId/notes/:noteId')
+  .patch(filter_archiv_user, GeneralPUTRequestRateLimiter, updateLeadNote)
+  .delete(filter_archiv_user, GeneralPUTRequestRateLimiter, deleteLeadNote);
 
 router
   .route('/students/:studentId/lead')

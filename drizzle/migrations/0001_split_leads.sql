@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS lead_tags (
   created_at timestamp DEFAULT now()
 );
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE lead_tags TO PUBLIC;
+
 CREATE UNIQUE INDEX IF NOT EXISTS lead_tags_lead_id_tag_unique
   ON lead_tags (lead_id, tag);
 
@@ -52,6 +54,9 @@ CREATE TABLE IF NOT EXISTS lead_notes (
   created_by varchar(64),
   created_at timestamp DEFAULT now()
 );
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE lead_notes TO PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE lead_tags TO PUBLIC;
 
 INSERT INTO lead_additional (
   lead_id,
@@ -139,36 +144,36 @@ SELECT
 FROM leads l
 WHERE l.notes IS NOT NULL AND l.notes <> '';
 
-ALTER TABLE leads
-  DROP COLUMN IF EXISTS tags,
-  DROP COLUMN IF EXISTS notes,
-  DROP COLUMN IF EXISTS is_currently_studying,
-  DROP COLUMN IF EXISTS current_year_or_graduated,
-  DROP COLUMN IF EXISTS current_status,
-  DROP COLUMN IF EXISTS bachelor_school,
-  DROP COLUMN IF EXISTS bachelor_gpa,
-  DROP COLUMN IF EXISTS bachelor_program_name,
-  DROP COLUMN IF EXISTS graduated_bachelor_school,
-  DROP COLUMN IF EXISTS graduated_bachelor_program,
-  DROP COLUMN IF EXISTS graduated_bachelor_gpa,
-  DROP COLUMN IF EXISTS master_school,
-  DROP COLUMN IF EXISTS master_program_name,
-  DROP COLUMN IF EXISTS master_gpa,
-  DROP COLUMN IF EXISTS highest_education,
-  DROP COLUMN IF EXISTS highschool_name,
-  DROP COLUMN IF EXISTS highschool_gpa,
-  DROP COLUMN IF EXISTS intended_programs,
-  DROP COLUMN IF EXISTS intended_direction,
-  DROP COLUMN IF EXISTS intended_start_time,
-  DROP COLUMN IF EXISTS intended_program_level,
-  DROP COLUMN IF EXISTS english_level,
-  DROP COLUMN IF EXISTS german_level,
-  DROP COLUMN IF EXISTS work_experience,
-  DROP COLUMN IF EXISTS other_activities,
-  DROP COLUMN IF EXISTS awards,
-  DROP COLUMN IF EXISTS additional_info,
-  DROP COLUMN IF EXISTS reason_for_germany,
-  DROP COLUMN IF EXISTS reasons_to_study_abroad,
-  DROP COLUMN IF EXISTS promo_code;
+-- ALTER TABLE leads
+--   DROP COLUMN IF EXISTS tags,
+--   DROP COLUMN IF EXISTS notes,
+--   DROP COLUMN IF EXISTS is_currently_studying,
+--   DROP COLUMN IF EXISTS current_year_or_graduated,
+--   DROP COLUMN IF EXISTS current_status,
+--   DROP COLUMN IF EXISTS bachelor_school,
+--   DROP COLUMN IF EXISTS bachelor_gpa,
+--   DROP COLUMN IF EXISTS bachelor_program_name,
+--   DROP COLUMN IF EXISTS graduated_bachelor_school,
+--   DROP COLUMN IF EXISTS graduated_bachelor_program,
+--   DROP COLUMN IF EXISTS graduated_bachelor_gpa,
+--   DROP COLUMN IF EXISTS master_school,
+--   DROP COLUMN IF EXISTS master_program_name,
+--   DROP COLUMN IF EXISTS master_gpa,
+--   DROP COLUMN IF EXISTS highest_education,
+--   DROP COLUMN IF EXISTS highschool_name,
+--   DROP COLUMN IF EXISTS highschool_gpa,
+--   DROP COLUMN IF EXISTS intended_programs,
+--   DROP COLUMN IF EXISTS intended_direction,
+--   DROP COLUMN IF EXISTS intended_start_time,
+--   DROP COLUMN IF EXISTS intended_program_level,
+--   DROP COLUMN IF EXISTS english_level,
+--   DROP COLUMN IF EXISTS german_level,
+--   DROP COLUMN IF EXISTS work_experience,
+--   DROP COLUMN IF EXISTS other_activities,
+--   DROP COLUMN IF EXISTS awards,
+--   DROP COLUMN IF EXISTS additional_info,
+--   DROP COLUMN IF EXISTS reason_for_germany,
+--   DROP COLUMN IF EXISTS reasons_to_study_abroad,
+--   DROP COLUMN IF EXISTS promo_code;
 
 COMMIT;

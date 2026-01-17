@@ -8,8 +8,16 @@ const {
   salesReps,
   deals
 } = require('../drizzle/schema/schema.js');
-const { postgresDb } = require('../database');
-const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
+const { postgresDb, getPostgresPool } = require('../database');
+const {
+  sql,
+  getTableColumns,
+  not,
+  eq,
+  desc,
+  and,
+  inArray
+} = require('drizzle-orm');
 const { nanoid } = require('nanoid');
 const logger = require('../services/logger');
 const { ten_minutes_cache } = require('../cache/node-cache');
@@ -17,6 +25,7 @@ const { ten_minutes_cache } = require('../cache/node-cache');
 const { instantInviteTA } = require('../utils/meeting-assistant.service');
 
 const postgres = postgresDb();
+const postgresPool = getPostgresPool();
 
 const LEAD_ADDITIONAL_FIELDS = new Set([
   'isCurrentlyStudying',
@@ -80,7 +89,12 @@ const formatLeadRecord = (leadRecord) => {
     updatedAt: _additionalUpdatedAt,
     ...additionalData
   } = additional || {};
-  const tags = (tagRows || []).map((tagRow) => tagRow.tag);
+  const tags = (tagRows || []).map((tagRow) => ({
+    id: tagRow.id,
+    tag: tagRow.tag,
+    createdBy: tagRow.createdBy,
+    createdAt: tagRow.createdAt
+  }));
   const notes = (noteRows || []).map((noteRow) => ({
     id: noteRow.id,
     note: noteRow.note,
@@ -110,12 +124,20 @@ const normalizeTags = (tags) => {
   const tagList = Array.isArray(tags)
     ? tags
     : typeof tags === 'string'
-      ? tags.split(',')
-      : [];
+    ? tags.split(',')
+    : [];
 
-  return tagList
+  const normalized = tagList
+    .map((t) => (t && typeof t === 'object' ? t.tag : t))
     .map((t) => `${t}`.trim())
     .filter((t) => t.length > 0);
+
+  const seen = new Set();
+  return normalized.filter((tag) => {
+    if (seen.has(tag)) return false;
+    seen.add(tag);
+    return true;
+  });
 };
 
 const normalizeNotes = (notes) => {
@@ -126,16 +148,12 @@ const normalizeNotes = (notes) => {
         .filter((n) => n.length > 0);
     }
 
-    return notes
-      .map((n) => `${n}`.trim())
-      .filter((n) => n.length > 0);
+    return notes.map((n) => `${n}`.trim()).filter((n) => n.length > 0);
   }
 
   if (typeof notes === 'string') {
-    return notes
-      .split('\n')
-      .map((n) => `${n}`.trim())
-      .filter((n) => n.length > 0);
+    const normalized = `${notes}`;
+    return normalized.trim().length > 0 ? [normalized] : [];
   }
 
   return [];
@@ -461,7 +479,10 @@ const getLead = asyncHandler(async (req, res) => {
       leadAdditional: true,
       leadTags: {
         columns: {
-          tag: true
+          id: true,
+          tag: true,
+          createdBy: true,
+          createdAt: true
         }
       },
       leadNotes: {
@@ -697,7 +718,10 @@ const updateLead = asyncHandler(async (req, res) => {
       leadAdditional: true,
       leadTags: {
         columns: {
-          tag: true
+          id: true,
+          tag: true,
+          createdBy: true,
+          createdAt: true
         }
       },
       leadNotes: {
@@ -765,14 +789,19 @@ const getLeadTags = asyncHandler(async (req, res) => {
   }
 
   const tagRows = await postgres
-    .select({ tag: leadTags.tag })
+    .select({
+      id: leadTags.id,
+      tag: leadTags.tag,
+      createdBy: leadTags.createdBy,
+      createdAt: leadTags.createdAt
+    })
     .from(leadTags)
     .where(eq(leadTags.leadId, leadId))
     .orderBy(leadTags.tag);
 
   res.status(200).send({
     success: true,
-    data: tagRows.map((row) => row.tag)
+    data: tagRows
   });
 });
 
@@ -812,6 +841,105 @@ const updateLeadTags = asyncHandler(async (req, res) => {
   });
 });
 
+const appendLeadTags = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+  const { tags } = req.body || {};
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  const exists = await ensureLeadExists(leadId);
+  if (!exists) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  const normalizedTags = normalizeTags(tags);
+
+  if (normalizedTags.length > 0) {
+    await postgres
+      .insert(leadTags)
+      .values(
+        normalizedTags.map((tag) => ({
+          id: nanoid(),
+          leadId,
+          tag
+        }))
+      )
+      .onConflictDoNothing({ target: [leadTags.leadId, leadTags.tag] });
+  }
+
+  res.status(200).send({
+    success: true,
+    data: normalizedTags
+  });
+});
+
+const deleteLeadTags = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+  const { tags, tag, tagIds, tagId } = req.body || {};
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  const exists = await ensureLeadExists(leadId);
+  if (!exists) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  const normalizedTagIds = Array.isArray(tagIds)
+    ? tagIds.filter(Boolean)
+    : tagId
+    ? [tagId]
+    : [];
+
+  if (normalizedTagIds.length > 0) {
+    if (normalizedTagIds.length === 1) {
+      await postgresPool.query(
+        'delete from lead_tags where lead_id = $1 and id = $2',
+        [leadId, normalizedTagIds[0]]
+      );
+    } else {
+      await postgresPool.query(
+        'delete from lead_tags where lead_id = $1 and id = any($2::text[])',
+        [leadId, normalizedTagIds]
+      );
+    }
+
+    return res.status(200).send({
+      success: true,
+      data: normalizedTagIds
+    });
+  }
+
+  const normalizedTags = normalizeTags(tags ?? tag);
+  if (normalizedTags.length === 0) {
+    return res.status(400).send({ success: false, message: 'Tag is required' });
+  }
+
+  if (normalizedTags.length === 1) {
+    await postgresPool.query(
+      'delete from lead_tags where lead_id = $1 and tag = $2',
+      [leadId, normalizedTags[0]]
+    );
+  } else {
+    await postgresPool.query(
+      'delete from lead_tags where lead_id = $1 and tag = any($2::text[])',
+      [leadId, normalizedTags]
+    );
+  }
+
+  return res.status(200).send({
+    success: true,
+    data: normalizedTags
+  });
+});
+
 const getLeadNotes = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
 
@@ -845,7 +973,7 @@ const getLeadNotes = asyncHandler(async (req, res) => {
 
 const createLeadNote = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
-  const { note, createdBy } = req.body || {};
+  const { note, notes, createdBy } = req.body || {};
 
   if (!leadId) {
     return res
@@ -853,7 +981,8 @@ const createLeadNote = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Lead ID is required' });
   }
 
-  if (!note || `${note}`.trim().length === 0) {
+  const normalizedNotes = normalizeNotes(notes ?? note);
+  if (normalizedNotes.length === 0) {
     return res
       .status(400)
       .send({ success: false, message: 'Note is required' });
@@ -864,14 +993,16 @@ const createLeadNote = asyncHandler(async (req, res) => {
     return res.status(404).send({ success: false, message: 'Lead not found' });
   }
 
-  const [createdNote] = await postgres
+  const createdNotes = await postgres
     .insert(leadNotes)
-    .values({
-      id: nanoid(),
-      leadId,
-      note: `${note}`.trim(),
-      createdBy
-    })
+    .values(
+      normalizedNotes.map((noteItem) => ({
+        id: nanoid(),
+        leadId,
+        note: `${noteItem}`.trim(),
+        createdBy
+      }))
+    )
     .returning({
       id: leadNotes.id,
       note: leadNotes.note,
@@ -881,7 +1012,65 @@ const createLeadNote = asyncHandler(async (req, res) => {
 
   res.status(201).send({
     success: true,
-    data: createdNote
+    data: createdNotes.length === 1 ? createdNotes[0] : createdNotes
+  });
+});
+
+const updateLeadNote = asyncHandler(async (req, res) => {
+  const { leadId, noteId } = req.params;
+  const { note } = req.body || {};
+
+  if (!leadId || !noteId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID and Note ID are required' });
+  }
+
+  const normalizedNotes = normalizeNotes(note);
+  if (normalizedNotes.length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Note is required' });
+  }
+
+  const [updatedNote] = await postgres
+    .update(leadNotes)
+    .set({ note: normalizedNotes[0] })
+    .where(and(eq(leadNotes.leadId, leadId), eq(leadNotes.id, noteId)))
+    .returning({
+      id: leadNotes.id,
+      note: leadNotes.note,
+      createdBy: leadNotes.createdBy,
+      createdAt: leadNotes.createdAt
+    });
+
+  if (!updatedNote) {
+    return res.status(404).send({ success: false, message: 'Note not found' });
+  }
+
+  res.status(200).send({
+    success: true,
+    data: updatedNote
+  });
+});
+
+const deleteLeadNote = asyncHandler(async (req, res) => {
+  const { leadId, noteId } = req.params;
+
+  if (!leadId || !noteId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID and Note ID are required' });
+  }
+
+  await postgresPool.query(
+    'delete from lead_notes where lead_id = $1 and id = $2',
+    [leadId, noteId]
+  );
+
+  res.status(200).send({
+    success: true,
+    data: { id: noteId }
   });
 });
 
@@ -1163,8 +1352,12 @@ module.exports = {
   updateLead,
   getLeadTags,
   updateLeadTags,
+  appendLeadTags,
+  deleteLeadTags,
   getLeadNotes,
   createLeadNote,
+  updateLeadNote,
+  deleteLeadNote,
   replaceLeadNotes,
   getMeetings,
   getMeeting,

@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS lead_additional (
+CREATE TABLE IF NOT EXISTS lead_profile (
   lead_id text PRIMARY KEY REFERENCES leads(id) ON DELETE CASCADE,
   is_currently_studying text,
   current_year_or_graduated text,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS lead_notes (
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE lead_notes TO PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE lead_tags TO PUBLIC;
 
-INSERT INTO lead_additional (
+INSERT INTO lead_profile (
   lead_id,
   is_currently_studying,
   current_year_or_graduated,

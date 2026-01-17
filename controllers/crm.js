@@ -1,7 +1,7 @@
 const { asyncHandler } = require('../middlewares/error-handler');
 const {
   leads,
-  leadAdditional,
+  leadProfile,
   leadTags,
   leadNotes,
   meetingTranscripts,
@@ -78,7 +78,7 @@ const formatLeadRecord = (leadRecord) => {
   if (!leadRecord) return null;
   const {
     meetingTranscripts: meetings,
-    leadAdditional: additional,
+    leadProfile: additional,
     leadTags: tagRows,
     leadNotes: noteRows,
     ...leadData
@@ -441,9 +441,9 @@ const getLeads = asyncHandler(async (_req, res) => {
       phone: leads.phone,
       status: leads.status,
       closeLikelihood: leads.closeLikelihood,
-      intendedStartTime: leadAdditional.intendedStartTime,
-      intendedProgramLevel: leadAdditional.intendedProgramLevel,
-      intendedDirection: leadAdditional.intendedDirection,
+      intendedStartTime: leadProfile.intendedStartTime,
+      intendedProgramLevel: leadProfile.intendedProgramLevel,
+      intendedDirection: leadProfile.intendedDirection,
       salesRep: {
         userId: salesReps.userId,
         label: salesReps.label
@@ -455,7 +455,7 @@ const getLeads = asyncHandler(async (_req, res) => {
       createdAt: leads.createdAt
     })
     .from(leads)
-    .leftJoin(leadAdditional, eq(leadAdditional.leadId, leads.id))
+    .leftJoin(leadProfile, eq(leadProfile.leadId, leads.id))
     .leftJoin(salesReps, eq(leads.salesUserId, salesReps.userId))
     .leftJoin(meetingCounts, eq(meetingCounts.leadId, leads.id))
     .orderBy(desc(leads.createdAt));
@@ -475,7 +475,7 @@ const getLead = asyncHandler(async (req, res) => {
   const leadRecord = await postgres.query.leads.findFirst({
     where: eq(leads.id, leadId),
     with: {
-      leadAdditional: true,
+      leadProfile: true,
       leadTags: {
         columns: {
           id: true,
@@ -658,14 +658,14 @@ const updateLead = asyncHandler(async (req, res) => {
 
     if (Object.keys(additionalUpdates).length > 0) {
       await tx
-        .insert(leadAdditional)
+        .insert(leadProfile)
         .values({
           leadId,
           ...additionalUpdates,
           updatedAt: new Date()
         })
         .onConflictDoUpdate({
-          target: leadAdditional.leadId,
+          target: leadProfile.leadId,
           set: { ...additionalUpdates, updatedAt: new Date() }
         });
     }
@@ -718,7 +718,7 @@ const updateLead = asyncHandler(async (req, res) => {
   const updatedLead = await postgres.query.leads.findFirst({
     where: eq(leads.id, leadId),
     with: {
-      leadAdditional: true,
+      leadProfile: true,
       leadTags: {
         columns: {
           id: true,

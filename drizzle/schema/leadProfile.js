@@ -1,7 +1,7 @@
 const { pgTable, text, timestamp } = require('drizzle-orm/pg-core');
 const { leads } = require('./leads');
 
-const leadAdditional = pgTable('lead_additional', {
+const leadProfile = pgTable('lead_profile', {
   leadId: text('lead_id')
     .primaryKey()
     .notNull()
@@ -56,4 +56,4 @@ const leadAdditional = pgTable('lead_additional', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
-module.exports = { leadAdditional };
+module.exports = { leadProfile };

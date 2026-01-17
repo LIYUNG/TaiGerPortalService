@@ -1,12 +1,12 @@
 const { leads } = require('./leads');
-const { leadAdditional } = require('./leadAdditional');
+const { leadProfile } = require('./leadProfile');
 const { leadTags } = require('./leadTags');
 const { leadNotes } = require('./leadNotes');
 const { meetingTranscripts } = require('./meetingTranscripts');
 const { studentEmbeddings } = require('./studentEmbeddings');
 const {
   leadsRelations,
-  leadAdditionalRelations,
+  leadProfileRelations,
   leadTagsRelations,
   leadNotesRelations,
   dealsRelations,
@@ -19,7 +19,7 @@ const { deals, dealStatusEnum } = require('./deals');
 
 module.exports = {
   leads,
-  leadAdditional,
+  leadProfile,
   leadTags,
   leadNotes,
   meetingTranscripts,
@@ -28,7 +28,7 @@ module.exports = {
   deals,
   dealStatusEnum,
   leadsRelations,
-  leadAdditionalRelations,
+  leadProfileRelations,
   leadTagsRelations,
   leadNotesRelations,
   dealsRelations,

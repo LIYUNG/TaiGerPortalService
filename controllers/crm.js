@@ -618,6 +618,8 @@ const createLeadFromStudent = asyncHandler(async (req, res) => {
 const updateLead = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
   const updateData = req.body;
+  const { user } = req;
+  const createdBy = user?._id?.toString?.() ?? user?._id;
 
   if (!leadId) {
     return res
@@ -677,7 +679,8 @@ const updateLead = asyncHandler(async (req, res) => {
           normalizedTags.map((tag) => ({
             id: nanoid(),
             leadId,
-            tag
+            tag,
+            createdBy
           }))
         );
       }
@@ -692,7 +695,8 @@ const updateLead = asyncHandler(async (req, res) => {
           normalizedNotes.map((note) => ({
             id: nanoid(),
             leadId,
-            note
+            note,
+            createdBy
           }))
         );
       }
@@ -807,6 +811,8 @@ const getLeadTags = asyncHandler(async (req, res) => {
 const updateLeadTags = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
   const { tags } = req.body || {};
+  const { user } = req;
+  const createdBy = user?._id?.toString?.() ?? user?._id;
 
   if (!leadId) {
     return res
@@ -828,7 +834,8 @@ const updateLeadTags = asyncHandler(async (req, res) => {
         normalizedTags.map((tag) => ({
           id: nanoid(),
           leadId,
-          tag
+          tag,
+          createdBy
         }))
       );
     }
@@ -843,6 +850,8 @@ const updateLeadTags = asyncHandler(async (req, res) => {
 const appendLeadTags = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
   const { tags } = req.body || {};
+  const { user } = req;
+  const createdBy = user?._id?.toString?.() ?? user?._id;
 
   if (!leadId) {
     return res
@@ -864,7 +873,8 @@ const appendLeadTags = asyncHandler(async (req, res) => {
         normalizedTags.map((tag) => ({
           id: nanoid(),
           leadId,
-          tag
+          tag,
+          createdBy
         }))
       )
       .onConflictDoNothing({ target: [leadTags.leadId, leadTags.tag] });
@@ -968,7 +978,9 @@ const getLeadNotes = asyncHandler(async (req, res) => {
 
 const createLeadNote = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
-  const { note, notes, createdBy } = req.body || {};
+  const { note, notes } = req.body || {};
+  const { user } = req;
+  const createdBy = user?._id?.toString?.() ?? user?._id;
 
   if (!leadId) {
     return res
@@ -1071,6 +1083,8 @@ const deleteLeadNote = asyncHandler(async (req, res) => {
 const replaceLeadNotes = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
   const { notes } = req.body || {};
+  const { user } = req;
+  const createdBy = user?._id?.toString?.() ?? user?._id;
 
   if (!leadId) {
     return res
@@ -1089,10 +1103,11 @@ const replaceLeadNotes = asyncHandler(async (req, res) => {
     await tx.delete(leadNotes).where(eq(leadNotes.leadId, leadId));
     if (normalizedNotes.length > 0) {
       await tx.insert(leadNotes).values(
-        normalizedNotes.map((note) => ({
+        normalizedNotes.map((noteItem) => ({
           id: nanoid(),
           leadId,
-          note
+          note: `${noteItem}`.trim(),
+          createdBy
         }))
       );
     }

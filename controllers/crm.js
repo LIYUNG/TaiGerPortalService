@@ -1,18 +1,101 @@
 const { asyncHandler } = require('../middlewares/error-handler');
 const {
   leads,
+  leadAdditional,
+  leadTags,
+  leadNotes,
   meetingTranscripts,
   salesReps,
   deals
 } = require('../drizzle/schema/schema.js');
 const { postgresDb } = require('../database');
 const { sql, getTableColumns, not, eq, desc } = require('drizzle-orm');
+const { nanoid } = require('nanoid');
 const logger = require('../services/logger');
 const { ten_minutes_cache } = require('../cache/node-cache');
 
 const { instantInviteTA } = require('../utils/meeting-assistant.service');
 
 const postgres = postgresDb();
+
+const LEAD_ADDITIONAL_FIELDS = new Set([
+  'isCurrentlyStudying',
+  'currentYearOrGraduated',
+  'currentStatus',
+  'bachelorSchool',
+  'bachelorGPA',
+  'bachelorProgramName',
+  'graduatedBachelorSchool',
+  'graduatedBachelorProgram',
+  'graduatedBachelorGPA',
+  'masterSchool',
+  'masterProgramName',
+  'masterGPA',
+  'highestEducation',
+  'highschoolName',
+  'highschoolGPA',
+  'intendedPrograms',
+  'intendedDirection',
+  'intendedStartTime',
+  'intendedProgramLevel',
+  'englishLevel',
+  'germanLevel',
+  'workExperience',
+  'otherActivities',
+  'awards',
+  'additionalInfo',
+  'reasonForGermany',
+  'reasonsToStudyAbroad',
+  'promoCode'
+]);
+
+const LEAD_CORE_FIELDS = new Set([
+  'fullName',
+  'gender',
+  'applicantRole',
+  'preferredContact',
+  'email',
+  'lineId',
+  'skypeId',
+  'phone',
+  'source',
+  'status',
+  'closeLikelihood',
+  'userId',
+  'salesUserId',
+  'salesNote'
+]);
+
+const formatLeadRecord = (leadRecord) => {
+  if (!leadRecord) return null;
+  const {
+    meetingTranscripts: meetings,
+    leadAdditional: additional,
+    leadTags: tagRows,
+    leadNotes: noteRows,
+    ...leadData
+  } = leadRecord;
+  const {
+    createdAt: _additionalCreatedAt,
+    updatedAt: _additionalUpdatedAt,
+    ...additionalData
+  } = additional || {};
+  const tags = (tagRows || []).map((tagRow) => tagRow.tag);
+  const notes = (noteRows || []).map((noteRow) => ({
+    id: noteRow.id,
+    note: noteRow.note,
+    createdBy: noteRow.createdBy,
+    createdAt: noteRow.createdAt
+  }));
+
+  return {
+    ...leadData,
+    ...additionalData,
+    tags,
+    notes,
+    meetings
+  };
+};
 
 /**
  * Retrieves CRM statistics including weekly counts and total/recent counts for leads and meetings.
@@ -297,9 +380,9 @@ const getLeads = asyncHandler(async (_req, res) => {
       phone: leads.phone,
       status: leads.status,
       closeLikelihood: leads.closeLikelihood,
-      intendedStartTime: leads.intendedStartTime,
-      intendedProgramLevel: leads.intendedProgramLevel,
-      intendedDirection: leads.intendedDirection,
+      intendedStartTime: leadAdditional.intendedStartTime,
+      intendedProgramLevel: leadAdditional.intendedProgramLevel,
+      intendedDirection: leadAdditional.intendedDirection,
       salesRep: {
         userId: salesReps.userId,
         label: salesReps.label
@@ -311,6 +394,7 @@ const getLeads = asyncHandler(async (_req, res) => {
       createdAt: leads.createdAt
     })
     .from(leads)
+    .leftJoin(leadAdditional, eq(leadAdditional.leadId, leads.id))
     .leftJoin(salesReps, eq(leads.salesUserId, salesReps.userId))
     .leftJoin(meetingCounts, eq(meetingCounts.leadId, leads.id))
     .orderBy(desc(leads.createdAt));
@@ -330,6 +414,21 @@ const getLead = asyncHandler(async (req, res) => {
   const leadRecord = await postgres.query.leads.findFirst({
     where: eq(leads.id, leadId),
     with: {
+      leadAdditional: true,
+      leadTags: {
+        columns: {
+          tag: true
+        }
+      },
+      leadNotes: {
+        columns: {
+          id: true,
+          note: true,
+          createdBy: true,
+          createdAt: true
+        },
+        orderBy: desc(leadNotes.createdAt)
+      },
       salesRep: {
         columns: {
           userId: true,
@@ -369,14 +468,10 @@ const getLead = asyncHandler(async (req, res) => {
     return res.status(404).send({ success: false, message: 'Lead not found' });
   }
 
-  // Rename meetingTranscripts to meetings to match your existing API structure
-  const { meetingTranscripts: meetings, ...leadData } = leadRecord;
-
   res.status(200).send({
     success: true,
     data: {
-      ...leadData,
-      meetings
+      ...formatLeadRecord(leadRecord)
     }
   });
 });
@@ -472,21 +567,156 @@ const updateLead = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Update data is required' });
   }
 
-  // Perform the update directly
-  const updatedLead = await postgres
-    .update(leads)
-    .set(updateData)
-    .where(eq(leads.id, leadId))
-    .returning();
+  const { tags, notes, ...rest } = updateData;
+  const leadUpdates = {};
+  const additionalUpdates = {};
 
-  if (updatedLead.length === 0) {
+  Object.entries(rest).forEach(([key, value]) => {
+    if (LEAD_ADDITIONAL_FIELDS.has(key)) {
+      additionalUpdates[key] = value;
+    } else if (LEAD_CORE_FIELDS.has(key)) {
+      leadUpdates[key] = value;
+    }
+  });
+
+  const updated = await postgres.transaction(async (tx) => {
+    let updatedLead = null;
+
+    if (Object.keys(leadUpdates).length > 0) {
+      updatedLead = await tx
+        .update(leads)
+        .set({ ...leadUpdates, updatedAt: new Date() })
+        .where(eq(leads.id, leadId))
+        .returning();
+    }
+
+    if (Object.keys(additionalUpdates).length > 0) {
+      await tx
+        .insert(leadAdditional)
+        .values({
+          leadId,
+          ...additionalUpdates,
+          updatedAt: new Date()
+        })
+        .onConflictDoUpdate({
+          target: leadAdditional.leadId,
+          set: { ...additionalUpdates, updatedAt: new Date() }
+        });
+    }
+
+    if (tags !== undefined) {
+      const tagList = Array.isArray(tags)
+        ? tags
+        : typeof tags === 'string'
+        ? tags.split(',')
+        : [];
+      const normalizedTags = tagList
+        .map((t) => `${t}`.trim())
+        .filter((t) => t.length > 0);
+
+      await tx.delete(leadTags).where(eq(leadTags.leadId, leadId));
+      if (normalizedTags.length > 0) {
+        await tx.insert(leadTags).values(
+          normalizedTags.map((tag) => ({
+            id: nanoid(),
+            leadId,
+            tag
+          }))
+        );
+      }
+    }
+
+    if (notes !== undefined) {
+      const noteList = Array.isArray(notes)
+        ? notes
+        : typeof notes === 'string'
+        ? [notes]
+        : [];
+      const normalizedNotes = noteList
+        .map((n) => `${n}`.trim())
+        .filter((n) => n.length > 0);
+
+      await tx.delete(leadNotes).where(eq(leadNotes.leadId, leadId));
+      if (normalizedNotes.length > 0) {
+        await tx.insert(leadNotes).values(
+          normalizedNotes.map((note) => ({
+            id: nanoid(),
+            leadId,
+            note
+          }))
+        );
+      }
+    }
+
+    if (updatedLead && updatedLead.length > 0) {
+      return updatedLead[0];
+    }
+
+    const refreshed = await tx.select().from(leads).where(eq(leads.id, leadId));
+    if (!refreshed.length) return null;
+    return refreshed[0];
+  });
+
+  if (!updated) {
     return res.status(404).send({ success: false, message: 'Lead not found' });
   }
+
+  const updatedLead = await postgres.query.leads.findFirst({
+    where: eq(leads.id, leadId),
+    with: {
+      leadAdditional: true,
+      leadTags: {
+        columns: {
+          tag: true
+        }
+      },
+      leadNotes: {
+        columns: {
+          id: true,
+          note: true,
+          createdBy: true,
+          createdAt: true
+        },
+        orderBy: desc(leadNotes.createdAt)
+      },
+      salesRep: {
+        columns: {
+          userId: true,
+          label: true
+        }
+      },
+      deals: {
+        with: {
+          salesRep: {
+            columns: {
+              userId: true,
+              label: true
+            }
+          }
+        }
+      },
+      meetingTranscripts: {
+        orderBy: desc(meetingTranscripts.date),
+        columns: {
+          id: true,
+          title: true,
+          date: true,
+          summary: true
+        }
+      },
+      leadSimilarUsers: {
+        columns: {
+          mongoId: true,
+          reason: true
+        }
+      }
+    }
+  });
 
   res.status(200).send({
     success: true,
     message: 'Lead updated successfully',
-    data: updatedLead[0]
+    data: formatLeadRecord(updatedLead) || updated
   });
 });
 

@@ -8,7 +8,7 @@ const {
   salesReps,
   deals
 } = require('../drizzle/schema/schema.js');
-const { postgresDb, getPostgresPool } = require('../database');
+const { postgresDb } = require('../database');
 const {
   sql,
   getTableColumns,
@@ -25,7 +25,6 @@ const { ten_minutes_cache } = require('../cache/node-cache');
 const { instantInviteTA } = require('../utils/meeting-assistant.service');
 
 const postgres = postgresDb();
-const postgresPool = getPostgresPool();
 
 const LEAD_ADDITIONAL_FIELDS = new Set([
   'isCurrentlyStudying',
@@ -900,14 +899,12 @@ const deleteLeadTags = asyncHandler(async (req, res) => {
 
   if (normalizedTagIds.length > 0) {
     if (normalizedTagIds.length === 1) {
-      await postgresPool.query(
-        'delete from lead_tags where lead_id = $1 and id = $2',
-        [leadId, normalizedTagIds[0]]
+      await postgres.execute(
+        sql`delete from ${leadTags} where ${leadTags.leadId} = ${leadId} and ${leadTags.id} = ${normalizedTagIds[0]}`
       );
     } else {
-      await postgresPool.query(
-        'delete from lead_tags where lead_id = $1 and id = any($2::text[])',
-        [leadId, normalizedTagIds]
+      await postgres.execute(
+        sql`delete from ${leadTags} where ${leadTags.leadId} = ${leadId} and ${leadTags.id} = any(${normalizedTagIds})`
       );
     }
 
@@ -923,14 +920,12 @@ const deleteLeadTags = asyncHandler(async (req, res) => {
   }
 
   if (normalizedTags.length === 1) {
-    await postgresPool.query(
-      'delete from lead_tags where lead_id = $1 and tag = $2',
-      [leadId, normalizedTags[0]]
+    await postgres.execute(
+      sql`delete from ${leadTags} where ${leadTags.leadId} = ${leadId} and ${leadTags.tag} = ${normalizedTags[0]}`
     );
   } else {
-    await postgresPool.query(
-      'delete from lead_tags where lead_id = $1 and tag = any($2::text[])',
-      [leadId, normalizedTags]
+    await postgres.execute(
+      sql`delete from ${leadTags} where ${leadTags.leadId} = ${leadId} and ${leadTags.tag} = any(${normalizedTags})`
     );
   }
 
@@ -1063,9 +1058,8 @@ const deleteLeadNote = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Lead ID and Note ID are required' });
   }
 
-  await postgresPool.query(
-    'delete from lead_notes where lead_id = $1 and id = $2',
-    [leadId, noteId]
+  await postgres.execute(
+    sql`delete from ${leadNotes} where ${leadNotes.leadId} = ${leadId} and ${leadNotes.id} = ${noteId}`
   );
 
   res.status(200).send({

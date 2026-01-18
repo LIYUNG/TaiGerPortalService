@@ -9,15 +9,7 @@ const {
   deals
 } = require('../drizzle/schema/schema.js');
 const { postgresDb } = require('../database');
-const {
-  sql,
-  getTableColumns,
-  not,
-  eq,
-  desc,
-  and,
-  inArray
-} = require('drizzle-orm');
+const { sql, getTableColumns, not, eq, desc, and } = require('drizzle-orm');
 const { nanoid } = require('nanoid');
 const logger = require('../services/logger');
 const { ten_minutes_cache } = require('../cache/node-cache');
@@ -437,7 +429,7 @@ const getLeads = asyncHandler(async (_req, res) => {
     .select({
       id: leads.id,
       fullName: leads.fullName,
-      source: leads.source,
+      source: leads.referralSource,
       email: leads.email,
       phone: leads.phone,
       status: leads.status,

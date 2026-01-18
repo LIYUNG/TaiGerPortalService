@@ -23,7 +23,8 @@ const leads = pgTable('leads', {
   phone: varchar('phone', { length: 50 }),
 
   // Internal Tracking
-  source: varchar('source', { length: 100 }),
+  referralSource: varchar('referral_source', { length: 100 }),
+  sourceCountry: varchar('source_country', { length: 100 }),
   status: varchar('status', { length: 50 }).default('open'),
   closeLikelihood: varchar('close_likelihood', { length: 50 }),
   userId: varchar('user_id', { length: 32 }),

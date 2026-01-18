@@ -1,5 +1,11 @@
 BEGIN;
 
+ALTER TABLE leads
+ADD COLUMN source_country varchar(100);
+
+ALTER TABLE leads
+RENAME COLUMN source TO referral_source;
+
 CREATE TABLE IF NOT EXISTS lead_profile (
   lead_id text PRIMARY KEY REFERENCES leads(id) ON DELETE CASCADE,
   is_currently_studying text,
@@ -143,37 +149,5 @@ SELECT
   l.created_at
 FROM leads l
 WHERE l.notes IS NOT NULL AND l.notes <> '';
-
--- ALTER TABLE leads
---   DROP COLUMN IF EXISTS tags,
---   DROP COLUMN IF EXISTS notes,
---   DROP COLUMN IF EXISTS is_currently_studying,
---   DROP COLUMN IF EXISTS current_year_or_graduated,
---   DROP COLUMN IF EXISTS current_status,
---   DROP COLUMN IF EXISTS bachelor_school,
---   DROP COLUMN IF EXISTS bachelor_gpa,
---   DROP COLUMN IF EXISTS bachelor_program_name,
---   DROP COLUMN IF EXISTS graduated_bachelor_school,
---   DROP COLUMN IF EXISTS graduated_bachelor_program,
---   DROP COLUMN IF EXISTS graduated_bachelor_gpa,
---   DROP COLUMN IF EXISTS master_school,
---   DROP COLUMN IF EXISTS master_program_name,
---   DROP COLUMN IF EXISTS master_gpa,
---   DROP COLUMN IF EXISTS highest_education,
---   DROP COLUMN IF EXISTS highschool_name,
---   DROP COLUMN IF EXISTS highschool_gpa,
---   DROP COLUMN IF EXISTS intended_programs,
---   DROP COLUMN IF EXISTS intended_direction,
---   DROP COLUMN IF EXISTS intended_start_time,
---   DROP COLUMN IF EXISTS intended_program_level,
---   DROP COLUMN IF EXISTS english_level,
---   DROP COLUMN IF EXISTS german_level,
---   DROP COLUMN IF EXISTS work_experience,
---   DROP COLUMN IF EXISTS other_activities,
---   DROP COLUMN IF EXISTS awards,
---   DROP COLUMN IF EXISTS additional_info,
---   DROP COLUMN IF EXISTS reason_for_germany,
---   DROP COLUMN IF EXISTS reasons_to_study_abroad,
---   DROP COLUMN IF EXISTS promo_code;
 
 COMMIT;

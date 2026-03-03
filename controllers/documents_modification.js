@@ -66,7 +66,6 @@ const UserService = require('../services/users');
 const ApplicationService = require('../services/applications');
 const DocumentthreadQueryBuilder = require('../builders/DocumentthreadQueryBuilder');
 
-
 const getActiveThreads = asyncHandler(async (req, res) => {
   const {
     file_type,

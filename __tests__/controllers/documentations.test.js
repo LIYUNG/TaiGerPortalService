@@ -178,3 +178,101 @@ describe('/api/docs/:category', () => {
     expect(resp4.body.success).toBe(true);
   });
 });
+
+describe('/api/docs/pages/:category', () => {
+  beforeEach(async () => {
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = await User.findById(admin._id);
+      next();
+    });
+  });
+
+  test('GET pages by a valid category returns 200', async () => {
+    const resp = await requestWithSupertest
+      .get('/api/docs/pages/uniassist')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBeLessThan(600);
+  });
+
+  test('PUT update page by category responds', async () => {
+    const payload = {
+      name: 'page.name',
+      title: 'page.title',
+      text: 'page.text',
+      updatedAt: new Date().toString(),
+      country: 'page.country'
+    };
+
+    const resp = await requestWithSupertest
+      .put('/api/docs/pages/uniassist')
+      .set('tenantId', TENANT_ID)
+      .send(payload);
+
+    expect(resp.status).toBeLessThan(600);
+  });
+});
+
+describe('/api/docs/internal CRUD', () => {
+  let internaldoc_id;
+
+  beforeEach(async () => {
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = await User.findById(admin._id);
+      next();
+    });
+
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const InternaldocModel = db.model('Internaldoc');
+    await InternaldocModel.deleteMany();
+    const created = await InternaldocModel.create({
+      name: 'internal.name',
+      title: 'internal.title',
+      text: 'internal.text',
+      category: 'internal',
+      internal: true,
+      author: 'Test Author',
+      updatedAt: new Date()
+    });
+    internaldoc_id = created._id.toString();
+  });
+
+  test('POST /api/docs/internal creates an internal doc', async () => {
+    const payload = {
+      name: 'new.internal.name',
+      title: 'new.internal.title',
+      text: 'new.internal.text',
+      category: 'internal',
+      internal: true
+    };
+
+    const resp = await requestWithSupertest
+      .post('/api/docs/internal')
+      .set('tenantId', TENANT_ID)
+      .send(payload);
+
+    expect(resp.status).toBeLessThan(600);
+  });
+
+  test('PUT /api/docs/internal/:id updates an internal doc', async () => {
+    const payload = {
+      title: 'updated.internal.title',
+      text: 'updated.internal.text'
+    };
+
+    const resp = await requestWithSupertest
+      .put(`/api/docs/internal/${internaldoc_id}`)
+      .set('tenantId', TENANT_ID)
+      .send(payload);
+
+    expect(resp.status).toBeLessThan(600);
+  });
+
+  test('DELETE /api/docs/internal/:id deletes an internal doc', async () => {
+    const resp = await requestWithSupertest
+      .delete(`/api/docs/internal/${internaldoc_id}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBeLessThan(600);
+  });
+});

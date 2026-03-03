@@ -6,7 +6,7 @@ const { UserSchema } = require('../../models/User');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, student } = require('../mock/user');
+const { users, student, admin } = require('../mock/user');
 const { disconnectFromDatabase } = require('../../database');
 
 const requestWithSupertest = request(app);
@@ -51,6 +51,13 @@ jest.mock('../../middlewares/auth', () => {
     permit: jest.fn().mockImplementation((...roles) => passthrough)
   };
 });
+
+jest.mock('../../services/email', () => ({
+  sendConfirmationEmail: jest.fn().mockResolvedValue(undefined),
+  sendForgotPasswordEmail: jest.fn().mockResolvedValue(undefined),
+  sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+  sendAccountActivationConfirmationEmail: jest.fn().mockResolvedValue(undefined)
+}));
 
 let dbUri;
 
@@ -99,5 +106,70 @@ describe('auth Controller: login', () => {
         password: 'somePassword'
       });
     expect(resp2.status).toBe(200);
+  });
+});
+
+describe('GET /auth/logout', () => {
+  it('should logout and return 200', async () => {
+    const resp = await requestWithSupertest
+      .get('/auth/logout')
+      .set('tenantId', TENANT_ID);
+
+    expect([200, 302]).toContain(resp.status);
+  });
+});
+
+describe('POST /auth/forgot-password', () => {
+  it('should return a valid status when submitting a known email', async () => {
+    const resp = await requestWithSupertest
+      .post('/auth/forgot-password')
+      .set('tenantId', TENANT_ID)
+      .send({ email: admin.email });
+
+    expect([200, 400, 404]).toContain(resp.status);
+  });
+
+  it('should return a valid status when submitting an unknown email', async () => {
+    const resp = await requestWithSupertest
+      .post('/auth/forgot-password')
+      .set('tenantId', TENANT_ID)
+      .send({ email: 'nonexistent@example.com' });
+
+    expect([200, 400, 404]).toContain(resp.status);
+  });
+});
+
+describe('POST /auth/reset-password', () => {
+  it('should return a valid status when submitting a password reset with an invalid token', async () => {
+    const resp = await requestWithSupertest
+      .post('/auth/reset-password')
+      .set('tenantId', TENANT_ID)
+      .send({
+        email: admin.email,
+        password: 'NewPassword1!',
+        token: 'someInvalidToken123'
+      });
+
+    expect([200, 400, 401, 403, 404]).toContain(resp.status);
+  });
+});
+
+describe('POST /auth/resend-activation', () => {
+  it('should return a valid status when resending activation for a known email', async () => {
+    const resp = await requestWithSupertest
+      .post('/auth/resend-activation')
+      .set('tenantId', TENANT_ID)
+      .send({ email: admin.email });
+
+    expect([200, 400, 404]).toContain(resp.status);
+  });
+
+  it('should return a valid status when resending activation for an unknown email', async () => {
+    const resp = await requestWithSupertest
+      .post('/auth/resend-activation')
+      .set('tenantId', TENANT_ID)
+      .send({ email: 'unknown@example.com' });
+
+    expect([200, 400, 404]).toContain(resp.status);
   });
 });

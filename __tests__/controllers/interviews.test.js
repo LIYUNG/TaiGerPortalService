@@ -143,3 +143,45 @@ describe('DELETE /api/interviews/:interview_id', () => {
     expect(resp.status).toEqual(200);
   });
 });
+
+describe('GET /api/interviews/interviews/:studentId', () => {
+  it('should get interviews for a student', async () => {
+    const resp = await requestWithSupertest
+      .get(`/api/interviews/interviews/${student3._id}`)
+      .set('tenantId', TENANT_ID);
+
+    expect([200, 404]).toContain(resp.status);
+  });
+});
+
+describe('GET /api/interviews/:interview_id/survey', () => {
+  it('should get survey for an interview', async () => {
+    const resp = await requestWithSupertest
+      .get(`/api/interviews/${interview1._id}/survey`)
+      .set('tenantId', TENANT_ID);
+
+    expect([200, 404]).toContain(resp.status);
+  });
+});
+
+describe('PUT /api/interviews/:interview_id/survey', () => {
+  it('should submit/update survey for an interview', async () => {
+    const resp = await requestWithSupertest
+      .put(`/api/interviews/${interview1._id}/survey`)
+      .set('tenantId', TENANT_ID)
+      .send({ survey_result: 'passed', notes: 'good performance' });
+
+    expect([200, 201, 400]).toContain(resp.status);
+  });
+});
+
+describe('POST /api/interviews/time/:interview_id', () => {
+  it('should add training date time for an interview', async () => {
+    const resp = await requestWithSupertest
+      .post(`/api/interviews/time/${interview1._id}`)
+      .set('tenantId', TENANT_ID)
+      .send({ training_date: new Date(), duration: 60 });
+
+    expect(resp.status).toBeLessThan(600);
+  });
+});

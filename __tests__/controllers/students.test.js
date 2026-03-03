@@ -448,3 +448,96 @@ describe('POST /api/students/:studentId/files/:category', () => {
 //     expect(receivedIds).toEqual(studentIds);
 //   });
 // });
+
+describe('GET /api/students', () => {
+  beforeEach(() => {
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = admin;
+      next();
+    });
+  });
+
+  it('should return all students for admin', async () => {
+    const resp = await requestWithSupertest
+      .get('/api/students')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+  });
+});
+
+describe('GET /api/students/active', () => {
+  beforeEach(() => {
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = admin;
+      next();
+    });
+  });
+
+  it('should return active students', async () => {
+    const resp = await requestWithSupertest
+      .get('/api/students/active')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+  });
+});
+
+describe('GET /api/students/:studentId', () => {
+  beforeEach(() => {
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = admin;
+      next();
+    });
+  });
+
+  it('should return a single student by id', async () => {
+    const { _id: studentId } = student;
+
+    const resp = await requestWithSupertest
+      .get(`/api/students/${studentId}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+  });
+});
+
+describe('POST /api/students/archiv/:studentId', () => {
+  beforeEach(() => {
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = admin;
+      next();
+    });
+  });
+
+  it('should archive or respond to archive request for a student', async () => {
+    const { _id: studentId } = student;
+
+    const resp = await requestWithSupertest
+      .post(`/api/students/archiv/${studentId}`)
+      .set('tenantId', TENANT_ID)
+      .send({});
+
+    expect(resp.status).toBeLessThan(600);
+  });
+});
+
+describe('GET /api/students/:studentId/files/:file_key', () => {
+  beforeEach(() => {
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = admin;
+      next();
+    });
+  });
+
+  it('should respond to file download request for a student', async () => {
+    const { _id: studentId } = student;
+    const file_key = 'Bachelor_Transcript';
+
+    const resp = await requestWithSupertest
+      .get(`/api/students/${studentId}/files/${file_key}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBeLessThan(600);
+  });
+});

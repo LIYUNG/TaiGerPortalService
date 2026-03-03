@@ -135,6 +135,7 @@ const ApplicationService = {
       .lean();
     return application;
   },
+  // TODO: interview threads is missing! (orphan interview threads)
   async deleteApplication(req, application_id) {
     const application = await this.getApplicationById(req, application_id);
 

@@ -453,10 +453,9 @@ const getPrograms = asyncHandler(async (req, res) => {
       '-tuition_fees -website -special_notes -comments -optionalDocuments -requiredDocuments -uni_assist -daad_link -ml_required -ml_requirements -rl_required -essay_required -essay_requirements -application_portal_a -application_portal_b -fpso -program_duration -deprecated'
     )
     .lean();
-  
+
   res.send({ success: true, data: programs });
 });
-
 
 const getStudentsByProgram = asyncHandler(async (req, programId) => {
   const applications = await req.db
@@ -504,7 +503,7 @@ const getProgram = asyncHandler(async (req, res) => {
     logger.error('getProgram: Invalid program id');
     throw new ErrorResponse(404, 'Program not found');
   }
-  
+
   let vc = null;
 
   if (
@@ -545,7 +544,7 @@ const createProgram = asyncHandler(async (req, res) => {
     );
   }
   const program = await req.db.model('Program').create(new_program);
-  
+
   return res.status(201).send({ success: true, data: program });
 });
 
@@ -584,9 +583,7 @@ const updateProgram = asyncHandler(async (req, res) => {
     collectionName: 'Program'
   });
 
-  return res
-    .status(200)
-    .send({ success: true, data: program, vc });
+  return res.status(200).send({ success: true, data: program, vc });
 });
 
 const deleteProgram = asyncHandler(async (req, res) => {
@@ -652,7 +649,9 @@ const refreshProgram = asyncHandler(async (req, res) => {
   // Manually add version control entry with field="none" and content message
   const docChanges = {
     originalValues: { none: null },
-    updatedValues: { none: 'verified program information is up-to-date, unlock manually' },
+    updatedValues: {
+      none: 'verified program information is up-to-date, unlock manually'
+    },
     changedBy: `${user.firstname} ${user.lastname}`,
     changedAt: now
   };
@@ -671,9 +670,7 @@ const refreshProgram = asyncHandler(async (req, res) => {
     collectionName: 'Program'
   });
 
-  return res
-    .status(200)
-    .send({ success: true, data: program, vc });
+  return res.status(200).send({ success: true, data: program, vc });
 });
 
 module.exports = {

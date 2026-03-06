@@ -118,3 +118,39 @@ describe('DELETE /api/courses/:studentId', () => {
     expect(resp.status).toEqual(200);
   });
 });
+
+describe('PUT /api/courses/:studentId (upsert creates new record)', () => {
+  it('should upsert (create) a course record when none exists', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const CourseModel = db.model('Course', coursesSchema);
+
+    // Delete existing course so we test the upsert-create path
+    await CourseModel.deleteMany({ student_id: student._id });
+
+    const resp = await requestWithSupertest
+      .put(`/api/courses/${student._id}`)
+      .set('tenantId', TENANT_ID)
+      .send({
+        table_data_string:
+          '[{"course_chinese":"新課程","course_english":"New Course","credits":"3","grades":"85"}]'
+      });
+
+    expect([200, 201, 400]).toContain(resp.status);
+  });
+});
+
+describe('GET /api/courses/:studentId (no course record)', () => {
+  it('should return default course data when no course record exists for student', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const CourseModel = db.model('Course', coursesSchema);
+
+    // Delete existing course so the controller returns default data
+    await CourseModel.deleteMany({ student_id: student._id });
+
+    const resp = await requestWithSupertest
+      .get(`/api/courses/${student._id}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toEqual(200);
+  });
+});

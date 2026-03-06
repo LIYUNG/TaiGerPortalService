@@ -48,11 +48,13 @@ router.route('/application/:application_id').delete(
   deleteApplication
 );
 
-router.route('/:applicationId/refresh').post(
-  getMessagesRateLimiter,
-  permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-  refreshApplication
-);
+router
+  .route('/:applicationId/refresh')
+  .post(
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    refreshApplication
+  );
 
 router
   .route('/all/active/applications')

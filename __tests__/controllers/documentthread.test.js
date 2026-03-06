@@ -1,3 +1,7 @@
+// This legacy test file uses real multerS3 file uploads (file-upload.js is not mocked)
+// and requires more time than the global testTimeout: 15000.
+jest.setTimeout(60000);
+
 const fs = require('fs');
 const request = require('supertest');
 const { mockClient } = require('aws-sdk-client-mock');
@@ -5,7 +9,7 @@ const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
 
 const { UPLOAD_PATH } = require('../../config');
-const { connect, closeDatabase, clearDatabase } = require('../fixtures/db');
+const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
 const { User, UserSchema } = require('../../models/User');
 const { programSchema } = require('../../models/Program');

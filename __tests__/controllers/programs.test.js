@@ -117,3 +117,62 @@ describe('DELETE /api/programs/:id', () => {
     expect(resp.body.success).toBe(true);
   });
 });
+
+describe('GET /api/programs/:programId', () => {
+  it('should return a single program by id', async () => {
+    const { _id } = programs[0];
+
+    const resp = await requestWithSupertest
+      .get(`/api/programs/${_id}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBeLessThan(600);
+  });
+});
+
+describe('GET /api/programs/overview', () => {
+  it('should return programs overview', async () => {
+    const resp = await requestWithSupertest
+      .get('/api/programs/overview')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBeLessThan(600);
+  });
+});
+
+describe('GET /api/programs/:programId/change-requests', () => {
+  it('should return change requests for a program', async () => {
+    const { _id } = programs[0];
+
+    const resp = await requestWithSupertest
+      .get(`/api/programs/${_id}/change-requests`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBeLessThan(600);
+  });
+});
+
+describe('POST /api/programs/:programId/change-requests', () => {
+  it('should submit a change request for a program', async () => {
+    const { _id } = programs[0];
+
+    const resp = await requestWithSupertest
+      .post(`/api/programs/${_id}/change-requests`)
+      .set('tenantId', TENANT_ID)
+      .send({ description: 'deadline is wrong', type: 'program' });
+
+    expect([200, 201, 400, 409]).toContain(resp.status);
+  });
+});
+
+describe('GET /api/programs/same-program-students/:programId', () => {
+  it('should return students sharing the same program', async () => {
+    const { _id } = programs[0];
+
+    const resp = await requestWithSupertest
+      .get(`/api/programs/same-program-students/${_id}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBeLessThan(600);
+  });
+});

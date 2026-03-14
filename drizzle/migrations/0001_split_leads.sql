@@ -4,6 +4,9 @@ ALTER TABLE leads
 ADD COLUMN source_country varchar(100);
 
 ALTER TABLE leads
+ALTER COLUMN preferred_contact TYPE varchar(255);
+
+ALTER TABLE leads
 RENAME COLUMN source TO referral_source;
 
 CREATE TABLE IF NOT EXISTS lead_profile (
@@ -48,7 +51,7 @@ CREATE TABLE IF NOT EXISTS lead_tags (
   created_at timestamp DEFAULT now()
 );
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE lead_tags TO PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE lead_profile TO PUBLIC;
 
 CREATE UNIQUE INDEX IF NOT EXISTS lead_tags_lead_id_tag_unique
   ON lead_tags (lead_id, tag);

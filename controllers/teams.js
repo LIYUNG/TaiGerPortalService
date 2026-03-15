@@ -580,17 +580,6 @@ const getArchivStudents = asyncHandler(async (req, res) => {
   }
 });
 
-const getEssayWriters = asyncHandler(async (req, res, next) => {
-  const editors = await req.db
-    .model('User')
-    .find({
-      role: { $in: ['Agent', 'Editor'] },
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .select('firstname lastname');
-  res.status(200).send({ success: true, data: editors });
-});
-
 const getTasksOverview = asyncHandler(async (req, res, next) => {
   const { filter: noAgentsfilter } = new UserQueryBuilder()
     .withArchiv(false)
@@ -1143,7 +1132,6 @@ module.exports = {
   putAgentProfile,
   getAgentProfile,
   getArchivStudents,
-  getEssayWriters,
   getApplicationDeltas,
   getTasksOverview,
   getIsManager

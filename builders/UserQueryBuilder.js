@@ -39,7 +39,7 @@ class UserQueryBuilder extends BaseQueryBuilder {
 
   withRole(role) {
     if (role) {
-      this.query.role = role;
+      this.query.role = Array.isArray(role) ? { $in: role } : role;
     }
     return this;
   }

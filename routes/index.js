@@ -31,7 +31,6 @@ const uniassistRouter = require('./uniassist');
 const usersRouter = require('./users');
 const userlogsRouter = require('./userlogs');
 const widgetsRouter = require('./widget');
-const essayWriterRouter = require('./essay-writers');
 const CRMRouter = require('./crm');
 
 const router = (app) => {
@@ -43,7 +42,6 @@ const router = (app) => {
   apiRouter.use('/agents', agentsRouter);
   apiRouter.use('/all-courses', allCoursesRouter);
   apiRouter.use('/audit', auditRouter);
-  apiRouter.use('/essay-writers', essayWriterRouter);
   apiRouter.use('/admissions', admissionsRouter);
   apiRouter.use('/course-keywords', coursekewordsRouter);
   apiRouter.use('/courses', coursesRouter);

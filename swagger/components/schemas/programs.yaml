@@ -198,9 +198,6 @@ ProgramSharedFields:
       type: boolean
     schoolType:
       $ref: '#/SchoolType'
-    isEssayConsultantNeeded:
-      type: boolean
-      default: false
     tags:
       type: array
       items:

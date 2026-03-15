@@ -376,8 +376,6 @@ paths:
     $ref: './paths/data.yaml#/~1api~1all-courses'
   /api/agents:
     $ref: './paths/data.yaml#/~1api~1agents'
-  /api/essay-writers:
-    $ref: './paths/data.yaml#/~1api~1essay-writers'
   /api/expenses:
     $ref: './paths/data.yaml#/~1api~1expenses'
   /api/widget:

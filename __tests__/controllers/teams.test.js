@@ -281,19 +281,3 @@ describe('PUT /api/agents/profile/:agent_id', () => {
     expect([200, 201, 400, 404]).toContain(resp.status);
   });
 });
-
-// ---- Essay-writers routes (/api/essay-writers) ----
-
-describe('GET /api/essay-writers/', () => {
-  it('should return essay writers without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .get('/api/essay-writers/')
-      .set('tenantId', TENANT_ID);
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-  });
-});

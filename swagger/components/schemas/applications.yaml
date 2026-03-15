@@ -75,9 +75,7 @@ DocumentThread:
       type: array
       items:
         $ref: '#/DocumentThreadMessage'
-    isEssayConsultantNeeded:
-      type: boolean
-    essayConsultantIds:
+    essayReviewerIds:
       type: array
       items:
         type: string

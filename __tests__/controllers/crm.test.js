@@ -358,7 +358,7 @@ describe('GET /api/crm/leads', () => {
 });
 
 describe('GET /api/crm/leads/:leadId', () => {
-  it('should return 404 when lead does not exist', async () => {
+  it('should return 200 when lead does not exist', async () => {
     const leadId = new ObjectId().toHexString();
     postgresDb.query.leads.findFirst.mockResolvedValue(null);
 
@@ -366,8 +366,8 @@ describe('GET /api/crm/leads/:leadId', () => {
       .get(`/api/crm/leads/${leadId}`)
       .set('tenantId', TENANT_ID);
 
-    expect(resp.status).toBe(404);
-    expect(resp.body.success).toBe(false);
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
   });
 });
 

@@ -102,16 +102,14 @@ jest.mock('../../aws', () => ({
 // aws-sdk-client-mock and causes real network calls.
 jest.mock('../../aws/s3', () => ({
   uploadJsonToS3: jest.fn().mockResolvedValue(undefined),
-  getS3Object: jest
-    .fn()
-    .mockResolvedValue(
-      Buffer.from(
-        JSON.stringify({
-          courses: [{ name: 'Calculus', grade: 90 }],
-          summary: 'analysis result'
-        })
-      )
-    ),
+  getS3Object: jest.fn().mockResolvedValue(
+    Buffer.from(
+      JSON.stringify({
+        courses: [{ name: 'Calculus', grade: 90 }],
+        summary: 'analysis result'
+      })
+    )
+  ),
   putS3Object: jest.fn().mockResolvedValue({})
 }));
 

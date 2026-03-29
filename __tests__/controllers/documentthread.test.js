@@ -124,20 +124,6 @@ afterEach(() => {
 });
 
 describe('POST /api/document-threads/:category', () => {
-  const thread = {
-    student_id: '1234',
-    file_type: 'ML',
-    program_id: null,
-    updatedAt: new Date()
-  };
-  const new_thread = {
-    student_id: '1234',
-    file_type: 'ML',
-    program_id: null,
-    updatedAt: new Date()
-  };
-  var article_id;
-
   beforeEach(async () => {
     protect.mockImplementation(async (req, res, next) => {
       req.user = await User.findById(student._id);
@@ -154,17 +140,8 @@ describe('POST /api/document-threads/:category', () => {
 describe('POST /api/document-threads/init/application/:studentId/:application_id/:document_category', () => {
   const { _id: studentId } = student;
   const { _id: programId } = program1;
-  const { _id: agentId } = agent;
   const filename = 'my-file.pdf'; // will be overwrite to docName
 
-  let r = /\d+/; //number pattern
-  let version_number_max = 0;
-  let db_file_name;
-  let temp_name;
-  let applicationIds;
-  let applicationId;
-  let file_name_inDB;
-  let returndoc_modification_thread;
   let messagesThreadId;
 
   permission_canAccessStudentDatabase_filter.mockImplementation(

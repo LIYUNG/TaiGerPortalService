@@ -894,22 +894,47 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
           as: 'surveyResponses'
         }
       },
+      // $lookup cannot mix `pipeline` with `localField`/`foreignField` (MongoDB error 51174).
       {
         $lookup: {
           from: 'users',
           localField: 'student_id',
           foreignField: '_id',
-          as: 'student_id',
-          pipeline: [{ $project: { firstname: 1, lastname: 1, email: 1 } }]
+          as: 'student_id'
         }
       },
       {
         $lookup: {
-          from: 'users', // Assuming trainers are in users collection
+          from: 'users',
           localField: 'trainer_id',
           foreignField: '_id',
-          as: 'trainer_id',
-          pipeline: [{ $project: { firstname: 1, lastname: 1, email: 1 } }]
+          as: 'trainer_id'
+        }
+      },
+      {
+        $addFields: {
+          student_id: {
+            $map: {
+              input: '$student_id',
+              as: 's',
+              in: {
+                firstname: '$$s.firstname',
+                lastname: '$$s.lastname',
+                email: '$$s.email'
+              }
+            }
+          },
+          trainer_id: {
+            $map: {
+              input: '$trainer_id',
+              as: 't',
+              in: {
+                firstname: '$$t.firstname',
+                lastname: '$$t.lastname',
+                email: '$$t.email'
+              }
+            }
+          }
         }
       },
       {

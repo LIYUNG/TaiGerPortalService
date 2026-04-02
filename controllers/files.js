@@ -837,6 +837,10 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
     );
   }
 
+  // TODO: send notification to slack win!
+  // if (result === 'O') {
+  // }
+
   next();
 });
 

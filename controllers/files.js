@@ -23,6 +23,7 @@ const logger = require('../services/logger');
 const { deleteS3Object } = require('../aws/s3');
 const { getS3Object } = require('../aws/s3');
 const ApplicationService = require('../services/applications');
+const { editor } = require('../__tests__/mock/user');
 
 const getTemplates = asyncHandler(async (req, res, next) => {
   const templates = await req.db.model('Template').find({});
@@ -812,49 +813,48 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
     throw new ErrorResponse(404, 'Invalid student Id');
   }
 
-  if (is_TaiGer_Student(user)) {
-    if (result !== '-') {
-      for (let i = 0; i < student.agents?.length; i += 1) {
-        if (isNotArchiv(student.agents[i])) {
-          await AdmissionResultInformEmailToTaiGer(
-            {
-              firstname: student.agents[i].firstname,
-              lastname: student.agents[i].lastname,
-              address: student.agents[i].email
-            },
-            {
-              student_id: student._id.toString(),
-              student_firstname: student.firstname,
-              student_lastname: student.lastname,
-              udpatedApplication: udpatedApplicationForEmail,
-              admission: result
-            }
-          );
-        }
+  if (result !== '-') {
+    for (const agent of student.agents) {
+      if (isNotArchiv(agent)) {
+        await AdmissionResultInformEmailToTaiGer(
+          {
+            firstname: agent.firstname,
+            lastname: agent.lastname,
+            address: agent.email
+          },
+          {
+            student_id: student._id.toString(),
+            student_firstname: student.firstname,
+            student_lastname: student.lastname,
+            udpatedApplication: udpatedApplicationForEmail,
+            admission: result
+          }
+        );
       }
-      for (let i = 0; i < student.editors?.length; i += 1) {
-        if (isNotArchiv(student.editors[i])) {
-          await AdmissionResultInformEmailToTaiGer(
-            {
-              firstname: student.editors[i].firstname,
-              lastname: student.editors[i].lastname,
-              address: student.editors[i].email
-            },
-            {
-              student_id: student._id.toString(),
-              student_firstname: student.firstname,
-              student_lastname: student.lastname,
-              udpatedApplication: udpatedApplicationForEmail,
-              admission: result
-            }
-          );
-        }
-      }
-      logger.info(
-        'admission or rejection inform email sent to agents and editors'
-      );
     }
+    for (const editor of student.editors) {
+      if (isNotArchiv(editor)) {
+        await AdmissionResultInformEmailToTaiGer(
+          {
+            firstname: editor.firstname,
+            lastname: editor.lastname,
+            address: editor.email
+          },
+          {
+            student_id: student._id.toString(),
+            student_firstname: student.firstname,
+            student_lastname: student.lastname,
+            udpatedApplication: udpatedApplicationForEmail,
+            admission: result
+          }
+        );
+      }
+    }
+    logger.info(
+      'admission or rejection inform email sent to agents and editors'
+    );
   }
+
   next();
 });
 

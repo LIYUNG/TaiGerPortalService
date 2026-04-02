@@ -23,7 +23,6 @@ const logger = require('../services/logger');
 const { deleteS3Object } = require('../aws/s3');
 const { getS3Object } = require('../aws/s3');
 const ApplicationService = require('../services/applications');
-const { editor } = require('../__tests__/mock/user');
 
 const getTemplates = asyncHandler(async (req, res, next) => {
   const templates = await req.db.model('Template').find({});

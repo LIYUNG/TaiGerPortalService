@@ -813,41 +813,24 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   }
 
   if (result !== '-') {
-    for (const agent of student.agents) {
-      if (isNotArchiv(agent)) {
-        await AdmissionResultInformEmailToTaiGer(
-          {
-            firstname: agent.firstname,
-            lastname: agent.lastname,
-            address: agent.email
-          },
-          {
-            student_id: student._id.toString(),
-            student_firstname: student.firstname,
-            student_lastname: student.lastname,
-            udpatedApplication: udpatedApplicationForEmail,
-            admission: result
-          }
-        );
-      }
-    }
-    for (const editor of student.editors) {
-      if (isNotArchiv(editor)) {
-        await AdmissionResultInformEmailToTaiGer(
-          {
-            firstname: editor.firstname,
-            lastname: editor.lastname,
-            address: editor.email
-          },
-          {
-            student_id: student._id.toString(),
-            student_firstname: student.firstname,
-            student_lastname: student.lastname,
-            udpatedApplication: udpatedApplicationForEmail,
-            admission: result
-          }
-        );
-      }
+    const taigerStaff = [...student.agents, ...student.editors]
+      .filter((staff) => isNotArchiv(staff))
+      .filter((staff) => staff._id !== user._id); // exclude the one who trigger the result update
+    for (let staff of taigerStaff) {
+      await AdmissionResultInformEmailToTaiGer(
+        {
+          firstname: staff.firstname,
+          lastname: staff.lastname,
+          address: staff.email
+        },
+        {
+          student_id: student._id.toString(),
+          student_firstname: student.firstname,
+          student_lastname: student.lastname,
+          udpatedApplication: udpatedApplicationForEmail,
+          admission: result
+        }
+      );
     }
     logger.info(
       'admission or rejection inform email sent to agents and editors'

@@ -1,6 +1,5 @@
 const axios = require('axios');
-const { SLACK_BOT_TOKEN } = require('../config');
-const { SLACK_TAIGER_WIN_CHANNEL_ID } = require('../config');
+const { SLACK_BOT_TOKEN, SLACK_TAIGER_WIN_CHANNEL_ID } = require('../config');
 
 const { PROGRAM_URL, BASE_DOCUMENT_FOR_AGENT_URL } = require('../constants');
 

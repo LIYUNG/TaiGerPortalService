@@ -59,27 +59,35 @@ async function sendSlackMessage(text, channel, blocks) {
 }
 
 async function sendSlackMessageToWinChannel(student, application) {
-  const contributors = [...student.agents, ...student.editors]
-    .map((agent) => `${agent.firstname} ${agent.lastname}`)
-    .join(', ');
+  const contributorNames = [...student.agents, ...student.editors].map(
+    (agent) => `${agent.firstname} ${agent.lastname}`
+  );
 
   const studentLink = BASE_DOCUMENT_FOR_AGENT_URL(student._id);
   const programLink = PROGRAM_URL(application.programId._id);
   const studentName = `${student.firstname} ${student.lastname}`;
-  const programLabel = `${application.programId.school} - ${application.programId.program_name}`;
-  const specialThanks = contributors || 'TaiGer team';
+  const programLabel = `${application.programId.school} -- ${application.programId.program_name}`;
+  const specialThanks =
+    contributorNames.length > 0
+      ? contributorNames.length === 1
+        ? contributorNames[0]
+        : `${contributorNames
+            .slice(0, -1)
+            .join(', ')}, and ${contributorNames.at(-1)}`
+      : 'the TaiGer team';
 
   const slackMessage =
-    `Admission offer received: <${studentLink}|${studentName}> ` +
-    `has received an offer from <${programLink}|${programLabel}>.\n` +
-    `Special thanks: ${specialThanks}`;
+    `🎉 Admission secured!\n\n` +
+    `• Student: <${studentLink}|${studentName}>\n` +
+    `• Offer: <${programLink}|${programLabel}>\n\n` +
+    `🙌 Thanks to ${specialThanks} for the support. Great teamwork!`;
 
   const slackBlocks = [
     {
       type: 'header',
       text: {
         type: 'plain_text',
-        text: 'Admission Offer Received'
+        text: '🎉 Admission secured!'
       }
     },
     {
@@ -87,8 +95,8 @@ async function sendSlackMessageToWinChannel(student, application) {
       text: {
         type: 'mrkdwn',
         text:
-          `*Student:* <${studentLink}|${studentName}>\n` +
-          `*Offer From:* <${programLink}|${programLabel}>`
+          `• *Student:* <${studentLink}|${studentName}>\n` +
+          `• *Offer:* <${programLink}|${programLabel}>`
       }
     },
     {
@@ -96,7 +104,7 @@ async function sendSlackMessageToWinChannel(student, application) {
       elements: [
         {
           type: 'mrkdwn',
-          text: `Special thanks: ${specialThanks}`
+          text: `🙌 Thanks to ${specialThanks} for the support. Great teamwork!`
         }
       ]
     }

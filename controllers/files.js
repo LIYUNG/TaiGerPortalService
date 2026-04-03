@@ -17,12 +17,8 @@ const {
   sendChangedProfileFileStatusEmail,
   AdmissionResultInformEmailToTaiGer
 } = require('../services/email');
-const { sendSlackMessage } = require('../utils/slackUtils');
-const {
-  AWS_S3_BUCKET_NAME,
-  AWS_S3_PUBLIC_BUCKET_NAME,
-  SLACK_TAIGER_WIN_CHANNEL_ID
-} = require('../config');
+const { sendSlackMessageToWinChannel } = require('../utils/slackUtils');
+const { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
 const logger = require('../services/logger');
 
 const { deleteS3Object } = require('../aws/s3');
@@ -844,23 +840,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
 
   // TODO: send notification to slack win!
   if (result === 'O') {
-    const specialThanks = [...student.agents, ...student.editors]
-      .map((agent) => `${agent.firstname} ${agent.lastname}`)
-      .join(', ');
-
-    const slackMessage =
-      `${student._id} - ${student.firstname} ${student.lastname} ` +
-      `has been admitted to program ${udpatedApplication.programId.school} - ` +
-      `${udpatedApplication.programId.program_name} (${udpatedApplication.programId._id}) ` +
-      `special thanks to: ${specialThanks}`;
-
-    try {
-      await sendSlackMessage(slackMessage, SLACK_TAIGER_WIN_CHANNEL_ID);
-    } catch (error) {
-      logger.error(
-        `Failed to send Slack admission message: ${error.message || error}`
-      );
-    }
+    sendSlackMessageToWinChannel(student, udpatedApplication);
   }
 
   next();

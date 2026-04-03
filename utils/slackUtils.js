@@ -1,5 +1,10 @@
 const axios = require('axios');
 const { SLACK_BOT_TOKEN } = require('../config');
+const { SLACK_TAIGER_WIN_CHANNEL_ID } = require('../config');
+
+const { PROGRAM_URL, BASE_DOCUMENT_FOR_AGENT_URL } = require('../constants');
+
+const logger = require('../services/logger');
 
 /**
  * Internal sender for Slack chat.postMessage
@@ -49,6 +54,31 @@ async function sendSlackMessage(text, channel) {
   return postToSlack({ channel, text });
 }
 
+async function sendSlackMessageToWinChannel(student, application) {
+  const specialThanks = [...student.agents, ...student.editors]
+    .map((agent) => `${agent.firstname} ${agent.lastname}`)
+    .join(', ');
+
+  const studentLink = BASE_DOCUMENT_FOR_AGENT_URL(student._id);
+  const programLink = PROGRAM_URL(application.programId._id);
+  const studentName = `${student.firstname} ${student.lastname}`;
+  const programLabel = `${application.programId.school} - ${application.programId.program_name}`;
+
+  const slackMessage =
+    `<${studentLink}|${studentName}> has been admitted to program ` +
+    `<${programLink}|${programLabel}>. ` +
+    `special thanks to: ${specialThanks}`;
+
+  try {
+    await sendSlackMessage(slackMessage, SLACK_TAIGER_WIN_CHANNEL_ID);
+  } catch (error) {
+    logger.error(
+      `Failed to send Slack admission message: ${error.message || error}`
+    );
+  }
+}
+
 module.exports = {
-  sendSlackMessage
+  sendSlackMessage,
+  sendSlackMessageToWinChannel
 };

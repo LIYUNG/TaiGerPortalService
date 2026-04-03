@@ -58,21 +58,23 @@ async function sendSlackMessage(text, channel, blocks) {
 }
 
 async function sendSlackMessageToWinChannel(student, application) {
-  const contributorNames = [...student.agents, ...student.editors].map(
-    (agent) => `${agent.firstname} ${agent.lastname}`
-  );
+  const agents = student.agents || [];
+  const editors = student.editors || [];
+  const contributorNames = [...agents, ...editors]
+    .filter((contributor) => !contributor.archiv)
+    .map((contributor) => `${contributor.firstname} ${contributor.lastname}`);
 
   const studentLink = BASE_DOCUMENT_FOR_AGENT_URL(student._id);
   const programLink = PROGRAM_URL(application.programId._id);
   const studentName = `${student.firstname} ${student.lastname}`;
-  const programLabel = `${application.programId.school} -- ${application.programId.program_name}`;
+  const programLabel = `${application.programId.school} - ${application.programId.program_name}`;
   const specialThanks =
     contributorNames.length > 0
       ? contributorNames.length === 1
         ? contributorNames[0]
-        : `${contributorNames
-            .slice(0, -1)
-            .join(', ')}, and ${contributorNames.at(-1)}`
+        : `${contributorNames.slice(0, -1).join(', ')}, and ${
+            contributorNames[contributorNames.length - 1]
+          }`
       : 'the TaiGer team';
 
   const slackMessage =

@@ -9,7 +9,7 @@ const logger = require('../services/logger');
 /**
  * Internal sender for Slack chat.postMessage
  */
-async function postToSlack({ channel, text }) {
+async function postToSlack({ channel, text, blocks }) {
   if (!SLACK_BOT_TOKEN) {
     throw new Error('Missing Slack bot token. Set SLACK_BOT_TOKEN.');
   }
@@ -17,7 +17,7 @@ async function postToSlack({ channel, text }) {
   try {
     const response = await axios.post(
       'https://slack.com/api/chat.postMessage',
-      { channel, text },
+      { channel, text, blocks },
       {
         headers: {
           Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
@@ -42,7 +42,7 @@ async function postToSlack({ channel, text }) {
 /**
  * General purpose sender.
  */
-async function sendSlackMessage(text, channel) {
+async function sendSlackMessage(text, channel, blocks) {
   if (!text || typeof text !== 'string') {
     throw new Error('Message text is required.');
   }
@@ -51,11 +51,15 @@ async function sendSlackMessage(text, channel) {
     throw new Error('Slack channel is required.');
   }
 
-  return postToSlack({ channel, text });
+  if (blocks && !Array.isArray(blocks)) {
+    throw new Error('Slack blocks must be an array when provided.');
+  }
+
+  return postToSlack({ channel, text, blocks });
 }
 
 async function sendSlackMessageToWinChannel(student, application) {
-  const specialThanks = [...student.agents, ...student.editors]
+  const contributors = [...student.agents, ...student.editors]
     .map((agent) => `${agent.firstname} ${agent.lastname}`)
     .join(', ');
 
@@ -63,14 +67,47 @@ async function sendSlackMessageToWinChannel(student, application) {
   const programLink = PROGRAM_URL(application.programId._id);
   const studentName = `${student.firstname} ${student.lastname}`;
   const programLabel = `${application.programId.school} - ${application.programId.program_name}`;
+  const specialThanks = contributors || 'TaiGer team';
 
   const slackMessage =
-    `<${studentLink}|${studentName}> has been admitted to program ` +
-    `<${programLink}|${programLabel}>. ` +
-    `special thanks to: ${specialThanks}`;
+    `Team win: <${studentLink}|${studentName}> is admitted to ` +
+    `<${programLink}|${programLabel}>.\n` +
+    `Special thanks: ${specialThanks}`;
+
+  const slackBlocks = [
+    {
+      type: 'header',
+      text: {
+        type: 'plain_text',
+        text: 'Team Win'
+      }
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text:
+          `*Student:* <${studentLink}|${studentName}>\n` +
+          `*Program:* <${programLink}|${programLabel}>`
+      }
+    },
+    {
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: `Special thanks: ${specialThanks}`
+        }
+      ]
+    }
+  ];
 
   try {
-    await sendSlackMessage(slackMessage, SLACK_TAIGER_WIN_CHANNEL_ID);
+    await sendSlackMessage(
+      slackMessage,
+      SLACK_TAIGER_WIN_CHANNEL_ID,
+      slackBlocks
+    );
   } catch (error) {
     logger.error(
       `Failed to send Slack admission message: ${error.message || error}`

@@ -8,7 +8,7 @@ const logger = require('../services/logger');
 /**
  * Internal sender for Slack chat.postMessage
  */
-async function postToSlack({ channel, text, blocks }) {
+async function postToSlack({ channel, text, blocks, options = {} }) {
   if (!SLACK_BOT_TOKEN) {
     throw new Error('Missing Slack bot token. Set SLACK_BOT_TOKEN.');
   }
@@ -16,7 +16,7 @@ async function postToSlack({ channel, text, blocks }) {
   try {
     const response = await axios.post(
       'https://slack.com/api/chat.postMessage',
-      { channel, text, blocks },
+      { channel, text, blocks, ...options },
       {
         headers: {
           Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
@@ -41,7 +41,7 @@ async function postToSlack({ channel, text, blocks }) {
 /**
  * General purpose sender.
  */
-async function sendSlackMessage(text, channel, blocks) {
+async function sendSlackMessage(text, channel, blocks, options = {}) {
   if (!text || typeof text !== 'string') {
     throw new Error('Message text is required.');
   }
@@ -54,7 +54,11 @@ async function sendSlackMessage(text, channel, blocks) {
     throw new Error('Slack blocks must be an array when provided.');
   }
 
-  return postToSlack({ channel, text, blocks });
+  if (options && typeof options !== 'object') {
+    throw new Error('Slack options must be an object when provided.');
+  }
+
+  return postToSlack({ channel, text, blocks, options });
 }
 
 async function sendSlackMessageToWinChannel(student, application) {
@@ -67,7 +71,7 @@ async function sendSlackMessageToWinChannel(student, application) {
   const studentLink = BASE_DOCUMENT_FOR_AGENT_URL(student._id);
   const programLink = PROGRAM_URL(application.programId._id);
   const studentName = `${student.firstname} ${student.lastname}`;
-  const programLabel = `${application.programId.school} - ${application.programId.program_name}`;
+  const programLabel = `${application.programId.school} - ${application.programId.program_name} (${application.programId.degree})`;
   const specialThanks =
     contributorNames.length > 0
       ? contributorNames.length === 1
@@ -115,7 +119,11 @@ async function sendSlackMessageToWinChannel(student, application) {
     await sendSlackMessage(
       slackMessage,
       SLACK_TAIGER_WIN_CHANNEL_ID,
-      slackBlocks
+      slackBlocks,
+      {
+        unfurl_links: false,
+        unfurl_media: false
+      }
     );
   } catch (error) {
     logger.error(

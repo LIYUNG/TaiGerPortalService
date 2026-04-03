@@ -70,8 +70,8 @@ async function sendSlackMessageToWinChannel(student, application) {
   const specialThanks = contributors || 'TaiGer team';
 
   const slackMessage =
-    `Team win: <${studentLink}|${studentName}> is admitted to ` +
-    `<${programLink}|${programLabel}>.\n` +
+    `Admission offer received: <${studentLink}|${studentName}> ` +
+    `has received an offer from <${programLink}|${programLabel}>.\n` +
     `Special thanks: ${specialThanks}`;
 
   const slackBlocks = [
@@ -79,7 +79,7 @@ async function sendSlackMessageToWinChannel(student, application) {
       type: 'header',
       text: {
         type: 'plain_text',
-        text: 'Team Win'
+        text: 'Admission Offer Received'
       }
     },
     {
@@ -88,7 +88,7 @@ async function sendSlackMessageToWinChannel(student, application) {
         type: 'mrkdwn',
         text:
           `*Student:* <${studentLink}|${studentName}>\n` +
-          `*Program:* <${programLink}|${programLabel}>`
+          `*Offer From:* <${programLink}|${programLabel}>`
       }
     },
     {

@@ -17,6 +17,7 @@ const {
   sendChangedProfileFileStatusEmail,
   AdmissionResultInformEmailToTaiGer
 } = require('../services/email');
+const { sendSlackMessageToWinChannel } = require('../utils/slackUtils');
 const { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
 const logger = require('../services/logger');
 
@@ -838,8 +839,9 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   }
 
   // TODO: send notification to slack win!
-  // if (result === 'O') {
-  // }
+  if (result === 'O') {
+    sendSlackMessageToWinChannel(student, udpatedApplication);
+  }
 
   next();
 });

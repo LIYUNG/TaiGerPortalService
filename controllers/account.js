@@ -356,7 +356,8 @@ const updatePersonalData = asyncHandler(async (req, res, next) => {
       lastname_chinese,
       birthday,
       linkedIn,
-      lineId
+      lineId,
+      slackId
     } = updatedStudent;
     res.status(200).send({
       success: true,
@@ -367,7 +368,8 @@ const updatePersonalData = asyncHandler(async (req, res, next) => {
         lastname_chinese,
         birthday,
         linkedIn,
-        lineId
+        lineId,
+        slackId
       }
     });
     next();

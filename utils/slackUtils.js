@@ -64,7 +64,7 @@ async function sendSlackMessage(text, channel, blocks, options = {}) {
 async function sendSlackMessageToWinChannel(student, application) {
   const agents = student.agents || [];
   const editors = student.editors || [];
-  const contributorNames = [...agents, ...editors]
+  const contributor = [...agents, ...editors]
     .filter((contributor) => !contributor.archiv)
     .map((contributor) => `${contributor.firstname} ${contributor.lastname}`);
 
@@ -73,11 +73,11 @@ async function sendSlackMessageToWinChannel(student, application) {
   const studentName = `${student.firstname} ${student.lastname}`;
   const programLabel = `${application.programId.school} - ${application.programId.program_name} (${application.programId.degree})`;
   const specialThanks =
-    contributorNames.length > 0
-      ? contributorNames.length === 1
-        ? contributorNames[0]
-        : `${contributorNames.slice(0, -1).join(', ')}, and ${
-            contributorNames[contributorNames.length - 1]
+    contributor.length > 0
+      ? contributor.length === 1
+        ? contributor[0]
+        : `${contributor.slice(0, -1).join(', ')}, and ${
+            contributor[contributor.length - 1]
           }`
       : 'the TaiGer team';
 

@@ -807,7 +807,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   const student = await req.db
     .model('Student')
     .findById(studentId)
-    .populate('agents editors', 'firstname lastname email');
+    .populate('agents editors', 'firstname lastname email slackId archiv');
   if (!student) {
     logger.error('updateStudentApplicationResult: Invalid student Id');
     throw new ErrorResponse(404, 'Invalid student Id');

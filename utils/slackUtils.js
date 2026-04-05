@@ -66,7 +66,16 @@ async function sendSlackMessageToWinChannel(student, application) {
   const editors = student.editors || [];
   const contributor = [...agents, ...editors]
     .filter((contributor) => !contributor.archiv)
-    .map((contributor) => `${contributor.firstname} ${contributor.lastname}`);
+    .map((contributor) => {
+      const slackId = contributor?.slackId;
+      if (typeof slackId === 'string' && slackId !== '') {
+        return `<@${slackId}>`;
+      }
+
+      const firstName = contributor?.firstname || '';
+      const lastName = contributor?.lastname || '';
+      return `${firstName} ${lastName}`.trim() || 'a TaiGer contributor';
+    });
 
   const studentLink = BASE_DOCUMENT_FOR_AGENT_URL(student._id);
   const programLink = PROGRAM_URL(application.programId._id);

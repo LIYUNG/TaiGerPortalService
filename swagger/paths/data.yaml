@@ -206,23 +206,6 @@
       '403':
         $ref: '../components/responses/common.yaml#/Forbidden'
 
-/api/essay-writers:
-  get:
-    tags:
-      - Essay Writers
-    summary: Get essay writers
-    description: Get all available essay writers
-    operationId: getEssayWriters
-    responses:
-      '200':
-        description: Essay writers retrieved successfully
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/data.yaml#/EssayWriterListResponse'
-      '401':
-        $ref: '../components/responses/common.yaml#/Unauthorized'
-
 /api/expenses:
   get:
     tags:

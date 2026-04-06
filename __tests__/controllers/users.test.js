@@ -1,14 +1,11 @@
 const request = require('supertest');
 const { Role } = require('@taiger-common/core');
 
-const { connect, closeDatabase, clearDatabase } = require('../fixtures/db');
+const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
 const { User, UserSchema } = require('../../models/User');
 const { generateUser } = require('../fixtures/faker');
 const { protect } = require('../../middlewares/auth');
-const {
-  decryptCookieMiddleware
-} = require('../../middlewares/decryptCookieMiddleware');
 const { TENANT_ID } = require('../fixtures/constants');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
 const { disconnectFromDatabase } = require('../../database');

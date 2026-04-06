@@ -538,22 +538,22 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
 
 const refreshApplication = asyncHandler(async (req, res) => {
   const { applicationId } = req.params;
-  
+
   // Unlock the application by setting isLocked to false
   const updatedApplication = await req.db
     .model('Application')
-    .findByIdAndUpdate(
-      applicationId,
-      { isLocked: false },
-      { new: true }
-    )
+    .findByIdAndUpdate(applicationId, { isLocked: false }, { new: true })
     .lean();
-  
+
   if (!updatedApplication) {
-    console.error(`[refreshApplication] Application ${applicationId} not found`);
-    return res.status(404).json({ success: false, message: 'Application not found' });
+    console.error(
+      `[refreshApplication] Application ${applicationId} not found`
+    );
+    return res
+      .status(404)
+      .json({ success: false, message: 'Application not found' });
   }
-  
+
   return res.json({ success: true, data: updatedApplication });
 });
 

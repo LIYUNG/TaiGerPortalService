@@ -16,7 +16,7 @@ const DocumentThreadService = {
         'firstname lastname role archiv pictureUrl'
       )
       .lean();
-    
+
     return thread;
   },
   async getStudentThreadsByStudentId(req, studentId) {
@@ -112,7 +112,7 @@ const DocumentThreadService = {
       .populate('application_id')
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang country updatedAt'
+        'school program_name application_deadline degree semester essay_difficulty lang country updatedAt'
       )
       .lean();
 
@@ -137,7 +137,7 @@ const DocumentThreadService = {
       .populate('program_id')
       .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
       .lean();
-    
+
     return threads;
   },
   async updateThreadById(req, threadId, payload) {

@@ -17,6 +17,7 @@ const {
   sendChangedProfileFileStatusEmail,
   AdmissionResultInformEmailToTaiGer
 } = require('../services/email');
+const { sendSlackMessageToWinChannel } = require('../utils/slackUtils');
 const { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
 const logger = require('../services/logger');
 
@@ -806,55 +807,42 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   const student = await req.db
     .model('Student')
     .findById(studentId)
-    .populate('agents editors', 'firstname lastname email');
+    .populate('agents editors', 'firstname lastname email slackId archiv');
   if (!student) {
     logger.error('updateStudentApplicationResult: Invalid student Id');
     throw new ErrorResponse(404, 'Invalid student Id');
   }
 
-  if (is_TaiGer_Student(user)) {
-    if (result !== '-') {
-      for (let i = 0; i < student.agents?.length; i += 1) {
-        if (isNotArchiv(student.agents[i])) {
-          await AdmissionResultInformEmailToTaiGer(
-            {
-              firstname: student.agents[i].firstname,
-              lastname: student.agents[i].lastname,
-              address: student.agents[i].email
-            },
-            {
-              student_id: student._id.toString(),
-              student_firstname: student.firstname,
-              student_lastname: student.lastname,
-              udpatedApplication: udpatedApplicationForEmail,
-              admission: result
-            }
-          );
+  if (result !== '-') {
+    const taigerStaff = [...student.agents, ...student.editors]
+      .filter((staff) => isNotArchiv(staff))
+      .filter((staff) => staff._id !== user._id); // exclude the one who trigger the result update
+    for (let staff of taigerStaff) {
+      await AdmissionResultInformEmailToTaiGer(
+        {
+          firstname: staff.firstname,
+          lastname: staff.lastname,
+          address: staff.email
+        },
+        {
+          student_id: student._id.toString(),
+          student_firstname: student.firstname,
+          student_lastname: student.lastname,
+          udpatedApplication: udpatedApplicationForEmail,
+          admission: result
         }
-      }
-      for (let i = 0; i < student.editors?.length; i += 1) {
-        if (isNotArchiv(student.editors[i])) {
-          await AdmissionResultInformEmailToTaiGer(
-            {
-              firstname: student.editors[i].firstname,
-              lastname: student.editors[i].lastname,
-              address: student.editors[i].email
-            },
-            {
-              student_id: student._id.toString(),
-              student_firstname: student.firstname,
-              student_lastname: student.lastname,
-              udpatedApplication: udpatedApplicationForEmail,
-              admission: result
-            }
-          );
-        }
-      }
-      logger.info(
-        'admission or rejection inform email sent to agents and editors'
       );
     }
+    logger.info(
+      'admission or rejection inform email sent to agents and editors'
+    );
   }
+
+  // TODO: send notification to slack win!
+  if (result === 'O') {
+    sendSlackMessageToWinChannel(student, udpatedApplication);
+  }
+
   next();
 });
 

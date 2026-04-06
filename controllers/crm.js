@@ -522,7 +522,7 @@ const getLead = asyncHandler(async (req, res) => {
   });
 
   if (!leadRecord) {
-    return res.status(404).send({ success: false, message: 'Lead not found' });
+    return res.status(200).send({ success: true, data: null });
   }
 
   res.status(200).send({

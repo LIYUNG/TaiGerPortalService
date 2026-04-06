@@ -16,34 +16,32 @@ const InterviewService = require('../services/interviews');
 const DocumentThreadService = require('../services/documentthreads');
 
 const getActivePrograms = asyncHandler(async (req) => {
-  const activePrograms = await req.db.model('User').aggregate([
+  const activePrograms = await req.db.model('Application').aggregate([
     {
       $match: {
-        role: 'Student',
-        archiv: {
-          $ne: true
-        }
+        decided: 'O',
+        closed: '-'
       }
     },
     {
-      $project: {
-        applications: 1
+      $lookup: {
+        from: 'users',
+        localField: 'studentId',
+        foreignField: '_id',
+        as: 'studentId'
       }
     },
     {
-      $unwind: {
-        path: '$applications'
-      }
+      $unwind: '$studentId'
     },
     {
       $match: {
-        'applications.decided': 'O',
-        'applications.closed': '-'
+        'studentId.archiv': { $ne: true }
       }
     },
     {
       $group: {
-        _id: '$applications.programId',
+        _id: '$programId',
         count: {
           $sum: 1
         }
@@ -578,17 +576,6 @@ const getArchivStudents = asyncHandler(async (req, res) => {
     // Guest
     res.status(200).send({ success: true, data: [] });
   }
-});
-
-const getEssayWriters = asyncHandler(async (req, res, next) => {
-  const editors = await req.db
-    .model('User')
-    .find({
-      role: { $in: ['Agent', 'Editor'] },
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .select('firstname lastname');
-  res.status(200).send({ success: true, data: editors });
 });
 
 const getTasksOverview = asyncHandler(async (req, res, next) => {
@@ -1143,7 +1130,6 @@ module.exports = {
   putAgentProfile,
   getAgentProfile,
   getArchivStudents,
-  getEssayWriters,
   getApplicationDeltas,
   getTasksOverview,
   getIsManager

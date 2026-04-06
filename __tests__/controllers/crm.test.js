@@ -44,7 +44,10 @@ jest.mock('../../database', () => {
     'insert',
     'values',
     'update',
-    'set'
+    'set',
+    'delete',
+    'onConflictDoNothing',
+    'onConflictDoUpdate'
   ];
   chainMethods.forEach((m) => {
     builder[m] = jest.fn().mockReturnValue(builder);
@@ -55,7 +58,7 @@ jest.mock('../../database', () => {
     .fn()
     .mockImplementation(() => Promise.resolve(state.insertResult));
 
-  // postgresDb.$with(cte) returns a CTE placeholder
+  // getPostgresDb().$with(cte) returns a CTE placeholder
   const $with = jest.fn().mockReturnValue({
     as: jest.fn().mockReturnValue({})
   });
@@ -63,7 +66,8 @@ jest.mock('../../database', () => {
   const mockPostgresDb = {
     ...builder,
     $with,
-    // postgresDb.with(cteRef) starts a chain that resolves via builder
+    transaction: jest.fn(async (callback) => callback(mockPostgresDb)),
+    // getPostgresDb().with(cteRef) starts a chain that resolves via builder
     with: jest.fn().mockReturnValue(builder),
     // query.leads.findFirst is used by getLead / getLeadByStudentId
     query: {
@@ -208,7 +212,6 @@ jest.mock('../../database', () => {
     });
 
   return {
-    postgresDb: mockPostgresDb,
     getPostgresDb: jest.fn(() => mockPostgresDb),
     connectToDatabase,
     disconnectFromDatabase,
@@ -311,9 +314,10 @@ const { app } = require('../../app');
 const { UserSchema } = require('../../models/User');
 const { protect } = require('../../middlewares/auth');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { disconnectFromDatabase, postgresDb } = require('../../database');
+const { disconnectFromDatabase, getPostgresDb } = require('../../database');
 const { TENANT_ID } = require('../fixtures/constants');
 const { users, admin, student } = require('../mock/user');
+const postgres = getPostgresDb();
 
 const requestWithSupertest = request(app);
 
@@ -331,7 +335,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  postgresDb._resetState();
+  postgres._resetState();
 
   const db = connectToDatabase(TENANT_ID, dbUri);
   const UserModel = db.model('User', UserSchema);
@@ -361,7 +365,7 @@ describe('GET /api/crm/leads', () => {
 describe('GET /api/crm/leads/:leadId', () => {
   it('should return 200 when lead does not exist', async () => {
     const leadId = new ObjectId().toHexString();
-    postgresDb.query.leads.findFirst.mockResolvedValue(null);
+    postgres.query.leads.findFirst.mockResolvedValue(null);
 
     const resp = await requestWithSupertest
       .get(`/api/crm/leads/${leadId}`)
@@ -375,7 +379,7 @@ describe('GET /api/crm/leads/:leadId', () => {
 describe('PUT /api/crm/leads/:leadId', () => {
   it('should update a lead and return 200', async () => {
     const leadId = new ObjectId().toHexString();
-    postgresDb._setInsertResult([{ id: leadId, status: 'contacted' }]);
+    postgres._setInsertResult([{ id: leadId, status: 'contacted' }]);
 
     const resp = await requestWithSupertest
       .put(`/api/crm/leads/${leadId}`)
@@ -391,7 +395,7 @@ describe('POST /api/crm/students/:studentId/lead', () => {
   it('should create a lead from an existing student and return 201', async () => {
     const { _id: studentId } = student;
     // The postgres insert.values().returning() resolves to the new lead
-    postgresDb._setInsertResult([{ id: 1, fullName: 'TestStudent' }]);
+    postgres._setInsertResult([{ id: 1, fullName: 'TestStudent' }]);
 
     const resp = await requestWithSupertest
       .post(`/api/crm/students/${studentId}/lead`)
@@ -405,7 +409,7 @@ describe('POST /api/crm/students/:studentId/lead', () => {
 describe('GET /api/crm/students/:studentId/lead', () => {
   it('should return 404 when student has no lead', async () => {
     const { _id: studentId } = student;
-    postgresDb.query.leads.findFirst.mockResolvedValue(null);
+    postgres.query.leads.findFirst.mockResolvedValue(null);
 
     const resp = await requestWithSupertest
       .get(`/api/crm/students/${studentId}/lead`)
@@ -445,7 +449,7 @@ describe('GET /api/crm/meetings/:meetingId', () => {
 describe('PUT /api/crm/meetings/:meetingId', () => {
   it('should update a meeting and return 200', async () => {
     const meetingId = new ObjectId().toHexString();
-    postgresDb._setInsertResult([{ id: meetingId, title: 'Updated meeting' }]);
+    postgres._setInsertResult([{ id: meetingId, title: 'Updated meeting' }]);
 
     const resp = await requestWithSupertest
       .put(`/api/crm/meetings/${meetingId}`)
@@ -496,7 +500,7 @@ describe('GET /api/crm/deals', () => {
 
 describe('POST /api/crm/deals', () => {
   it('should create a deal and return 201', async () => {
-    postgresDb._setInsertResult([
+    postgres._setInsertResult([
       { id: 1, leadId: 'lead-1', salesUserId: 'user-1', status: 'initiated' }
     ]);
 
@@ -514,7 +518,7 @@ describe('POST /api/crm/deals', () => {
 describe('PUT /api/crm/deals/:dealId', () => {
   it('should update a deal and return 200', async () => {
     const dealId = new ObjectId().toHexString();
-    postgresDb._setInsertResult([{ id: dealId, status: 'signed' }]);
+    postgres._setInsertResult([{ id: dealId, status: 'signed' }]);
 
     const resp = await requestWithSupertest
       .put(`/api/crm/deals/${dealId}`)

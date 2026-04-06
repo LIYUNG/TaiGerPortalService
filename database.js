@@ -177,7 +177,6 @@ const closePostgresPool = async () => {
 module.exports = {
   mongoDb,
   getPostgresDb,
-  getPostgresDb,
   closePostgresPool,
   tenantDb,
   connections,

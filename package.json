@@ -30,7 +30,6 @@
     "@aws-sdk/signature-v4": "^3.374.0",
     "@aws-sdk/util-stream-node": "^3.374.0",
     "@faker-js/faker": "^8.4.1",
-    "@neondatabase/serverless": "^1.0.1",
     "@taiger-common/core": "^1.1.2",
     "@taiger-common/model": "^1.0.59",
     "async": "^3.2.4",
@@ -83,6 +82,7 @@
     "pdf-parse": "^1.1.1",
     "query-string": "^7.0.1",
     "uuid": "^9.0.0",
+    "pg": "^8.13.1",
     "validator": "^13.9.0"
   },
   "devDependencies": {

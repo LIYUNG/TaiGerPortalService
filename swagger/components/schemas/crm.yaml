@@ -40,11 +40,22 @@ CRMLead:
       type: string
       example: 'high'
     tags:
-      type: string
-      example: 'vip,德國碩士'
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadTag'
+      example:
+        - id: 'tag_123'
+          tag: 'vip'
+          createdBy: 'agent_456'
+          createdAt: '2024-12-23T15:45:00.000Z'
+        - id: 'tag_124'
+          tag: '德國碩士'
+          createdBy: 'agent_456'
+          createdAt: '2024-12-23T15:45:00.000Z'
     notes:
-      type: string
-      example: 'Interested in CS programs'
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadNote'
     userId:
       type: string
       nullable: true
@@ -340,9 +351,17 @@ CRMLeadUpdate:
     closeLikelihood:
       type: string
     tags:
-      type: string
+      oneOf:
+        - type: array
+          items:
+            type: string
+        - type: string
     notes:
-      type: string
+      oneOf:
+        - type: array
+          items:
+            type: string
+        - type: string
     salesUserId:
       type: string
     salesNote:
@@ -353,6 +372,126 @@ CRMLeadUpdate:
       type: string
     intendedDirection:
       type: string
+
+CRMLeadTag:
+  type: object
+  description: 'Tag associated with a lead'
+  properties:
+    id:
+      type: string
+      example: 'tag_abc123'
+    tag:
+      type: string
+      example: 'vip'
+    createdBy:
+      type: string
+      nullable: true
+      example: 'agent_123'
+    createdAt:
+      type: string
+      format: date-time
+      example: '2024-12-23T15:45:00.000Z'
+  required:
+    - id
+    - tag
+    - createdAt
+
+CRMLeadNote:
+  type: object
+  properties:
+    id:
+      type: string
+      example: 'note_abc123'
+    note:
+      type: string
+      example: 'Interested in CS programs'
+    createdBy:
+      type: string
+      nullable: true
+      example: 'agent_123'
+    createdAt:
+      type: string
+      format: date-time
+      example: '2024-12-23T15:45:00.000Z'
+  required:
+    - id
+    - note
+    - createdAt
+
+CRMLeadTagsUpdate:
+  type: object
+  properties:
+    tags:
+      type: array
+      items:
+        type: string
+  required:
+    - tags
+
+CRMLeadTagsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadTag'
+  required:
+    - success
+    - data
+
+CRMLeadNoteCreate:
+  type: object
+  properties:
+    note:
+      type: string
+    createdBy:
+      type: string
+  required:
+    - note
+
+CRMLeadNotesUpdate:
+  type: object
+  properties:
+    notes:
+      oneOf:
+        - type: array
+          items:
+            type: string
+        - type: string
+  required:
+    - notes
+
+CRMLeadNotesResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadNote'
+  required:
+    - success
+    - data
+
+CRMLeadNoteResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadNote'
+      description: 'Array of created or updated note(s)'
+  required:
+    - success
+    - data
 
 CRMInteraction:
   type: object

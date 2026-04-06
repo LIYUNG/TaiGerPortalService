@@ -1,0 +1,16 @@
+{
+  "version": "5",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "tag": "0001_split_leads",
+      "when": 0
+    },
+    {
+      "idx": 1,
+      "tag": "0002_clean_up_leads",
+      "when": 0
+    }
+  ]
+}

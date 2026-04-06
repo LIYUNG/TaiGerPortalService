@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const { drizzle } = require('drizzle-orm/neon-http');
+const { drizzle } = require('drizzle-orm/node-postgres');
+const { Pool } = require('pg');
 const { MONGODB_URI, POSTGRES_URI } = require('./config');
 const {
   UserSchema,
@@ -147,11 +148,36 @@ const disconnectFromDatabase = async (tenant) => {
   }
 };
 
-const postgresDb = drizzle(POSTGRES_URI, { schema: postgresSchema });
+let postgresPool;
+let postgresClient;
+
+const getPostgresPool = () => {
+  if (!postgresPool) {
+    postgresPool = new Pool({ connectionString: POSTGRES_URI });
+  }
+  return postgresPool;
+};
+
+const getPostgresDb = () => {
+  if (!postgresClient) {
+    postgresPool = getPostgresPool();
+    postgresClient = drizzle(postgresPool, { schema: postgresSchema });
+  }
+  return postgresClient;
+};
+
+const closePostgresPool = async () => {
+  if (postgresPool) {
+    await postgresPool.end();
+    postgresPool = null;
+    postgresClient = null;
+  }
+};
 
 module.exports = {
   mongoDb,
-  postgresDb,
+  getPostgresDb,
+  closePostgresPool,
   tenantDb,
   connections,
   connectToDatabase,

@@ -158,7 +158,7 @@ const getPostgresPool = () => {
   return postgresPool;
 };
 
-const postgresDb = () => {
+const getPostgresDb = () => {
   if (!postgresClient) {
     postgresPool = getPostgresPool();
     postgresClient = drizzle(postgresPool, { schema: postgresSchema });
@@ -166,9 +166,18 @@ const postgresDb = () => {
   return postgresClient;
 };
 
+const closePostgresPool = async () => {
+  if (postgresPool) {
+    await postgresPool.end();
+    postgresPool = null;
+    postgresClient = null;
+  }
+};
+
 module.exports = {
   mongoDb,
-  postgresDb,
+  getPostgresDb,
+  closePostgresPool,
   tenantDb,
   connections,
   connectToDatabase,

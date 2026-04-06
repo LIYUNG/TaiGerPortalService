@@ -56,11 +56,38 @@
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
         $ref: '../components/responses/common.yaml#/NotFound'
+  post:
+    tags:
+      - CRM
+    summary: Append lead tags
+    description: Add tags to a lead (does not remove existing tags)
+    operationId: appendLeadTags
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMLeadTagsUpdate'
+    responses:
+      '200':
+        description: Tags appended successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadTagsResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
   put:
     tags:
       - CRM
     summary: Replace lead tags
-    description: Replace tags for a lead
+    description: Replace tags for a lead (removes all existing tags and sets new ones)
     operationId: updateLeadTags
     parameters:
       - $ref: '../components/parameters/common.yaml#/leadId'
@@ -77,6 +104,57 @@
           application/json:
             schema:
               $ref: '../components/schemas/crm.yaml#/CRMLeadTagsResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - CRM
+    summary: Delete lead tags
+    description: Delete specific tags from a lead by tag names or IDs
+    operationId: deleteLeadTags
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tags:
+                type: array
+                items:
+                  type: string
+                description: Tag names to delete
+              tag:
+                type: string
+                description: Single tag name to delete
+              tagIds:
+                type: array
+                items:
+                  type: string
+                description: Tag IDs to delete
+              tagId:
+                type: string
+                description: Single tag ID to delete
+    responses:
+      '200':
+        description: Tags deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: array
+                  items:
+                    type: string
       '400':
         $ref: '../components/responses/common.yaml#/Error'
       '401':
@@ -158,6 +236,82 @@
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
         $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/leads/{leadId}/notes/{noteId}:
+  patch:
+    tags:
+      - CRM
+    summary: Update lead note
+    description: Update a specific note for a lead
+    operationId: updateLeadNote
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+      - name: noteId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Note ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              note:
+                type: string
+                description: Updated note content
+            required:
+              - note
+    responses:
+      '200':
+        description: Note updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadNoteResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - CRM
+    summary: Delete lead note
+    description: Delete a specific note from a lead
+    operationId: deleteLeadNote
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+      - name: noteId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Note ID
+    responses:
+      '200':
+        description: Note deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/leads/{leadId}:
   put:
     tags:
       - CRM

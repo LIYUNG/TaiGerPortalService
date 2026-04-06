@@ -16,7 +16,7 @@ const leads = pgTable('leads', {
   applicantRole: text('applicant_role'), // 欲申請者本人, 欲申請者家長, Other
 
   // Contact
-  preferredContact: varchar('preferred_contact', { length: 150 }),
+  preferredContact: varchar('preferred_contact', { length: 255 }),
   email: varchar('email', { length: 255 }),
   lineId: varchar('line_id', { length: 100 }),
   skypeId: varchar('skype_id', { length: 100 }),

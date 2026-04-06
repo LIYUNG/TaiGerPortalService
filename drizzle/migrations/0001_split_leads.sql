@@ -64,6 +64,9 @@ CREATE TABLE IF NOT EXISTS lead_notes (
   created_at timestamp DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS lead_notes_lead_id_created_at_idx
+  ON lead_notes (lead_id, created_at DESC);
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE lead_notes TO PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE lead_tags TO PUBLIC;
 

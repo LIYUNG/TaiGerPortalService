@@ -42,10 +42,16 @@ CRMLead:
     tags:
       type: array
       items:
-        type: string
+        $ref: './crm.yaml#/CRMLeadTag'
       example:
-        - 'vip'
-        - '德國碩士'
+        - id: 'tag_123'
+          tag: 'vip'
+          createdBy: 'agent_456'
+          createdAt: '2024-12-23T15:45:00.000Z'
+        - id: 'tag_124'
+          tag: '德國碩士'
+          createdBy: 'agent_456'
+          createdAt: '2024-12-23T15:45:00.000Z'
     notes:
       type: array
       items:
@@ -367,6 +373,29 @@ CRMLeadUpdate:
     intendedDirection:
       type: string
 
+CRMLeadTag:
+  type: object
+  description: 'Tag associated with a lead'
+  properties:
+    id:
+      type: string
+      example: 'tag_abc123'
+    tag:
+      type: string
+      example: 'vip'
+    createdBy:
+      type: string
+      nullable: true
+      example: 'agent_123'
+    createdAt:
+      type: string
+      format: date-time
+      example: '2024-12-23T15:45:00.000Z'
+  required:
+    - id
+    - tag
+    - createdAt
+
 CRMLeadNote:
   type: object
   properties:
@@ -408,7 +437,7 @@ CRMLeadTagsResponse:
     data:
       type: array
       items:
-        type: string
+        $ref: './crm.yaml#/CRMLeadTag'
   required:
     - success
     - data
@@ -456,7 +485,10 @@ CRMLeadNoteResponse:
       type: boolean
       example: true
     data:
-      $ref: './crm.yaml#/CRMLeadNote'
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadNote'
+      description: 'Array of created or updated note(s)'
   required:
     - success
     - data

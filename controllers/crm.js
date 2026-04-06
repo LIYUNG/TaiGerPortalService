@@ -8,7 +8,7 @@ const {
   salesReps,
   deals
 } = require('../drizzle/schema/schema.js');
-const { postgresDb } = require('../database');
+const { getPostgresDb } = require('../database');
 const { sql, getTableColumns, not, eq, desc, and } = require('drizzle-orm');
 const { nanoid } = require('nanoid');
 const logger = require('../services/logger');
@@ -16,7 +16,7 @@ const { ten_minutes_cache } = require('../cache/node-cache');
 
 const { instantInviteTA } = require('../utils/meeting-assistant.service');
 
-const postgres = postgresDb();
+const postgres = getPostgresDb();
 
 const LEAD_ADDITIONAL_FIELDS = new Set([
   'isCurrentlyStudying',
@@ -813,6 +813,12 @@ const updateLeadTags = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Lead ID is required' });
   }
 
+  if (tags === undefined || tags === null) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Tags array is required' });
+  }
+
   const exists = await ensureLeadExists(leadId);
   if (!exists) {
     return res.status(404).send({ success: false, message: 'Lead not found' });
@@ -1012,7 +1018,7 @@ const createLeadNote = asyncHandler(async (req, res) => {
 
   res.status(201).send({
     success: true,
-    data: createdNotes.length === 1 ? createdNotes[0] : createdNotes
+    data: createdNotes
   });
 });
 
@@ -1083,6 +1089,12 @@ const replaceLeadNotes = asyncHandler(async (req, res) => {
     return res
       .status(400)
       .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  if (notes === undefined || notes === null) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Notes array or string is required' });
   }
 
   const exists = await ensureLeadExists(leadId);

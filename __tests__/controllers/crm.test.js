@@ -209,6 +209,7 @@ jest.mock('../../database', () => {
 
   return {
     postgresDb: mockPostgresDb,
+    getPostgresDb: jest.fn(() => mockPostgresDb),
     connectToDatabase,
     disconnectFromDatabase,
     connections,

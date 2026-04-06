@@ -443,6 +443,7 @@ const getLeads = asyncHandler(async (_req, res) => {
       email: leads.email,
       phone: leads.phone,
       status: leads.status,
+      sourceCountry: leads.sourceCountry,
       closeLikelihood: leads.closeLikelihood,
       intendedStartTime: leadProfile.intendedStartTime,
       intendedProgramLevel: leadProfile.intendedProgramLevel,

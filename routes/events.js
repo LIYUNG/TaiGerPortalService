@@ -4,12 +4,12 @@ const { Role } = require('@taiger-common/core');
 const { protect, permit } = require('../middlewares/auth');
 const {
   getEvents,
+  getBookedEvents,
   showEvent,
   updateEvent,
   postEvent,
   deleteEvent,
   confirmEvent,
-  getAllEvents,
   getActiveEventsNumber
 } = require('../controllers/events');
 
@@ -22,26 +22,27 @@ const {
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
 const { event_multitenant_filter } = require('../middlewares/event-filter');
 const { logAccess } = require('../utils/log/log');
+const { validateStudentId } = require('../common/validation');
 // const handleError = require('../utils/eventErrors');
 const router = Router();
 
 router.use(protect);
 
 router
-  .route('/all')
-  .get(
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getAllEvents,
-    logAccess
-  );
-
-router
   .route('/ping')
   .get(
     GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     getActiveEventsNumber
+  );
+
+router
+  .route('/booked')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    getBookedEvents,
+    logAccess
   );
 
 router
@@ -64,6 +65,7 @@ router
 router
   .route('/:studentId/show')
   .get(
+    validateStudentId,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     showEvent,

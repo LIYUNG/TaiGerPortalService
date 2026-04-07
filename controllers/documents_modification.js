@@ -11,7 +11,7 @@ const {
 
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
-const { one_month_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 const { informOnSurveyUpdate } = require('../utils/informEditor');
 const {
   sendNewApplicationMessageInThreadEmail,
@@ -31,9 +31,11 @@ const {
 const logger = require('../services/logger');
 const {
   General_Docs,
+  GENERAL_RLs_CONSTANT,
   application_deadline_V2_calculator,
   isNotArchiv,
   CVDeadline_Calculator,
+  General_RL_Deadline_Calculator,
   EDITOR_SCOPE,
   ESSAY_WRITER_SCOPE,
   CV_MUST_HAVE_PATTERNS
@@ -44,10 +46,11 @@ const {
   informAgentEssayAssignedEmail
 } = require('../services/email');
 
-const { AWS_S3_BUCKET_NAME, API_ORIGIN } = require('../config');
+const { AWS_S3_BUCKET_NAME, ORIGIN } = require('../config');
 const { deleteS3Objects } = require('../aws/s3');
 const {
-  createApplicationThread,
+  // createApplicationThread, // only used for VC hook
+  createApplicationThreadV2,
   emptyS3Directory
 } = require('../utils/modelHelper/versionControl');
 const {
@@ -64,17 +67,36 @@ const ApplicationService = require('../services/applications');
 const DocumentthreadQueryBuilder = require('../builders/DocumentthreadQueryBuilder');
 
 const getActiveThreads = asyncHandler(async (req, res) => {
-  const { query } = req;
-  const threads = await DocumentThreadService.getAllStudentsThreads(req, query);
+  const {
+    file_type,
+    isFinalVersion,
+    hasOutsourcedUserId,
+    hasMessages,
+    outsourcedUserId
+  } = req.query;
+
+  const { filter } = new DocumentthreadQueryBuilder()
+    .withFileType(file_type)
+    .withIsFinalVersion(isFinalVersion)
+    .withHasOutsourcedUserId(hasOutsourcedUserId)
+    .withHasMessages(hasMessages)
+    .withOutsourcedUserId(outsourcedUserId)
+    .build();
+
+  const threads = await DocumentThreadService.getAllStudentsThreads(
+    req,
+    filter
+  );
 
   res.status(200).send({ success: true, data: threads });
 });
 
 const getMyStudentsThreads = asyncHandler(async (req, res) => {
   const { userId } = req.params;
-  const { isFinalVersion } = req.query;
+  const { isFinalVersion, fileType } = req.query;
   const { filter: documentThreadFilter } = new DocumentthreadQueryBuilder()
     .withIsFinalVersion(isFinalVersion)
+    .withFileType(fileType)
     .build();
   const threads = await DocumentThreadService.getStudentsThreadsByTaiGerUserId(
     req,
@@ -237,7 +259,7 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
     .model('Student')
     .findById(studentId)
     .populate('generaldocs_threads.doc_thread_id')
-    .populate('agents editors', 'firstname lastname email');
+    .populate('agents editors', 'firstname lastname email pictureUrl');
 
   if (!student) {
     logger.info('initGeneralMessagesThread: Invalid student id');
@@ -327,17 +349,17 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
 // (O) Tested
 const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   const {
-    params: { studentId, program_id, document_category }
+    params: { studentId, application_id, document_category }
   } = req;
 
-  const newAppRecord = await createApplicationThread(
+  const newAppRecord = await createApplicationThreadV2(
     {
       StudentModel: req.db.model('Student'),
       ApplicationModel: req.db.model('Application'),
       DocumentthreadModel: req.db.model('Documentthread')
     },
     studentId,
-    program_id,
+    application_id,
     document_category
   );
   res.status(200).send({ success: true, data: newAppRecord });
@@ -350,7 +372,7 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   );
 
   const program = applications.find(
-    (app) => app.programId._id.toString() === program_id
+    (app) => app._id.toString() === application_id
   )?.programId;
   const Essay_Writer_Scope = Object.keys(ESSAY_WRITER_SCOPE);
   const program_name = `${program.school} - ${program.program_name}`;
@@ -360,7 +382,7 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
       .find({
         canAssignEditors: true
       })
-      .populate('user_id', 'firstname lastname email archiv')
+      .populate('user_id', 'firstname lastname email archiv pictureUrl')
       .lean();
     if (permissions) {
       for (let x = 0; x < permissions.length; x += 1) {
@@ -479,7 +501,7 @@ const checkDocumentPattern = asyncHandler(async (req, res) => {
     params: { messagesThreadId, file_type }
   } = req;
   // don't check non-CV doc at the moment
-  if (file_type !== 'CV') {
+  if (file_type !== 'CV' || file_type !== 'CV_US') {
     return res.status(200).send({
       success: true,
       isPassed: true
@@ -575,7 +597,7 @@ const getMessages = asyncHandler(async (req, res) => {
     .find({
       targetDocumentThreadId: messagesThreadId
     })
-    .populate('performedBy targetUserId', 'firstname lastname role')
+    .populate('performedBy targetUserId', 'firstname lastname role pictureUrl')
     .populate({
       path: 'targetDocumentThreadId interviewThreadId',
       select: 'program_id file_type',
@@ -591,13 +613,13 @@ const getMessages = asyncHandler(async (req, res) => {
     .find({
       _id: document_thread.student_id.agents
     })
-    .select('firstname lastname');
+    .select('firstname lastname pictureUrl');
   const editorsPromise = req.db
     .model('Editor')
     .find({
       _id: document_thread.student_id.editors
     })
-    .select('firstname lastname');
+    .select('firstname lastname pictureUrl');
   const applicationsPromise = req.db
     .model('Application')
     .find({ studentId: document_thread.student_id._id.toString() })
@@ -611,7 +633,9 @@ const getMessages = asyncHandler(async (req, res) => {
   ]);
 
   let deadline = 'x';
-  if (General_Docs.includes(document_thread.file_type)) {
+  if (GENERAL_RLs_CONSTANT.includes(document_thread.file_type)) {
+    deadline = General_RL_Deadline_Calculator(applications);
+  } else if (General_Docs.includes(document_thread.file_type)) {
     deadline = CVDeadline_Calculator(applications);
   } else {
     const application = await ApplicationService.getApplicationById(
@@ -620,6 +644,7 @@ const getMessages = asyncHandler(async (req, res) => {
     );
     deadline = application_deadline_V2_calculator(application);
   }
+
   // Find conflict list:
   let conflict_list = [];
   if (
@@ -634,7 +659,7 @@ const getMessages = asyncHandler(async (req, res) => {
         decided: 'O',
         application_year: document_thread.application_id.application_year
       })
-      .populate('studentId', 'firstname lastname');
+      .populate('studentId', 'firstname lastname pictureUrl');
   }
 
   res.status(200).send({
@@ -660,7 +685,7 @@ const postImageInThread = asyncHandler(async (req, res) => {
   const fileName = filePath[3];
   let imageurl = new URL(
     `/api/document-threads/image/${messagesThreadId}/${studentId}/${fileName}`,
-    API_ORIGIN
+    ORIGIN
   ).href;
   imageurl = imageurl.replace(/\\/g, '/');
   return res.send({ success: true, data: imageurl });
@@ -683,7 +708,6 @@ const postMessages = asyncHandler(async (req, res) => {
     logger.info('postMessages: Invalid message thread id');
     throw new ErrorResponse(404, 'Thread Id not found');
   }
-
   if (document_thread.isFinalVersion) {
     logger.info('postMessages: thread is closed! Please refresh!');
     throw new ErrorResponse(403, ' thread is closed! Please refresh!');
@@ -744,7 +768,7 @@ const postMessages = asyncHandler(async (req, res) => {
   const student = await req.db
     .model('Student')
     .findById(document_thread2.student_id._id.toString())
-    .populate('editors agents', 'firstname lastname email archiv');
+    .populate('editors agents', 'firstname lastname email archiv pictureUrl');
   const applications = await req.db
     .model('Application')
     .find({ studentId: document_thread2.student_id._id.toString() })
@@ -773,8 +797,6 @@ const postMessages = asyncHandler(async (req, res) => {
         doc_thread_id.toString() === document_thread2._id.toString()
     );
     if (general_thread) {
-      if (is_TaiGer_Student(user)) {
-      }
       if (!is_TaiGer_Student(user)) {
         student.notification.isRead_new_cvmlrl_messsage = false;
       }
@@ -868,7 +890,7 @@ const postMessages = asyncHandler(async (req, res) => {
           .find({
             canAssignEditors: true
           })
-          .populate('user_id', 'firstname lastname email')
+          .populate('user_id', 'firstname lastname email pictureUrl')
           .lean();
         if (permissions) {
           for (let x = 0; x < permissions.length; x += 1) {
@@ -956,7 +978,7 @@ const postMessages = asyncHandler(async (req, res) => {
           .find({
             canAssignEditors: true
           })
-          .populate('user_id', 'firstname lastname email')
+          .populate('user_id', 'firstname lastname email pictureUrl')
           .lean();
         if (permissions) {
           for (let x = 0; x < permissions.length; x += 1) {
@@ -1016,7 +1038,10 @@ const postMessages = asyncHandler(async (req, res) => {
           student_id: document_thread.student_id._id.toString(),
           program_id: document_thread.program_id._id.toString()
         })
-        .populate('student_id trainer_id', 'firstname lastname email')
+        .populate(
+          'student_id trainer_id',
+          'firstname lastname email pictureUrl'
+        )
         .populate('program_id', 'school program_name degree semester')
         .lean();
 
@@ -1026,7 +1051,7 @@ const postMessages = asyncHandler(async (req, res) => {
           .find({
             canAssignEditors: true
           })
-          .populate('user_id', 'firstname lastname email')
+          .populate('user_id', 'firstname lastname email pictureUrl')
           .lean();
         if (permissions) {
           for (let x = 0; x < permissions.length; x += 1) {
@@ -1194,7 +1219,10 @@ const postMessages = asyncHandler(async (req, res) => {
           student_id: document_thread.student_id._id.toString(),
           program_id: document_thread.program_id._id.toString()
         })
-        .populate('student_id trainer_id', 'firstname lastname email')
+        .populate(
+          'student_id trainer_id',
+          'firstname lastname email pictureUrl'
+        )
         .populate('program_id', 'school program_name degree semester')
         .lean();
       for (let i = 0; i < interview.trainer_id?.length; i += 1) {
@@ -1279,10 +1307,10 @@ const getMessageImageDownload = asyncHandler(async (req, res) => {
     .replace(/\\/g, '/');
 
   const cache_key = `${studentId}${req.originalUrl.split('/')[6]}`;
-  const value = one_month_cache.get(cache_key); // image name
+  const value = ten_minutes_cache.get(cache_key); // image name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = one_month_cache.set(cache_key, Buffer.from(response));
+    const success = ten_minutes_cache.set(cache_key, Buffer.from(response));
     if (success) {
       logger.info('image cache set successfully');
     }
@@ -1339,31 +1367,15 @@ const getMessageFileDownload = asyncHandler(async (req, res) => {
   logger.info('Trying to download message file', fileKey);
 
   // messageid + extension
-  const cache_key = `${encodeURIComponent(fileKey)}`;
-  const value = one_month_cache.get(cache_key); // file name
   const encodedFileName = encodeURIComponent(file_key);
-  if (value === undefined) {
-    const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = one_month_cache.set(cache_key, Buffer.from(response));
-    if (success) {
-      logger.info('thread file cache set successfully');
-    }
+  const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
 
-    res.attachment(encodedFileName);
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename*=UTF-8''${encodedFileName}`
-    );
-    return res.end(response);
-  }
-
-  logger.info('thread file cache hit');
   res.attachment(encodedFileName);
   res.setHeader(
     'Content-Disposition',
     `attachment; filename*=UTF-8''${encodedFileName}`
   );
-  return res.end(value);
+  return res.end(response);
 });
 
 const putOriginAuthorConfirmedByStudent = asyncHandler(async (req, res) => {
@@ -1798,7 +1810,7 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
 
   for (let i = 0; i < msg.file.length; i += 1) {
     const cache_key = `${encodeURIComponent(msg.file[i].path)}`;
-    const value = one_month_cache.del(cache_key);
+    const value = ten_minutes_cache.del(cache_key);
     if (value === 1) {
       logger.info('file cache key deleted successfully');
     }

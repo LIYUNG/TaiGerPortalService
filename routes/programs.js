@@ -16,8 +16,12 @@ const {
   createProgram,
   updateProgram,
   deleteProgram,
+  refreshProgram,
   getDistinctSchoolsAttributes,
-  updateBatchSchoolAttributes
+  updateBatchSchoolAttributes,
+  getProgramsOverview,
+  getSchoolsDistribution,
+  getSameProgramStudents
 } = require('../controllers/programs');
 const {
   getProgramChangeRequests,
@@ -29,10 +33,38 @@ const {
   permission_canModifyProgramList_filter
 } = require('../middlewares/permission-filter');
 const getProgramFilter = require('../middlewares/getProgramFilter');
+const { validateProgramId } = require('../common/validation');
 
 const router = Router();
 
 router.use(protect);
+
+router
+  .route('/overview')
+  .get(
+    filter_archiv_user,
+    GetProgramListRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.External),
+    getProgramsOverview
+  );
+
+router
+  .route('/schools-distribution')
+  .get(
+    filter_archiv_user,
+    GetProgramListRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.External),
+    getSchoolsDistribution
+  );
+
+router
+  .route('/same-program-students/:programId')
+  .get(
+    filter_archiv_user,
+    GetProgramListRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getSameProgramStudents
+  );
 
 router
   .route('/')
@@ -68,6 +100,7 @@ router
 router
   .route('/:programId')
   .get(
+    validateProgramId,
     filter_archiv_user,
     GetProgramRateLimiter,
     permit(
@@ -82,6 +115,7 @@ router
     getProgram
   )
   .put(
+    validateProgramId,
     filter_archiv_user,
     UpdateProgramRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.External),
@@ -89,6 +123,7 @@ router
     updateProgram
   )
   .delete(
+    validateProgramId,
     DeleteProgramRateLimiter,
     permit(Role.Admin),
     permission_canModifyProgramList_filter,
@@ -96,14 +131,27 @@ router
   );
 
 router
+  .route('/:programId/refresh')
+  .post(
+    validateProgramId,
+    filter_archiv_user,
+    UpdateProgramRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.External),
+    permission_canModifyProgramList_filter,
+    refreshProgram
+  );
+
+router
   .route('/:programId/change-requests')
   .get(
+    validateProgramId,
     filter_archiv_user,
     GetProgramRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.External),
     getProgramChangeRequests
   )
   .post(
+    validateProgramId,
     filter_archiv_user,
     PostProgramRateLimiter,
     permit(

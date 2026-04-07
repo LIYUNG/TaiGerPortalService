@@ -1,0 +1,297 @@
+/api/account/templates:
+  get:
+    tags:
+      - Account
+    summary: Get templates
+    description: Get email/document templates
+    operationId: getTemplates
+    responses:
+      '200':
+        description: Templates retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/TemplateListResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  post:
+    tags:
+      - Account
+    summary: Create template
+    description: Create a new template
+    operationId: postTemplate
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/account.yaml#/TemplateCreate'
+    responses:
+      '201':
+        description: Template created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/TemplateResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/account/templates/{id}:
+  put:
+    tags:
+      - Account
+    summary: Update template
+    description: Update template
+    operationId: updateTemplate
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/id'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/account.yaml#/TemplateUpdate'
+    responses:
+      '200':
+        description: Template updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/TemplateResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - Account
+    summary: Delete template
+    description: Delete a template
+    operationId: deleteTemplate
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/id'
+    responses:
+      '200':
+        description: Template deleted successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/TemplateResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/account/application-result/{studentId}:
+  get:
+    tags:
+      - Account
+    summary: Get application result
+    description: Get application result for a student
+    operationId: getApplicationResultByStudent
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Application result retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/ApplicationResultResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - Account
+    summary: Update application result
+    description: Update application result
+    operationId: updateApplicationResult
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/account.yaml#/ApplicationResultUpdate'
+    responses:
+      '200':
+        description: Application result updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/ApplicationResultResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/account/credentials:
+  get:
+    tags:
+      - Account
+    summary: Get credentials
+    description: Get user credentials
+    operationId: getCredentials
+    responses:
+      '200':
+        description: Credentials retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/AccountCredentialsResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  put:
+    tags:
+      - Account
+    summary: Update credentials
+    description: Update user credentials
+    operationId: updateCredentials
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/account.yaml#/AccountCredentialsUpdate'
+    responses:
+      '200':
+        description: Credentials updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/AccountCredentialsResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/account/preferences:
+  get:
+    tags:
+      - Account
+    summary: Get preferences
+    description: Get user preferences
+    operationId: getPreferences
+    responses:
+      '200':
+        description: Preferences retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/AccountPreferencesResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  put:
+    tags:
+      - Account
+    summary: Update preferences
+    description: Update user preferences
+    operationId: updatePreferences
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/account.yaml#/AccountPreferencesUpdate'
+    responses:
+      '200':
+        description: Preferences updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/AccountPreferencesResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/account/personal-data:
+  get:
+    tags:
+      - Account
+    summary: Get personal data
+    description: Get user personal data
+    operationId: getPersonalData
+    responses:
+      '200':
+        description: Personal data retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/PersonalDataResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  put:
+    tags:
+      - Account
+    summary: Update personal data
+    description: Update personal data
+    operationId: updatePersonalData
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/account.yaml#/PersonalDataUpdate'
+    responses:
+      '200':
+        description: Personal data updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/PersonalDataResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/account/office-hours:
+  get:
+    tags:
+      - Account
+    summary: Get office hours
+    description: Get user office hours
+    operationId: getOfficeHours
+    responses:
+      '200':
+        description: Office hours retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/OfficeHoursResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  put:
+    tags:
+      - Account
+    summary: Set office hours
+    description: Set office hours
+    operationId: setOfficeHours
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/account.yaml#/OfficeHoursUpdate'
+    responses:
+      '200':
+        description: Office hours set successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/account.yaml#/OfficeHoursResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'

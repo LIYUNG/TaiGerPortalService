@@ -1,7 +1,165 @@
 const { asyncHandler } = require('../middlewares/error-handler');
-const { leads, meetingTranscripts } = require('../drizzle/schema/schema.js');
-const { postgresDb } = require('../database');
-const { sql, getTableColumns, eq, desc } = require('drizzle-orm');
+const {
+  leads,
+  leadProfile,
+  leadTags,
+  leadNotes,
+  meetingTranscripts,
+  salesReps,
+  deals
+} = require('../drizzle/schema/schema.js');
+const { getPostgresDb } = require('../database');
+const { sql, getTableColumns, not, eq, desc, and } = require('drizzle-orm');
+const { nanoid } = require('nanoid');
+const logger = require('../services/logger');
+const { ten_minutes_cache } = require('../cache/node-cache');
+
+const { instantInviteTA } = require('../utils/meeting-assistant.service');
+
+const postgres = getPostgresDb();
+
+const LEAD_ADDITIONAL_FIELDS = new Set([
+  'isCurrentlyStudying',
+  'currentYearOrGraduated',
+  'currentStatus',
+  'bachelorSchool',
+  'bachelorGPA',
+  'bachelorProgramName',
+  'graduatedBachelorSchool',
+  'graduatedBachelorProgram',
+  'graduatedBachelorGPA',
+  'masterSchool',
+  'masterProgramName',
+  'masterGPA',
+  'highestEducation',
+  'highschoolName',
+  'highschoolGPA',
+  'intendedPrograms',
+  'intendedDirection',
+  'intendedStartTime',
+  'intendedProgramLevel',
+  'englishLevel',
+  'germanLevel',
+  'workExperience',
+  'otherActivities',
+  'awards',
+  'additionalInfo',
+  'reasonForGermany',
+  'reasonsToStudyAbroad',
+  'promoCode'
+]);
+
+const LEAD_CORE_FIELDS = new Set([
+  'fullName',
+  'gender',
+  'applicantRole',
+  'preferredContact',
+  'email',
+  'lineId',
+  'skypeId',
+  'phone',
+  'referralSource',
+  'sourceCountry',
+  'status',
+  'closeLikelihood',
+  'userId',
+  'salesUserId',
+  'salesNote'
+]);
+
+const formatLeadRecord = (leadRecord) => {
+  if (!leadRecord) return null;
+  const {
+    meetingTranscripts: meetings,
+    leadProfile: additional,
+    leadTags: tagRows,
+    leadNotes: noteRows,
+    ...leadData
+  } = leadRecord;
+  const {
+    createdAt: _additionalCreatedAt,
+    updatedAt: _additionalUpdatedAt,
+    ...additionalData
+  } = additional || {};
+  const tags = (tagRows || []).map((tagRow) => ({
+    id: tagRow.id,
+    tag: tagRow.tag,
+    createdBy: tagRow.createdBy,
+    createdAt: tagRow.createdAt
+  }));
+  const notes = (noteRows || []).map((noteRow) => ({
+    id: noteRow.id,
+    note: noteRow.note,
+    createdBy: noteRow.createdBy,
+    createdAt: noteRow.createdAt
+  }));
+
+  return {
+    ...leadData,
+    ...additionalData,
+    tags,
+    notes,
+    meetings
+  };
+};
+
+const ensureLeadExists = async (leadId) => {
+  const result = await postgres
+    .select({ id: leads.id })
+    .from(leads)
+    .where(eq(leads.id, leadId))
+    .limit(1);
+  return result.length > 0;
+};
+
+const normalizeTags = (tags) => {
+  const tagList = Array.isArray(tags)
+    ? tags
+    : typeof tags === 'string'
+    ? tags.split(',')
+    : [];
+
+  const normalized = tagList
+    .map((t) => {
+      if (typeof t === 'string') return t;
+      if (t && typeof t === 'object' && typeof t.tag === 'string') {
+        return t.tag;
+      }
+      return null;
+    })
+    .filter((t) => typeof t === 'string')
+    .map((t) => `${t}`.trim())
+    .filter((t) => t.length > 0);
+
+  const seen = new Set();
+  return normalized.filter((tag) => {
+    if (seen.has(tag)) return false;
+    seen.add(tag);
+    return true;
+  });
+};
+
+const normalizeNotes = (notes) => {
+  if (Array.isArray(notes)) {
+    if (notes.length > 0 && typeof notes[0] === 'object') {
+      return notes
+        .map((n) => `${n?.note ?? ''}`.trim())
+        .filter((n) => n.length > 0);
+    }
+
+    return notes
+      .filter((n) => n != null)
+      .map((n) => `${n}`.trim())
+      .filter((n) => n.length > 0);
+  }
+
+  if (typeof notes === 'string') {
+    const normalized = `${notes}`;
+    return normalized.trim().length > 0 ? [normalized] : [];
+  }
+
+  return [];
+};
 
 /**
  * Retrieves CRM statistics including weekly counts and total/recent counts for leads and meetings.
@@ -15,20 +173,29 @@ const { sql, getTableColumns, eq, desc } = require('drizzle-orm');
  * @returns {Promise<void>} Sends a JSON response with CRM statistics.
  */
 const getCRMStats = asyncHandler(async (req, res) => {
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const cacheKey = 'CRM-stats';
+  const cachedValue = ten_minutes_cache.get(cacheKey);
 
-  // CTEs extracting year and week from leads.createdAt and meetingTranscripts.date timestamps.
-  const leadWeeks = postgresDb.$with('lead_weeks').as(
-    postgresDb
+  if (!!cachedValue) {
+    logger.info('getCRMStats - cache hit');
+    res.status(200).send(cachedValue);
+    return;
+  }
+
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  // Prepare CTEs
+  const leadWeeks = postgres.$with('lead_weeks').as(
+    postgres
       .select({
         year: sql`EXTRACT(YEAR FROM ${leads.createdAt})`.as('year'),
         week: sql`EXTRACT(WEEK FROM ${leads.createdAt})`.as('week'),
+        closeLikelihood: leads.closeLikelihood,
         userId: leads.userId
       })
       .from(leads)
   );
-  const meetingWeeks = postgresDb.$with('meeting_weeks').as(
-    postgresDb
+  const meetingWeeks = postgres.$with('meeting_weeks').as(
+    postgres
       .select({
         year: sql`EXTRACT(YEAR FROM to_timestamp(${meetingTranscripts.date} / 1000))`.as(
           'year'
@@ -38,88 +205,265 @@ const getCRMStats = asyncHandler(async (req, res) => {
         )
       })
       .from(meetingTranscripts)
+      .where(not(eq(meetingTranscripts.isArchived, true)))
+  );
+  const leadTimes = postgres.$with('lead_times').as(
+    postgres
+      .select({
+        id: leads.id,
+        first_contact: sql`MIN(${leads.createdAt})`.as('first_contact'),
+        first_meeting:
+          sql`MIN(to_timestamp(${meetingTranscripts.date} / 1000))`.as(
+            'first_meeting'
+          )
+      })
+      .from(leads)
+      .leftJoin(meetingTranscripts, eq(meetingTranscripts.leadId, leads.id))
+      .where(not(eq(meetingTranscripts.isArchived, true)))
+      .groupBy(leads.id)
+  );
+  const leadTimesDeals = postgres.$with('lead_times_deals').as(
+    postgres
+      .select({
+        leadId: deals.leadId,
+        first_meeting:
+          sql`MIN(to_timestamp(${meetingTranscripts.date} / 1000))`.as(
+            'first_meeting'
+          ),
+        closed_date: sql`MIN(${deals.closedAt})`.as('closed_date')
+      })
+      .from(deals)
+      .leftJoin(meetingTranscripts, eq(deals.leadId, meetingTranscripts.leadId))
+      .where(not(eq(meetingTranscripts.isArchived, true)))
+      .groupBy(deals.leadId)
   );
 
+  // Prepare all promises first
+  const leadsCountByDatePromise = postgres
+    .with(leadWeeks)
+    .select({
+      week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
+      count: sql`COUNT(*)`.mapWith(Number),
+      highChanceCount:
+        sql`COUNT(*) FILTER (WHERE close_likelihood = 'high')`.mapWith(Number),
+      convertedCount: sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(
+        Number
+      )
+    })
+    .from(leadWeeks)
+    .groupBy(sql`year, week`)
+    .orderBy(sql`year, week`);
+
+  const meetingCountByDatePromise = postgres
+    .with(meetingWeeks)
+    .select({
+      week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
+      count: sql`COUNT(*)`.mapWith(Number)
+    })
+    .from(meetingWeeks)
+    .groupBy(sql`year, week`)
+    .orderBy(sql`year, week`);
+
+  const meetingCountResultPromise = postgres
+    .select({
+      totalCount: sql`count(*)`.mapWith(Number),
+      recentCount: sql`count(*) FILTER (WHERE date >= ${sevenDaysAgo})`.mapWith(
+        Number
+      )
+    })
+    .from(meetingTranscripts)
+    .where(not(eq(meetingTranscripts.isArchived, true)));
+
+  const leadCountResultPromise = postgres
+    .select({
+      totalCount: sql`count(*)`.mapWith(Number),
+      recentCount: sql`count(*) FILTER (WHERE created_at >= ${new Date(
+        sevenDaysAgo
+      )})`.mapWith(Number),
+      convertedCount: sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(
+        Number
+      )
+    })
+    .from(leads);
+
+  const avgResponseTimeResultPromise = postgres
+    .with(leadTimes)
+    .select({
+      avgResponseTimeDays:
+        sql`AVG(EXTRACT(EPOCH FROM (first_meeting - first_contact)) / 86400)`.mapWith(
+          Number
+        ),
+      p50ResponseTimeDays:
+        sql`PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (EXTRACT(EPOCH FROM (first_meeting - first_contact)) / 86400))`.mapWith(
+          Number
+        ),
+      p95ResponseTimeDays:
+        sql`PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY (EXTRACT(EPOCH FROM (first_meeting - first_contact)) / 86400))`.mapWith(
+          Number
+        )
+    })
+    .from(leadTimes)
+    .where(sql`(first_meeting - first_contact) > interval '0'`);
+
+  const avgSalesCycleResultPromise = postgres
+    .with(leadTimesDeals)
+    .select({
+      avgSalesCycle:
+        sql`AVG(EXTRACT(EPOCH FROM (closed_date - first_meeting)) / 86400)`.mapWith(
+          Number
+        ),
+      p50SalesCycle:
+        sql`PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (EXTRACT(EPOCH FROM (closed_date - first_meeting)) / 86400))`.mapWith(
+          Number
+        ),
+      p95SalesCycle:
+        sql`PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY (EXTRACT(EPOCH FROM (closed_date - first_meeting)) / 86400))`.mapWith(
+          Number
+        )
+    })
+    .from(leadTimesDeals)
+    .where(sql`(closed_date - first_meeting) > interval '0'`);
+
+  const totalLeadsWithMeetingPromise = postgres
+    .select({
+      count: sql`COUNT(DISTINCT lead_id)`.mapWith(Number)
+    })
+    .from(meetingTranscripts)
+    .where(sql`lead_id IS NOT NULL AND is_archived = false`);
+
+  const totalLeadsWithFollowUpPromise = postgres
+    .select({
+      count: sql`COUNT(*)`.mapWith(Number)
+    })
+    .from(
+      sql`(
+          SELECT lead_id
+          FROM meeting_transcripts
+          WHERE lead_id IS NOT NULL
+            AND is_archived = false
+          GROUP BY lead_id
+          HAVING COUNT(*) > 1
+        ) t`
+    );
+
+  // Await all promises at once
   const [
     leadsCountByDate,
     meetingCountByDate,
     meetingCountResult,
-    leadCountResult
+    leadCountResult,
+    avgResponseTimeResult,
+    avgSalesCycleResult,
+    totalLeadsWithMeeting,
+    totalLeadsWithFollowUp
   ] = await Promise.all([
-    postgresDb
-      .with(leadWeeks)
-      .select({
-        week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
-        count: sql`COUNT(*)`.mapWith(Number),
-        convertedCount:
-          sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(Number)
-      })
-      .from(leadWeeks)
-      .groupBy(sql`year, week`)
-      .orderBy(sql`year, week`),
-    postgresDb
-      .with(meetingWeeks)
-      .select({
-        week: sql`year::text || '-' || LPAD(week::text, 2, '0')`.as('week'),
-        count: sql`COUNT(*)`.mapWith(Number)
-      })
-      .from(meetingWeeks)
-      .groupBy(sql`year, week`)
-      .orderBy(sql`year, week`),
-    postgresDb
-      .select({
-        totalCount: sql`count(*)`.mapWith(Number),
-        recentCount:
-          sql`count(*) FILTER (WHERE date >= ${sevenDaysAgo})`.mapWith(Number)
-      })
-      .from(meetingTranscripts),
-
-    postgresDb
-      .select({
-        totalCount: sql`count(*)`.mapWith(Number),
-        recentCount: sql`count(*) FILTER (WHERE created_at >= ${new Date(
-          sevenDaysAgo
-        )})`.mapWith(Number),
-        convertedCount:
-          sql`COUNT(*) FILTER (WHERE user_id IS NOT NULL)`.mapWith(Number)
-      })
-      .from(leads)
+    leadsCountByDatePromise,
+    meetingCountByDatePromise,
+    meetingCountResultPromise,
+    leadCountResultPromise,
+    avgResponseTimeResultPromise,
+    avgSalesCycleResultPromise,
+    totalLeadsWithMeetingPromise,
+    totalLeadsWithFollowUpPromise
   ]);
 
-  res.status(200).send({
+  const returnBody = {
     success: true,
     data: {
-      totalLeadCount: leadCountResult[0].totalCount,
-      recentLeadCount: leadCountResult[0].recentCount,
-      convertedLeadCount: leadCountResult[0].convertedCount,
-      totalMeetingCount: meetingCountResult[0].totalCount,
-      recentMeetingCount: meetingCountResult[0].recentCount,
-
-      leadsCountByDate: leadsCountByDate,
-      meetingCountByDate: meetingCountByDate
+      totalLeadCount: leadCountResult[0]?.totalCount,
+      recentLeadCount: leadCountResult[0]?.recentCount,
+      convertedLeadCount: leadCountResult[0]?.convertedCount,
+      totalMeetingCount: meetingCountResult[0]?.totalCount,
+      recentMeetingCount: meetingCountResult[0]?.recentCount,
+      avgResponseTimeDays:
+        avgResponseTimeResult &&
+        avgResponseTimeResult[0] &&
+        avgResponseTimeResult[0].avgResponseTimeDays != null
+          ? Math.round(avgResponseTimeResult[0].avgResponseTimeDays * 100) / 100
+          : null,
+      p50ResponseTimeDays:
+        avgResponseTimeResult &&
+        avgResponseTimeResult[0] &&
+        avgResponseTimeResult[0].p50ResponseTimeDays != null
+          ? Math.round(avgResponseTimeResult[0].p50ResponseTimeDays * 100) / 100
+          : null,
+      p95ResponseTimeDays:
+        avgResponseTimeResult &&
+        avgResponseTimeResult[0] &&
+        avgResponseTimeResult[0].p95ResponseTimeDays != null
+          ? Math.round(avgResponseTimeResult[0].p95ResponseTimeDays * 100) / 100
+          : null,
+      avgSalesCycleDays:
+        avgSalesCycleResult &&
+        avgSalesCycleResult[0] &&
+        avgSalesCycleResult[0].avgSalesCycle != null
+          ? Math.round(avgSalesCycleResult[0].avgSalesCycle * 100) / 100
+          : null,
+      p50SalesCycleDays:
+        avgSalesCycleResult &&
+        avgSalesCycleResult[0] &&
+        avgSalesCycleResult[0].p50SalesCycle != null
+          ? Math.round(avgSalesCycleResult[0].p50SalesCycle * 100) / 100
+          : null,
+      p95SalesCycleDays:
+        avgSalesCycleResult &&
+        avgSalesCycleResult[0] &&
+        avgSalesCycleResult[0].p95SalesCycle != null
+          ? Math.round(avgSalesCycleResult[0].p95SalesCycle * 100) / 100
+          : null,
+      leadsCountByDate,
+      meetingCountByDate,
+      totalLeadsWithMeeting: totalLeadsWithMeeting[0]?.count ?? 0,
+      totalLeadsWithFollowUp: totalLeadsWithFollowUp[0]?.count ?? 0
     }
-  });
-});
+  };
 
-const getLeads = asyncHandler(async (req, res) => {
-  const leadsRecords = await postgresDb
+  const success = ten_minutes_cache.set(cacheKey, returnBody);
+  res.status(200).send(returnBody);
+});
+const getLeads = asyncHandler(async (_req, res) => {
+  // Use a CTE to pre-aggregate meeting counts per lead, so we don't need to group by salesReps
+  const meetingCounts = postgres.$with('meeting_counts').as(
+    postgres
+      .select({
+        leadId: meetingTranscripts.leadId,
+        // Alias the raw SQL so it can be referenced as meetingCounts.meetingCount
+        meetingCount: sql`COUNT(*)`.mapWith(Number).as('meetingCount')
+      })
+      .from(meetingTranscripts)
+      .groupBy(meetingTranscripts.leadId)
+  );
+
+  const leadsRecords = await postgres
+    .with(meetingCounts)
     .select({
       id: leads.id,
       fullName: leads.fullName,
-      source: leads.source,
+      source: leads.referralSource,
       email: leads.email,
       phone: leads.phone,
       status: leads.status,
-      intendedStartTime: leads.intendedStartTime,
-      intendedProgramLevel: leads.intendedProgramLevel,
-      intendedDirection: leads.intendedDirection,
-      meetingCount: sql`COUNT(${meetingTranscripts.id})`.mapWith(Number),
+      sourceCountry: leads.sourceCountry,
+      closeLikelihood: leads.closeLikelihood,
+      intendedStartTime: leadProfile.intendedStartTime,
+      intendedProgramLevel: leadProfile.intendedProgramLevel,
+      intendedDirection: leadProfile.intendedDirection,
+      salesRep: {
+        userId: salesReps.userId,
+        label: salesReps.label
+      },
+      salesNote: leads.salesNote,
+      meetingCount: sql`COALESCE(${meetingCounts.meetingCount}, 0)`.mapWith(
+        Number
+      ),
       createdAt: leads.createdAt
     })
     .from(leads)
-    .leftJoin(meetingTranscripts, eq(leads.id, meetingTranscripts.leadId))
-    .groupBy(leads.id)
+    .leftJoin(leadProfile, eq(leadProfile.leadId, leads.id))
+    .leftJoin(salesReps, eq(leads.salesUserId, salesReps.userId))
+    .leftJoin(meetingCounts, eq(meetingCounts.leadId, leads.id))
     .orderBy(desc(leads.createdAt));
+
   res.status(200).send({ success: true, data: leadsRecords });
 });
 
@@ -132,9 +476,44 @@ const getLead = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Lead ID is required' });
   }
 
-  const leadRecord = await postgresDb.query.leads.findFirst({
+  const leadRecord = await postgres.query.leads.findFirst({
     where: eq(leads.id, leadId),
     with: {
+      leadProfile: true,
+      leadTags: {
+        columns: {
+          id: true,
+          tag: true,
+          createdBy: true,
+          createdAt: true
+        }
+      },
+      leadNotes: {
+        columns: {
+          id: true,
+          note: true,
+          createdBy: true,
+          createdAt: true
+        },
+        orderBy: desc(leadNotes.createdAt)
+      },
+      salesRep: {
+        columns: {
+          userId: true,
+          label: true
+        }
+      },
+      // Fetch all deal columns and include the sales rep label
+      deals: {
+        with: {
+          salesRep: {
+            columns: {
+              userId: true,
+              label: true
+            }
+          }
+        }
+      },
       meetingTranscripts: {
         orderBy: desc(meetingTranscripts.date),
         columns: {
@@ -143,29 +522,108 @@ const getLead = asyncHandler(async (req, res) => {
           date: true,
           summary: true
         }
+      },
+      leadSimilarUsers: {
+        columns: {
+          mongoId: true,
+          reason: true
+        }
       }
     }
   });
 
   if (!leadRecord) {
-    return res.status(404).send({ success: false, message: 'Lead not found' });
+    return res.status(200).send({ success: true, data: null });
   }
-
-  // Rename meetingTranscripts to meetings to match your existing API structure
-  const { meetingTranscripts: meetings, ...leadData } = leadRecord;
 
   res.status(200).send({
     success: true,
     data: {
-      ...leadData,
-      meetings
+      ...formatLeadRecord(leadRecord)
     }
+  });
+});
+
+const getLeadByStudentId = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+
+  if (!studentId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Student ID is required' });
+  }
+
+  const leadRecord = await postgres.query.leads.findFirst({
+    columns: { id: true },
+    where: eq(leads.userId, studentId)
+  });
+
+  if (!leadRecord) {
+    return res
+      .status(404)
+      .send({ success: false, message: 'User has no matching leads' });
+  }
+
+  res.status(200).send({
+    success: true,
+    data: leadRecord
+  });
+});
+
+const createLeadFromStudent = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+
+  if (!studentId) {
+    return res.status(400).send({
+      success: false,
+      message: 'Student ID is required'
+    });
+  }
+
+  // Fetch student
+  const student = await req.db
+    .model('User')
+    .findById(studentId)
+    .select('firstname lastname firstname_chinese lastname_chinese')
+    .lean();
+
+  if (!student) {
+    return res.status(404).send({
+      success: false,
+      message: 'Student not found'
+    });
+  }
+
+  // Insert the new deal into the database
+  const [migratedLead] = await postgres
+    .insert(leads)
+    .values({
+      status: 'migrated',
+      userId: studentId,
+      fullName: `${student.lastname_chinese}${student.firstname_chinese}`
+    })
+    .returning({ id: leads.id, fullName: leads.fullName });
+
+  // Update existing meeting transcripts (related to the student) to link to the new lead
+  const pattern = `%###${studentId}###%`;
+  const meetings = await postgres
+    .update(meetingTranscripts)
+    .set({ leadId: migratedLead.id })
+    .where(sql`lead_id IS NULL AND title LIKE ${pattern}`);
+
+  res.status(201).send({
+    success: true,
+    message: 'Lead created successfully',
+    matchingMeetingCounts: meetings.rowCount,
+    data: migratedLead
   });
 });
 
 const updateLead = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
   const updateData = req.body;
+  const { user } = req;
+  const createdBy = user?._id?.toString?.() ?? user?._id;
 
   if (!leadId) {
     return res
@@ -179,26 +637,550 @@ const updateLead = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Update data is required' });
   }
 
-  // Perform the update directly
-  const updatedLead = await postgresDb
-    .update(leads)
-    .set(updateData)
-    .where(eq(leads.id, leadId))
-    .returning();
+  const { tags, notes, ...rest } = updateData;
+  const leadUpdates = {};
+  const additionalUpdates = {};
 
-  if (updatedLead.length === 0) {
+  Object.entries(rest).forEach(([key, value]) => {
+    if (LEAD_ADDITIONAL_FIELDS.has(key)) {
+      additionalUpdates[key] = value;
+    } else if (LEAD_CORE_FIELDS.has(key)) {
+      leadUpdates[key] = value;
+    }
+  });
+
+  const updated = await postgres.transaction(async (tx) => {
+    let updatedLead = null;
+
+    if (Object.keys(leadUpdates).length > 0) {
+      updatedLead = await tx
+        .update(leads)
+        .set({ ...leadUpdates, updatedAt: new Date() })
+        .where(eq(leads.id, leadId))
+        .returning();
+    }
+
+    if (Object.keys(additionalUpdates).length > 0) {
+      await tx
+        .insert(leadProfile)
+        .values({
+          leadId,
+          ...additionalUpdates,
+          updatedAt: new Date()
+        })
+        .onConflictDoUpdate({
+          target: leadProfile.leadId,
+          set: { ...additionalUpdates, updatedAt: new Date() }
+        });
+    }
+
+    if (tags !== undefined) {
+      const normalizedTags = normalizeTags(tags);
+
+      await tx.delete(leadTags).where(eq(leadTags.leadId, leadId));
+      if (normalizedTags.length > 0) {
+        await tx.insert(leadTags).values(
+          normalizedTags.map((tag) => ({
+            id: nanoid(),
+            leadId,
+            tag,
+            createdBy
+          }))
+        );
+      }
+    }
+
+    if (notes !== undefined) {
+      const normalizedNotes = normalizeNotes(notes);
+
+      await tx.delete(leadNotes).where(eq(leadNotes.leadId, leadId));
+      if (normalizedNotes.length > 0) {
+        await tx.insert(leadNotes).values(
+          normalizedNotes.map((note) => ({
+            id: nanoid(),
+            leadId,
+            note,
+            createdBy
+          }))
+        );
+      }
+    }
+
+    if (updatedLead && updatedLead.length > 0) {
+      return updatedLead[0];
+    }
+
+    const refreshed = await tx.select().from(leads).where(eq(leads.id, leadId));
+    if (!refreshed.length) return null;
+    return refreshed[0];
+  });
+
+  if (!updated) {
     return res.status(404).send({ success: false, message: 'Lead not found' });
   }
+
+  const updatedLead = await postgres.query.leads.findFirst({
+    where: eq(leads.id, leadId),
+    with: {
+      leadProfile: true,
+      leadTags: {
+        columns: {
+          id: true,
+          tag: true,
+          createdBy: true,
+          createdAt: true
+        }
+      },
+      leadNotes: {
+        columns: {
+          id: true,
+          note: true,
+          createdBy: true,
+          createdAt: true
+        },
+        orderBy: desc(leadNotes.createdAt)
+      },
+      salesRep: {
+        columns: {
+          userId: true,
+          label: true
+        }
+      },
+      deals: {
+        with: {
+          salesRep: {
+            columns: {
+              userId: true,
+              label: true
+            }
+          }
+        }
+      },
+      meetingTranscripts: {
+        orderBy: desc(meetingTranscripts.date),
+        columns: {
+          id: true,
+          title: true,
+          date: true,
+          summary: true
+        }
+      },
+      leadSimilarUsers: {
+        columns: {
+          mongoId: true,
+          reason: true
+        }
+      }
+    }
+  });
 
   res.status(200).send({
     success: true,
     message: 'Lead updated successfully',
-    data: updatedLead[0]
+    data: formatLeadRecord(updatedLead) || updated
+  });
+});
+
+const getLeadTags = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  const exists = await ensureLeadExists(leadId);
+  if (!exists) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  const tagRows = await postgres
+    .select({
+      id: leadTags.id,
+      tag: leadTags.tag,
+      createdBy: leadTags.createdBy,
+      createdAt: leadTags.createdAt
+    })
+    .from(leadTags)
+    .where(eq(leadTags.leadId, leadId))
+    .orderBy(leadTags.tag);
+
+  res.status(200).send({
+    success: true,
+    data: tagRows
+  });
+});
+
+const updateLeadTags = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+  const { tags } = req.body || {};
+  const { user } = req;
+  const createdBy = user?._id?.toString?.() ?? user?._id;
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  if (tags === undefined || tags === null) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Tags array is required' });
+  }
+
+  const exists = await ensureLeadExists(leadId);
+  if (!exists) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  const normalizedTags = normalizeTags(tags);
+
+  await postgres.transaction(async (tx) => {
+    await tx.delete(leadTags).where(eq(leadTags.leadId, leadId));
+    if (normalizedTags.length > 0) {
+      await tx.insert(leadTags).values(
+        normalizedTags.map((tag) => ({
+          id: nanoid(),
+          leadId,
+          tag,
+          createdBy
+        }))
+      );
+    }
+  });
+
+  const tagRows = await postgres
+    .select({
+      id: leadTags.id,
+      tag: leadTags.tag,
+      createdBy: leadTags.createdBy,
+      createdAt: leadTags.createdAt
+    })
+    .from(leadTags)
+    .where(eq(leadTags.leadId, leadId))
+    .orderBy(leadTags.tag);
+
+  res.status(200).send({
+    success: true,
+    data: tagRows
+  });
+});
+
+const appendLeadTags = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+  const { tags } = req.body || {};
+  const { user } = req;
+  const createdBy = user?._id?.toString?.() ?? user?._id;
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  if (tags === undefined || tags === null) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Tags array is required' });
+  }
+
+  const exists = await ensureLeadExists(leadId);
+  if (!exists) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  const normalizedTags = normalizeTags(tags);
+
+  if (normalizedTags.length > 0) {
+    await postgres
+      .insert(leadTags)
+      .values(
+        normalizedTags.map((tag) => ({
+          id: nanoid(),
+          leadId,
+          tag,
+          createdBy
+        }))
+      )
+      .onConflictDoNothing({ target: [leadTags.leadId, leadTags.tag] });
+  }
+
+  const tagRows = await postgres
+    .select({
+      id: leadTags.id,
+      tag: leadTags.tag,
+      createdBy: leadTags.createdBy,
+      createdAt: leadTags.createdAt
+    })
+    .from(leadTags)
+    .where(eq(leadTags.leadId, leadId))
+    .orderBy(leadTags.tag);
+
+  res.status(200).send({
+    success: true,
+    data: tagRows
+  });
+});
+
+const deleteLeadTags = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+  const { tags, tag, tagIds, tagId } = req.body || {};
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  const exists = await ensureLeadExists(leadId);
+  if (!exists) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  const normalizedTagIds = Array.isArray(tagIds)
+    ? tagIds.filter(Boolean)
+    : tagId
+    ? [tagId]
+    : [];
+
+  if (normalizedTagIds.length > 0) {
+    if (normalizedTagIds.length === 1) {
+      await postgres.execute(
+        sql`delete from ${leadTags} where ${leadTags.leadId} = ${leadId} and ${leadTags.id} = ${normalizedTagIds[0]}`
+      );
+    } else {
+      await postgres.execute(
+        sql`delete from ${leadTags} where ${leadTags.leadId} = ${leadId} and ${leadTags.id} = any(${normalizedTagIds})`
+      );
+    }
+
+    return res.status(200).send({
+      success: true,
+      data: normalizedTagIds
+    });
+  }
+
+  const normalizedTags = normalizeTags(tags ?? tag);
+  if (normalizedTags.length === 0) {
+    return res.status(400).send({ success: false, message: 'Tag is required' });
+  }
+
+  if (normalizedTags.length === 1) {
+    await postgres.execute(
+      sql`delete from ${leadTags} where ${leadTags.leadId} = ${leadId} and ${leadTags.tag} = ${normalizedTags[0]}`
+    );
+  } else {
+    await postgres.execute(
+      sql`delete from ${leadTags} where ${leadTags.leadId} = ${leadId} and ${leadTags.tag} = any(${normalizedTags})`
+    );
+  }
+
+  return res.status(200).send({
+    success: true,
+    data: normalizedTags
+  });
+});
+
+const getLeadNotes = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  const exists = await ensureLeadExists(leadId);
+  if (!exists) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  const noteRows = await postgres
+    .select({
+      id: leadNotes.id,
+      note: leadNotes.note,
+      createdBy: leadNotes.createdBy,
+      createdAt: leadNotes.createdAt
+    })
+    .from(leadNotes)
+    .where(eq(leadNotes.leadId, leadId))
+    .orderBy(desc(leadNotes.createdAt));
+
+  res.status(200).send({
+    success: true,
+    data: noteRows
+  });
+});
+
+const createLeadNote = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+  const { note, notes } = req.body || {};
+  const { user } = req;
+  const createdBy = user?._id?.toString?.() ?? user?._id;
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  const normalizedNotes = normalizeNotes(notes ?? note);
+  if (normalizedNotes.length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Note is required' });
+  }
+
+  const exists = await ensureLeadExists(leadId);
+  if (!exists) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  const createdNotes = await postgres
+    .insert(leadNotes)
+    .values(
+      normalizedNotes.map((noteItem) => ({
+        id: nanoid(),
+        leadId,
+        note: `${noteItem}`.trim(),
+        createdBy
+      }))
+    )
+    .returning({
+      id: leadNotes.id,
+      note: leadNotes.note,
+      createdBy: leadNotes.createdBy,
+      createdAt: leadNotes.createdAt
+    });
+
+  res.status(201).send({
+    success: true,
+    data: createdNotes
+  });
+});
+
+const updateLeadNote = asyncHandler(async (req, res) => {
+  const { leadId, noteId } = req.params;
+  const { note } = req.body || {};
+
+  if (!leadId || !noteId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID and Note ID are required' });
+  }
+
+  const normalizedNotes = normalizeNotes(note);
+  if (normalizedNotes.length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Note is required' });
+  }
+
+  const [updatedNote] = await postgres
+    .update(leadNotes)
+    .set({ note: normalizedNotes[0] })
+    .where(and(eq(leadNotes.leadId, leadId), eq(leadNotes.id, noteId)))
+    .returning({
+      id: leadNotes.id,
+      note: leadNotes.note,
+      createdBy: leadNotes.createdBy,
+      createdAt: leadNotes.createdAt
+    });
+
+  if (!updatedNote) {
+    return res.status(404).send({ success: false, message: 'Note not found' });
+  }
+
+  res.status(200).send({
+    success: true,
+    data: [updatedNote]
+  });
+});
+
+const deleteLeadNote = asyncHandler(async (req, res) => {
+  const { leadId, noteId } = req.params;
+
+  if (!leadId || !noteId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID and Note ID are required' });
+  }
+
+  const [deletedNote] = await postgres
+    .delete(leadNotes)
+    .where(and(eq(leadNotes.leadId, leadId), eq(leadNotes.id, noteId)))
+    .returning({ id: leadNotes.id });
+
+  if (!deletedNote) {
+    return res.status(404).send({ success: false, message: 'Note not found' });
+  }
+
+  res.status(200).send({
+    success: true,
+    data: { id: deletedNote.id }
+  });
+});
+
+const replaceLeadNotes = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+  const { notes } = req.body || {};
+  const { user } = req;
+  const createdBy = user?._id?.toString?.() ?? user?._id;
+
+  if (!leadId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Lead ID is required' });
+  }
+
+  if (notes === undefined || notes === null) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Notes array or string is required' });
+  }
+
+  const exists = await ensureLeadExists(leadId);
+  if (!exists) {
+    return res.status(404).send({ success: false, message: 'Lead not found' });
+  }
+
+  const normalizedNotes = normalizeNotes(notes);
+
+  await postgres.transaction(async (tx) => {
+    await tx.delete(leadNotes).where(eq(leadNotes.leadId, leadId));
+    if (normalizedNotes.length > 0) {
+      await tx.insert(leadNotes).values(
+        normalizedNotes.map((noteItem) => ({
+          id: nanoid(),
+          leadId,
+          note: `${noteItem}`.trim(),
+          createdBy
+        }))
+      );
+    }
+  });
+
+  const noteRows = await postgres
+    .select({
+      id: leadNotes.id,
+      note: leadNotes.note,
+      createdBy: leadNotes.createdBy,
+      createdAt: leadNotes.createdAt
+    })
+    .from(leadNotes)
+    .where(eq(leadNotes.leadId, leadId))
+    .orderBy(desc(leadNotes.createdAt));
+
+  res.status(200).send({
+    success: true,
+    data: noteRows
   });
 });
 
 const getMeetings = asyncHandler(async (req, res) => {
-  const meetingSummaries = await postgresDb
+  const meetingSummaries = await postgres
     .select({
       leadId: leads.id,
       leadFullName: leads.fullName,
@@ -224,7 +1206,7 @@ const getMeeting = asyncHandler(async (req, res) => {
       .send({ success: false, message: 'Meeting ID is required' });
   }
 
-  const meetingRecord = await postgresDb
+  const meetingRecord = await postgres
     .select({
       leadId: leads.id,
       leadFullName: leads.fullName,
@@ -261,7 +1243,7 @@ const updateMeeting = asyncHandler(async (req, res) => {
   }
 
   // Perform the update directly
-  const updatedMeeting = await postgresDb
+  const updatedMeeting = await postgres
     .update(meetingTranscripts)
     .set(updateData)
     .where(eq(meetingTranscripts.id, meetingId))
@@ -280,12 +1262,167 @@ const updateMeeting = asyncHandler(async (req, res) => {
   });
 });
 
+const getSalesReps = asyncHandler(async (req, res) => {
+  const salesRepsList = await postgres.select().from(salesReps);
+
+  res.status(200).send({
+    success: true,
+    data: salesRepsList
+  });
+});
+
+const getDeals = asyncHandler(async (req, res) => {
+  // Select all deal columns except id/createdAt/updatedAt, and populate lead fullName and sales label
+  const dealCols = getTableColumns(deals);
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    ...dealDataCols
+  } = dealCols;
+
+  const dealsList = await postgres
+    .select({
+      id: deals.id, // Include id for editing
+      ...dealDataCols, // includes leadId, salesUserId, status, timestamp, etc.
+      leadFullName: leads.fullName,
+      salesLabel: salesReps.label
+    })
+    .from(deals)
+    .leftJoin(leads, eq(deals.leadId, leads.id))
+    .leftJoin(salesReps, eq(deals.salesUserId, salesReps.userId))
+    .orderBy(desc(deals.closedAt));
+
+  res.status(200).send({
+    success: true,
+    data: dealsList
+  });
+});
+
+const stampDealStatusTimestamps = (deal) => {
+  if (!deal || typeof deal.status !== 'string') return deal;
+  const now = new Date();
+  const status = deal.status;
+  const tsKeyByStatus = {
+    initiated: 'initiatedAt',
+    sent: 'sentAt',
+    signed: 'signedAt',
+    closed: 'closedAt',
+    canceled: 'canceledAt'
+  };
+  const key = tsKeyByStatus[status];
+  if (key) {
+    deal[key] = now;
+  }
+  return deal;
+};
+
+const createDeal = asyncHandler(async (req, res) => {
+  const newDeal = req.body;
+
+  // Validate the incoming data
+  if (!newDeal || Object.keys(newDeal).length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Deal data is required' });
+  }
+
+  // leadId and salesUserId are required
+  if (!newDeal.leadId || !newDeal.salesUserId) {
+    return res.status(400).send({
+      success: false,
+      message: 'Lead ID and Sales User ID are required'
+    });
+  }
+
+  // Default status to 'initiated' if missing
+  if (!newDeal.status) newDeal.status = 'initiated';
+  // Stamp status-specific timestamp if not provided
+  stampDealStatusTimestamps(newDeal);
+
+  // Insert the new deal into the database
+  const createdDeal = await postgres.insert(deals).values(newDeal).returning();
+
+  res.status(201).send({
+    success: true,
+    message: 'Deal created successfully',
+    data: createdDeal[0]
+  });
+});
+
+const updateDeal = asyncHandler(async (req, res) => {
+  const { dealId } = req.params;
+  const updateData = req.body;
+
+  if (!dealId) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Deal ID is required' });
+  }
+
+  if (!updateData || Object.keys(updateData).length === 0) {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Update data is required' });
+  }
+
+  // Stamp status-specific timestamp when status changes (if not already set in payload)
+  stampDealStatusTimestamps(updateData);
+
+  // Perform the update directly
+  const updatedDeal = await postgres
+    .update(deals)
+    .set(updateData)
+    .where(eq(deals.id, dealId))
+    .returning();
+
+  if (updatedDeal.length === 0) {
+    return res.status(404).send({ success: false, message: 'Deal not found' });
+  }
+
+  res.status(200).send({
+    success: true,
+    message: 'Deal updated successfully',
+    data: updatedDeal[0]
+  });
+});
+
+const instantInviteMeetingAssistant = asyncHandler(async (req, res) => {
+  const { meetingSummary, meetingLink } = req.body;
+  if (!meetingSummary || !meetingLink) {
+    return res.status(400).send({
+      success: false,
+      message: 'meetingSummary and meetingLink are required'
+    });
+  }
+  const result = await instantInviteTA(meetingSummary, meetingLink);
+  const isSuccess = result && result.success === true;
+  const statusCode = isSuccess ? 200 : 500;
+  res.status(statusCode).send(result);
+});
+
 module.exports = {
   getCRMStats,
   getLeads,
   getLead,
+  getLeadByStudentId,
+  createLeadFromStudent,
   updateLead,
+  getLeadTags,
+  updateLeadTags,
+  appendLeadTags,
+  deleteLeadTags,
+  getLeadNotes,
+  createLeadNote,
+  updateLeadNote,
+  deleteLeadNote,
+  replaceLeadNotes,
   getMeetings,
   getMeeting,
-  updateMeeting
+  updateMeeting,
+  getSalesReps,
+  getDeals,
+  createDeal,
+  updateDeal,
+  instantInviteMeetingAssistant
 };

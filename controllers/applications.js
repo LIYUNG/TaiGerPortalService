@@ -1,12 +1,4 @@
-const {
-  isNotArchiv,
-  Role,
-  isProgramDecided,
-  isProgramSubmitted,
-  is_TaiGer_Student,
-  is_TaiGer_Agent,
-  is_TaiGer_Editor
-} = require('@taiger-common/core');
+const { isNotArchiv, Role } = require('@taiger-common/core');
 const mongoose = require('mongoose');
 
 const { asyncHandler } = require('../middlewares/error-handler');
@@ -27,6 +19,42 @@ const ApplicationService = require('../services/applications');
 const UserService = require('../services/users');
 const StudentService = require('../services/students');
 const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
+
+const getApplications = asyncHandler(async (req, res) => {
+  const {
+    decided,
+    closed,
+    admission,
+    finalEnrolment,
+    year,
+    populate: populateFields = false
+  } = req.query;
+  const { filter: applicationQuery } = new ApplicationQueryBuilder()
+    .withDecided(decided)
+    .withClosed(closed)
+    .withAdmission(admission)
+    .withFinalEnrolment(finalEnrolment)
+    .withApplicationYear(year)
+    .build();
+
+  const selectFields = [
+    'programId',
+    'studentId',
+    'application_year',
+    'decided',
+    'closed',
+    'admission',
+    'finalEnrolment'
+  ];
+
+  const applications = await ApplicationService.getApplications(
+    req,
+    applicationQuery,
+    selectFields,
+    populateFields
+  );
+  res.status(200).send({ success: true, data: applications });
+});
 
 const getMyStudentsApplications = asyncHandler(async (req, res) => {
   const {
@@ -335,18 +363,33 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
       )
   );
 
+  // Approval countries list (must match frontend APPROVAL_COUNTRIES)
+  const APPROVAL_COUNTRIES = ['de', 'nl', 'uk', 'ch', 'se', 'at'];
+
   // Insert only new programIds for student.
   for (let i = 0; i < new_programIds.length; i += 1) {
     try {
-      const application = await req.db.model('Application').create({
-        studentId,
-        programId: new mongoose.Types.ObjectId(new_programIds[i]),
-        application_year
-      });
-
       const program = program_ids.find(
         ({ _id }) => _id.toString() === new_programIds[i]
       );
+
+      // Determine isLocked based on program country:
+      // - Non-approval countries: isLocked = true (locked by default, requires manual unlock)
+      // - Approval countries: isLocked = false (unlocked by default)
+      const countryCode = program?.country
+        ? String(program.country).toLowerCase()
+        : null;
+      const isInApprovalCountry = countryCode
+        ? APPROVAL_COUNTRIES.includes(countryCode)
+        : false;
+      const isLocked = !isInApprovalCountry; // true for non-approval, false for approval
+
+      const application = await req.db.model('Application').create({
+        studentId,
+        programId: new mongoose.Types.ObjectId(new_programIds[i]),
+        application_year,
+        isLocked // Set based on country
+      });
 
       // check if RL required, if yes, create new thread
       if (
@@ -362,14 +405,8 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
             );
           }
           const Documentthread = req.db.model('Documentthread');
-          const isRLSpecific = program.is_rl_specific;
-          const NoRLSpecificFlag =
-            isRLSpecific === undefined || isRLSpecific === null;
-          // create specific RL tag if flag is false, or no flag and no requirement
-          if (
-            isRLSpecific === false ||
-            (NoRLSpecificFlag && !program.rl_requirements)
-          ) {
+          const isRLSpecific = program?.is_rl_specific;
+          if (!isRLSpecific) {
             // check if general RL is created, if not, create ones!
             const genThreadIds = student.generaldocs_threads.map(
               (thread) => thread.doc_thread_id
@@ -499,12 +536,35 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const refreshApplication = asyncHandler(async (req, res) => {
+  const { applicationId } = req.params;
+
+  // Unlock the application by setting isLocked to false
+  const updatedApplication = await req.db
+    .model('Application')
+    .findByIdAndUpdate(applicationId, { isLocked: false }, { new: true })
+    .lean();
+
+  if (!updatedApplication) {
+    console.error(
+      `[refreshApplication] Application ${applicationId} not found`
+    );
+    return res
+      .status(404)
+      .json({ success: false, message: 'Application not found' });
+  }
+
+  return res.json({ success: true, data: updatedApplication });
+});
+
 module.exports = {
+  getApplications,
   deleteApplication,
   getMyStudentsApplications,
   getActiveStudentsApplications,
   getStudentApplications,
   updateStudentApplications,
   updateApplication,
-  createApplicationV2
+  createApplicationV2,
+  refreshApplication
 };

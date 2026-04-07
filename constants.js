@@ -174,7 +174,10 @@ const application_deadline_V2_calculator = (application) => {
 
 const EDITOR_SCOPE = {
   CV: 'Curriculum Vitae',
+  CV_US: 'Curriculum Vitae (US)',
   ML: 'Motivation Letter',
+  SOP: 'Statement of Purpose',
+  PHS: 'Personal History of Statement',
   Portfolio: 'Portfolio',
   RL_A: 'Recommendation Letter',
   RL_B: 'Recommendation Letter',
@@ -192,6 +195,14 @@ const PROGRAM_SPECIFIC_FILETYPE = [
   {
     required: 'ml_required',
     fileType: 'ML'
+  },
+  {
+    required: 'sop_required',
+    fileType: 'SOP'
+  },
+  {
+    required: 'phs_required',
+    fileType: 'PHS'
   },
   {
     required: 'essay_required',
@@ -228,6 +239,7 @@ const General_Docs = [
   'Form_A',
   'Form_B',
   'CV',
+  'CV_US',
   'Others'
 ];
 
@@ -268,25 +280,28 @@ const needUpdateCourseSelection = (student) => {
   if (student.courses?.length === 0) {
     return true;
   }
-  // necessary if never analyzed and is studying
-  if (!student.courses[0].analysis?.updatedAt) {
+
+  // necessary if courses or analysis expired 39 daays and is studying
+  if (
+    !student.courses[0].updatedAt ||
+    !student.courses[0].analysis?.updatedAt
+  ) {
     return true;
   }
-  // necessary if courses or analysis expired 39 daays and is studying
   const course_aged_days = differenceInDays(
     new Date(),
     student.courses[0].updatedAt
   );
   const analyse_aged_days = differenceInDays(
     new Date(),
-    student.courses[0].analysis?.updatedAt
+    student.courses[0].analysis.updatedAt
   );
-  const trigger_days = 1;
-  if (course_aged_days > trigger_days || analyse_aged_days > trigger_days) {
+  const trigger_days = 39;
+  if (course_aged_days > trigger_days && analyse_aged_days > trigger_days) {
     return true;
   }
 
-  return true;
+  return false;
 };
 
 const does_editor_have_pending_tasks = (students, editor) => {
@@ -1268,8 +1283,8 @@ const CVDeadline_Calculator = (applications) => {
   let hasRolling = false;
   const today = new Date();
   for (let i = 0; i < applications.length; i += 1) {
-    if (isProgramDecided(applications[i])) {
-      const app = applications[i];
+    const app = applications[i];
+    if (isProgramDecided(app) && app.closed === '-') {
       const application_deadline_temp = application_deadline_V2_calculator(app);
       if (application_deadline_temp?.toLowerCase()?.includes('rolling')) {
         hasRolling = true;
@@ -1290,6 +1305,23 @@ const CVDeadline_Calculator = (applications) => {
   }
 
   return CVDeadline;
+};
+
+const General_RL_Deadline_Calculator = (applications) => {
+  const RLrequiredApplications = applications?.filter((app) => {
+    const program = app?.programId;
+    if (
+      !program ||
+      !program.rl_required ||
+      program.rl_required === '0' ||
+      program.is_rl_specific
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  return CVDeadline_Calculator(RLrequiredApplications);
 };
 
 const cvmlrl_deadline_within30days_escalation_summary = (
@@ -1505,6 +1537,7 @@ module.exports = {
   cv_ml_rl_editor_escalation_summary,
   cv_ml_rl_unfinished_summary,
   profile_keys_list,
+  General_RL_Deadline_Calculator,
   CVDeadline_Calculator,
   isNotArchiv,
   isArchiv,

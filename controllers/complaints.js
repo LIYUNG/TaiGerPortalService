@@ -12,7 +12,7 @@ const {
   complaintResolvedRequesterReminderEmail,
   newCustomerCenterTicketMessageEmail
 } = require('../services/email/complaints');
-const { one_month_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
 const { threadS3GarbageCollector } = require('../utils/utils_function');
@@ -29,7 +29,7 @@ const getManagers = async (req) =>
         { canAccessAllChat: true }
       ]
     })
-    .populate('user_id', 'firstname lastname email archiv')
+    .populate('user_id', 'firstname lastname email archiv pictureUrl')
     .lean();
 
 const getComplaints = asyncHandler(async (req, res) => {
@@ -48,14 +48,14 @@ const getComplaints = asyncHandler(async (req, res) => {
     const tickets = await req.db
       .model('Complaint')
       .find({ requester_id: user._id })
-      .populate('requester_id', 'firstname lastname email')
+      .populate('requester_id', 'firstname lastname email pictureUrl')
       .sort({ createdAt: -1 });
     res.send({ success: true, data: tickets });
   } else {
     const tickets = await req.db
       .model('Complaint')
       .find(query)
-      .populate('requester_id', 'firstname lastname email')
+      .populate('requester_id', 'firstname lastname email pictureUrl')
       .sort({ createdAt: -1 });
     res.send({ success: true, data: tickets });
   }
@@ -67,8 +67,8 @@ const getComplaint = asyncHandler(async (req, res) => {
   const ticket = await req.db
     .model('Complaint')
     .findById(ticketId)
-    .populate('messages.user_id', 'firstname lastname email')
-    .populate('requester_id', 'firstname lastname email ');
+    .populate('messages.user_id', 'firstname lastname email pictureUrl')
+    .populate('requester_id', 'firstname lastname email pictureUrl');
   if (!ticket) {
     logger.error('getComplaint: Invalid ticket id');
     throw new ErrorResponse(404, 'Complaint not found');
@@ -134,10 +134,10 @@ const getMessageFileInTicket = asyncHandler(async (req, res) => {
 
   // messageid + extension
   const cache_key = `${studentId}${ticketId}${encodeURIComponent(fileKey)}`;
-  const value = one_month_cache.get(cache_key); // file name
+  const value = ten_minutes_cache.get(cache_key); // file name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = one_month_cache.set(cache_key, Buffer.from(response));
+    const success = ten_minutes_cache.set(cache_key, Buffer.from(response));
     if (success) {
       logger.info('ticket file cache set successfully');
     }
@@ -186,7 +186,7 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
   let newfile = [];
   if (req.files) {
     for (let i = 0; i < req.files.length; i += 1) {
-      const fileName = req.files[i].key[2];
+      const fileName = req.files[i].key.split('/')[2];
       newfile.push({
         name: fileName,
         path: req.files[i].key
@@ -226,7 +226,7 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
   const student = await req.db
     .model('Student')
     .findById(ticket.requester_id)
-    .populate('editors agents', 'firstname lastname email archiv');
+    .populate('editors agents', 'firstname lastname email archiv pictureUrl');
 
   const payload = {
     student_firstname: student.firstname,
@@ -277,7 +277,7 @@ const updateComplaint = asyncHandler(async (req, res) => {
     .findByIdAndUpdate(ticketId, fields, {
       new: true
     })
-    .populate('requester_id', 'firstname lastname email archiv');
+    .populate('requester_id', 'firstname lastname email archiv pictureUrl');
 
   if (!updatedComplaint) {
     logger.error('updateComplaint: Invalid message thread id');
@@ -369,7 +369,7 @@ const deleteAMessageInComplaint = asyncHandler(async (req, res) => {
     logger.error('deleteAMessageInComplaint : Invalid message thread id');
     throw new ErrorResponse(404, 'Thread not found');
   }
-  if (ticket.status === 'closed') {
+  if (ticket.status === 'resolved') {
     logger.error('deleteAMessageInComplaint : ticket is closed.');
     throw new ErrorResponse(423, 'Ticket is closed.');
   }

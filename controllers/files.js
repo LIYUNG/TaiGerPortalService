@@ -5,7 +5,7 @@ const {
 } = require('@taiger-common/core');
 
 const { asyncHandler } = require('../middlewares/error-handler');
-const { one_month_cache, two_month_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 const { ErrorResponse } = require('../common/errors');
 const { isNotArchiv } = require('../constants');
 const {
@@ -17,6 +17,7 @@ const {
   sendChangedProfileFileStatusEmail,
   AdmissionResultInformEmailToTaiGer
 } = require('../services/email');
+const { sendSlackMessageToWinChannel } = require('../utils/slackUtils');
 const { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
 const logger = require('../services/logger');
 
@@ -46,10 +47,6 @@ const deleteTemplate = asyncHandler(async (req, res, next) => {
 
   try {
     await deleteS3Object(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
-    const value = two_month_cache.del(fileKey);
-    if (value === 1) {
-      logger.info('Template cache key deleted successfully');
-    }
   } catch (err) {
     if (err) {
       logger.error('deleteTemplate: ', err);
@@ -105,10 +102,10 @@ const downloadTemplateFile = asyncHandler(async (req, res, next) => {
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
   logger.info('Trying to download template file', fileKey);
 
-  const value = two_month_cache.get(fileKey); // vpd name
+  const value = ten_minutes_cache.get(fileKey); // vpd name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
-    const success = two_month_cache.set(fileKey, Buffer.from(response));
+    const success = ten_minutes_cache.set(fileKey, Buffer.from(response));
     if (success) {
       logger.info('Template file cache set successfully');
     }
@@ -280,69 +277,57 @@ const saveProfileFilePath = asyncHandler(async (req, res, next) => {
 
 const updateVPDPayment = asyncHandler(async (req, res, next) => {
   const {
-    params: { studentId, program_id },
+    params: { applicationId },
     body: { isPaid }
   } = req;
 
-  const applications = await req.db
-    .model('Application')
-    .find({ studentId })
-    .populate('programId');
-
-  const app = applications.find(
-    (application) => application.programId._id.toString() === program_id
-  );
+  const app = await ApplicationService.getApplicationById(req, applicationId);
   if (!app) {
     logger.error('updateVPDPayment: Invalid program id!');
     throw new ErrorResponse(404, 'Application not found');
   }
 
-  app.uni_assist.isPaid = isPaid;
-  app.uni_assist.updatedAt = new Date();
-
-  await app.save();
-
-  const updatedApplication = applications.find(
-    (application) => application.programId._id.toString() === program_id
+  const updatedApp = await ApplicationService.updateApplication(
+    req,
+    { _id: applicationId },
+    { uni_assist: { ...app.uni_assist, isPaid, updatedAt: new Date() } }
   );
 
-  res.status(201).send({ success: true, data: updatedApplication });
+  res.status(201).send({ success: true, data: updatedApp });
   next();
 });
 // () email:
 
 const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
   const {
-    params: { studentId, program_id }
+    params: { applicationId }
   } = req;
 
-  const applications = await req.db
-    .model('Application')
-    .find({ studentId })
-    .populate('programId');
+  const app = await ApplicationService.getApplicationById(req, applicationId);
 
-  const app = applications.find(
-    (application) => application.programId._id.toString() === program_id
-  );
   if (!app) {
     logger.error('updateVPDFileNecessity: Invalid program id!');
     throw new ErrorResponse(404, 'Application not found');
   }
   // TODO: set bot notneeded and resume needed
-  if (app.uni_assist.status !== DocumentStatusType.NotNeeded) {
-    app.uni_assist.status = DocumentStatusType.NotNeeded;
-  } else {
-    app.uni_assist.status = DocumentStatusType.Missing;
+  let status = DocumentStatusType.NotNeeded;
+  if (app.uni_assist.status === DocumentStatusType.NotNeeded) {
+    status = DocumentStatusType.Missing;
   }
-  app.uni_assist.updatedAt = new Date();
-  app.uni_assist.vpd_file_path = '';
-  await app.save();
 
-  const updatedApplication = applications.find(
-    (application) => application.programId._id.toString() === program_id
+  const updatedApp = await ApplicationService.updateApplication(
+    req,
+    { _id: applicationId },
+    {
+      uni_assist: {
+        ...app.uni_assist,
+        status,
+        updatedAt: new Date()
+      }
+    }
   );
 
-  res.status(201).send({ success: true, data: updatedApplication });
+  res.status(201).send({ success: true, data: updatedApp });
   next();
 });
 
@@ -351,28 +336,17 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
 const saveVPDFilePath = asyncHandler(async (req, res, next) => {
   const {
     user,
-    params: { studentId, program_id, fileType }
+    params: { studentId, applicationId, fileType }
   } = req;
 
-  const applications = await req.db
+  const app = await req.db
     .model('Application')
-    .find({ studentId })
+    .findById(applicationId)
     .populate('programId');
 
-  const app = applications.find(
-    (application) => application.programId._id.toString() === program_id
-  );
   if (!app) {
-    app.uni_assist.status = DocumentStatusType.Uploaded;
-    app.uni_assist.updatedAt = new Date();
-    app.uni_assist.vpd_file_path = req.file.key;
-    await app.save();
-    const updatedApplication = applications.find(
-      (application) => application.programId._id.toString() === program_id
-    );
-    res.status(201).send({ success: true, data: updatedApplication });
-
-    return;
+    logger.error('saveVPDFilePath: Invalid application id!');
+    throw new ErrorResponse(404, 'Application not found');
   }
   if (fileType === 'VPD') {
     app.uni_assist.status = DocumentStatusType.Uploaded;
@@ -386,11 +360,9 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
   }
 
   await app.save();
-  const updatedApplication = applications.find(
-    (application) => application.programId._id.toString() === program_id
-  );
+
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
-  res.status(201).send({ success: true, data: updatedApplication });
+  res.status(201).send({ success: true, data: app });
 
   const student_updated = await req.db
     .model('Student')
@@ -440,19 +412,16 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
 const downloadVPDFile = asyncHandler(async (req, res, next) => {
   const {
     user,
-    params: { studentId, program_id, fileType }
+    params: { applicationId, fileType }
   } = req;
 
   // AWS S3
   // download the file via aws s3 here
-  const applications = await req.db
+  const app = await req.db
     .model('Application')
-    .find({ studentId })
+    .findById(applicationId)
     .populate('programId');
 
-  const app = applications.find(
-    (application) => application.programId._id.toString() === program_id
-  );
   if (!app) {
     logger.error('downloadVPDFile: Invalid app name!');
     throw new ErrorResponse(404, 'Application not found');
@@ -486,32 +455,16 @@ const downloadVPDFile = asyncHandler(async (req, res, next) => {
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
 
   logger.info(`Trying to download ${fileType} file`);
-  const value = one_month_cache.get(fileKey); // vpd name
   const encodedFileName = encodeURIComponent(fileName);
-  if (value === undefined) {
-    const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
+  const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
 
-    const success = one_month_cache.set(fileKey, Buffer.from(response));
-    if (success) {
-      logger.info('VPD file cache set successfully');
-    }
-    res.attachment(encodedFileName);
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename*=UTF-8''${encodedFileName}`
-    );
-    res.end(response);
-    next();
-  } else {
-    logger.info('VPD file cache hit');
-    res.attachment(encodedFileName);
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename*=UTF-8''${encodedFileName}`
-    );
-    res.end(value);
-    next();
-  }
+  res.attachment(encodedFileName);
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename*=UTF-8''${encodedFileName}`
+  );
+  res.end(response);
+  next();
 });
 
 const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
@@ -546,23 +499,11 @@ const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
   logger.info(`Trying to download profile file ${fileKey}`);
 
-  const cache_key = `${studentId}${fileKey}`;
-  const value = one_month_cache.get(cache_key); // profile name
-  if (value === undefined) {
-    const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = one_month_cache.set(cache_key, Buffer.from(response));
-    if (success) {
-      logger.info('Profile file cache set successfully');
-    }
-    res.attachment(fileKey);
-    res.end(response);
-    next();
-  } else {
-    logger.info('Profile file cache hit');
-    res.attachment(fileKey);
-    res.end(value);
-    next();
-  }
+  const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
+
+  res.attachment(fileKey);
+  res.end(response);
+  next();
 });
 
 // (O) email : student notification
@@ -695,10 +636,6 @@ const updateStudentApplicationResultV2 = asyncHandler(
           logger.info('Trying to delete file', fileKey);
           try {
             await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
-            const value = two_month_cache.del(fileKey);
-            if (value === 1) {
-              logger.info('Admission cache key deleted successfully');
-            }
           } catch (err) {
             if (err) {
               logger.error(`Error: delete Application result letter: ${err}`);
@@ -820,10 +757,6 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       logger.info('Trying to delete file', fileKey);
       try {
         await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
-        const value = two_month_cache.del(fileKey);
-        if (value === 1) {
-          logger.info('Admission cache key deleted successfully');
-        }
       } catch (err) {
         if (err) {
           logger.error(`Error: delete Application result letter: ${err}`);
@@ -874,55 +807,42 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   const student = await req.db
     .model('Student')
     .findById(studentId)
-    .populate('agents editors', 'firstname lastname email');
+    .populate('agents editors', 'firstname lastname email slackId archiv');
   if (!student) {
     logger.error('updateStudentApplicationResult: Invalid student Id');
     throw new ErrorResponse(404, 'Invalid student Id');
   }
 
-  if (is_TaiGer_Student(user)) {
-    if (result !== '-') {
-      for (let i = 0; i < student.agents?.length; i += 1) {
-        if (isNotArchiv(student.agents[i])) {
-          await AdmissionResultInformEmailToTaiGer(
-            {
-              firstname: student.agents[i].firstname,
-              lastname: student.agents[i].lastname,
-              address: student.agents[i].email
-            },
-            {
-              student_id: student._id.toString(),
-              student_firstname: student.firstname,
-              student_lastname: student.lastname,
-              udpatedApplication: udpatedApplicationForEmail,
-              admission: result
-            }
-          );
+  if (result !== '-') {
+    const taigerStaff = [...student.agents, ...student.editors]
+      .filter((staff) => isNotArchiv(staff))
+      .filter((staff) => staff._id !== user._id); // exclude the one who trigger the result update
+    for (let staff of taigerStaff) {
+      await AdmissionResultInformEmailToTaiGer(
+        {
+          firstname: staff.firstname,
+          lastname: staff.lastname,
+          address: staff.email
+        },
+        {
+          student_id: student._id.toString(),
+          student_firstname: student.firstname,
+          student_lastname: student.lastname,
+          udpatedApplication: udpatedApplicationForEmail,
+          admission: result
         }
-      }
-      for (let i = 0; i < student.editors?.length; i += 1) {
-        if (isNotArchiv(student.editors[i])) {
-          await AdmissionResultInformEmailToTaiGer(
-            {
-              firstname: student.editors[i].firstname,
-              lastname: student.editors[i].lastname,
-              address: student.editors[i].email
-            },
-            {
-              student_id: student._id.toString(),
-              student_firstname: student.firstname,
-              student_lastname: student.lastname,
-              udpatedApplication: udpatedApplicationForEmail,
-              admission: result
-            }
-          );
-        }
-      }
-      logger.info(
-        'admission or rejection inform email sent to agents and editors'
       );
     }
+    logger.info(
+      'admission or rejection inform email sent to agents and editors'
+    );
   }
+
+  // TODO: send notification to slack win!
+  if (result === 'O') {
+    sendSlackMessageToWinChannel(student, udpatedApplication);
+  }
+
   next();
 });
 
@@ -952,7 +872,6 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
 
   logger.info('Trying to delete file', fileKey);
 
-  const cache_key = `${studentId}${fileKey}`;
   try {
     await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
     document.status = DocumentStatusType.Missing;
@@ -960,10 +879,7 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
     document.updatedAt = new Date();
 
     student.save();
-    const value = one_month_cache.del(cache_key);
-    if (value === 1) {
-      logger.info('Profile cache key deleted successfully');
-    }
+
     res.status(200).send({ success: true, data: document });
     next();
   } catch (err) {
@@ -975,19 +891,16 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
 });
 
 const deleteVPDFile = asyncHandler(async (req, res, next) => {
-  const { studentId, program_id, fileType } = req.params;
+  const { applicationId, fileType } = req.params;
 
-  const applications = await req.db
+  const app = await req.db
     .model('Application')
-    .find({ studentId })
+    .findById(applicationId)
     .populate('programId');
 
-  const app = applications.find(
-    (application) => application.programId._id.toString() === program_id
-  );
   if (!app) {
-    logger.error('deleteVPDFile: Invalid applications name');
-    throw new ErrorResponse(404, 'Applications name not found');
+    logger.error('deleteVPDFile: Invalid application name');
+    throw new ErrorResponse(404, 'Application not found');
   }
   if (fileType === 'VPD') {
     if (!app.uni_assist.vpd_file_path) {
@@ -1017,32 +930,28 @@ const deleteVPDFile = asyncHandler(async (req, res, next) => {
   const fileKey = document_split.replace(/\\/g, '/');
   logger.info(`Trying to delete file ${fileKey}`);
 
-  try {
-    await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const value = one_month_cache.del(fileKey);
-    if (value === 1) {
-      logger.info('VPD cache key deleted successfully');
+  await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
+  const payload = {
+    uni_assist: {
+      ...app.uni_assist,
+      updatedAt: new Date()
     }
-    if (fileType === 'VPD') {
-      app.uni_assist.status = DocumentStatusType.Missing;
-      app.uni_assist.vpd_file_path = '';
-    }
-    if (fileType === 'VPDConfirmation') {
-      app.uni_assist.vpd_paid_confirmation_file_path = '';
-    }
-    app.uni_assist.updatedAt = new Date();
-    await app.save();
-    const updatedApplication = applications.find(
-      (application) => application.programId._id.toString() === program_id
-    );
-    res.status(200).send({ success: true, data: updatedApplication });
-    next();
-  } catch (err) {
-    if (err) {
-      logger.error('deleteVPDFile: ', err);
-      throw new ErrorResponse(500, 'Error occurs while deleting');
-    }
+  };
+  if (fileType === 'VPD') {
+    payload.uni_assist.status = DocumentStatusType.Missing;
+    payload.uni_assist.vpd_file_path = '';
   }
+  if (fileType === 'VPDConfirmation') {
+    payload.uni_assist.vpd_paid_confirmation_file_path = '';
+  }
+  const updatedApp = await ApplicationService.updateApplication(
+    req,
+    { _id: applicationId },
+    payload
+  );
+
+  res.status(200).send({ success: true, data: updatedApp });
+  next();
 });
 
 const removeNotification = asyncHandler(async (req, res, next) => {

@@ -152,26 +152,21 @@ const storage_vpd_s3 = multerS3({
     cb(null, { fieldName: file.fieldname, path: directory });
   },
   key: (req, file, cb) => {
-    const { studentId, program_id, fileType } = req.params;
+    const { applicationId, fileType } = req.params;
 
     req.db
-      .model('Student')
-      .findById(studentId)
-      .then((student) => {
-        if (student) {
-          req.db
-            .model('Program')
-            .findById(program_id)
-            .then((program) => {
-              const program_name = `${program?.school} ${program?.program_name}`;
-              let temp_name = `${student.lastname}_${
-                student.firstname
-              }_${program_name}_${fileType}${path.extname(file.originalname)}`;
-              temp_name = temp_name.replace(/ /g, '_');
-              temp_name = temp_name.replace(/\//g, '_');
-              cb(null, `${studentId}/${temp_name}`);
-            });
-        }
+      .model('Application')
+      .findById(applicationId)
+      .populate('studentId')
+      .populate('programId')
+      .then((application) => {
+        const program_name = `${application?.programId?.school} ${application?.programId?.program_name}`;
+        let temp_name = `${application?.studentId?.lastname}_${
+          application?.studentId?.firstname
+        }_${program_name}_${fileType}${path.extname(file.originalname)}`;
+        temp_name = temp_name.replace(/ /g, '_');
+        temp_name = temp_name.replace(/\//g, '_');
+        cb(null, `${application?.studentId?._id?.toString()}/${temp_name}`);
       });
   }
 });

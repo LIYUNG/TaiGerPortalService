@@ -31,6 +31,7 @@ const {
   InnerTaigerMultitenantFilter
 } = require('../middlewares/InnerTaigerMultitenantFilter');
 const { auditLog } = require('../utils/log/auditLog');
+const { validateStudentId } = require('../common/validation');
 
 const router = Router();
 
@@ -55,6 +56,7 @@ router
 router
   .route('/interviews/:studentId')
   .get(
+    validateStudentId,
     filter_archiv_user,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     getInterviewsByStudentId

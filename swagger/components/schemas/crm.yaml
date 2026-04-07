@@ -1,0 +1,1013 @@
+CRMLead:
+  type: object
+  properties:
+    id:
+      type: string
+      example: 'abc123xyz'
+    fullName:
+      type: string
+      example: '張小明'
+    gender:
+      type: string
+      example: 'male'
+    applicantRole:
+      type: string
+      description: 'Identity of person filling form'
+      example: '欲申請者本人'
+    preferredContact:
+      type: string
+      example: 'email'
+    email:
+      type: string
+      format: email
+      example: 'zhang@example.com'
+    lineId:
+      type: string
+      example: 'line_user123'
+    skypeId:
+      type: string
+      example: 'skype_user123'
+    phone:
+      type: string
+      example: '+886-912345678'
+    source:
+      type: string
+      example: 'website_form'
+    status:
+      type: string
+      example: 'open'
+    closeLikelihood:
+      type: string
+      example: 'high'
+    tags:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadTag'
+      example:
+        - id: 'tag_123'
+          tag: 'vip'
+          createdBy: 'agent_456'
+          createdAt: '2024-12-23T15:45:00.000Z'
+        - id: 'tag_124'
+          tag: '德國碩士'
+          createdBy: 'agent_456'
+          createdAt: '2024-12-23T15:45:00.000Z'
+    notes:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadNote'
+    userId:
+      type: string
+      nullable: true
+      example: null
+    isCurrentlyStudying:
+      type: string
+      example: 'yes'
+    currentYearOrGraduated:
+      type: string
+      example: '大四'
+    currentStatus:
+      type: string
+      example: '在學中'
+    bachelorSchool:
+      type: string
+      example: 'National Taiwan University'
+    bachelorGPA:
+      type: string
+      example: '3.8'
+    bachelorProgramName:
+      type: string
+      example: 'Computer Science'
+    graduatedBachelorSchool:
+      type: string
+      nullable: true
+    graduatedBachelorProgram:
+      type: string
+      nullable: true
+    graduatedBachelorGPA:
+      type: string
+      nullable: true
+    masterSchool:
+      type: string
+      nullable: true
+    masterProgramName:
+      type: string
+      nullable: true
+    masterGPA:
+      type: string
+      nullable: true
+    highestEducation:
+      type: string
+      example: 'bachelor'
+    highschoolName:
+      type: string
+      example: 'Taipei First High School'
+    highschoolGPA:
+      type: string
+      example: '90'
+    intendedPrograms:
+      type: string
+      example: 'Computer Science, AI'
+    intendedDirection:
+      type: string
+      example: 'Machine Learning'
+    intendedStartTime:
+      type: string
+      example: '2025 Winter'
+    intendedProgramLevel:
+      type: string
+      example: '碩士'
+    englishLevel:
+      type: string
+      example: 'TOEFL 100'
+    germanLevel:
+      type: string
+      example: 'B1'
+    workExperience:
+      type: string
+      example: '2 years as software engineer'
+    otherActivities:
+      type: string
+      example: 'Volunteer at local NGO'
+    awards:
+      type: string
+      example: "Dean's List 2023"
+    additionalInfo:
+      type: string
+      example: 'Looking for research opportunities'
+    reasonForGermany:
+      type: string
+      example: 'Strong engineering programs'
+    reasonsToStudyAbroad:
+      type: string
+      example: 'Better education,Career opportunities'
+    promoCode:
+      type: string
+      nullable: true
+    salesUserId:
+      type: string
+      nullable: true
+      example: 'agent_123'
+    salesNote:
+      type: string
+      example: 'High priority lead'
+    createdAt:
+      type: string
+      format: date-time
+      example: '2024-12-20T10:30:00.000Z'
+    updatedAt:
+      type: string
+      format: date-time
+      example: '2024-12-23T15:45:00.000Z'
+  required:
+    - id
+    - fullName
+
+CRMLeadListItem:
+  type: object
+  description: 'Lead item as returned by getLeads endpoint with meeting count and sales rep info'
+  properties:
+    id:
+      type: string
+      example: 'abc123xyz'
+    fullName:
+      type: string
+      example: '張小明'
+    source:
+      type: string
+      example: 'website_form'
+    email:
+      type: string
+      format: email
+      example: 'zhang@example.com'
+    phone:
+      type: string
+      example: '+886-912345678'
+    status:
+      type: string
+      example: 'open'
+    closeLikelihood:
+      type: string
+      example: 'high'
+    intendedStartTime:
+      type: string
+      example: '2025 Winter'
+    intendedProgramLevel:
+      type: string
+      example: '碩士'
+    intendedDirection:
+      type: string
+      example: 'Machine Learning'
+    salesRep:
+      type: object
+      nullable: true
+      properties:
+        userId:
+          type: string
+          example: 'agent_123'
+        label:
+          type: string
+          example: 'Alice Wang'
+    salesNote:
+      type: string
+      example: 'High priority lead'
+    meetingCount:
+      type: integer
+      example: 2
+    createdAt:
+      type: string
+      format: date-time
+      example: '2024-12-20T10:30:00.000Z'
+  required:
+    - id
+    - fullName
+    - meetingCount
+
+CRMLeadDetail:
+  allOf:
+    - $ref: './crm.yaml#/CRMLead'
+    - type: object
+      properties:
+        salesRep:
+          type: object
+          nullable: true
+          properties:
+            userId:
+              type: string
+              example: 'agent_123'
+            label:
+              type: string
+              example: 'Alice Wang'
+        deals:
+          type: array
+          items:
+            $ref: './crm.yaml#/CRMDeal'
+        meetings:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                example: 'meeting_abc123'
+              title:
+                type: string
+                example: 'Initial consultation'
+              date:
+                type: integer
+                description: 'Unix timestamp in milliseconds'
+                example: 1703070000000
+              summary:
+                type: object
+        leadSimilarUsers:
+          type: array
+          items:
+            type: object
+            properties:
+              mongoId:
+                type: string
+                example: '507f1f77bcf86cd799439011'
+              reason:
+                type: string
+                example: 'Similar academic background'
+
+CRMLeadCreate:
+  type: object
+  properties:
+    fullName:
+      type: string
+    gender:
+      type: string
+    applicantRole:
+      type: string
+    preferredContact:
+      type: string
+    email:
+      type: string
+      format: email
+    lineId:
+      type: string
+    skypeId:
+      type: string
+    phone:
+      type: string
+    source:
+      type: string
+    status:
+      type: string
+    closeLikelihood:
+      type: string
+    tags:
+      type: string
+    notes:
+      type: string
+    isCurrentlyStudying:
+      type: string
+    currentYearOrGraduated:
+      type: string
+    currentStatus:
+      type: string
+    bachelorSchool:
+      type: string
+    bachelorGPA:
+      type: string
+    bachelorProgramName:
+      type: string
+    intendedPrograms:
+      type: string
+    intendedDirection:
+      type: string
+    intendedStartTime:
+      type: string
+    intendedProgramLevel:
+      type: string
+    englishLevel:
+      type: string
+    germanLevel:
+      type: string
+    workExperience:
+      type: string
+    salesUserId:
+      type: string
+    salesNote:
+      type: string
+  required:
+    - fullName
+
+CRMLeadUpdate:
+  type: object
+  description: 'Fields that can be updated on a lead'
+  properties:
+    fullName:
+      type: string
+    gender:
+      type: string
+    email:
+      type: string
+    phone:
+      type: string
+    status:
+      type: string
+    closeLikelihood:
+      type: string
+    tags:
+      oneOf:
+        - type: array
+          items:
+            type: string
+        - type: string
+    notes:
+      oneOf:
+        - type: array
+          items:
+            type: string
+        - type: string
+    salesUserId:
+      type: string
+    salesNote:
+      type: string
+    intendedStartTime:
+      type: string
+    intendedProgramLevel:
+      type: string
+    intendedDirection:
+      type: string
+
+CRMLeadTag:
+  type: object
+  description: 'Tag associated with a lead'
+  properties:
+    id:
+      type: string
+      example: 'tag_abc123'
+    tag:
+      type: string
+      example: 'vip'
+    createdBy:
+      type: string
+      nullable: true
+      example: 'agent_123'
+    createdAt:
+      type: string
+      format: date-time
+      example: '2024-12-23T15:45:00.000Z'
+  required:
+    - id
+    - tag
+    - createdAt
+
+CRMLeadNote:
+  type: object
+  properties:
+    id:
+      type: string
+      example: 'note_abc123'
+    note:
+      type: string
+      example: 'Interested in CS programs'
+    createdBy:
+      type: string
+      nullable: true
+      example: 'agent_123'
+    createdAt:
+      type: string
+      format: date-time
+      example: '2024-12-23T15:45:00.000Z'
+  required:
+    - id
+    - note
+    - createdAt
+
+CRMLeadTagsUpdate:
+  type: object
+  properties:
+    tags:
+      type: array
+      items:
+        type: string
+  required:
+    - tags
+
+CRMLeadTagsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadTag'
+  required:
+    - success
+    - data
+
+CRMLeadNoteCreate:
+  type: object
+  properties:
+    note:
+      type: string
+    createdBy:
+      type: string
+  required:
+    - note
+
+CRMLeadNotesUpdate:
+  type: object
+  properties:
+    notes:
+      oneOf:
+        - type: array
+          items:
+            type: string
+        - type: string
+  required:
+    - notes
+
+CRMLeadNotesResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadNote'
+  required:
+    - success
+    - data
+
+CRMLeadNoteResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadNote'
+      description: 'Array of created or updated note(s)'
+  required:
+    - success
+    - data
+
+CRMInteraction:
+  type: object
+  description: 'Interaction record (deprecated - meetings used instead)'
+  properties:
+    _id:
+      type: string
+    lead_id:
+      type: string
+    type:
+      type: string
+      enum:
+        - call
+        - email
+        - meeting
+        - event
+        - chat
+        - other
+    date:
+      type: string
+      format: date-time
+    notes:
+      type: string
+    outcome:
+      type: string
+      enum:
+        - positive
+        - neutral
+        - negative
+    created_by:
+      oneOf:
+        - type: string
+        - $ref: './users.yaml#/UserPreview'
+    created_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - lead_id
+    - type
+
+CRMInteractionCreate:
+  type: object
+  description: 'Request body for instant meeting invite'
+  properties:
+    type:
+      type: string
+      enum:
+        - call
+        - email
+        - meeting
+        - event
+        - chat
+        - other
+    date:
+      type: string
+      format: date-time
+    notes:
+      type: string
+    outcome:
+      type: string
+      enum:
+        - positive
+        - neutral
+        - negative
+  required:
+    - type
+
+CRMConversion:
+  type: object
+  description: 'Lead conversion tracking (not actively used)'
+  properties:
+    _id:
+      type: string
+    lead_id:
+      type: string
+    conversion_date:
+      type: string
+      format: date-time
+    conversion_type:
+      type: string
+      enum:
+        - application_started
+        - application_submitted
+        - enrollment
+        - other
+    converted_to:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - student
+            - application
+        id:
+          type: string
+    notes:
+      type: string
+  required:
+    - _id
+    - lead_id
+
+CRMLeadResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: './crm.yaml#/CRMLeadDetail'
+  required:
+    - success
+    - data
+
+CRMLeadListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMLeadListItem'
+  required:
+    - success
+    - data
+
+CRMInteractionResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: './crm.yaml#/CRMInteraction'
+  required:
+    - success
+    - data
+
+CRMInteractionListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMInteraction'
+  required:
+    - success
+    - data
+
+CRMConversionResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: './crm.yaml#/CRMConversion'
+  required:
+    - success
+    - data
+
+CRMMeeting:
+  type: object
+  description: 'Meeting transcript record from meeting_transcripts table'
+  properties:
+    id:
+      type: string
+      example: 'meeting_abc123'
+    leadId:
+      type: string
+      nullable: true
+      example: 'lead_xyz789'
+    leadFullName:
+      type: string
+      nullable: true
+      example: '張小明'
+    title:
+      type: string
+      nullable: true
+      example: 'Initial consultation call'
+    speakers:
+      type: object
+      description: 'JSONB field containing speaker information'
+      additionalProperties: true
+    transcriptUrl:
+      type: string
+      nullable: true
+      example: 'https://example.com/transcripts/abc123.txt'
+    participants:
+      type: object
+      description: 'JSONB field containing participant data'
+      additionalProperties: true
+    meetingAttendees:
+      type: object
+      description: 'JSONB field with attendee details'
+      additionalProperties: true
+    duration:
+      type: number
+      format: double
+      example: 3600.5
+    date:
+      type: integer
+      description: 'Unix timestamp in milliseconds'
+      example: 1703070000000
+    dateString:
+      type: string
+      example: '2024-12-20'
+    summary:
+      type: object
+      description: 'JSONB field containing meeting summary'
+      additionalProperties: true
+    meetingInfo:
+      type: object
+      description: 'JSONB field with metadata like fred_joined, silent_meeting, summary_status'
+      additionalProperties: true
+      example:
+        fred_joined: true
+        silent_meeting: false
+        summary_status: 'completed'
+    isArchived:
+      type: boolean
+      example: false
+  required:
+    - id
+
+CRMMeetingResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: './crm.yaml#/CRMMeeting'
+  required:
+    - success
+    - data
+
+CRMMeetingListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMMeeting'
+  required:
+    - success
+    - data
+
+CRMDeal:
+  type: object
+  description: 'Deal record from deals table'
+  properties:
+    id:
+      type: integer
+      example: 1
+    leadId:
+      type: string
+      example: 'lead_xyz789'
+    leadFullName:
+      type: string
+      nullable: true
+      example: '張小明'
+    salesUserId:
+      type: string
+      nullable: true
+      example: 'agent_123'
+    salesLabel:
+      type: string
+      nullable: true
+      example: 'Alice Wang'
+    salesRep:
+      type: object
+      nullable: true
+      description: 'Sales rep info when included via relation'
+      properties:
+        userId:
+          type: string
+          example: 'agent_123'
+        label:
+          type: string
+          example: 'Alice Wang'
+    status:
+      type: string
+      enum:
+        - initiated
+        - sent
+        - signed
+        - closed
+        - canceled
+      example: 'signed'
+    closedDate:
+      type: string
+      format: date-time
+      nullable: true
+      example: '2024-12-25T00:00:00.000Z'
+    initiatedAt:
+      type: string
+      format: date-time
+      nullable: true
+      example: '2024-12-01T10:00:00.000Z'
+    sentAt:
+      type: string
+      format: date-time
+      nullable: true
+      example: '2024-12-05T14:30:00.000Z'
+    signedAt:
+      type: string
+      format: date-time
+      nullable: true
+      example: '2024-12-10T16:00:00.000Z'
+    closedAt:
+      type: string
+      format: date-time
+      nullable: true
+      example: '2024-12-25T09:00:00.000Z'
+    canceledAt:
+      type: string
+      format: date-time
+      nullable: true
+    dealSizeNtd:
+      type: string
+      description: 'Deal amount in NTD (numeric type returned as string)'
+      example: '150000.00'
+    note:
+      type: string
+      nullable: true
+      example: 'Standard package with extras'
+  required:
+    - leadId
+
+CRMDealResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: './crm.yaml#/CRMDeal'
+  required:
+    - success
+    - data
+
+CRMDealListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/CRMDeal'
+  required:
+    - success
+    - data
+
+CRMStats:
+  type: object
+  description: 'CRM statistics from getCRMStats endpoint'
+  properties:
+    totalLeadCount:
+      type: integer
+      example: 150
+    recentLeadCount:
+      type: integer
+      description: 'Leads created in last 7 days'
+      example: 12
+    convertedLeadCount:
+      type: integer
+      description: 'Leads with userId (converted to users)'
+      example: 45
+    totalMeetingCount:
+      type: integer
+      example: 230
+    recentMeetingCount:
+      type: integer
+      description: 'Meetings in last 7 days'
+      example: 18
+    avgResponseTimeDays:
+      type: number
+      format: float
+      nullable: true
+      description: 'Average days from first contact to first meeting'
+      example: 2.35
+    p50ResponseTimeDays:
+      type: number
+      format: float
+      nullable: true
+      description: 'Median response time in days'
+      example: 1.8
+    p95ResponseTimeDays:
+      type: number
+      format: float
+      nullable: true
+      description: '95th percentile response time in days'
+      example: 5.2
+    avgSalesCycleDays:
+      type: number
+      format: float
+      nullable: true
+      description: 'Average days from first meeting to deal closed'
+      example: 14.5
+    p50SalesCycleDays:
+      type: number
+      format: float
+      nullable: true
+      description: 'Median sales cycle in days'
+      example: 12.0
+    p95SalesCycleDays:
+      type: number
+      format: float
+      nullable: true
+      description: '95th percentile sales cycle in days'
+      example: 30.0
+    leadsCountByDate:
+      type: array
+      description: 'Weekly aggregation of lead counts'
+      items:
+        type: object
+        properties:
+          week:
+            type: string
+            example: '2024-50'
+          count:
+            type: integer
+            example: 15
+          highChanceCount:
+            type: integer
+            description: "Leads with close_likelihood = 'high'"
+            example: 8
+          convertedCount:
+            type: integer
+            description: 'Leads with user_id assigned'
+            example: 5
+    meetingCountByDate:
+      type: array
+      description: 'Weekly aggregation of meeting counts'
+      items:
+        type: object
+        properties:
+          week:
+            type: string
+            example: '2024-50'
+          count:
+            type: integer
+            example: 22
+    totalLeadsWithMeeting:
+      type: integer
+      description: 'Distinct leads that have at least one meeting'
+      example: 85
+    totalLeadsWithFollowUp:
+      type: integer
+      description: 'Leads with more than one meeting'
+      example: 42
+
+CRMStatsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: './crm.yaml#/CRMStats'
+  required:
+    - success
+    - data
+
+SalesRep:
+  type: object
+  description: 'Sales representative from sales_reps table'
+  properties:
+    userId:
+      type: string
+      maxLength: 64
+      example: 'user123'
+    label:
+      type: string
+      maxLength: 255
+      description: 'Display name/label for sales rep'
+      example: 'John Smith - Sales Manager'
+    isActive:
+      type: boolean
+      example: true
+  required:
+    - userId
+    - label
+
+SalesRepListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: './crm.yaml#/SalesRep'
+  required:
+    - success
+    - data
+
+MeetingInviteResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+  required:
+    - success

@@ -2,17 +2,22 @@ const StudentService = require('./students');
 
 const DocumentThreadService = {
   async getThreadById(req, messagesThreadId) {
-    return req.db
+    const thread = await req.db
       .model('Documentthread')
       .findById(messagesThreadId)
       .populate(
         'student_id',
-        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference'
+        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
       )
-      .populate('messages.user_id', 'firstname lastname role archiv')
+      .populate('messages.user_id', 'firstname lastname role archiv pictureUrl')
       .populate('program_id')
-      .populate('outsourced_user_id', 'firstname lastname role archiv')
+      .populate(
+        'outsourced_user_id',
+        'firstname lastname role archiv pictureUrl'
+      )
       .lean();
+
+    return thread;
   },
   async getStudentThreadsByStudentId(req, studentId) {
     const threads = await req.db
@@ -20,12 +25,12 @@ const DocumentThreadService = {
       .find({ student_id: studentId })
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang'
+        'school program_name application_deadline degree semester lang country updatedAt'
       )
-      .populate('student_id', 'firstname lastname')
+      .populate('student_id', 'firstname lastname pictureUrl')
       .populate('application_id')
-      .populate('messages.user_id', 'firstname lastname')
-      .populate('outsourced_user_id', 'firstname lastname')
+      .populate('messages.user_id', 'firstname lastname role pictureUrl')
+      .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
       .lean();
 
     const filteredThreads = threads.filter(
@@ -46,7 +51,7 @@ const DocumentThreadService = {
       .find(documentThreadFilter)
       .populate(
         'messages.user_id outsourced_user_id',
-        'firstname lastname email'
+        'firstname lastname email pictureUrl'
       )
       .populate({
         path: 'student_id',
@@ -58,7 +63,7 @@ const DocumentThreadService = {
       .populate('application_id')
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang application_start'
+        'school program_name application_deadline degree semester lang application_start country updatedAt'
       )
       .lean();
 
@@ -75,7 +80,9 @@ const DocumentThreadService = {
               (o_user_id) => o_user_id._id.toString() === userId
             ))) &&
         (thread?.application_id?.decided === 'O' || !thread?.application_id) &&
-        thread.file_type !== 'Interview'
+        thread.file_type !== 'Interview' &&
+        (thread.student_id?.archiv === false ||
+          thread.student_id?.archiv === undefined)
     );
 
     return filteredThreads;
@@ -93,7 +100,7 @@ const DocumentThreadService = {
       .find(queryFilter)
       .populate(
         'messages.user_id outsourced_user_id',
-        'firstname lastname email'
+        'firstname lastname email pictureUrl'
       )
       .populate({
         path: 'student_id',
@@ -105,7 +112,7 @@ const DocumentThreadService = {
       .populate('application_id')
       .populate(
         'program_id',
-        'school program_name application_deadline degree semester lang'
+        'school program_name application_deadline degree semester essay_difficulty lang country updatedAt'
       )
       .lean();
 
@@ -118,18 +125,20 @@ const DocumentThreadService = {
     return filteredThreads;
   },
   async getThreads(req, filter) {
-    return req.db
+    const threads = await req.db
       .model('Documentthread')
       .find(filter)
       .populate(
         'student_id',
-        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference'
+        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
       )
       .populate('application_id')
-      .populate('messages.user_id', 'firstname lastname role')
+      .populate('messages.user_id', 'firstname lastname role pictureUrl')
       .populate('program_id')
-      .populate('outsourced_user_id', 'firstname lastname role')
+      .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
       .lean();
+
+    return threads;
   },
   async updateThreadById(req, threadId, payload) {
     return req.db

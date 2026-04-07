@@ -1,17 +1,11 @@
-const {
-  Role,
-  is_TaiGer_Agent,
-  is_TaiGer_role
-} = require('@taiger-common/core');
+const { Role, is_TaiGer_Agent } = require('@taiger-common/core');
 
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
-const { one_month_cache } = require('../cache/node-cache');
-const { two_weeks_cache } = require('../cache/node-cache');
-const { PROGRAMS_CACHE } = require('../config');
 const ApplicationService = require('../services/applications');
 const ProgramService = require('../services/programs');
+const VCService = require('../services/vs');
 
 const getDistinctSchoolsAttributes = async (req, res) => {
   try {
@@ -95,35 +89,372 @@ const updateBatchSchoolAttributes = async (req, res) => {
   }
 };
 
-const getPrograms = asyncHandler(async (req, res) => {
-  // Option 1 : Cache version
-  if (PROGRAMS_CACHE === 'true') {
-    const value = two_weeks_cache.get(req.originalUrl);
-    if (value === undefined) {
-      // cache miss
-      const programs = await req.db
-        .model('Program')
-        .find({ isArchiv: { $ne: true } })
-        .select(
-          '-tuition_fees -website -special_notes -comments -optionalDocuments -requiredDocuments -uni_assist -daad_link -ml_required -ml_requirements -rl_required -essay_required -essay_requirements -application_portal_a -application_portal_b -fpso -program_duration -deprecated'
-        );
-      const success = two_weeks_cache.set(req.originalUrl, programs);
-      if (success) {
-        logger.info('programs cache set successfully');
+/**
+ * Get high-level overview and aggregated statistics about the Program collection
+ * Provides metrics useful for dashboard and overview pages including:
+ * - Total program count
+ * - Distribution by country, degree, language, subject
+ * - School type statistics
+ * - Top schools by program count
+ * - Recently updated programs
+ * - Programs with most applications and admission statistics
+ *
+ * @route GET /api/programs/overview
+ * @access Protected - Admin, Manager, Agent, Editor, External
+ * @returns {Object} Overview object with aggregated program statistics
+ */
+/**
+ * Get all schools with program counts
+ * @route GET /api/programs/schools-distribution
+ * @access Protected - Admin, Manager, Agent, Editor, External
+ * @returns {Object} List of all schools with program counts
+ */
+const getSchoolsDistribution = asyncHandler(async (req, res) => {
+  try {
+    const schools = await req.db.model('Program').aggregate([
+      { $match: { isArchiv: { $ne: true } } },
+      {
+        $group: {
+          _id: {
+            school: '$school',
+            country: '$country',
+            city: '$city'
+          },
+          programCount: { $sum: 1 }
+        }
+      },
+      { $sort: { programCount: -1 } },
+      {
+        $project: {
+          _id: 0,
+          school: '$_id.school',
+          country: '$_id.country',
+          city: '$_id.city',
+          programCount: 1
+        }
       }
-      return res.send({ success: true, data: programs });
-    }
-    res.send({ success: true, data: value });
-  } else {
-    // Option 2: No cache, good when programs are still frequently updated
-    const programs = await req.db
-      .model('Program')
-      .find({ isArchiv: { $ne: true } })
-      .select(
-        '-tuition_fees -website -special_notes -comments -optionalDocuments -requiredDocuments -uni_assist -daad_link -ml_required -ml_requirements -rl_required -essay_required -essay_requirements -application_portal_a -application_portal_b -fpso -program_duration -deprecated'
-      );
-    res.send({ success: true, data: programs });
+    ]);
+
+    logger.info(`Retrieved ${schools.length} schools for distribution`);
+    return res.send({
+      success: true,
+      data: schools.filter((item) => item.school)
+    });
+  } catch (error) {
+    logger.error('Error fetching schools distribution:', error);
+    throw error;
   }
+});
+
+const getProgramsOverview = asyncHandler(async (req, res) => {
+  try {
+    // Run multiple aggregations in parallel for better performance
+    const [
+      totalCount,
+      totalSchools,
+      byCountry,
+      byDegree,
+      byLanguage,
+      bySubject,
+      bySchoolType,
+      topSchools,
+      topContributors,
+      recentlyUpdated,
+      applicationStats
+    ] = await Promise.all([
+      // Total count of active programs
+      req.db.model('Program').countDocuments({ isArchiv: { $ne: true } }),
+
+      // Total count of distinct schools
+      req.db
+        .model('Program')
+        .aggregate([
+          { $match: { isArchiv: { $ne: true } } },
+          {
+            $group: {
+              _id: '$school'
+            }
+          },
+          {
+            $count: 'totalSchools'
+          }
+        ])
+        .then((result) => result[0]?.totalSchools || 0),
+
+      // Programs by country
+      req.db.model('Program').aggregate([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: '$country',
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        {
+          $project: {
+            _id: 0,
+            country: '$_id',
+            count: 1
+          }
+        }
+      ]),
+
+      // Programs by degree
+      req.db.model('Program').aggregate([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: '$degree',
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        {
+          $project: {
+            _id: 0,
+            degree: '$_id',
+            count: 1
+          }
+        }
+      ]),
+
+      // Programs by language
+      req.db.model('Program').aggregate([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: '$lang',
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        {
+          $project: {
+            _id: 0,
+            language: '$_id',
+            count: 1
+          }
+        }
+      ]),
+
+      // Programs by subject (unwind array first)
+      req.db.model('Program').aggregate([
+        {
+          $match: {
+            isArchiv: { $ne: true },
+            programSubjects: { $exists: true, $ne: [] }
+          }
+        },
+        { $unwind: '$programSubjects' },
+        {
+          $group: {
+            _id: '$programSubjects',
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 0,
+            subject: '$_id',
+            count: 1
+          }
+        }
+      ]),
+
+      // Programs by school type
+      req.db.model('Program').aggregate([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: {
+              schoolType: '$schoolType',
+              isPrivateSchool: '$isPrivateSchool',
+              isPartnerSchool: '$isPartnerSchool'
+            },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        {
+          $project: {
+            _id: 0,
+            schoolType: '$_id.schoolType',
+            isPrivateSchool: '$_id.isPrivateSchool',
+            isPartnerSchool: '$_id.isPartnerSchool',
+            count: 1
+          }
+        }
+      ]),
+
+      // Top 10 schools by program count
+      req.db.model('Program').aggregate([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: {
+              school: '$school',
+              country: '$country',
+              city: '$city'
+            },
+            programCount: { $sum: 1 }
+          }
+        },
+        { $sort: { programCount: -1 } },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 0,
+            school: '$_id.school',
+            country: '$_id.country',
+            city: '$_id.city',
+            programCount: 1
+          }
+        }
+      ]),
+
+      // Top 10 contributors by update count
+      req.db.model('Program').aggregate([
+        {
+          $match: {
+            isArchiv: { $ne: true },
+            whoupdated: { $exists: true, $nin: [null, ''] }
+          }
+        },
+        {
+          $group: {
+            _id: '$whoupdated',
+            updateCount: { $sum: 1 },
+            lastUpdate: { $max: '$updatedAt' }
+          }
+        },
+        { $sort: { updateCount: -1 } },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 0,
+            contributor: '$_id',
+            updateCount: 1,
+            lastUpdate: 1
+          }
+        }
+      ]),
+
+      // Recently updated programs (last 30 days)
+      req.db
+        .model('Program')
+        .find({
+          isArchiv: { $ne: true },
+          updatedAt: {
+            $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+          }
+        })
+        .select('school program_name degree semester updatedAt whoupdated')
+        .sort({ updatedAt: -1 })
+        .limit(10)
+        .lean(),
+
+      // Application statistics - programs with most applications
+      req.db.model('Application').aggregate([
+        {
+          $group: {
+            _id: '$programId',
+            totalApplications: { $sum: 1 },
+            submittedCount: {
+              $sum: { $cond: [{ $eq: ['$closed', 'O'] }, 1, 0] }
+            },
+            admittedCount: {
+              $sum: { $cond: [{ $eq: ['$admission', 'O'] }, 1, 0] }
+            },
+            rejectedCount: {
+              $sum: { $cond: [{ $eq: ['$admission', 'X'] }, 1, 0] }
+            },
+            pendingCount: {
+              $sum: { $cond: [{ $eq: ['$admission', '-'] }, 1, 0] }
+            }
+          }
+        },
+        { $sort: { totalApplications: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: 'programs',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'programDetails'
+          }
+        },
+        {
+          $unwind: { path: '$programDetails', preserveNullAndEmptyArrays: true }
+        },
+        {
+          $project: {
+            _id: 0,
+            programId: '$_id',
+            school: '$programDetails.school',
+            program_name: '$programDetails.program_name',
+            degree: '$programDetails.degree',
+            semester: '$programDetails.semester',
+            country: '$programDetails.country',
+            totalApplications: 1,
+            submittedCount: 1,
+            admittedCount: 1,
+            rejectedCount: 1,
+            pendingCount: 1,
+            admissionRate: {
+              $cond: [
+                { $eq: ['$submittedCount', 0] },
+                0,
+                {
+                  $multiply: [
+                    { $divide: ['$admittedCount', '$submittedCount'] },
+                    100
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ])
+    ]);
+
+    const overview = {
+      totalPrograms: totalCount,
+      totalSchools,
+      byCountry: byCountry.filter((item) => item.country),
+      byDegree: byDegree.filter((item) => item.degree),
+      byLanguage: byLanguage.filter((item) => item.language),
+      bySubject: bySubject.filter((item) => item.subject),
+      bySchoolType,
+      topSchools: topSchools.filter((item) => item.school),
+      topContributors,
+      recentlyUpdated,
+      topApplicationPrograms: applicationStats.filter(
+        (item) => item.school && item.program_name
+      ),
+      generatedAt: new Date()
+    };
+
+    logger.info('Programs overview generated successfully');
+    return res.send({ success: true, data: overview });
+  } catch (error) {
+    logger.error('Error generating programs overview:', error);
+    throw error;
+  }
+});
+
+const getPrograms = asyncHandler(async (req, res) => {
+  const programs = await req.db
+    .model('Program')
+    .find({ isArchiv: { $ne: true } })
+    .select(
+      '-tuition_fees -website -special_notes -comments -optionalDocuments -requiredDocuments -uni_assist -daad_link -ml_required -ml_requirements -rl_required -essay_required -essay_requirements -application_portal_a -application_portal_b -fpso -program_duration -deprecated'
+    )
+    .lean();
+
+  res.send({ success: true, data: programs });
 });
 
 const getStudentsByProgram = asyncHandler(async (req, programId) => {
@@ -135,10 +466,10 @@ const getStudentsByProgram = asyncHandler(async (req, programId) => {
     })
     .populate({
       path: 'studentId',
-      select: 'agents editors firstname lastname',
+      select: 'agents editors firstname lastname pictureUrl',
       populate: {
         path: 'agents editors',
-        select: 'firstname lastname'
+        select: 'firstname lastname pictureUrl'
       }
     })
     .lean();
@@ -157,108 +488,37 @@ const getStudentsByProgram = asyncHandler(async (req, programId) => {
   return Array.from(studentSet);
 });
 
+const getSameProgramStudents = asyncHandler(async (req, res) => {
+  const students = await getStudentsByProgram(req, req.params.programId);
+  return res.send({ success: true, data: students });
+});
+
 const getProgram = asyncHandler(async (req, res) => {
   const { user } = req;
-  if (PROGRAMS_CACHE === 'true') {
-    const value = one_month_cache.get(req.originalUrl);
-    if (value === undefined) {
-      // cache miss
-      const program = await ProgramService.getProgramById(
-        req,
-        req.params.programId
-      );
-      if (!program) {
-        logger.error('getProgram: Invalid program id');
-        throw new ErrorResponse(404, 'Program not found');
-      }
-      const success = one_month_cache.set(req.originalUrl, program);
-      if (success) {
-        logger.info('programs cache set successfully');
-      }
-      if (is_TaiGer_role(user)) {
-        const applications = await ApplicationService.getApplications(req, {
-          programId: req.params.programId,
-          decided: 'O'
-        });
-        const students = applications.map(
-          (application) => application.studentId
-        );
+  const program = await ProgramService.getProgramById(
+    req,
+    req.params.programId
+  );
+  if (!program) {
+    logger.error('getProgram: Invalid program id');
+    throw new ErrorResponse(404, 'Program not found');
+  }
 
-        const vc = await req.db
-          .model('VC')
-          .findOne({
-            docId: req.params.programId,
-            collectionName: 'Program'
-          })
-          .lean();
+  let vc = null;
 
-        return res.send({ success: true, data: program, students, vc });
-      }
-      return res.send({ success: true, data: program });
-    }
-    logger.info('programs cache hit');
-
-    if (
-      user.role === Role.Admin ||
-      is_TaiGer_Agent(user) ||
-      user.role === Role.Editor ||
-      user.role === Role.External
-    ) {
-      let students = [];
-
-      if (user.role !== Role.External) {
-        students = await getStudentsByProgram(req, req.params.programId);
-      }
-
-      const vc = await req.db
-        .model('VC')
-        .findOne({
-          docId: req.params.programId,
-          collectionName: 'Program'
-        })
-        .lean();
-      res.send({ success: true, data: value, students, vc });
-    } else {
-      res.send({ success: true, data: value });
-    }
-  } else if (
+  if (
     user.role === Role.Admin ||
     is_TaiGer_Agent(user) ||
     user.role === Role.Editor ||
     user.role === Role.External
   ) {
-    let students = [];
-
-    let program = {};
-    if (user.role !== Role.External) {
-      students = await getStudentsByProgram(req, req.params.programId);
-    }
-    program = await ProgramService.getProgramById(req, req.params.programId);
-
-    if (!program) {
-      logger.error('getProgram: Invalid program id');
-      throw new ErrorResponse(404, 'Program not found');
-    }
-    const vc = await req.db
-      .model('VC')
-      .findOne({
-        docId: req.params.programId,
-        collectionName: 'Program'
-      })
-      .lean();
-
-    res.send({ success: true, data: program, students, vc });
-  } else {
-    const program = await ProgramService.getProgramById(
-      req,
-      req.params.programId
-    );
-    if (!program) {
-      logger.error('getProgram: Invalid program id');
-      throw new ErrorResponse(404, 'Program not found');
-    }
-    res.send({ success: true, data: program });
+    vc = await VCService.getVC(req, {
+      docId: req.params.programId,
+      collectionName: 'Program'
+    });
   }
+
+  res.send({ success: true, data: program, vc });
 });
 
 const createProgram = asyncHandler(async (req, res) => {
@@ -284,6 +544,7 @@ const createProgram = asyncHandler(async (req, res) => {
     );
   }
   const program = await req.db.model('Program').create(new_program);
+
   return res.status(201).send({ success: true, data: program });
 });
 
@@ -303,7 +564,8 @@ const updateProgram = asyncHandler(async (req, res) => {
     .model('Program')
     .findOneAndUpdate({ _id: req.params.programId }, fields, {
       new: true
-    });
+    })
+    .lean();
 
   // Update same program but other semester common data
   await req.db.model('Program').updateMany(
@@ -316,19 +578,10 @@ const updateProgram = asyncHandler(async (req, res) => {
     fields_root
   );
 
-  const vc = await req.db
-    .model('VC')
-    .findOne({
-      docId: req.params.programId,
-      collectionName: 'Program'
-    })
-    .lean();
-
-  // Delete cache key for image, pdf, docs, file here.
-  const value = one_month_cache.del(req.originalUrl);
-  if (value === 1) {
-    logger.info('cache key deleted successfully due to update');
-  }
+  const vc = await VCService.getVC(req, {
+    docId: req.params.programId,
+    collectionName: 'Program'
+  });
 
   return res.status(200).send({ success: true, data: program, vc });
 });
@@ -349,10 +602,6 @@ const deleteProgram = asyncHandler(async (req, res) => {
       .findByIdAndUpdate(req.params.programId, { isArchiv: true });
     logger.info('The program deleted!');
 
-    const value = one_month_cache.del(req.originalUrl);
-    if (value === 1) {
-      logger.info('cache key deleted successfully due to delete');
-    }
     await req.db
       .model('ProgramRequirement')
       .findOneAndDelete({ programId: { $in: [req.params.programId] } });
@@ -375,13 +624,66 @@ const deleteProgram = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true });
 });
 
+const refreshProgram = asyncHandler(async (req, res) => {
+  const { user } = req;
+  const { programId } = req.params;
+
+  // Update program's updatedAt and whoupdated
+  const now = new Date();
+  const program = await req.db
+    .model('Program')
+    .findByIdAndUpdate(
+      programId,
+      {
+        updatedAt: now,
+        whoupdated: `${user.firstname} ${user.lastname}`
+      },
+      { new: true }
+    )
+    .lean();
+
+  if (!program) {
+    throw new ErrorResponse(404, 'Program not found');
+  }
+
+  // Manually add version control entry with field="none" and content message
+  const docChanges = {
+    originalValues: { none: null },
+    updatedValues: {
+      none: 'verified program information is up-to-date, unlock manually'
+    },
+    changedBy: `${user.firstname} ${user.lastname}`,
+    changedAt: now
+  };
+
+  await req.db.model('VC').findOneAndUpdate(
+    {
+      docId: programId,
+      collectionName: 'Program'
+    },
+    { $push: { changes: docChanges } },
+    { upsert: true, new: true }
+  );
+
+  const vc = await VCService.getVC(req, {
+    docId: programId,
+    collectionName: 'Program'
+  });
+
+  return res.status(200).send({ success: true, data: program, vc });
+});
+
 module.exports = {
   getDistinctSchoolsAttributes,
   updateBatchSchoolAttributes,
   getStudentsByProgram,
+  getProgramsOverview,
+  getSchoolsDistribution,
   getPrograms,
+  getSameProgramStudents,
   getProgram,
   createProgram,
   updateProgram,
-  deleteProgram
+  deleteProgram,
+  refreshProgram
 };

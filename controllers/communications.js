@@ -17,7 +17,7 @@ const logger = require('../services/logger');
 const { isNotArchiv } = require('../constants');
 const { getPermission } = require('../utils/queryFunctions');
 const { AWS_S3_BUCKET_NAME } = require('../config');
-const { one_month_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 const { deleteS3Objects } = require('../aws/s3');
 const { TENANT_SHORT_NAME } = require('../constants/common');
 const { getS3Object } = require('../aws/s3');
@@ -74,7 +74,9 @@ const getSearchUserMessages = asyncHandler(async (req, res, next) => {
       )
       .sort({ score: { $meta: 'textScore' } })
       .limit(10)
-      .select('firstname lastname firstname_chinese lastname_chinese role')
+      .select(
+        'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+      )
       .lean();
     // Merge the results
     const mergedResults = students.map((student) => {
@@ -99,7 +101,9 @@ const getSearchUserMessages = asyncHandler(async (req, res, next) => {
       )
       .sort({ score: { $meta: 'textScore' } })
       .limit(10)
-      .select('firstname lastname firstname_chinese lastname_chinese role')
+      .select(
+        'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+      )
       .lean();
 
     // Merge the results
@@ -153,7 +157,9 @@ const getSearchMessageKeywords = asyncHandler(async (req, res) => {
       .find({
         $or: [{ archiv: { $exists: false } }, { archiv: false }]
       })
-      .select('firstname lastname firstname_chinese lastname_chinese role')
+      .select(
+        'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+      )
       .lean();
     // Merge the results
     const mergedResults = students.map((student) => {
@@ -178,7 +184,9 @@ const getSearchMessageKeywords = asyncHandler(async (req, res) => {
     )
     .sort({ score: { $meta: 'textScore' } })
     .limit(10)
-    .select('firstname lastname firstname_chinese lastname_chinese role')
+    .select(
+      'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+    )
     .lean();
   // Merge the results
   const mergedResults = students_search.map((student) => {
@@ -215,64 +223,27 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
     user.role !== Role.Agent &&
     user.role !== Role.Editor
   ) {
-    logger.error(`getMyMessages: not ${TENANT_SHORT_NAME} user!`);
+    logger.error(`getUnreadNumberMessages: no ${TENANT_SHORT_NAME} user!`);
     throw new ErrorResponse(401, `Invalid ${TENANT_SHORT_NAME} user`);
   }
   const permissions = await getPermission(req, user);
-  if (
-    is_TaiGer_Admin(user) ||
-    (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
-  ) {
-    const students = await req.db
-      .model('Student')
-      .find({
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .select('firstname lastname role')
-      .lean();
-    // Get only the last communication
-    const student_ids = students.map((stud) => stud._id);
-    const studentsWithCommunications = await req.db.model('Student').aggregate([
-      {
-        $lookup: {
-          from: 'communications',
-          localField: '_id',
-          foreignField: 'student_id',
-          as: 'communications'
-        }
-      },
-      {
-        $project: {
-          firstname: 1,
-          lastname: 1,
-          firstname_chinese: 1,
-          lastname_chinese: 1,
-          role: 1,
-          latestCommunication: {
-            $arrayElemAt: ['$communications', -1]
-          }
-        }
-      },
-      {
-        $match: {
-          'latestCommunication.student_id': { $in: student_ids },
-          'latestCommunication.readBy': { $nin: [user._id] }
-        }
-      }
-    ]);
 
-    return res.status(200).send({
-      success: true,
-      data: studentsWithCommunications.length
-    });
+  const filter = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
+  if (
+    !(
+      is_TaiGer_Admin(user) ||
+      (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
+    )
+  ) {
+    filter.agents = user._id.toString();
   }
+
   const students = await req.db
     .model('Student')
-    .find({
-      agents: user._id.toString(),
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .select('firstname lastname role')
+    .find(filter)
+    .select('firstname lastname role pictureUrl')
     .lean();
   const student_ids = students.map((stud) => stud._id);
   const studentsWithCommunications = await req.db.model('Student').aggregate([
@@ -325,112 +296,67 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
 
   const permissions = await getPermission(req, user);
 
+  const filter = {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  };
   if (
-    is_TaiGer_Admin(user) ||
-    (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
+    !(
+      is_TaiGer_Admin(user) ||
+      (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
+    )
   ) {
-    const students = await req.db
-      .model('Student')
-      .find({
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .select('firstname lastname role')
-      .lean();
-    // Get only the last communication
-    const student_ids = students.map((stud) => stud._id);
-    const studentsWithCommunications = await req.db.model('Student').aggregate([
-      {
-        $lookup: {
-          from: 'communications',
-          localField: '_id',
-          foreignField: 'student_id',
-          as: 'communications'
-        }
-      },
-      {
-        $project: {
-          firstname: 1,
-          lastname: 1,
-          firstname_chinese: 1,
-          lastname_chinese: 1,
-          role: 1,
-          attributes: 1,
-          latestCommunication: {
-            $arrayElemAt: ['$communications', -1]
-          }
-        }
-      },
-      {
-        $match: {
-          'latestCommunication.student_id': { $in: student_ids }
-        }
-      },
-      {
-        $sort: {
-          'latestCommunication.createdAt': -1
-        }
-      }
-    ]);
-
-    res.status(200).send({
-      success: true,
-      data: {
-        students: studentsWithCommunications,
-        user
-      }
-    });
-  } else {
-    const students = await req.db
-      .model('Student')
-      .find({
-        agents: user._id.toString(),
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .select('firstname lastname role')
-      .lean();
-    const student_ids = students.map((stud) => stud._id);
-    const studentsWithCommunications = await req.db.model('Student').aggregate([
-      {
-        $lookup: {
-          from: 'communications',
-          localField: '_id',
-          foreignField: 'student_id',
-          as: 'communications'
-        }
-      },
-      {
-        $project: {
-          firstname: 1,
-          lastname: 1,
-          firstname_chinese: 1,
-          lastname_chinese: 1,
-          attributes: 1,
-          role: 1,
-          latestCommunication: {
-            $arrayElemAt: ['$communications', -1]
-          }
-        }
-      },
-      {
-        $match: {
-          'latestCommunication.student_id': { $in: student_ids }
-        }
-      },
-      {
-        $sort: {
-          'latestCommunication.createdAt': -1
-        }
-      }
-    ]);
-
-    res.status(200).send({
-      success: true,
-      data: {
-        students: studentsWithCommunications,
-        user
-      }
-    });
+    filter.agents = user._id.toString();
   }
+
+  const students = await req.db
+    .model('Student')
+    .find(filter)
+    .select('firstname lastname role pictureUrl')
+    .lean();
+  // Get only the last communication
+  const student_ids = students.map((stud) => stud._id);
+  const studentsWithCommunications = await req.db.model('Student').aggregate([
+    {
+      $lookup: {
+        from: 'communications',
+        localField: '_id',
+        foreignField: 'student_id',
+        as: 'communications'
+      }
+    },
+    {
+      $project: {
+        firstname: 1,
+        lastname: 1,
+        firstname_chinese: 1,
+        lastname_chinese: 1,
+        pictureUrl: 1,
+        role: 1,
+        attributes: 1,
+        latestCommunication: {
+          $arrayElemAt: ['$communications', -1]
+        }
+      }
+    },
+    {
+      $match: {
+        'latestCommunication.student_id': { $in: student_ids }
+      }
+    },
+    {
+      $sort: {
+        'latestCommunication.createdAt': -1
+      }
+    }
+  ]);
+
+  res.status(200).send({
+    success: true,
+    data: {
+      students: studentsWithCommunications,
+      user
+    }
+  });
 
   next();
 });
@@ -444,9 +370,9 @@ const loadMessages = asyncHandler(async (req, res, next) => {
     .model('Student')
     .findById(studentId)
     .select(
-      'firstname lastname firstname_chinese lastname_chinese agents archiv'
+      'firstname lastname firstname_chinese lastname_chinese agents archiv pictureUrl'
     )
-    .populate('agents', 'firstname lastname email role');
+    .populate('agents', 'firstname lastname email role pictureUrl');
   if (!student) {
     logger.error('loadMessages: Invalid student id!');
     throw new ErrorResponse(404, 'Student tot found');
@@ -459,7 +385,7 @@ const loadMessages = asyncHandler(async (req, res, next) => {
     })
     .populate(
       'student_id user_id readBy ignoredMessageBy',
-      'firstname lastname firstname_chinese lastname_chinese role agents editors'
+      'firstname lastname firstname_chinese lastname_chinese role agents editors pictureUrl'
     )
     .sort({ createdAt: -1 })
     .skip(skipAmount) // skip first x items.
@@ -485,9 +411,9 @@ const getMessages = asyncHandler(async (req, res, next) => {
     .model('Student')
     .findById(studentId)
     .select(
-      'firstname lastname firstname_chinese lastname_chinese agents lastLoginAt archiv'
+      'firstname lastname firstname_chinese lastname_chinese agents lastLoginAt archiv pictureUrl'
     )
-    .populate('agents editors', 'firstname lastname email role');
+    .populate('agents editors', 'firstname lastname email role pictureUrl');
   if (!student) {
     logger.error('getMessages: Invalid student id!');
     throw new ErrorResponse(404, 'Student not found');
@@ -499,7 +425,7 @@ const getMessages = asyncHandler(async (req, res, next) => {
     })
     .populate(
       'student_id user_id readBy ignoredMessageBy',
-      'firstname lastname role'
+      'firstname lastname role pictureUrl'
     )
     .sort({ createdAt: -1 }) // 0: latest!
     .limit(pageSize); // show only first y limit items after skip.
@@ -522,7 +448,10 @@ const getMessages = asyncHandler(async (req, res, next) => {
         [userIdStr]: new Date()
       };
       await lastElement.save();
-      await lastElement.populate('readBy', 'firstname lastname role');
+      await lastElement.populate(
+        'readBy',
+        'firstname lastname role pictureUrl'
+      );
     }
   }
   res.status(200).send({
@@ -541,10 +470,10 @@ const getChatFile = asyncHandler(async (req, res, next) => {
   const fileKey = path.join(studentId, 'chat', fileName).replace(/\\/g, '/');
 
   const cache_key = `chat-${studentId}${req.originalUrl.split('/')[5]}`;
-  const value = one_month_cache.get(cache_key); // image name
+  const value = ten_minutes_cache.get(cache_key); // image name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = one_month_cache.set(cache_key, Buffer.from(response));
+    const success = ten_minutes_cache.set(cache_key, Buffer.from(response));
     if (success) {
       logger.info('image cache set successfully');
     }
@@ -570,7 +499,7 @@ const postMessages = asyncHandler(async (req, res, next) => {
       .find({
         student_id: studentId
       })
-      .populate('student_id user_id', 'firstname lastname role')
+      .populate('student_id user_id', 'firstname lastname role pictureUrl')
       .sort({ createdAt: -1 }) // 0: latest!
       .limit(3); // show only first 3 limit items after skip.
 
@@ -642,7 +571,7 @@ const postMessages = asyncHandler(async (req, res, next) => {
     .find({
       student_id: studentId
     })
-    .populate('student_id user_id readBy', 'firstname lastname')
+    .populate('student_id user_id readBy', 'firstname lastname pictureUrl')
     .sort({ createdAt: -1 }) // 0: latest!
     .limit(1);
   res.status(200).send({ success: true, data: communication_latest });
@@ -723,11 +652,12 @@ const deleteAMessageInCommunicationThread = asyncHandler(
 
     // remove chat attachment cache.
     msg.files?.map((file) =>
-      one_month_cache.del(`chat-${msg.student_id?.toString()}${file.name}`)
+      ten_minutes_cache.del(`chat-${msg.student_id?.toString()}${file.name}`)
     );
 
     try {
-      if (msg.files.filter((file) => file.path !== '')?.length > 0) {
+      console.log('msg.files', msg.files);
+      if (msg.files?.filter((file) => file.path !== '')?.length > 0) {
         await deleteS3Objects({
           bucketName: AWS_S3_BUCKET_NAME,
           objectKeys: msg.files

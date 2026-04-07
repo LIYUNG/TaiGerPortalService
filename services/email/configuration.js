@@ -10,6 +10,7 @@ const {
 const { ses, limiter, SendRawEmailCommand } = require('../../aws');
 const { senderName, taigerNotReplyGmail } = require('../../constants/email');
 const { htmlContent } = require('../emailTemplate');
+const logger = require('../logger');
 
 const transporter = isProd()
   ? createTransport({
@@ -29,17 +30,21 @@ const transporter = isProd()
 
 const sendEmail = isTest()
   ? (to, subject, message) => {}
-  : (to, subject, message) => {
+  : async (to, subject, message) => {
       const mail = {
         from: senderName,
         to,
         bcc: taigerNotReplyGmail,
         subject,
-        // text: message,
         html: htmlContent(message)
       };
 
-      return limiter.schedule(() => transporter.sendMail(mail));
+      try {
+        return await limiter.schedule(() => transporter.sendMail(mail));
+      } catch (error) {
+        logger.error('Failed to send email', { to, subject, error });
+        return null;
+      }
     };
 
 module.exports = { transporter, sendEmail };

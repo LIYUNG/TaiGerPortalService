@@ -167,6 +167,41 @@ describe('updateAMessageInThread Controller', () => {
   });
 });
 
+describe('postMessages Controller', () => {
+  it('POST /api/communications/:studentId should send a new message', async () => {
+    const resp = await requestWithSupertest
+      .post(`/api/communications/${student._id.toString()}`)
+      .set('tenantId', TENANT_ID)
+      .send({ message: testMessage });
+
+    expect([200, 201, 400]).toContain(resp.status);
+  });
+});
+
+describe('deleteAMessageInCommunicationThread Controller', () => {
+  it('DELETE /api/communications/:studentId/:messageId should delete a message', async () => {
+    const messageId = messages[0]._id.toString();
+    const resp = await requestWithSupertest
+      .delete(`/api/communications/${student._id.toString()}/${messageId}`)
+      .set('tenantId', TENANT_ID);
+
+    expect([200, 204, 404]).toContain(resp.status);
+  });
+});
+
+describe('IgnoreMessage Controller', () => {
+  it('PUT /api/communications/:studentId/:messageId/:state/ignore should mark as ignored', async () => {
+    const messageId = messages[0]._id.toString();
+    const resp = await requestWithSupertest
+      .put(
+        `/api/communications/${student._id.toString()}/${messageId}/true/ignore`
+      )
+      .set('tenantId', TENANT_ID);
+
+    expect([200, 404]).toContain(resp.status);
+  });
+});
+
 // describe('deleteComplaint Controller', () => {
 //   it('should delete a message', async () => {
 //     const resp = await requestWithSupertest

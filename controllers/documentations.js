@@ -4,9 +4,9 @@ const { Role } = require('@taiger-common/core');
 
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
-const { one_month_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 const logger = require('../services/logger');
-const { API_ORIGIN, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
+const { ORIGIN, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
 const { getS3Object } = require('../aws/s3');
 
 const valid_categories = [
@@ -53,7 +53,7 @@ const updateDocumentationPage = asyncHandler(async (req, res) => {
       upsert: true,
       new: true
     });
-  const success = one_month_cache.set(req.url, doc_page_existed);
+  const success = ten_minutes_cache.set(req.url, doc_page_existed);
   if (success) {
     logger.info('cache set update successfully');
   }
@@ -84,14 +84,14 @@ const getCategoryDocumentationsPage = asyncHandler(async (req, res) => {
   }
 
   // Use redis/cache
-  const value = one_month_cache.get(req.url);
+  const value = ten_minutes_cache.get(req.url);
   if (value === undefined) {
     // cache miss
     logger.info('cache miss');
     const docspage = await req.db.model('Docspage').findOne({
       category: req.params.category
     });
-    const success = one_month_cache.set(req.url, docspage);
+    const success = ten_minutes_cache.set(req.url, docspage);
     if (success) {
       logger.info('cache set successfully');
     }
@@ -164,7 +164,7 @@ const createInternalDocumentation = asyncHandler(async (req, res) => {
 
 const uploadDocImage = asyncHandler(async (req, res) => {
   const filePath = req.file.key.split('/');
-  let imageurl = new URL(`/api/docs/file/${filePath[1]}`, API_ORIGIN).href;
+  let imageurl = new URL(`/api/docs/file/${filePath[1]}`, ORIGIN).href;
   imageurl = imageurl.replace(/\\/g, '/');
   // TODO: to overwrite cache image, pdf, docs, file here.
   return res.send({ success: true, data: imageurl });
@@ -179,12 +179,15 @@ const getDocFile = asyncHandler(async (req, res) => {
 
   // Use redis/cache
   // TODO: need to update when new uploaded file with same key name!
-  const value = one_month_cache.get(req.originalUrl);
+  const value = ten_minutes_cache.get(req.originalUrl);
   if (value === undefined) {
     // cache miss
     logger.info(`cache miss: ${req.originalUrl}`);
     const response = await getS3Object(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
-    const success = one_month_cache.set(req.originalUrl, Buffer.from(response));
+    const success = ten_minutes_cache.set(
+      req.originalUrl,
+      Buffer.from(response)
+    );
     if (success) {
       logger.info('cache set successfully');
     }
@@ -200,15 +203,13 @@ const getDocFile = asyncHandler(async (req, res) => {
 const uploadDocDocs = asyncHandler(async (req, res) => {
   const filePath = req.file.key.split('/');
   const fileName = filePath[1];
-  let docUrl = new URL(
-    `/api/docs/file/${encodeURIComponent(fileName)}`,
-    API_ORIGIN
-  ).href;
+  let docUrl = new URL(`/api/docs/file/${encodeURIComponent(fileName)}`, ORIGIN)
+    .href;
   docUrl = docUrl.replace(/\\/g, '/');
   let extname = path.extname(fileName);
   extname = extname.replace('.', '');
   // TODO: to delete cache key for image, pdf, docs, file here.
-  const value = one_month_cache.del(
+  const value = ten_minutes_cache.del(
     `/api/docs/file/${encodeURIComponent(fileName)}`
   );
   // encodeURIComponent convert chinese to url match charater %E7%94%B3%E8%AB%8 etc.

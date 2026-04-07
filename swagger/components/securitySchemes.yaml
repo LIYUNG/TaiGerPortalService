@@ -1,0 +1,5 @@
+cookieAuth:
+  type: apiKey
+  in: cookie
+  name: auth_token
+  description: Authentication token stored in cookie

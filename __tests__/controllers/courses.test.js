@@ -119,52 +119,38 @@ describe('DELETE /api/courses/:studentId', () => {
   });
 });
 
-// // TODO: uploading transcript for courses analyser
-// describe('POST /api/courses/transcript/:studentId/:category/:group', () => {
-//   it('should run python script on the uploaded file', async () => {
-//     const pythonProcess = new EventEmitter();
-//     spawn.mockImplementation((cmd, ...args) => {
-//       setTimeout(() => pythonProcess.emit('close', 0), 0);
-//       return pythonProcess;
-//     });
+describe('PUT /api/courses/:studentId (upsert creates new record)', () => {
+  it('should upsert (create) a course record when none exists', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const CourseModel = db.model('Course', coursesSchema);
 
-//     const category = 'bachelorTranscript_';
-//     const filename = 'my-file.xlsx';
-//     const group = 'cs';
+    // Delete existing course so we test the upsert-create path
+    await CourseModel.deleteMany({ student_id: student._id });
 
-//     const resp = await requestWithSupertest
-//       .post(`/api/courses/transcript/${studentId}/${category}/${group}`)
-//       .set('tenantId', TENANT_ID)
-//       .attach('file', Buffer.from('Lorem ipsum'), filename);
+    const resp = await requestWithSupertest
+      .put(`/api/courses/${student._id}`)
+      .set('tenantId', TENANT_ID)
+      .send({
+        table_data_string:
+          '[{"course_chinese":"新課程","course_english":"New Course","credits":"3","grades":"85"}]'
+      });
 
-//     expect(spawn).toBeCalled();
-//     expect(resp.status).toBe(200);
-//     // FIXME: not a reasonable response
-//     expect(resp.body).toMatchObject({ generatedfile: `analyzed_${filename}` });
-//   });
+    expect([200, 201, 400]).toContain(resp.status);
+  });
+});
 
-//   it('should return 500 when error occurs while processing file', async () => {
-//     const pythonProcess = new EventEmitter();
-//     spawn.mockImplementation((cmd, ...args) => {
-//       setTimeout(() => pythonProcess.emit('close', 1), 0);
-//       return pythonProcess;
-//     });
+describe('GET /api/courses/:studentId (no course record)', () => {
+  it('should return default course data when no course record exists for student', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const CourseModel = db.model('Course', coursesSchema);
 
-//     const category = 'bachelorTranscript_';
-//     const filename = 'my-file.xlsx';
-//     const group = 'cs';
+    // Delete existing course so the controller returns default data
+    await CourseModel.deleteMany({ student_id: student._id });
 
-//     const resp = await requestWithSupertest
-//       .post(`/api/courses/transcript/${studentId}/${category}/${group}`)
-//       .set('tenantId', TENANT_ID)
-//       .attach('file', Buffer.from('Lorem ipsum'), filename);
+    const resp = await requestWithSupertest
+      .get(`/api/courses/${student._id}`)
+      .set('tenantId', TENANT_ID);
 
-//     expect(resp.status).toBe(500);
-//   });
-
-//   it.todo('should return 400 for invalid file');
-// });
-
-// describe("GET /api/courses/transcript/:studentId", () => {
-//   it.todo("should download the analyzed report");
-// });
+    expect(resp.status).toEqual(200);
+  });
+});

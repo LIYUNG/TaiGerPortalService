@@ -20,7 +20,7 @@ const ApplicationService = {
         path: 'studentId',
         populate: {
           path: 'editors agents',
-          select: 'firstname lastname email'
+          select: 'firstname lastname email pictureUrl'
         }
       })
       .populate({
@@ -32,7 +32,7 @@ const ApplicationService = {
       })
       .populate(
         'programId',
-        'school program_name degree semester lang application_deadline application_start'
+        'school program_name degree semester lang country application_deadline application_start whoupdated updatedAt'
       )
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
@@ -59,21 +59,35 @@ const ApplicationService = {
 
     return filteredApplications;
   },
-  getApplications(req, filter) {
-    return req.db
-      .model('Application')
-      .find(filter)
-      .populate('programId')
-      .populate('doc_modification_thread.doc_thread_id', '-messages');
+  getApplications(req, filter = {}, select = [], populate = true) {
+    const query = req.db.model('Application').find(filter);
+    if (!!populate && populate !== 'false') {
+      query.populate('programId');
+      query.populate({
+        path: 'doc_modification_thread.doc_thread_id',
+        select: 'file_type isFinalVersion updatedAt messages',
+        populate: {
+          path: 'messages',
+          options: {
+            sort: { createdAt: -1 },
+            limit: 1
+          },
+          populate: {
+            path: 'user_id',
+            select: 'firstname lastname pictureUrl'
+          }
+        }
+      });
+    }
+    if (select.length > 0) {
+      query.select(select.join(' '));
+    }
+    return query;
   },
   async getApplicationsWithStudentDetails(req, filter) {
     const applications = await req.db
       .model('Application')
       .find(filter)
-      .populate(
-        'programId',
-        'school program_name degree semester lang application_deadline application_start'
-      )
       .populate({
         path: 'studentId',
         populate: {
@@ -81,6 +95,10 @@ const ApplicationService = {
           select: 'firstname lastname email'
         }
       })
+      .populate(
+        'programId',
+        'school program_name degree semester lang country application_deadline application_start'
+      )
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
     return applications;
@@ -117,6 +135,7 @@ const ApplicationService = {
       .lean();
     return application;
   },
+  // TODO: interview threads is missing! (orphan interview threads)
   async deleteApplication(req, application_id) {
     const application = await this.getApplicationById(req, application_id);
 

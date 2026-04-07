@@ -33,7 +33,10 @@ const GetResponseTimeForThread = asyncHandler(async () =>
 
 const FileTypeMapping = {
   CV: ['CV'],
+  CV_US: ['CV_US'],
   ML: ['ML'],
+  SOP: ['SOP'],
+  PHS: ['PHS'],
   RL: [
     'RL_A',
     'RL_B',

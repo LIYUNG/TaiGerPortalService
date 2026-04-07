@@ -5,6 +5,7 @@ const { GeneralGETRequestRateLimiter } = require('../middlewares/rate_limiter');
 const { protect, permit } = require('../middlewares/auth');
 const {
   getAdmissions,
+  getAdmissionsOverview,
   getAdmissionsYear,
   getAdmissionLetter
 } = require('../controllers/admissions');
@@ -13,6 +14,7 @@ const {
   permission_canAccessStudentDatabase_filter
 } = require('../middlewares/permission-filter');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
+const { validateStudentId } = require('../common/validation');
 
 const router = Router();
 router.use(protect);
@@ -28,8 +30,19 @@ router
   );
 
 router
+  .route('/overview')
+  .get(
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    permission_canAccessStudentDatabase_filter,
+    getAdmissionsOverview
+  );
+
+router
   .route('/:studentId/admission/:fileName')
   .get(
+    validateStudentId,
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),

@@ -17,14 +17,12 @@ const { protect, permit, prohibit } = require('../middlewares/auth');
 const {
   getMycourses,
   putMycourses,
-  processTranscript_api,
-  processTranscript_test,
-  downloadXLSX,
   processTranscript_api_gatway,
   downloadJson,
   deleteMyCourse
 } = require('../controllers/course');
 const { logAccess } = require('../utils/log/log');
+const { validateStudentId } = require('../common/validation');
 
 const router = Router();
 
@@ -44,35 +42,25 @@ router.route('/transcript/test').get(
 router
   .route('/:studentId')
   .put(
+    validateStudentId,
     GeneralPUTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Student, Role.Guest),
     multitenant_filter,
     putMycourses
   )
   .get(
+    validateStudentId,
     GeneralGETRequestRateLimiter,
     prohibit(Role.Guest),
     multitenant_filter,
     getMycourses
   )
   .delete(
+    validateStudentId,
     GeneralDELETERequestRateLimiter,
     prohibit(Role.Guest),
     multitenant_filter,
     deleteMyCourse
-  );
-
-// TaiGer Transcript Analyser (Python Backend)
-router
-  .route('/transcript-test/:studentId/:category/:language')
-  .post(
-    filter_archiv_user,
-    TranscriptAnalyserRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    multitenant_filter,
-    InnerTaigerMultitenantFilter,
-    processTranscript_api,
-    logAccess
   );
 
 // TaiGer Transcript Analyser:
@@ -89,29 +77,6 @@ router
   );
 
 router
-  .route('/transcript/:studentId/:category/:language')
-  .post(
-    filter_archiv_user,
-    TranscriptAnalyserRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    multitenant_filter,
-    InnerTaigerMultitenantFilter,
-    processTranscript_test,
-    logAccess
-  );
-
-router
-  .route('/transcript/:studentId')
-  .get(
-    filter_archiv_user,
-    DownloadTemplateRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
-    multitenant_filter,
-    downloadXLSX,
-    logAccess
-  );
-
-router
   .route('/transcript/v2/:studentId')
   .get(
     filter_archiv_user,
@@ -121,9 +86,5 @@ router
     downloadJson,
     logAccess
   );
-// router
-//   .route('/:id')
-//   .put(permit(Role.Admin, Role.Agent), updateCourses)
-//   .delete(permit(Role.Admin, Role.Agent), deleteCourse);
 
 module.exports = router;

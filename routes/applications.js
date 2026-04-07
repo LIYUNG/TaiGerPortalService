@@ -10,13 +10,15 @@ const {
 const { protect, permit } = require('../middlewares/auth');
 
 const {
+  getApplications,
   getStudentApplications,
   deleteApplication,
   createApplicationV2,
   getMyStudentsApplications,
   updateStudentApplications,
   getActiveStudentsApplications,
-  updateApplication
+  updateApplication,
+  refreshApplication
 } = require('../controllers/applications');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
@@ -24,16 +26,35 @@ const {
   InnerTaigerMultitenantFilter
 } = require('../middlewares/InnerTaigerMultitenantFilter');
 const { logAccess } = require('../utils/log/log');
+const { validateStudentId } = require('../common/validation');
 
 const router = Router();
 
 router.use(protect);
+
+router
+  .route('/')
+  .get(
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getApplications,
+    logAccess
+  );
 
 router.route('/application/:application_id').delete(
   getMessagesRateLimiter,
   permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor), // TODO: Add multitenant_filter?
   deleteApplication
 );
+
+router
+  .route('/:applicationId/refresh')
+  .post(
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    refreshApplication
+  );
 
 router
   .route('/all/active/applications')
@@ -44,6 +65,7 @@ router
   );
 
 router.route('/student/:studentId/:application_id').put(
+  validateStudentId,
   getMessagesRateLimiter,
   permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor), // TODO: Add multitenant_filter?
   multitenant_filter,
@@ -62,11 +84,13 @@ router
 router
   .route('/student/:studentId')
   .get(
+    validateStudentId,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     getStudentApplications
   )
   .put(
+    validateStudentId,
     // TODO: not implemented yet (UI dependent!)
     filter_archiv_user,
     GeneralPUTRequestRateLimiter,
@@ -77,6 +101,7 @@ router
     logAccess
   )
   .post(
+    validateStudentId,
     filter_archiv_user,
     postMessagesImageRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),

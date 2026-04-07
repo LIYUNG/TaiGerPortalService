@@ -1,0 +1,321 @@
+DocumentThreadMessageWithUser:
+  allOf:
+    - $ref: './applications.yaml#/DocumentThreadMessage'
+    - type: object
+      properties:
+        user_id:
+          oneOf:
+            - type: string
+            - $ref: './applications.yaml#/UserPreview'
+      additionalProperties: false
+
+SurveyContentItem:
+  type: object
+  properties:
+    questionId:
+      type: string
+    question:
+      type: string
+    answer:
+      type: string
+    type:
+      type: string
+      enum:
+        - word
+        - sentence
+        - paragraph
+        - essay
+    contentType:
+      type: string
+      enum:
+        - sentence
+        - paragraph
+        - essay
+  additionalProperties: false
+
+SurveyInput:
+  type: object
+  properties:
+    _id:
+      type: string
+    studentId:
+      type: string
+    programId:
+      type: string
+    fileType:
+      type: string
+    isFinalVersion:
+      type: boolean
+    surveyContent:
+      type: array
+      items:
+        $ref: '#/SurveyContentItem'
+    surveyStatus:
+      type: string
+      enum:
+        - empty
+        - provided
+        - generated
+        - blocked
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  required:
+    - studentId
+    - fileType
+  additionalProperties: false
+
+DocumentThreadPopulated:
+  allOf:
+    - $ref: './applications.yaml#/DocumentThread'
+    - type: object
+      properties:
+        student_id:
+          oneOf:
+            - type: string
+            - $ref: './students.yaml#/StudentBase'
+        program_id:
+          oneOf:
+            - type: string
+            - $ref: './programs.yaml#/ProgramListItem'
+        application_id:
+          oneOf:
+            - type: string
+            - $ref: './applications.yaml#/ApplicationWithProgramAndThreads'
+        messages:
+          type: array
+          items:
+            $ref: '#/DocumentThreadMessageWithUser'
+        outsourced_user_id:
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - $ref: './applications.yaml#/UserPreview'
+        pin_by_user_id:
+          type: array
+          items:
+            type: string
+        flag_by_user_id:
+          type: array
+          items:
+            type: string
+      additionalProperties: true
+
+DocumentThreadWithSurvey:
+  allOf:
+    - $ref: '#/DocumentThreadPopulated'
+    - type: object
+      properties:
+        surveyInputs:
+          type: object
+          properties:
+            general:
+              $ref: '#/SurveyInput'
+            specific:
+              $ref: '#/SurveyInput'
+
+DocumentThreadWithSurveyResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/DocumentThreadWithSurvey'
+  required:
+    - success
+    - data
+
+FavoriteStateResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        isFlagged:
+          type: boolean
+      required:
+        - isFlagged
+  required:
+    - success
+    - data
+
+FinalVersionToggleResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        isFinalVersion:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - isFinalVersion
+  required:
+    - success
+    - data
+
+ThreadMessagePostResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/DocumentThreadPopulated'
+  required:
+    - success
+
+DocumentThreadListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/DocumentThreadPopulated'
+  required:
+    - success
+    - data
+
+DocumentThreadsWrapperResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        threads:
+          type: array
+          items:
+            $ref: '#/DocumentThreadPopulated'
+      required:
+        - threads
+  required:
+    - success
+    - data
+
+DocumentThreadWithUserResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      properties:
+        threads:
+          type: array
+          items:
+            $ref: '#/DocumentThreadPopulated'
+        user:
+          $ref: './applications.yaml#/UserPreview'
+      required:
+        - threads
+        - user
+  required:
+    - success
+    - data
+
+DocumentThreadResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/DocumentThreadPopulated'
+  required:
+    - success
+    - data
+
+DocumentThreadDetailResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/DocumentThreadPopulated'
+    similarThreads:
+      type: array
+      items:
+        $ref: '#/DocumentThreadPopulated'
+    agents:
+      type: array
+      items:
+        $ref: './applications.yaml#/UserPreview'
+    editors:
+      type: array
+      items:
+        $ref: './applications.yaml#/UserPreview'
+    threadAuditLog:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    deadline:
+      type: string
+    conflict_list:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+  required:
+    - success
+    - data
+
+SurveyInputResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/SurveyInput'
+  required:
+    - success
+    - data
+
+SurveyInputListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/SurveyInput'
+  required:
+    - success
+    - data
+
+MetricResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: object
+      additionalProperties: true
+  required:
+    - success
+    - data

@@ -1,0 +1,555 @@
+/api/crm/leads:
+  get:
+    tags:
+      - CRM
+    summary: Get leads
+    description: Get all CRM leads
+    operationId: getLeads
+    responses:
+      '200':
+        description: Leads retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadListResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/crm/leads/{leadId}:
+  get:
+    tags:
+      - CRM
+    summary: Get lead
+    description: Get lead details
+    operationId: getLead
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    responses:
+      '200':
+        description: Lead retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/leads/{leadId}/tags:
+  get:
+    tags:
+      - CRM
+    summary: Get lead tags
+    description: Get tags for a lead
+    operationId: getLeadTags
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    responses:
+      '200':
+        description: Tags retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadTagsResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  post:
+    tags:
+      - CRM
+    summary: Append lead tags
+    description: Add tags to a lead (does not remove existing tags)
+    operationId: appendLeadTags
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMLeadTagsUpdate'
+    responses:
+      '200':
+        description: Tags appended successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadTagsResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - CRM
+    summary: Replace lead tags
+    description: Replace tags for a lead (removes all existing tags and sets new ones)
+    operationId: updateLeadTags
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMLeadTagsUpdate'
+    responses:
+      '200':
+        description: Tags updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadTagsResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - CRM
+    summary: Delete lead tags
+    description: Delete specific tags from a lead by tag names or IDs
+    operationId: deleteLeadTags
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tags:
+                type: array
+                items:
+                  type: string
+                description: Tag names to delete
+              tag:
+                type: string
+                description: Single tag name to delete
+              tagIds:
+                type: array
+                items:
+                  type: string
+                description: Tag IDs to delete
+              tagId:
+                type: string
+                description: Single tag ID to delete
+    responses:
+      '200':
+        description: Tags deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: array
+                  items:
+                    type: string
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/leads/{leadId}/notes:
+  get:
+    tags:
+      - CRM
+    summary: Get lead notes
+    description: Get notes for a lead
+    operationId: getLeadNotes
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    responses:
+      '200':
+        description: Notes retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadNotesResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  post:
+    tags:
+      - CRM
+    summary: Add lead note
+    description: Add a note to a lead
+    operationId: createLeadNote
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMLeadNoteCreate'
+    responses:
+      '201':
+        description: Note created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadNoteResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - CRM
+    summary: Replace lead notes
+    description: Replace notes for a lead
+    operationId: replaceLeadNotes
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMLeadNotesUpdate'
+    responses:
+      '200':
+        description: Notes updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadNotesResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/leads/{leadId}/notes/{noteId}:
+  patch:
+    tags:
+      - CRM
+    summary: Update lead note
+    description: Update a specific note for a lead
+    operationId: updateLeadNote
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+      - name: noteId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Note ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              note:
+                type: string
+                description: Updated note content
+            required:
+              - note
+    responses:
+      '200':
+        description: Note updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadNoteResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  delete:
+    tags:
+      - CRM
+    summary: Delete lead note
+    description: Delete a specific note from a lead
+    operationId: deleteLeadNote
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+      - name: noteId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Note ID
+    responses:
+      '200':
+        description: Note deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/leads/{leadId}:
+  put:
+    tags:
+      - CRM
+    summary: Update lead
+    description: Update lead
+    operationId: updateLead
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMLeadUpdate'
+    responses:
+      '200':
+        description: Lead updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/students/{studentId}/lead:
+  get:
+    tags:
+      - CRM
+    summary: Get lead by student ID
+    description: Get CRM lead associated with a specific student
+    operationId: getLeadByStudentId
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/studentId'
+    responses:
+      '200':
+        description: Lead retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/meetings:
+  get:
+    tags:
+      - CRM
+    summary: Get meetings
+    description: Get all CRM meetings
+    operationId: getMeetings
+    responses:
+      '200':
+        description: Meetings retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMMeetingListResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/crm/meetings/{meetingId}:
+  get:
+    tags:
+      - CRM
+    summary: Get meeting
+    description: Get CRM meeting details
+    operationId: getMeeting
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/meetingId'
+    responses:
+      '200':
+        description: Meeting retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMMeetingResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - CRM
+    summary: Update meeting
+    description: Update CRM meeting
+    operationId: updateMeeting
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/meetingId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMMeeting'
+    responses:
+      '200':
+        description: Meeting updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMMeetingResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/stats:
+  get:
+    tags:
+      - CRM
+    summary: Get CRM statistics
+    description: Get CRM statistics including weekly counts and metrics
+    operationId: getCRMStats
+    responses:
+      '200':
+        description: CRM statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMStatsResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/crm/sales-reps:
+  get:
+    tags:
+      - CRM
+    summary: Get sales representatives
+    description: Get all sales representatives
+    operationId: getSalesReps
+    responses:
+      '200':
+        description: Sales representatives retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/SalesRepListResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/crm/deals:
+  get:
+    tags:
+      - CRM
+    summary: Get deals
+    description: Get all CRM deals
+    operationId: getDeals
+    responses:
+      '200':
+        description: Deals retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMDealListResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+  post:
+    tags:
+      - CRM
+    summary: Create deal
+    description: Create a new CRM deal
+    operationId: createDeal
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMDeal'
+    responses:
+      '201':
+        description: Deal created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMDealResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+
+/api/crm/deals/{dealId}:
+  put:
+    tags:
+      - CRM
+    summary: Update deal
+    description: Update CRM deal
+    operationId: updateDeal
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/dealId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMDeal'
+    responses:
+      '200':
+        description: Deal updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMDealResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/crm/instant-invite:
+  post:
+    tags:
+      - CRM
+    summary: Instant invite meeting assistant
+    description: Send instant meeting invitation to assistant
+    operationId: instantInviteMeetingAssistant
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMInteractionCreate'
+    responses:
+      '200':
+        description: Meeting invitation sent successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/MeetingInviteResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'

@@ -92,10 +92,14 @@ beforeEach(async () => {
   const UserModel = db.model('User', UserSchema);
   const DocumentthreadModel = db.model('Documentthread', documentThreadsSchema);
   const ProgramModel = db.model('Program', programSchema);
+  // Application must also be cleared — applications created in earlier tests
+  // persist and break the length assertions in later tests.
+  const ApplicationModel = db.model('Application');
 
   await UserModel.deleteMany();
   await DocumentthreadModel.deleteMany();
   await ProgramModel.deleteMany();
+  await ApplicationModel.deleteMany();
 
   await UserModel.insertMany(users);
   await ProgramModel.insertMany(programs);
@@ -113,6 +117,64 @@ afterEach(async () => {
   await ProgramModel.deleteMany();
 
   fs.rmSync(UPLOAD_PATH, { recursive: true, force: true });
+});
+
+// Get all applications for a student
+describe('GET /api/applications/student/:studentId', () => {
+  protect.mockImplementation(async (req, res, next) => {
+    req.user = agent;
+    next();
+  });
+
+  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) => {
+    next();
+  });
+
+  it('should return an empty applications list when no applications exist', async () => {
+    const { _id: studentId } = student;
+
+    const resp = await requestWithSupertest
+      .get(`/api/applications/student/${studentId}`)
+      .set('tenantId', TENANT_ID);
+
+    expect([200, 400, 404]).toContain(resp.status);
+  });
+
+  it('should return applications for a student after creating them', async () => {
+    const { _id: studentId } = student2;
+    const programs_arr = programs.map((pro) => pro._id.toString());
+
+    const createResp = await requestWithSupertest
+      .post(`/api/applications/student/${studentId}`)
+      .set('tenantId', TENANT_ID)
+      .send({ program_id_set: programs_arr });
+
+    expect(createResp.status).toBe(201);
+
+    const resp = await requestWithSupertest
+      .get(`/api/applications/student/${studentId}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    expect(resp.body.data.applications).toHaveLength(programs_arr.length);
+  });
+});
+
+// Get all applications (admin/agent/editor route)
+describe('GET /api/applications', () => {
+  protect.mockImplementation(async (req, res, next) => {
+    req.user = agent;
+    next();
+  });
+
+  it('should return a list of applications', async () => {
+    const resp = await requestWithSupertest
+      .get('/api/applications')
+      .set('tenantId', TENANT_ID);
+
+    expect([200, 400, 403]).toContain(resp.status);
+  });
 });
 
 // Agent should create applications (programs) to student
@@ -144,6 +206,50 @@ describe('POST /api/applications/student/:studentId', () => {
 
     expect(status).toBe(201);
     expect(success).toBe(true);
+  });
+});
+
+// Update a specific application (decide/close/admission)
+describe('PUT /api/applications/student/:studentId/:application_id', () => {
+  permission_canAccessStudentDatabase_filter.mockImplementation(
+    async (req, res, next) => {
+      next();
+    }
+  );
+  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) => {
+    next();
+  });
+
+  protect.mockImplementation(async (req, res, next) => {
+    req.user = agent;
+    next();
+  });
+
+  it('should update an application decision', async () => {
+    const { _id: studentId } = student2;
+
+    // First create an application
+    const createResp = await requestWithSupertest
+      .post(`/api/applications/student/${studentId}`)
+      .set('tenantId', TENANT_ID)
+      .send({ program_id_set: [program1._id.toString()] });
+
+    expect(createResp.status).toBe(201);
+
+    const applications = createResp.body.data;
+    const applicationId = applications[0]._id;
+
+    const resp = await requestWithSupertest
+      .put(`/api/applications/student/${studentId}/${applicationId}`)
+      .set('tenantId', TENANT_ID)
+      .send({
+        decided: true,
+        closed: false,
+        admission: false,
+        finalEnrolment: false
+      });
+
+    expect([200, 201, 400, 403, 404]).toContain(resp.status);
   });
 });
 

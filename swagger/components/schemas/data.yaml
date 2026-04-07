@@ -1,0 +1,602 @@
+ProgramRequirement:
+  type: object
+  properties:
+    _id:
+      type: string
+    program_id:
+      oneOf:
+        - type: string
+        - $ref: './programs.yaml#/ProgramListItem'
+    requirement_type:
+      type: string
+      enum:
+        - gpa
+        - test_score
+        - language_proficiency
+        - work_experience
+        - document
+        - certification
+        - other
+    name:
+      type: string
+    description:
+      type: string
+    is_mandatory:
+      type: boolean
+    minimum_value:
+      oneOf:
+        - type: number
+        - type: string
+    maximum_value:
+      oneOf:
+        - type: number
+        - type: string
+    unit:
+      type: string
+    deadline:
+      type: string
+      format: date-time
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - program_id
+    - requirement_type
+    - name
+  additionalProperties: false
+
+ProgramRequirementCreate:
+  type: object
+  properties:
+    program_id:
+      type: string
+    requirement_type:
+      type: string
+      enum:
+        - gpa
+        - test_score
+        - language_proficiency
+        - work_experience
+        - document
+        - certification
+        - other
+    name:
+      type: string
+    description:
+      type: string
+    is_mandatory:
+      type: boolean
+    minimum_value:
+      oneOf:
+        - type: number
+        - type: string
+    maximum_value:
+      oneOf:
+        - type: number
+        - type: string
+    unit:
+      type: string
+    deadline:
+      type: string
+      format: date-time
+  required:
+    - program_id
+    - requirement_type
+    - name
+  additionalProperties: false
+
+ProgramRequirementUpdate:
+  type: object
+  properties:
+    name:
+      type: string
+    description:
+      type: string
+    is_mandatory:
+      type: boolean
+    minimum_value:
+      oneOf:
+        - type: number
+        - type: string
+    maximum_value:
+      oneOf:
+        - type: number
+        - type: string
+    unit:
+      type: string
+    deadline:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+Language:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    code:
+      type: string
+    native_name:
+      type: string
+  required:
+    - _id
+    - name
+    - code
+  additionalProperties: false
+
+University:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    country:
+      type: string
+    city:
+      type: string
+    world_ranking:
+      type: integer
+    website:
+      type: string
+      format: uri
+    description:
+      type: string
+  required:
+    - _id
+    - name
+  additionalProperties: false
+
+Degree:
+  type: object
+  properties:
+    _id:
+      type: string
+    name:
+      type: string
+    level:
+      type: string
+      enum:
+        - bachelor
+        - master
+        - phd
+        - diploma
+        - certificate
+    description:
+      type: string
+  required:
+    - _id
+    - name
+    - level
+  additionalProperties: false
+
+ProgramRequirementResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/ProgramRequirement'
+  required:
+    - success
+    - data
+
+ProgramRequirementListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/ProgramRequirement'
+  required:
+    - success
+    - data
+
+LanguageListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Language'
+  required:
+    - success
+    - data
+
+UniversityListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/University'
+  required:
+    - success
+    - data
+
+DegreeListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Degree'
+  required:
+    - success
+    - data
+
+SyncAllCoursesRequest:
+  type: object
+  properties:
+    source:
+      type: string
+      description: External source identifier to sync from
+      example: 'universities-api'
+    force:
+      type: boolean
+      description: Force refresh even if data is up to date
+      default: false
+      example: false
+  additionalProperties: false
+
+Agent:
+  type: object
+  properties:
+    _id:
+      type: string
+      example: '507f1f77bcf86cd799439011'
+    name:
+      type: string
+      example: 'John Smith'
+    email:
+      type: string
+      format: email
+      example: 'john.smith@taiger.com'
+    phone:
+      type: string
+      example: '+1-555-0123'
+    role:
+      type: string
+      description: Agent role or designation
+      example: 'Senior Advisor'
+    status:
+      type: string
+      enum:
+        - active
+        - inactive
+        - pending
+      example: 'active'
+    created_at:
+      type: string
+      format: date-time
+      example: '2024-01-15T10:30:00Z'
+  required:
+    - _id
+    - name
+  additionalProperties: false
+
+AgentListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Agent'
+  required:
+    - success
+    - data
+
+EssayWriter:
+  type: object
+  properties:
+    _id:
+      type: string
+      example: '507f1f77bcf86cd799439012'
+    name:
+      type: string
+      example: 'Dr. Emily Johnson'
+    specialization:
+      type: string
+      description: Primary subject focus
+      example: 'Business Administration'
+    rating:
+      type: number
+      format: float
+      example: 4.8
+    languages:
+      type: array
+      items:
+        type: string
+      example: ['English', 'German', 'French']
+  required:
+    - _id
+    - name
+  additionalProperties: false
+
+EssayWriterListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/EssayWriter'
+  required:
+    - success
+    - data
+
+ExpenseCreate:
+  type: object
+  properties:
+    amount:
+      type: number
+      example: 150.50
+    currency:
+      type: string
+      minLength: 1
+      example: 'USD'
+    category:
+      type: string
+      example: 'Travel'
+    description:
+      type: string
+      example: 'Flight booking for student recruitment'
+    incurred_at:
+      type: string
+      format: date-time
+      example: '2024-12-20T14:30:00Z'
+    status:
+      type: string
+      enum:
+        - pending
+        - approved
+        - rejected
+      description: Optional status override during creation
+      example: 'pending'
+  required:
+    - amount
+    - currency
+    - category
+  additionalProperties: false
+
+Expense:
+  allOf:
+    - $ref: '#/ExpenseCreate'
+    - type: object
+      properties:
+        _id:
+          type: string
+          example: '507f1f77bcf86cd799439013'
+        created_at:
+          type: string
+          format: date-time
+          example: '2024-12-20T14:30:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2024-12-21T10:15:00Z'
+      required:
+        - _id
+        - created_at
+        - updated_at
+      additionalProperties: false
+
+ExpenseResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/Expense'
+  required:
+    - success
+    - data
+
+ExpenseListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/Expense'
+  required:
+    - success
+    - data
+
+WidgetConfig:
+  type: object
+  properties:
+    script_url:
+      type: string
+      format: uri
+      example: 'https://widget.taiger.com/embed.js'
+    enabled:
+      type: boolean
+      example: true
+    settings:
+      type: object
+      additionalProperties: true
+      example:
+        theme: 'light'
+        position: 'bottom-right'
+  required:
+    - script_url
+    - enabled
+  additionalProperties: false
+
+WidgetConfigResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/WidgetConfig'
+  required:
+    - success
+    - data
+
+WidgetInitRequest:
+  type: object
+  properties:
+    source:
+      type: string
+      description: Origin of the initialization request
+      example: 'student-portal'
+    config:
+      type: object
+      additionalProperties: true
+      description: Arbitrary widget configuration overrides
+      example:
+        notification_enabled: true
+  additionalProperties: false
+
+WidgetInitResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: 'Widget initialized successfully'
+    status:
+      type: string
+      enum:
+        - initialized
+        - pending
+      example: 'initialized'
+  required:
+    - success
+  additionalProperties: false
+
+WidgetStatus:
+  type: object
+  properties:
+    status:
+      type: string
+      enum:
+        - active
+        - inactive
+        - pending
+    last_updated:
+      type: string
+      format: date-time
+    metadata:
+      type: object
+      additionalProperties: true
+  required:
+    - status
+  additionalProperties: false
+
+WidgetStatusResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/WidgetStatus'
+  required:
+    - success
+    - data
+
+AuditLog:
+  type: object
+  properties:
+    _id:
+      type: string
+    action:
+      type: string
+    actor_id:
+      type: string
+    actor_type:
+      type: string
+    entity_type:
+      type: string
+    entity_id:
+      type: string
+    metadata:
+      type: object
+      additionalProperties: true
+    created_at:
+      type: string
+      format: date-time
+  required:
+    - _id
+    - action
+    - created_at
+  additionalProperties: false
+
+AuditLogListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        $ref: '#/AuditLog'
+  required:
+    - success
+    - data
+
+UniassistData:
+  type: object
+  properties:
+    status:
+      type: string
+      enum:
+        - active
+        - disabled
+        - error
+    last_synced_at:
+      type: string
+      format: date-time
+    metadata:
+      type: object
+      additionalProperties: true
+  required:
+    - status
+  additionalProperties: false
+
+UniassistResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      $ref: '#/UniassistData'
+  required:
+    - success
+    - data

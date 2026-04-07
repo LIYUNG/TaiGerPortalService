@@ -195,7 +195,7 @@ const getInterviewQuestions = asyncHandler(async (req, res) => {
   const interviewsSurveys = await req.db
     .model('InterviewSurveyResponse')
     .find()
-    .populate('student_id', 'firstname lastname email')
+    .populate('student_id', 'firstname lastname email pictureUrl')
     .lean();
 
   const questionsArray = interviewsSurveys.filter(
@@ -217,7 +217,7 @@ const getMyInterview = asyncHandler(async (req, res) => {
   let interviews = await req.db
     .model('Interview')
     .find(filter)
-    .populate('student_id trainer_id', 'firstname lastname email')
+    .populate('student_id trainer_id', 'firstname lastname email pictureUrl')
     .populate('program_id', 'school program_name degree semester')
     .populate('thread_id event_id')
     .lean();
@@ -268,7 +268,7 @@ const getInterview = asyncHandler(async (req, res) => {
     let interview = await req.db
       .model('Interview')
       .findById(interview_id)
-      .populate('student_id trainer_id', 'firstname lastname email')
+      .populate('student_id trainer_id', 'firstname lastname email pictureUrl')
       .populate('program_id', 'school program_name degree semester')
       .populate({
         path: 'thread_id',
@@ -296,7 +296,10 @@ const getInterview = asyncHandler(async (req, res) => {
       .find({
         interviewThreadId: interview_id
       })
-      .populate('performedBy targetUserId', 'firstname lastname role')
+      .populate(
+        'performedBy targetUserId',
+        'firstname lastname role pictureUrl'
+      )
       .populate({
         path: 'targetDocumentThreadId interviewThreadId',
         select: 'program_id file_type',
@@ -307,19 +310,11 @@ const getInterview = asyncHandler(async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
-    const questionsNumPromise = req.db
-      .model('InterviewSurveyResponse')
-      .countDocuments({ 'interview_id.program_id': interview.program_id?._id });
-
-    const [interviewAuditLog, questionsNum] = await Promise.all([
-      interviewAuditLogPromise,
-      questionsNumPromise
-    ]);
+    const [interviewAuditLog] = await Promise.all([interviewAuditLogPromise]);
 
     res.status(200).send({
       success: true,
       data: interview,
-      questionsNum,
       interviewAuditLog
     });
   } catch (e) {
@@ -360,7 +355,7 @@ const deleteInterview = asyncHandler(async (req, res) => {
       const student_temp = await req.db
         .model('Student')
         .findById(interview.student_id)
-        .populate('agents', 'firstname lastname email');
+        .populate('agents', 'firstname lastname email pictureUrl');
       const cc = [...toBeDeletedEvent.receiver_id, ...student_temp.agents];
       const receiver = toBeDeletedEvent.requester_id[0];
       if (isNotArchiv(receiver)) {
@@ -464,7 +459,7 @@ const addInterviewTrainingDateTime = asyncHandler(async (req, res, next) => {
     const student_temp = await req.db
       .model('Student')
       .findById(interview_tmep.student_id)
-      .populate('agents', 'firstname lastname email');
+      .populate('agents', 'firstname lastname email pictureUrl');
 
     const cc = [...newEvent.receiver_id, ...student_temp.agents];
 
@@ -515,7 +510,10 @@ const updateInterview = asyncHandler(async (req, res, next) => {
   const beforeUpdate = await req.db
     .model('Interview')
     .findById(interview_id)
-    .populate('student_id trainer_id', 'firstname lastname email archiv')
+    .populate(
+      'student_id trainer_id',
+      'firstname lastname email archiv pictureUrl'
+    )
     .populate('program_id', 'school program_name degree semester')
     .populate('thread_id event_id')
     .lean();
@@ -529,7 +527,10 @@ const updateInterview = asyncHandler(async (req, res, next) => {
     .findByIdAndUpdate(interview_id, payload, {
       new: true
     })
-    .populate('student_id trainer_id', 'firstname lastname email archiv role')
+    .populate(
+      'student_id trainer_id',
+      'firstname lastname email archiv role pictureUrl'
+    )
     .populate('program_id', 'school program_name degree semester')
     .populate('thread_id event_id')
     .lean();
@@ -640,7 +641,7 @@ const getInterviewSurvey = asyncHandler(async (req, res) => {
     .findOne({
       interview_id
     })
-    .populate('student_id', 'firstname lastname email')
+    .populate('student_id', 'firstname lastname email pictureUrl')
     .populate('program_id', 'school program_name degree semester')
     .lean();
 
@@ -669,7 +670,10 @@ const updateInterviewSurvey = asyncHandler(async (req, res) => {
   const interview = await req.db
     .model('Interview')
     .findById(interview_id)
-    .populate('student_id trainer_id', 'firstname lastname email archiv')
+    .populate(
+      'student_id trainer_id',
+      'firstname lastname email archiv pictureUrl'
+    )
     .populate('program_id', 'school program_name degree semester')
     .lean();
   if (payload.isFinal) {
@@ -739,7 +743,7 @@ const createInterview = asyncHandler(async (req, res) => {
       student_id: studentId,
       program_id
     })
-    .populate('student_id trainer_id', 'firstname lastname email')
+    .populate('student_id trainer_id', 'firstname lastname email pictureUrl')
     .populate('program_id', 'school program_name degree semester')
     .lean();
   if (interview_existed) {
@@ -765,7 +769,10 @@ const createInterview = asyncHandler(async (req, res) => {
           payload,
           { upsert: true }
         )
-        .populate('student_id trainer_id', 'firstname lastname email')
+        .populate(
+          'student_id trainer_id',
+          'firstname lastname email pictureUrl'
+        )
         .populate('program_id', 'school program_name degree semester')
         .lean();
     } catch (err) {
@@ -887,22 +894,47 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
           as: 'surveyResponses'
         }
       },
+      // $lookup cannot mix `pipeline` with `localField`/`foreignField` (MongoDB error 51174).
       {
         $lookup: {
           from: 'users',
           localField: 'student_id',
           foreignField: '_id',
-          as: 'student_id',
-          pipeline: [{ $project: { firstname: 1, lastname: 1, email: 1 } }]
+          as: 'student_id'
         }
       },
       {
         $lookup: {
-          from: 'users', // Assuming trainers are in users collection
+          from: 'users',
           localField: 'trainer_id',
           foreignField: '_id',
-          as: 'trainer_id',
-          pipeline: [{ $project: { firstname: 1, lastname: 1, email: 1 } }]
+          as: 'trainer_id'
+        }
+      },
+      {
+        $addFields: {
+          student_id: {
+            $map: {
+              input: '$student_id',
+              as: 's',
+              in: {
+                firstname: '$$s.firstname',
+                lastname: '$$s.lastname',
+                email: '$$s.email'
+              }
+            }
+          },
+          trainer_id: {
+            $map: {
+              input: '$trainer_id',
+              as: 't',
+              in: {
+                firstname: '$$t.firstname',
+                lastname: '$$t.lastname',
+                email: '$$t.email'
+              }
+            }
+          }
         }
       },
       {

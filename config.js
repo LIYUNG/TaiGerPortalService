@@ -26,14 +26,12 @@ module.exports = {
   HTTPS_CERT: env('HTTPS_CERT', './cert/selfsigned.pem'),
   HTTPS_CA: env('HTTPS_CA', './cert/selfsigned.pem'),
   ORIGIN: env('ORIGIN', 'http://localhost:3006'),
-  API_ORIGIN: env('API_ORIGIN', 'http://localhost:3000/api'),
   TENANT_ID: env('TENANT_ID', 'TaiGer'),
   // TODO: remove some of the default values
   MONGODB_URI: env('MONGODB_URI', 'mongodb://localhost:27017/TaiGer'),
   POSTGRES_URI: env('POSTGRES_URI', 'postgresql://localhost:5432/TaiGer'),
   JWT_SECRET: env('JWT_SECRET', 'topsecret'),
   JWT_EXPIRE: env('JWT_EXPIRE', '1hr'),
-  PROGRAMS_CACHE: env('PROGRAMS_CACHE', false),
   SMTP_HOST: env('SMTP_HOST', 'smtp.ethereal.email'),
   SMTP_PORT: env('SMTP_PORT', 587),
   SMTP_USERNAME: env('SMTP_USERNAME', 'glen.simonis12@ethereal.email'),
@@ -87,5 +85,13 @@ module.exports = {
   GOOGLE_CLIENT_ID: env('GOOGLE_CLIENT_ID', ''),
   GOOGLE_CLIENT_SECRET: env('GOOGLE_CLIENT_SECRET', ''),
   GOOGLE_REDIRECT_URL: env('GOOGLE_REDIRECT_URL', ''),
-  CRM_API_TARGET: env('CRM_API_TARGET', '')
+  CRM_API_TARGET: env('CRM_API_TARGET', ''),
+  FIREFLIES_API_URL: env(
+    'FIREFLIES_API_URL',
+    'https://api.fireflies.ai/graphql'
+  ),
+  FIREFLIES_API_TOKEN: env('FIREFLIES_API_TOKEN', ''),
+  FIREFLIES_GOOGLE_INVITE_N8N_URL: env('FIREFLIES_GOOGLE_INVITE_N8N_URL', ''),
+  SLACK_BOT_TOKEN: env('SLACK_BOT_TOKEN', ''),
+  SLACK_TAIGER_WIN_CHANNEL_ID: env('SLACK_TAIGER_WIN_CHANNEL_ID', '')
 };

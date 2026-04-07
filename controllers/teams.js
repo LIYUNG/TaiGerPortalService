@@ -8,7 +8,7 @@ const { getStudentsByProgram } = require('./programs');
 const { findStudentDeltaGet } = require('../utils/modelHelper/programChange');
 const { GenerateResponseTimeByStudent } = require('./response_time');
 const { numStudentYearDistribution } = require('../utils/utils_function');
-const { one_day_cache } = require('../cache/node-cache');
+const { ten_minutes_cache } = require('../cache/node-cache');
 const StudentService = require('../services/students');
 const UserQueryBuilder = require('../builders/UserQueryBuilder');
 const InterviewQueryBuilder = require('../builders/InterviewQueryBuilder');
@@ -16,34 +16,32 @@ const InterviewService = require('../services/interviews');
 const DocumentThreadService = require('../services/documentthreads');
 
 const getActivePrograms = asyncHandler(async (req) => {
-  const activePrograms = await req.db.model('User').aggregate([
+  const activePrograms = await req.db.model('Application').aggregate([
     {
       $match: {
-        role: 'Student',
-        archiv: {
-          $ne: true
-        }
+        decided: 'O',
+        closed: '-'
       }
     },
     {
-      $project: {
-        applications: 1
+      $lookup: {
+        from: 'users',
+        localField: 'studentId',
+        foreignField: '_id',
+        as: 'studentId'
       }
     },
     {
-      $unwind: {
-        path: '$applications'
-      }
+      $unwind: '$studentId'
     },
     {
       $match: {
-        'applications.decided': 'O',
-        'applications.closed': '-'
+        'studentId.archiv': { $ne: true }
       }
     },
     {
       $group: {
-        _id: '$applications.programId',
+        _id: '$programId',
         count: {
           $sum: 1
         }
@@ -524,9 +522,254 @@ const getResponseTimeByStudent = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: responseTimeRecords });
 });
 
-const getStatistics = asyncHandler(async (req, res) => {
-  const cacheKey = 'internalDashboard';
-  const value = one_day_cache.get(cacheKey);
+const putAgentProfile = asyncHandler(async (req, res, next) => {
+  const { agent_id } = req.params;
+  const agent = await req.db
+    .model('Agent')
+    .findById(agent_id)
+    .select('firstname lastname email selfIntroduction');
+
+  res.status(200).send({ success: true, data: agent });
+});
+
+const getAgentProfile = asyncHandler(async (req, res, next) => {
+  const { agent_id } = req.params;
+  const agent = await req.db
+    .model('Agent')
+    .findById(agent_id)
+    .select('firstname lastname email selfIntroduction officehours timezone');
+
+  res.status(200).send({ success: true, data: agent });
+});
+
+const getArchivStudents = asyncHandler(async (req, res) => {
+  const { TaiGerStaffId } = req.params;
+  const user = await req.db.model('User').findById(TaiGerStaffId);
+  if (user.role === Role.Admin) {
+    const students = await req.db
+      .model('Student')
+      .find({ archiv: true })
+      .populate('agents editors', 'firstname lastname')
+      .lean();
+    res.status(200).send({ success: true, data: students });
+  } else if (is_TaiGer_Agent(user)) {
+    const students = await req.db
+      .model('Student')
+      .find({
+        agents: TaiGerStaffId,
+        archiv: true
+      })
+      .populate('agents editors', 'firstname lastname')
+      .lean();
+
+    res.status(200).send({ success: true, data: students });
+  } else if (user.role === Role.Editor) {
+    const students = await req.db
+      .model('Student')
+      .find({
+        editors: TaiGerStaffId,
+        archiv: true
+      })
+      .populate('agents editors', 'firstname lastname');
+    res.status(200).send({ success: true, data: students });
+  } else {
+    // Guest
+    res.status(200).send({ success: true, data: [] });
+  }
+});
+
+const getTasksOverview = asyncHandler(async (req, res, next) => {
+  const { filter: noAgentsfilter } = new UserQueryBuilder()
+    .withArchiv(false)
+    .withAgents({ $exists: true, $size: 0 })
+    .build();
+  const { filter: noEditorsfilter } = new UserQueryBuilder()
+    .withArchiv(false)
+    .withEditors({ $exists: true, $size: 0 })
+    .withNeedEditor(true)
+    .build();
+  const { filter: noTrainerInInterviewsfilter } = new InterviewQueryBuilder()
+    .withIsClosed(false)
+    .withTrainerId({ $exists: true, $size: 0 })
+    .build();
+
+  const [
+    noAgentsStudents,
+    noEditorsStudents,
+    noTrainerInInterviewsStudents,
+    noEssayWritersEssays
+  ] = await Promise.all([
+    StudentService.fetchStudents(req, noAgentsfilter),
+    StudentService.fetchStudents(req, noEditorsfilter),
+    InterviewService.getInterviews(req, noTrainerInInterviewsfilter),
+    DocumentThreadService.getAllStudentsThreads(req, {
+      isFinalVersion: false,
+      file_type: 'Essay',
+      outsourced_user_id: { $exists: true, $size: 0 },
+      messages: { $exists: true, $not: { $size: 0 } }
+    })
+  ]);
+
+  res.status(200).send({
+    success: true,
+    data: {
+      noAgentsStudents: noAgentsStudents?.length || 0,
+      noEditorsStudents: noEditorsStudents?.length || 0,
+      noTrainerInInterviewsStudents: noTrainerInInterviewsStudents?.length || 0,
+      noEssayWritersEssays: noEssayWritersEssays?.length || 0
+    }
+  });
+});
+
+const getIsManager = asyncHandler(async (req, res, next) => {
+  const permission = await req.db.model('Permission').findOne({
+    user_id: req.user._id
+  });
+
+  const isManager = permission?.canAssignAgents || permission?.canAssignEditors;
+
+  res.status(200).send({ success: true, data: { isManager } });
+});
+
+// Helper function to get editor task counts
+const getEditorTaskCounts = asyncHandler(async (req, editors) => {
+  // Aggregate tasks from general docs
+  const generalTasksPipeline = [
+    {
+      $match: {
+        $or: [{ archiv: { $exists: false } }, { archiv: false }]
+      }
+    },
+    {
+      $unwind: '$generaldocs_threads'
+    },
+    {
+      $lookup: {
+        from: 'documentthreads',
+        localField: 'generaldocs_threads.doc_thread_id',
+        foreignField: '_id',
+        as: 'doc_thread'
+      }
+    },
+    {
+      $unwind: '$doc_thread'
+    },
+    {
+      $unwind: '$editors'
+    },
+    {
+      $project: {
+        editor_id: '$editors',
+        isFinalVersion: '$generaldocs_threads.isFinalVersion',
+        show: { $literal: true },
+        isPotentials: { $literal: false }
+      }
+    }
+  ];
+
+  // Aggregate tasks from application docs
+  const applicationTasksPipeline = [
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'studentId',
+        foreignField: '_id',
+        as: 'student'
+      }
+    },
+    {
+      $unwind: '$student'
+    },
+    {
+      $match: {
+        $or: [
+          { 'student.archiv': { $exists: false } },
+          { 'student.archiv': false }
+        ]
+      }
+    },
+    {
+      $unwind: '$doc_modification_thread'
+    },
+    {
+      $lookup: {
+        from: 'documentthreads',
+        localField: 'doc_modification_thread.doc_thread_id',
+        foreignField: '_id',
+        as: 'doc_thread'
+      }
+    },
+    {
+      $unwind: '$doc_thread'
+    },
+    {
+      $unwind: '$student.editors'
+    },
+    {
+      $project: {
+        editor_id: '$student.editors',
+        isFinalVersion: '$doc_modification_thread.isFinalVersion',
+        show: {
+          $cond: {
+            if: { $eq: ['$decided', 'O'] },
+            then: true,
+            else: false
+          }
+        },
+        isPotentials: {
+          $cond: {
+            if: { $eq: ['$decided', '-'] },
+            then: true,
+            else: false
+          }
+        }
+      }
+    }
+  ];
+
+  // Execute both pipelines
+  const [generalTasks, applicationTasks] = await Promise.all([
+    req.db.model('Student').aggregate(generalTasksPipeline),
+    req.db.model('Application').aggregate(applicationTasksPipeline)
+  ]);
+  // Combine all tasks
+  const allTasks = [...generalTasks, ...applicationTasks];
+
+  // Group by editor and count
+  const editorTaskCounts = {};
+
+  editors.forEach((editor) => {
+    const editorId = editor._id.toString();
+    const editorTasks = allTasks.filter(
+      (task) => task.editor_id.toString() === editorId
+    );
+
+    // Count active tasks (not final version and show = true)
+    const activeTasks = editorTasks.filter(
+      (task) => task.isFinalVersion !== true && task.show === true
+    );
+
+    // Count potential tasks (not final version, show = false, isPotentials = true)
+    const potentialTasks = editorTasks.filter(
+      (task) =>
+        task.isFinalVersion !== true &&
+        task.show === false &&
+        task.isPotentials === true
+    );
+
+    editorTaskCounts[editorId] = {
+      active: activeTasks.length,
+      potentials: potentialTasks.length
+    };
+  });
+
+  return editorTaskCounts;
+});
+
+// Separate statistics endpoints for each dashboard tab
+const getStatisticsOverview = asyncHandler(async (req, res) => {
+  const cacheKey = 'internalDashboard:overview';
+  const value = ten_minutes_cache.get(cacheKey);
   if (value === undefined) {
     const agents = await req.db.model('Agent').find({
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
@@ -541,14 +784,177 @@ const getStatistics = asyncHandler(async (req, res) => {
     const editorsPromises = Promise.all(
       editors.map((editor) => getEditorData(req, editor))
     );
-
     const documentsPromise = getFileTypeCount(req);
-    const finDocsPromise = req.db
+
+    // Get student data for charts (only necessary fields)
+    const studentsDataPromise = req.db.model('Student').aggregate([
+      {
+        $match: {
+          $or: [{ archiv: { $exists: false } }, { archiv: false }]
+        }
+      },
+      {
+        $project: {
+          createdAt: 1,
+          application_preference: 1
+        }
+      }
+    ]);
+
+    // Get editor task counts
+    const editorTaskCountsPromise = getEditorTaskCounts(req, editors);
+
+    const [
+      agents_raw_data,
+      editors_raw_data,
+      documentsData,
+      studentsData,
+      editorTaskCounts
+    ] = await Promise.all([
+      agentsPromises,
+      editorsPromises,
+      documentsPromise,
+      studentsDataPromise,
+      editorTaskCountsPromise
+    ]);
+
+    const students_years_arr = numStudentYearDistribution(studentsData);
+    const students_years = Object.keys(students_years_arr).sort();
+    const lastYears = students_years.slice(
+      Math.max(students_years.length - 10, 1)
+    );
+
+    const students_years_pair = lastYears.map((date) => ({
+      name: `${date}`,
+      uv: students_years_arr[date]
+    }));
+
+    const colors = [
+      '#ff8a65',
+      '#f4c22b',
+      '#04a9f5',
+      '#3ebfea',
+      '#4F5467',
+      '#1de9b6',
+      '#a389d4',
+      '#FE8A7D'
+    ];
+
+    const editors_data = [];
+    editors_raw_data.forEach((editor, i) => {
+      const editorId = editor._id.toString();
+      editors_data.push({
+        ...editor,
+        key: `${editor.firstname}`,
+        student_num: editor.student_num,
+        color: colors[i],
+        task_counts: editorTaskCounts[editorId] || { active: 0, potentials: 0 }
+      });
+    });
+
+    const agents_data = [];
+    agents_raw_data.forEach((agent, i) => {
+      agents_data.push({
+        ...agent,
+        key: `${agent.firstname}`,
+        student_num_no_offer: agent.student_num_no_offer,
+        student_num_with_offer: agent.student_num_with_offer,
+        color: colors[i]
+      });
+    });
+
+    const returnBody = {
+      success: true,
+      documents: documentsData,
+      agents_data,
+      editors_data,
+      students_years_pair,
+      students_creation_dates: studentsData
+    };
+    res.status(200).send(returnBody);
+    const success = ten_minutes_cache.set(cacheKey, returnBody);
+    if (success) {
+      logger.info('internal dashboard overview cache set successfully');
+    }
+  } else {
+    logger.info('internal dashboard overview cache hit');
+    res.status(200).send(value);
+  }
+});
+
+const getStatisticsAgents = asyncHandler(async (req, res) => {
+  const cacheKey = 'internalDashboard:agents';
+  const value = ten_minutes_cache.get(cacheKey);
+  if (value === undefined) {
+    const agents = await req.db.model('Agent').find({
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+
+    const agentsStudentsDistribution = await Promise.all(
+      agents.map((agent) => getAgentStudentDistData(req, agent))
+    );
+
+    const resultAdmission = agentsStudentsDistribution.map(
+      (agentStudentDis, idx) => {
+        const returnData = {
+          name: `${agents[idx].firstname}`,
+          id: `${agents[idx]._id.toString()}`,
+          admission: agentStudentDis.admission.reduce((acc, curr) => {
+            if (curr.expected_application_date) {
+              acc[curr.expected_application_date] = curr.count;
+            } else {
+              acc.TBD = curr.count;
+            }
+            return acc;
+          }, {})
+        };
+        return returnData;
+      }
+    );
+
+    const resultNoAdmission = agentsStudentsDistribution.map(
+      (agentStudentDis, idx) => {
+        const returnData = {
+          noAdmission: agentStudentDis.noAdmission.reduce((acc, curr) => {
+            if (curr.expected_application_date) {
+              acc[curr.expected_application_date] = curr.count;
+            } else {
+              acc.TBD = curr.count;
+            }
+            return acc;
+          }, {})
+        };
+        return returnData;
+      }
+    );
+    const mergedResults = _.mergeWith(resultAdmission, resultNoAdmission);
+
+    const returnBody = {
+      success: true,
+      agentStudentDistribution: mergedResults
+    };
+    res.status(200).send(returnBody);
+    const success = ten_minutes_cache.set(cacheKey, returnBody);
+    if (success) {
+      logger.info('internal dashboard agents cache set successfully');
+    }
+  } else {
+    logger.info('internal dashboard agents cache hit');
+    res.status(200).send(value);
+  }
+});
+
+const getStatisticsKPI = asyncHandler(async (req, res) => {
+  const cacheKey = 'internalDashboard:kpi';
+  const value = ten_minutes_cache.get(cacheKey);
+  if (value === undefined) {
+    const finishedDocs = await req.db
       .model('Documentthread')
       .find({
         isFinalVersion: true,
         $or: [
           { file_type: 'CV' },
+          { file_type: 'CV_US' },
           { file_type: 'ML' },
           { file_type: 'RL_A' },
           { file_type: 'RL_B' },
@@ -562,19 +968,38 @@ const getStatistics = asyncHandler(async (req, res) => {
       .select('file_type messages.createdAt')
       .lean();
 
-    const studentsPromise = StudentService.getStudentsWithApplications(req, {});
+    const returnBody = {
+      success: true,
+      finished_docs: finishedDocs
+    };
+    res.status(200).send(returnBody);
+    const success = ten_minutes_cache.set(cacheKey, returnBody);
+    if (success) {
+      logger.info('internal dashboard kpi cache set successfully');
+    }
+  } else {
+    logger.info('internal dashboard kpi cache hit');
+    res.status(200).send(value);
+  }
+});
 
-    const archivCountPromise = req.db.model('Student').aggregate([
-      {
-        $group: {
-          _id: '$archiv',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-    // TODO: get MLs, RLs, etc. individual response time and thread_id>> will be used to query intervals collection.
-    // const studentResponseTimeLookupTablePromise =
-    //   GenerateResponseTimeByStudent();
+const getStatisticsResponseTime = asyncHandler(async (req, res) => {
+  const cacheKey = 'internalDashboard:responseTime';
+  const value = ten_minutes_cache.get(cacheKey);
+  if (value === undefined) {
+    const agents = await req.db.model('Agent').find({
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+    const editors = await req.db.model('Editor').find({
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+
+    const agentsPromises = Promise.all(
+      agents.map((agent) => getAgentData(req, agent))
+    );
+    const editorsPromises = Promise.all(
+      editors.map((editor) => getEditorData(req, editor))
+    );
 
     const studentAvgResponseTimePipeline = [
       // group by student and document type and calculate the average response time per document type
@@ -637,124 +1062,13 @@ const getStatistics = asyncHandler(async (req, res) => {
     const studentAvgResponseTimePromise = req.db
       .model('ResponseTime')
       .aggregate(studentAvgResponseTimePipeline);
-    const activeStudentGeneralTasksPromise = getGeneralTasks(req);
-    const activeStudentTasksPromise = getDecidedApplicationsTasks(req);
 
-    const programListStatsPipeline = [
-      {
-        $facet: {
-          countryCount: [
-            { $group: { _id: '$country', count: { $sum: 1 } } },
-            { $project: { _id: 0, country: '$_id', count: 1 } }
-          ],
-          whoupdatedCount: [
-            { $group: { _id: '$whoupdated', count: { $sum: 1 } } },
-            { $project: { _id: 0, whoupdated: '$_id', count: 1 } }
-          ],
-          schoolCount: [
-            { $group: { _id: '$school', count: { $sum: 1 } } },
-            { $project: { _id: 0, school: '$_id', count: 1 } }
-          ],
-          langCount: [
-            { $group: { _id: '$lang', count: { $sum: 1 } } },
-            { $project: { _id: 0, lang: '$_id', count: 1 } }
-          ],
-          degreeCount: [
-            { $group: { _id: '$degree', count: { $sum: 1 } } },
-            { $project: { _id: 0, degree: '$_id', count: 1 } }
-          ],
-          updatedAtCount: [
-            {
-              $group: {
-                _id: {
-                  $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' }
-                },
-                count: { $sum: 1 }
-              }
-            },
-            { $project: { _id: 0, updatedAt: '$_id', count: 1 } },
-            { $sort: { updatedAt: 1 } }
-          ]
-        }
-      }
-    ];
-
-    const programListStatsPromise = req.db
-      .model('Program')
-      .aggregate(programListStatsPipeline);
-
-    const [
-      agents_raw_data,
-      editors_raw_data,
-      documentsData,
-      finishedDocs,
-      students,
-      archivCount,
-      studentAvgResponseTime,
-      activeStudentGeneralTasks,
-      activeStudentTasks,
-      programListStats,
-      ...agentsStudentsDistribution
-    ] = await Promise.all([
-      agentsPromises,
-      editorsPromises,
-      documentsPromise,
-      finDocsPromise,
-      studentsPromise,
-      archivCountPromise,
-      studentAvgResponseTimePromise,
-      activeStudentGeneralTasksPromise,
-      activeStudentTasksPromise,
-      programListStatsPromise,
-      ...agents.map((agent) => getAgentStudentDistData(req, agent))
-    ]);
-
-    const resultAdmission = agentsStudentsDistribution.map(
-      (agentStudentDis, idx) => {
-        const returnData = {
-          name: `${agents[idx].firstname}`,
-          id: `${agents[idx]._id.toString()}`,
-          admission: agentStudentDis.admission.reduce((acc, curr) => {
-            if (curr.expected_application_date) {
-              acc[curr.expected_application_date] = curr.count;
-            } else {
-              acc.TBD = curr.count;
-            }
-
-            return acc;
-          }, {})
-        };
-        return returnData;
-      }
-    );
-
-    const resultNoAdmission = agentsStudentsDistribution.map(
-      (agentStudentDis, idx) => {
-        const returnData = {
-          noAdmission: agentStudentDis.noAdmission.reduce((acc, curr) => {
-            if (curr.expected_application_date) {
-              acc[curr.expected_application_date] = curr.count;
-            } else {
-              acc.TBD = curr.count;
-            }
-
-            return acc;
-          }, {})
-        };
-        return returnData;
-      }
-    );
-    const mergedResults = _.mergeWith(resultAdmission, resultNoAdmission);
-    const students_years_arr = numStudentYearDistribution(students);
-    const students_years = Object.keys(students_years_arr).sort();
-    const lastYears = students_years.slice(
-      Math.max(students_years.length - 10, 1)
-    );
-
-    const students_years_pair = lastYears.map((date) => ({
-      name: `${date}`,
-      uv: students_years_arr[date]
-    }));
+    const [agents_raw_data, editors_raw_data, studentAvgResponseTime] =
+      await Promise.all([
+        agentsPromises,
+        editorsPromises,
+        studentAvgResponseTimePromise
+      ]);
 
     const colors = [
       '#ff8a65',
@@ -787,164 +1101,35 @@ const getStatistics = asyncHandler(async (req, res) => {
         color: colors[i]
       });
     });
+
     const returnBody = {
       success: true,
-      documents: documentsData,
-      students: {
-        isClose: archivCount.find((count) => count._id === true)?.count || 0,
-        isOpen: archivCount.find((count) => count._id === false)?.count || 0
-      },
-      finished_docs: finishedDocs,
       agents_data,
       editors_data,
-      students_years_pair,
-      students_details: students,
-      applications: [],
-      activeStudentGeneralTasks,
-      activeStudentTasks,
-      agentStudentDistribution: mergedResults,
-      programListStats: programListStats?.[0], // unwrap single element pipeline
       studentAvgResponseTime
     };
     res.status(200).send(returnBody);
-    const success = one_day_cache.set(cacheKey, returnBody);
+    const success = ten_minutes_cache.set(cacheKey, returnBody);
     if (success) {
-      logger.info('internal dashboard cache set successfully');
+      logger.info('internal dashboard response time cache set successfully');
     }
   } else {
-    logger.info('internal dashboard cache hit');
+    logger.info('internal dashboard response time cache hit');
     res.status(200).send(value);
   }
 });
 
-const putAgentProfile = asyncHandler(async (req, res, next) => {
-  const { agent_id } = req.params;
-  const agent = await req.db
-    .model('Agent')
-    .findById(agent_id)
-    .select('firstname lastname email selfIntroduction');
-
-  res.status(200).send({ success: true, data: agent });
-});
-
-const getAgentProfile = asyncHandler(async (req, res, next) => {
-  const { agent_id } = req.params;
-  const agent = await req.db
-    .model('Agent')
-    .findById(agent_id)
-    .select('firstname lastname email selfIntroduction officehours timezone');
-
-  res.status(200).send({ success: true, data: agent });
-});
-
-const getArchivStudents = asyncHandler(async (req, res) => {
-  const { TaiGerStaffId } = req.params;
-  const user = await req.db.model('User').findById(TaiGerStaffId);
-  if (user.role === Role.Admin) {
-    const students = await req.db
-      .model('Student')
-      .find({ archiv: true })
-      .populate('agents editors', 'firstname lastname')
-      .lean();
-    res.status(200).send({ success: true, data: students });
-  } else if (is_TaiGer_Agent(user)) {
-    const students = await req.db
-      .model('Student')
-      .find({
-        agents: TaiGerStaffId,
-        archiv: true
-      })
-      .populate('agents editors', 'firstname lastname')
-      .lean();
-
-    res.status(200).send({ success: true, data: students });
-  } else if (user.role === Role.Editor) {
-    const students = await req.db
-      .model('Student')
-      .find({
-        editors: TaiGerStaffId,
-        archiv: true
-      })
-      .populate('agents editors', 'firstname lastname');
-    res.status(200).send({ success: true, data: students });
-  } else {
-    // Guest
-    res.status(200).send({ success: true, data: [] });
-  }
-});
-
-const getEssayWriters = asyncHandler(async (req, res, next) => {
-  const editors = await req.db
-    .model('User')
-    .find({
-      role: { $in: ['Agent', 'Editor'] },
-      $or: [{ archiv: { $exists: false } }, { archiv: false }]
-    })
-    .select('firstname lastname');
-  res.status(200).send({ success: true, data: editors });
-});
-
-const getTasksOverview = asyncHandler(async (req, res, next) => {
-  const { filter: noAgentsfilter } = new UserQueryBuilder()
-    .withArchiv(false)
-    .withAgents({ $exists: true, $size: 0 })
-    .build();
-  const { filter: noEditorsfilter } = new UserQueryBuilder()
-    .withArchiv(false)
-    .withEditors({ $exists: true, $size: 0 })
-    .withNeedEditor(true)
-    .build();
-  const { filter: noTrainerInInterviewsfilter } = new InterviewQueryBuilder()
-    .withIsClosed(false)
-    .withTrainerId({ $exists: true, $size: 0 })
-    .build();
-
-  const [
-    noAgentsStudents,
-    noEditorsStudents,
-    noTrainerInInterviewsStudents,
-    noEssayWritersEssays
-  ] = await Promise.all([
-    StudentService.fetchStudents(req, noAgentsfilter),
-    StudentService.fetchStudents(req, noEditorsfilter),
-    InterviewService.getInterviews(req, noTrainerInInterviewsfilter),
-    DocumentThreadService.getAllStudentsThreads(req, {
-      isFinalVersion: false,
-      file_type: 'Essay',
-      outsourced_user_id: { $exists: true, $size: 0 }
-    })
-  ]);
-
-  res.status(200).send({
-    success: true,
-    data: {
-      noAgentsStudents: noAgentsStudents?.length || 0,
-      noEditorsStudents: noEditorsStudents?.length || 0,
-      noTrainerInInterviewsStudents: noTrainerInInterviewsStudents?.length || 0,
-      noEssayWritersEssays: noEssayWritersEssays?.length || 0
-    }
-  });
-});
-
-const getIsManager = asyncHandler(async (req, res, next) => {
-  const permission = await req.db.model('Permission').findOne({
-    user_id: req.user._id
-  });
-
-  const isManager = permission?.canAssignAgents || permission?.canAssignEditors;
-
-  res.status(200).send({ success: true, data: { isManager } });
-});
-
 module.exports = {
   getTeamMembers,
-  getStatistics,
+  getStatisticsOverview,
+  getStatisticsAgents,
+  getStatisticsKPI,
+  getStatisticsResponseTime,
   getResponseIntervalByStudent,
   getResponseTimeByStudent,
   putAgentProfile,
   getAgentProfile,
   getArchivStudents,
-  getEssayWriters,
   getApplicationDeltas,
   getTasksOverview,
   getIsManager

@@ -8,7 +8,17 @@ const CommunicationService = {
       .findById(communicationId)
       .populate(
         'student_id user_id readBy ignoredMessageBy',
-        'firstname lastname role'
+        'firstname lastname role pictureUrl'
+      )
+      .lean();
+  },
+  async getCommunications(req, query) {
+    return req.db
+      .model('Communication')
+      .find(query)
+      .populate(
+        'student_id user_id readBy ignoredMessageBy',
+        'firstname lastname role pictureUrl'
       )
       .lean();
   },
@@ -18,7 +28,7 @@ const CommunicationService = {
       .findByIdAndUpdate(communicationId, payload, { new: true })
       .populate(
         'student_id user_id readBy ignoredMessageBy',
-        'firstname lastname role'
+        'firstname lastname role pictureUrl'
       )
       .lean();
   }

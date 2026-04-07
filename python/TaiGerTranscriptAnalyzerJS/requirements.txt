@@ -1,7 +1,0 @@
-pandas==2.1.1
-xlsxwriter==3.1.4
-openpyxl==3.1.2
-boto3==1.28.53
-python-dotenv==1.0.0
-numpy==1.26.4
-pymongo==4.10.1

@@ -32,6 +32,8 @@ const StudentService = require('../services/students');
 const UserQueryBuilder = require('../builders/UserQueryBuilder');
 const ApplicationService = require('../services/applications');
 const InterviewService = require('../services/interviews');
+const { getAuditLogs } = require('../services/audit');
+const ProgramService = require('../services/programs');
 
 const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const {
@@ -46,13 +48,13 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const studentPromise = req.db
     .model('Student')
     .findById(studentId)
-    .populate('agents editors', 'firstname lastname email')
+    .populate('agents editors', 'firstname lastname email pictureUrl')
     .populate({
       path: 'generaldocs_threads.doc_thread_id',
       select: 'file_type isFinalVersion updatedAt messages.file',
       populate: {
         path: 'messages.user_id',
-        select: 'firstname lastname'
+        select: 'firstname lastname pictureUrl'
       }
     })
     .select('-taigerai')
@@ -64,21 +66,16 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const survey_linkPromise = req.db.model('Basedocumentationslink').find({
     category: 'survey'
   });
-  const auditPromise = req.db
-    .model('Audit')
-    .find({
+  const auditPromise = getAuditLogs(
+    req,
+    {
       targetUserId: studentId
-    })
-    .populate('performedBy targetUserId', 'firstname lastname role')
-    .populate({
-      path: 'targetDocumentThreadId interviewThreadId',
-      select: 'program_id file_type',
-      populate: {
-        path: 'program_id',
-        select: 'school program_name degree semester'
-      }
-    })
-    .sort({ createdAt: -1 });
+    },
+    {
+      limit: 1000,
+      sort: { createdAt: -1 }
+    }
+  );
   const [student, applications, base_docs_link, survey_link, audit] =
     await Promise.all([
       studentPromise,
@@ -92,8 +89,21 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
       .status(404)
       .send({ success: false, message: 'Student not found' });
   }
+
+  // Ensure isLocked field exists (default to false if undefined for existing applications)
+  // Existing applications should be unlocked to avoid disrupting running workflows
+  // Lock mechanism only applies to newly created applications
+  const applicationsWithDefaults = applications.map((app) => {
+    if (app.isLocked === undefined) {
+      app.isLocked = false; // Existing applications default to unlocked
+    }
+    return app;
+  });
+
   // TODO: remove agent notfication for new documents upload
-  student.applications = add_portals_registered_status(applications);
+  student.applications = add_portals_registered_status(
+    applicationsWithDefaults
+  );
 
   res.status(200).send({
     success: true,
@@ -122,18 +132,16 @@ const updateDocumentationHelperLink = asyncHandler(async (req, res, next) => {
   const { link, key, category } = req.body;
   // if not in database, then create one
   // otherwise: update the existing one.
-  let helper_link = await req.db
-    .model('Basedocumentationslink')
-    .findOneAndUpdate(
-      { category, key },
-      {
-        $set: {
-          link,
-          updatedAt: new Date()
-        }
-      },
-      { upsert: true, new: true }
-    );
+  await req.db.model('Basedocumentationslink').findOneAndUpdate(
+    { category, key },
+    {
+      $set: {
+        link,
+        updatedAt: new Date()
+      }
+    },
+    { upsert: true }
+  );
 
   const updated_helper_link = await req.db
     .model('Basedocumentationslink')
@@ -157,6 +165,73 @@ const getActiveStudents = asyncHandler(async (req, res, next) => {
     filter
   );
   res.status(200).send({ success: true, data: students });
+  next();
+});
+
+const getStudentsByIds = asyncHandler(async (req, res, next) => {
+  const { ids } = req.query;
+  if (!ids || typeof ids !== 'string' || ids.trim() === '') {
+    return res
+      .status(400)
+      .send({ success: false, message: 'Missing or invalid ids parameter.' });
+  }
+
+  const { validObjectIds, invalidIds } = ids.split(',').reduce(
+    (acc, rawId) => {
+      const trimmedId = rawId?.trim();
+      if (!trimmedId) {
+        return acc;
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(trimmedId)) {
+        acc.invalidIds.push(trimmedId);
+        return acc;
+      }
+
+      try {
+        acc.validObjectIds.push(
+          mongoose.Types.ObjectId.createFromHexString(trimmedId)
+        );
+      } catch (error) {
+        acc.invalidIds.push(trimmedId);
+      }
+
+      return acc;
+    },
+    { validObjectIds: [], invalidIds: [] }
+  );
+
+  if (validObjectIds.length === 0) {
+    return res.status(400).send({
+      success: false,
+      message: 'No valid student ids were provided.',
+      invalidIds
+    });
+  }
+
+  if (invalidIds.length > 0) {
+    logger.warn('Some student ids were ignored because they are invalid.', {
+      invalidIds,
+      requestId: req.requestId
+    });
+  }
+
+  const students = await StudentService.getStudentsWithApplications(req, {
+    _id: { $in: validObjectIds }
+  });
+
+  const responsePayload = {
+    success: true,
+    data: students
+  };
+
+  if (invalidIds.length > 0) {
+    responsePayload.message =
+      'Some ids were ignored because they are not valid Mongo ObjectIds.';
+    responsePayload.invalidIds = invalidIds;
+  }
+
+  res.status(200).send(responsePayload);
   next();
 });
 
@@ -184,7 +259,10 @@ const getStudents = asyncHandler(async (req, res, next) => {
     const auditLogPromise = req.db
       .model('Audit')
       .find()
-      .populate('performedBy targetUserId', 'firstname lastname role')
+      .populate(
+        'performedBy targetUserId',
+        'firstname lastname role pictureUrl'
+      )
       .populate({
         path: 'targetDocumentThreadId interviewThreadId',
         select: 'program_id file_type',
@@ -406,6 +484,23 @@ const getStudents = asyncHandler(async (req, res, next) => {
     // Guest
     res.status(200).send({ success: true, data: [user] });
   }
+  next();
+});
+
+const getStudent = asyncHandler(async (req, res, next) => {
+  const {
+    params: { studentId }
+  } = req;
+
+  const student = await StudentService.getStudentById(req, studentId);
+
+  if (!student) {
+    return res
+      .status(404)
+      .json({ success: false, message: 'Student not found.' });
+  }
+
+  res.status(200).send({ success: true, data: student });
   next();
 });
 
@@ -840,6 +935,8 @@ module.exports = {
   getActiveStudents,
   getStudentsV3,
   getStudents,
+  getStudent,
+  getStudentsByIds,
   getStudentsAndDocLinks,
   updateStudentsArchivStatus,
   assignAgentToStudent,

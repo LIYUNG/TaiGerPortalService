@@ -3,7 +3,7 @@ const InterviewService = {
     return req.db
       .model('Interview')
       .find(filter)
-      .populate('trainer_id', 'firstname lastname email')
+      .populate('trainer_id', 'firstname lastname email pictureUrl')
       .populate('event_id')
       .lean();
   },
@@ -11,7 +11,7 @@ const InterviewService = {
     return req.db
       .model('Interview')
       .findById(id)
-      .populate('trainer_id', 'firstname lastname email')
+      .populate('trainer_id', 'firstname lastname email pictureUrl')
       .populate('event_id')
       .lean();
   },
@@ -19,7 +19,7 @@ const InterviewService = {
     return req.db
       .model('Interview')
       .find({ student_id: studentId })
-      .populate('trainer_id', 'firstname lastname email')
+      .populate('trainer_id', 'firstname lastname email pictureUrl')
       .populate('event_id')
       .lean();
   }

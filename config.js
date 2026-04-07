@@ -85,6 +85,7 @@ module.exports = {
   GOOGLE_CLIENT_ID: env('GOOGLE_CLIENT_ID', ''),
   GOOGLE_CLIENT_SECRET: env('GOOGLE_CLIENT_SECRET', ''),
   GOOGLE_REDIRECT_URL: env('GOOGLE_REDIRECT_URL', ''),
+  CRM_API_TARGET: env('CRM_API_TARGET', ''),
   FIREFLIES_API_URL: env(
     'FIREFLIES_API_URL',
     'https://api.fireflies.ai/graphql'

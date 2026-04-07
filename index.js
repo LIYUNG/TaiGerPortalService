@@ -48,9 +48,7 @@ const {
 // });
 
 const launch = async () => {
-  console.log(`PORT: ${process.env.PORT}`);
-  console.log(`AWS_S3_BUCKET_NAME: ${process.env.AWS_S3_BUCKET_NAME}`);
-  console.log(`PORT: ${process.env.PORT}`);
+  logger.info(`AWS_S3_BUCKET_NAME: ${process.env.AWS_S3_BUCKET_NAME}`);
   if (isDev()) {
     if (
       AWS_S3_BUCKET_NAME.includes('production') ||
@@ -180,7 +178,7 @@ const launch = async () => {
 
     https.createServer(httpsOption, app).listen(PORT, () => {
       logger.info(
-        `Example app listening on port ${PORT} ! Go to https://localhost:${PORT}/`
+        `API Service listening on port ${PORT} ! Go to https://localhost:${PORT}/`
       );
     });
   }

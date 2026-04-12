@@ -16,8 +16,18 @@ const {
 const { leadSimilarUsers } = require('./leadSimilarUsers');
 const { salesReps } = require('./salesReps');
 const { deals, dealStatusEnum } = require('./deals');
+const {
+  aiAssistConversations,
+  aiAssistMessages,
+  aiAssistToolCalls,
+  aiAssistUsage
+} = require('./aiAssist');
 
 module.exports = {
+  aiAssistConversations,
+  aiAssistMessages,
+  aiAssistToolCalls,
+  aiAssistUsage,
   leads,
   leadProfile,
   leadTags,

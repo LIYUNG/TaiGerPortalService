@@ -11,6 +11,11 @@
       "idx": 1,
       "tag": "0002_clean_up_leads",
       "when": 0
+    },
+    {
+      "idx": 2,
+      "tag": "0003_ai_assist",
+      "when": 0
     }
   ]
 }

@@ -10,7 +10,8 @@ const {
   createConversation,
   getConversation,
   listConversations,
-  sendMessage
+  sendMessage,
+  updateConversation
 } = require('../controllers/ai_assist');
 
 const router = Router();
@@ -28,6 +29,7 @@ router
 
 router
   .route('/conversations/:conversationId')
-  .get(GeneralGETRequestRateLimiter, getConversation);
+  .get(GeneralGETRequestRateLimiter, getConversation)
+  .patch(GeneralPOSTRequestRateLimiter, updateConversation);
 
 module.exports = router;

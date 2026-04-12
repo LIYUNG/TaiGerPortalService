@@ -26,7 +26,8 @@ const { getPermission } = require('../../utils/queryFunctions');
 const {
   createConversation,
   getConversation,
-  sendMessage
+  sendMessage,
+  updateConversation
 } = require('../../controllers/ai_assist');
 const {
   getAccessibleStudentFilter
@@ -85,7 +86,10 @@ const createAiAssistPostgres = () => {
   };
 };
 
-const createAiAssistPostgresWithContext = ({ messages = [], toolCalls = [] }) => {
+const createAiAssistPostgresWithContext = ({
+  messages = [],
+  toolCalls = []
+}) => {
   const base = createAiAssistPostgres();
   const limit = jest
     .fn()
@@ -378,6 +382,59 @@ describe('AI Assist Postgres persistence', () => {
     );
   });
 
+  it('updates an owned conversation title', async () => {
+    const renamedConversation = {
+      id: 'conv_1',
+      ownerUserId: 'admin_1',
+      ownerRole: Role.Admin,
+      title: 'Abby message review',
+      status: 'active'
+    };
+    const returning = jest.fn().mockResolvedValue([renamedConversation]);
+    const updateWhere = jest.fn(() => ({ returning }));
+    const updateSet = jest.fn(() => ({ where: updateWhere }));
+    const postgres = {
+      select: jest.fn(() => ({
+        from: jest.fn(() => ({
+          where: jest.fn(() => ({
+            limit: jest.fn().mockResolvedValue([
+              {
+                id: 'conv_1',
+                ownerUserId: 'admin_1',
+                ownerRole: Role.Admin,
+                title: 'New AI Assist conversation',
+                status: 'active'
+              }
+            ])
+          }))
+        }))
+      })),
+      update: jest.fn(() => ({
+        set: updateSet
+      }))
+    };
+    getPostgresDb.mockReturnValue(postgres);
+    const req = {
+      params: { conversationId: 'conv_1' },
+      body: { title: '  Abby message review  ' },
+      user: { _id: 'admin_1', role: Role.Admin }
+    };
+    const res = createResponse();
+
+    await updateConversation(req, res);
+
+    expect(updateSet).toHaveBeenCalledWith({
+      title: 'Abby message review',
+      updatedAt: expect.any(Date)
+    });
+    expect(returning).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: renamedConversation
+    });
+  });
+
   it('sends a message and persists an assistant trace record', async () => {
     openAIClient.responses.create
       .mockResolvedValueOnce({
@@ -419,11 +476,11 @@ describe('AI Assist Postgres persistence', () => {
         values: jest.fn((values) => {
           insertedValues.push(values);
           return {
-          returning: jest.fn().mockImplementation(() => {
-            const row = insertedRows[insertIndex];
-            insertIndex += 1;
-            return Promise.resolve([row]);
-          })
+            returning: jest.fn().mockImplementation(() => {
+              const row = insertedRows[insertIndex];
+              insertIndex += 1;
+              return Promise.resolve([row]);
+            })
           };
         })
       })),

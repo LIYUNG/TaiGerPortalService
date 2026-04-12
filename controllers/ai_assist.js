@@ -103,6 +103,29 @@ const getConversation = asyncHandler(async (req, res) => {
   });
 });
 
+const updateConversation = asyncHandler(async (req, res) => {
+  const { conversationId } = req.params;
+  const title = req.body?.title?.trim();
+
+  if (!title) {
+    throw new ErrorResponse(400, 'Conversation title is required');
+  }
+
+  const postgres = getPostgresDb();
+  await requireConversationOwner(postgres, conversationId, currentUserId(req));
+
+  const [conversation] = await postgres
+    .update(aiAssistConversations)
+    .set({ title, updatedAt: new Date() })
+    .where(eq(aiAssistConversations.id, conversationId))
+    .returning();
+
+  res.status(200).send({
+    success: true,
+    data: conversation
+  });
+});
+
 const sendMessage = asyncHandler(async (req, res) => {
   const { conversationId } = req.params;
   const { message } = req.body;
@@ -134,5 +157,6 @@ module.exports = {
   createConversation,
   getConversation,
   listConversations,
-  sendMessage
+  sendMessage,
+  updateConversation
 };

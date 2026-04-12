@@ -1,11 +1,17 @@
+const { desc, eq } = require('drizzle-orm');
 const { OpenAiModel, openAIClient } = require('../openai');
 const {
   aiAssistMessages,
   aiAssistToolCalls
 } = require('../../drizzle/schema/schema');
-const { runTool } = require('./tools');
+const { aiAssistToolDefinitions } = require('./toolDefinitions');
+const { registry, runTool } = require('./tools');
 
 const DEFAULT_MODEL = OpenAiModel.GPT_4_o || 'gpt-4o';
+const MAX_TOOL_ROUNDS = 6;
+
+const instructions =
+  'You are TaiGer AI Assist. Answer only from TaiGer Portal data returned by tools. Match the user\'s current language and writing system exactly. Do not switch scripts or translate the user\'s chosen language unless asked. Use tools whenever the user asks about TaiGer students, applications, communications, documents, tickets, or programs. Start by searching for a student when you need a studentId. Use conversationContext to resolve follow-up references such as numbers, names, emails, "he", "she", "他", "她", "這位", or "that student". If multiple students match, ask the user to choose one and list concise candidates. Do not invent tool names, IDs, facts, or future tool calls.';
 
 const insertReturningOne = async (postgres, table, values) => {
   const [row] = await postgres.insert(table).values(values).returning();
@@ -32,175 +38,224 @@ const createAssistantMessage = (postgres, { conversationId, content, response })
 const createToolCall = (postgres, values) =>
   insertReturningOne(postgres, aiAssistToolCalls, values);
 
-const normalizeText = (value) =>
-  String(value || '')
-    .toLowerCase()
-    .replace(/\s+/g, '');
+const parseArguments = (rawArguments) => {
+  if (!rawArguments) {
+    return {};
+  }
 
-const inferIntent = (message) => {
-  const normalized = normalizeText(message);
+  if (typeof rawArguments === 'object') {
+    return rawArguments;
+  }
+
+  return JSON.parse(rawArguments);
+};
+
+const stringifyToolOutput = (value) => JSON.stringify(value, null, 2);
+
+const loadConversationContext = async (postgres, conversationId) => {
+  if (!postgres.select) {
+    return {
+      recentMessages: [],
+      recentToolCalls: []
+    };
+  }
+
+  const [messages, toolCalls] = await Promise.all([
+    postgres
+      .select()
+      .from(aiAssistMessages)
+      .where(eq(aiAssistMessages.conversationId, conversationId))
+      .orderBy(desc(aiAssistMessages.createdAt))
+      .limit(12),
+    postgres
+      .select()
+      .from(aiAssistToolCalls)
+      .where(eq(aiAssistToolCalls.conversationId, conversationId))
+      .orderBy(desc(aiAssistToolCalls.createdAt))
+      .limit(12)
+  ]);
+
   return {
-    applications:
-      /application|admission|apply|status/.test(normalized) ||
-      /\u7533\u8acb|\u9304\u53d6|\u72c0\u6cc1|\u9032\u5ea6|\u7d50\u679c/.test(
-        message
-      ),
-    communications:
-      /message|communication|conversation|chat/.test(normalized) ||
-      /\u8a0a\u606f|\u4fe1\u606f|\u5c0d\u8a71|\u6e9d\u901a|\u7559\u8a00/.test(
-        message
-      ),
-    documents:
-      /document|profile|cv|essay/.test(normalized) ||
-      /\u6587\u4ef6|\u5c65\u6b77|\u6587\u66f8/.test(message),
-    summary:
-      /summary|summarize|overview/.test(normalized) ||
-      /\u5b78\u751f|\u6982\u6cc1|\u6458\u8981/.test(message)
+    recentMessages: messages
+      .slice()
+      .reverse()
+      .map((message) => ({
+        role: message.role,
+        content: message.content
+      })),
+    recentToolCalls: toolCalls
+      .slice()
+      .reverse()
+      .map((toolCall) => ({
+        toolName: toolCall.toolName,
+        arguments: toolCall.arguments,
+        result: toolCall.result,
+        status: toolCall.status
+      }))
   };
 };
 
-const getStudentId = (student) => student?.id || student?._id?.toString?.();
+const buildInitialInput = ({ message, conversationContext }) => [
+  {
+    role: 'user',
+    content: JSON.stringify(
+      {
+        currentUserMessage: message,
+        conversationContext
+      },
+      null,
+      2
+    )
+  }
+];
 
-const resolveStudent = (message, students = []) => {
-  if (!students.length) {
-    return undefined;
+const getFunctionCalls = (response) =>
+  (response?.output || []).filter((item) => item.type === 'function_call');
+
+const getResponseText = (response) => {
+  if (response?.output_text) {
+    return response.output_text;
   }
 
-  if (students.length === 1) {
-    return students[0];
-  }
-
-  const normalizedMessage = normalizeText(message);
-  return students.find((student) =>
-    [student.name, student.chineseName, student.email]
-      .filter(Boolean)
-      .some((value) => normalizedMessage.includes(normalizeText(value)))
-  );
+  const message = (response?.output || []).find((item) => item.type === 'message');
+  const textParts = message?.content || [];
+  return textParts
+    .map((part) => part.text || part.content || '')
+    .filter(Boolean)
+    .join('\n');
 };
 
-const buildModelInput = ({ message, toolContext }) =>
-  JSON.stringify(
-    {
-      userQuestion: message,
-      toolContext
-    },
-    null,
-    2
-  );
+const executeFunctionCall = async (req, functionCall) => {
+  const startedAt = Date.now();
+  const toolName = functionCall.name;
 
-const runModel = async ({ message, toolContext }) => {
-  const input = buildModelInput({ message, toolContext });
+  try {
+    if (!registry[toolName]) {
+      throw new Error(`Unknown AI Assist tool: ${toolName}`);
+    }
 
-  if (openAIClient.responses?.create) {
-    return openAIClient.responses.create({
+    const args = parseArguments(functionCall.arguments);
+    const result = await runTool(req, toolName, args);
+
+    return {
+      trace: {
+        toolName,
+        arguments: args,
+        result,
+        status: 'success',
+        durationMs: Date.now() - startedAt,
+        permissionOutcome: { inheritedUserPermission: true }
+      },
+      output: {
+        type: 'function_call_output',
+        call_id: functionCall.call_id,
+        output: stringifyToolOutput(result)
+      }
+    };
+  } catch (error) {
+    const result = {
+      error: error instanceof Error ? error.message : 'Tool execution failed'
+    };
+
+    return {
+      trace: {
+        toolName,
+        arguments: functionCall.arguments,
+        result,
+        status: 'failed',
+        durationMs: Date.now() - startedAt,
+        errorMessage: result.error,
+        permissionOutcome: { inheritedUserPermission: true }
+      },
+      output: {
+        type: 'function_call_output',
+        call_id: functionCall.call_id,
+        output: stringifyToolOutput(result)
+      }
+    };
+  }
+};
+
+const runResponsesToolLoop = async ({ message, req, conversationContext }) => {
+  let input = buildInitialInput({ message, conversationContext });
+  const trace = [];
+  let response;
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    response = await openAIClient.responses.create({
       model: DEFAULT_MODEL,
-      instructions:
-        'You are TaiGer AI Assist. Answer only from TaiGer Portal data in toolContext. Use the same language as the user. If multiple students match, ask the user to choose one and list concise candidates. If a user names a student, prefer the closest match by name, chineseName, or email. Never claim you cannot access TaiGer data when toolContext contains relevant data.',
-      input
+      instructions,
+      input,
+      tools: aiAssistToolDefinitions
     });
+
+    const functionCalls = getFunctionCalls(response);
+    if (!functionCalls.length) {
+      return {
+        response,
+        answer: getResponseText(response),
+        trace
+      };
+    }
+
+    const toolResults = await Promise.all(
+      functionCalls.map((functionCall) => executeFunctionCall(req, functionCall))
+    );
+    trace.push(...toolResults.map((toolResult) => toolResult.trace));
+    input = [...input, ...functionCalls, ...toolResults.map((item) => item.output)];
   }
 
+  return {
+    response,
+    answer:
+      'AI Assist reached the maximum number of tool calls before producing an answer.',
+    trace
+  };
+};
+
+const runChatFallback = async ({ message }) => {
   const response = await openAIClient.chat.completions.create({
     model: DEFAULT_MODEL,
     messages: [
       {
         role: 'system',
-        content:
-          'You are TaiGer AI Assist. Answer only from TaiGer Portal data in toolContext. Use the same language as the user. If multiple students match, ask the user to choose one and list concise candidates. If a user names a student, prefer the closest match by name, chineseName, or email. Never claim you cannot access TaiGer data when toolContext contains relevant data.'
+        content: instructions
       },
-      { role: 'user', content: input }
+      { role: 'user', content: message }
     ],
     temperature: 0.2
   });
 
   return {
-    id: response.id,
-    output_text: response.choices?.[0]?.message?.content || '',
-    usage: response.usage
+    response: {
+      id: response.id,
+      usage: response.usage
+    },
+    answer: response.choices?.[0]?.message?.content || '',
+    trace: []
   };
 };
 
 const runAiAssist = async (postgres, { conversationId, message, req }) => {
+  const conversationContext = await loadConversationContext(
+    postgres,
+    conversationId
+  );
   const userMessage = await createUserMessage(postgres, {
     conversationId,
     content: message
   });
-  const toolCalls = [];
-  const runTimedTool = async (toolName, args) => {
-    const startedAt = Date.now();
-    const result = await runTool(req, toolName, args);
-    toolCalls.push({
-      toolName,
-      arguments: args,
-      result,
-      status: 'success',
-      durationMs: Date.now() - startedAt
-    });
-    return result;
-  };
-  const searchArgs = {
-    query: message,
-    limit: 10
-  };
-  const toolResult = await runTimedTool(
-    'search_accessible_students',
-    searchArgs
-  );
-  const intent = inferIntent(message);
-  const resolvedStudent = resolveStudent(message, toolResult.data);
-  const resolvedStudentId = getStudentId(resolvedStudent);
-  const toolContext = {
-    search_accessible_students: toolResult
-  };
-
-  if (resolvedStudentId) {
-    if (intent.summary || intent.applications || intent.communications) {
-      toolContext.get_student_summary = await runTimedTool(
-        'get_student_summary',
-        {
-          studentId: resolvedStudentId
-        }
-      );
-    }
-
-    if (intent.applications) {
-      toolContext.get_student_applications = await runTimedTool(
-        'get_student_applications',
-        {
-          studentId: resolvedStudentId
-        }
-      );
-    }
-
-    if (intent.communications) {
-      toolContext.get_latest_communications = await runTimedTool(
-        'get_latest_communications',
-        {
-          studentId: resolvedStudentId,
-          limit: 10
-        }
-      );
-    }
-
-    if (intent.documents) {
-      toolContext.get_profile_documents = await runTimedTool(
-        'get_profile_documents',
-        {
-          studentId: resolvedStudentId
-        }
-      );
-    }
-  }
-
-  const response = await runModel({ message, toolContext });
-  const answer = response.output_text || 'No answer was returned by AI Assist.';
+  const result = openAIClient.responses?.create
+    ? await runResponsesToolLoop({ message, req, conversationContext })
+    : await runChatFallback({ message });
+  const answer = result.answer || 'No answer was returned by AI Assist.';
   const assistantMessage = await createAssistantMessage(postgres, {
     conversationId,
     content: answer,
-    response
+    response: result.response
   });
   const trace = await Promise.all(
-    toolCalls.map((toolCall) =>
+    result.trace.map((toolCall) =>
       createToolCall(postgres, {
         conversationId,
         assistantMessageId: assistantMessage.id,
@@ -209,7 +264,8 @@ const runAiAssist = async (postgres, { conversationId, message, req }) => {
         result: toolCall.result,
         status: toolCall.status,
         durationMs: toolCall.durationMs,
-        permissionOutcome: { inheritedUserPermission: true }
+        permissionOutcome: toolCall.permissionOutcome,
+        errorMessage: toolCall.errorMessage
       })
     )
   );
@@ -219,7 +275,7 @@ const runAiAssist = async (postgres, { conversationId, message, req }) => {
     assistantMessage,
     answer,
     trace,
-    usage: response.usage
+    usage: result.response?.usage
   };
 };
 

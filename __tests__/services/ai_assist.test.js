@@ -85,6 +85,25 @@ const createAiAssistPostgres = () => {
   };
 };
 
+const createAiAssistPostgresWithContext = ({ messages = [], toolCalls = [] }) => {
+  const base = createAiAssistPostgres();
+  const limit = jest
+    .fn()
+    .mockResolvedValueOnce(messages)
+    .mockResolvedValueOnce(toolCalls);
+  const orderBy = jest.fn(() => ({ limit }));
+  const where = jest.fn(() => ({ orderBy }));
+  const from = jest.fn(() => ({ where }));
+
+  return {
+    ...base,
+    postgres: {
+      ...base.postgres,
+      select: jest.fn(() => ({ from }))
+    }
+  };
+};
+
 const createAiAssistReq = () => {
   const student = {
     _id: 'student_abby',
@@ -360,6 +379,24 @@ describe('AI Assist Postgres persistence', () => {
   });
 
   it('sends a message and persists an assistant trace record', async () => {
+    openAIClient.responses.create
+      .mockResolvedValueOnce({
+        id: 'resp_tool',
+        output_text: '',
+        output: [
+          {
+            type: 'function_call',
+            call_id: 'call_search',
+            name: 'search_accessible_students',
+            arguments: JSON.stringify({ query: 'Find Abby', limit: 10 })
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        id: 'resp_final',
+        output_text: 'mocked AI Assist answer',
+        output: []
+      });
     const insertedRows = [
       { id: 'msg_user', role: 'user', content: 'Find my students' },
       {
@@ -393,20 +430,31 @@ describe('AI Assist Postgres persistence', () => {
       update: jest.fn(() => ({
         set: updateSet
       })),
-      select: jest.fn(() => ({
-        from: jest.fn(() => ({
-          where: jest.fn(() => ({
-            limit: jest.fn().mockResolvedValue([
-              {
-                id: 'conv_1',
-                ownerUserId: 'agent_1',
-                ownerRole: Role.Agent,
-                status: 'active'
-              }
-            ])
+      select: jest
+        .fn()
+        .mockImplementationOnce(() => ({
+          from: jest.fn(() => ({
+            where: jest.fn(() => ({
+              limit: jest.fn().mockResolvedValue([
+                {
+                  id: 'conv_1',
+                  ownerUserId: 'agent_1',
+                  ownerRole: Role.Agent,
+                  status: 'active'
+                }
+              ])
+            }))
           }))
         }))
-      }))
+        .mockImplementation(() => ({
+          from: jest.fn(() => ({
+            where: jest.fn(() => ({
+              orderBy: jest.fn(() => ({
+                limit: jest.fn().mockResolvedValue([])
+              }))
+            }))
+          }))
+        }))
     };
     getPostgresDb.mockReturnValue(postgres);
     const lean = jest.fn().mockResolvedValue([
@@ -448,14 +496,10 @@ describe('AI Assist Postgres persistence', () => {
     });
     expect(openAIClient.responses.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: expect.stringContaining('"toolContext"')
+        tools: expect.arrayContaining([
+          expect.objectContaining({ name: 'search_accessible_students' })
+        ])
       })
-    );
-    expect(openAIClient.responses.create.mock.calls[0][0].input).toContain(
-      'abby Student'
-    );
-    expect(openAIClient.responses.create.mock.calls[0][0].input).toContain(
-      '學生艾比'
     );
     expect(insertedValues[2].arguments).toEqual({
       query: 'Find Abby',
@@ -468,42 +512,71 @@ describe('AI Assist Postgres persistence', () => {
   });
 });
 
-describe('AI Assist tool routing', () => {
-  it('routes a specific student application question through application tools', async () => {
-    const { postgres, insertedValues } = createAiAssistPostgres();
-    const { models, req } = createAiAssistReq();
+describe('AI Assist Responses function tool loop', () => {
+  it('passes recent conversation messages and tool traces into the model input', async () => {
+    openAIClient.responses.create.mockResolvedValueOnce({
+      id: 'resp_final',
+      output_text: 'Conversation-aware answer',
+      output: []
+    });
+    const { postgres } = createAiAssistPostgresWithContext({
+      messages: [
+        {
+          role: 'assistant',
+          content:
+            '1. Testing-AJ Student\n2. abby Student (student_abby) - abbystudent@gmail.com'
+        },
+        {
+          role: 'user',
+          content: 'Summarize a student'
+        }
+      ],
+      toolCalls: [
+        {
+          toolName: 'search_accessible_students',
+          arguments: { query: 'Summarize a student', limit: 10 },
+          result: {
+            data: [
+              {
+                id: 'student_testing',
+                name: 'Testing-AJ Student',
+                chineseName: 'Testing Student'
+              },
+              {
+                id: 'student_abby',
+                name: 'abby Student',
+                chineseName: '學生艾比',
+                email: 'abbystudent@gmail.com'
+              }
+            ]
+          },
+          status: 'success'
+        }
+      ]
+    });
+    const { req } = createAiAssistReq();
 
     await runAiAssist(postgres, {
       conversationId: 'conv_1',
-      message: '學生艾比目前申請狀況如何？',
+      message: '2',
       req
     });
 
-    expect(models.Student.find).toHaveBeenCalled();
-    expect(models.Student.findById).toHaveBeenCalledWith('student_abby');
-    expect(models.Application.find).toHaveBeenCalledWith({
-      studentId: 'student_abby'
-    });
-    expect(
-      insertedValues
-        .filter((value) => value.toolName)
-        .map((value) => value.toolName)
-    ).toEqual([
-      'search_accessible_students',
-      'get_student_summary',
-      'get_student_applications'
-    ]);
-    expect(openAIClient.responses.create.mock.calls[0][0].input).toContain(
-      'get_student_applications'
-    );
-    expect(openAIClient.responses.create.mock.calls[0][0].input).toContain(
-      'TU Berlin'
-    );
+    const firstInput = openAIClient.responses.create.mock.calls[0][0].input;
+    expect(firstInput[0].content).toContain('"conversationContext"');
+    expect(firstInput[0].content).toContain('"currentUserMessage": "2"');
+    expect(firstInput[0].content).toContain('student_abby');
+    expect(firstInput[0].content).toContain('abbystudent@gmail.com');
   });
 
-  it('routes a specific student message question through communication tools', async () => {
-    const { postgres, insertedValues } = createAiAssistPostgres();
-    const { models, req } = createAiAssistReq();
+  it('instructs the model to mirror the current user language without forcing Traditional Chinese', async () => {
+    openAIClient.responses.create.mockResolvedValueOnce({
+      id: 'resp_final',
+      output_text: '繁體中文回答',
+      output: []
+    });
+    const { postgres } = createAiAssistPostgresWithContext({});
+    const { req } = createAiAssistReq();
 
     await runAiAssist(postgres, {
       conversationId: 'conv_1',
@@ -511,7 +584,117 @@ describe('AI Assist tool routing', () => {
       req
     });
 
-    expect(models.Student.findById).toHaveBeenCalledWith('student_abby');
+    const modelInstructions =
+      openAIClient.responses.create.mock.calls[0][0].instructions;
+    expect(modelInstructions).toContain(
+      "Match the user's current language and writing system exactly"
+    );
+    expect(modelInstructions).not.toContain('Traditional Chinese');
+    expect(modelInstructions).not.toContain('Simplified Chinese');
+  });
+
+  it('executes model-selected application tools and returns tool outputs to the model', async () => {
+    openAIClient.responses.create
+      .mockResolvedValueOnce({
+        id: 'resp_search',
+        output_text: '',
+        output: [
+          {
+            type: 'function_call',
+            call_id: 'call_search',
+            name: 'search_accessible_students',
+            arguments: JSON.stringify({ query: 'Abby', limit: 5 })
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        id: 'resp_applications',
+        output_text: '',
+        output: [
+          {
+            type: 'function_call',
+            call_id: 'call_applications',
+            name: 'get_student_applications',
+            arguments: JSON.stringify({ studentId: 'student_abby' })
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        id: 'resp_final',
+        output_text: 'Application status answer',
+        output: []
+      });
+    const { postgres, insertedValues } = createAiAssistPostgres();
+    const { models, req } = createAiAssistReq();
+
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'What is Abby application status?',
+      req
+    });
+
+    expect(models.Student.find).toHaveBeenCalled();
+    expect(models.Application.find).toHaveBeenCalledWith({
+      studentId: 'student_abby'
+    });
+    expect(
+      insertedValues
+        .filter((value) => value.toolName)
+        .map((value) => value.toolName)
+    ).toEqual(['search_accessible_students', 'get_student_applications']);
+    expect(openAIClient.responses.create.mock.calls[0][0].tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'get_student_applications' })
+      ])
+    );
+    expect(openAIClient.responses.create.mock.calls[1][0].input).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'function_call_output',
+          call_id: 'call_search',
+          output: expect.stringContaining('abby Student')
+        })
+      ])
+    );
+    expect(openAIClient.responses.create.mock.calls[2][0].input).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'function_call_output',
+          call_id: 'call_applications',
+          output: expect.stringContaining('TU Berlin')
+        })
+      ])
+    );
+  });
+
+  it('executes model-selected communication tools and returns tool outputs to the model', async () => {
+    openAIClient.responses.create
+      .mockResolvedValueOnce({
+        id: 'resp_messages',
+        output_text: '',
+        output: [
+          {
+            type: 'function_call',
+            call_id: 'call_messages',
+            name: 'get_latest_communications',
+            arguments: JSON.stringify({ studentId: 'student_abby', limit: 10 })
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        id: 'resp_final',
+        output_text: 'Message summary answer',
+        output: []
+      });
+    const { postgres, insertedValues } = createAiAssistPostgres();
+    const { models, req } = createAiAssistReq();
+
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'Summarize Abby latest messages',
+      req
+    });
+
     expect(models.Communication.find).toHaveBeenCalledWith({
       student_id: 'student_abby'
     });
@@ -519,16 +702,15 @@ describe('AI Assist tool routing', () => {
       insertedValues
         .filter((value) => value.toolName)
         .map((value) => value.toolName)
-    ).toEqual([
-      'search_accessible_students',
-      'get_student_summary',
-      'get_latest_communications'
-    ]);
-    expect(openAIClient.responses.create.mock.calls[0][0].input).toContain(
-      'get_latest_communications'
-    );
-    expect(openAIClient.responses.create.mock.calls[0][0].input).toContain(
-      'missing transcript'
+    ).toEqual(['get_latest_communications']);
+    expect(openAIClient.responses.create.mock.calls[1][0].input).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'function_call_output',
+          call_id: 'call_messages',
+          output: expect.stringContaining('missing transcript')
+        })
+      ])
     );
   });
 });

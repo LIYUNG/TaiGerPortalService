@@ -10,6 +10,16 @@ const {
 const clampLimit = (value, fallback, max) =>
   Math.min(Math.max(Number(value) || fallback, 1), max);
 
+const ACCESSIBLE_STUDENT_FIELDS =
+  'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count';
+
+const normalizeStudentPickerRow = (student) => ({
+  ...normalizeUser(student),
+  applyingProgramCount: student.applying_program_count,
+  agents: (student.agents || []).map((agent) => agent.toString?.() || agent),
+  editors: (student.editors || []).map((editor) => editor.toString?.() || editor)
+});
+
 const normalizeProgram = (program) => {
   if (!program) {
     return undefined;
@@ -24,6 +34,25 @@ const normalizeProgram = (program) => {
     applicationDeadline: program.application_deadline,
     country: program.country
   };
+};
+
+const requireAccessibleStudent = async (req, studentId) => {
+  const filter = await getAccessibleStudentFilter(req);
+  const students = await req.db
+    .model('Student')
+    .find({
+      ...filter,
+      _id: studentId
+    })
+    .select(ACCESSIBLE_STUDENT_FIELDS)
+    .limit(1)
+    .lean();
+
+  if (!students.length) {
+    throw new ErrorResponse(404, 'Student not found');
+  }
+
+  return students[0];
 };
 
 const searchAccessibleStudents = async (req, args = {}) => {
@@ -45,28 +74,28 @@ const searchAccessibleStudents = async (req, args = {}) => {
     .lean();
 
   return {
-    data: students.map((student) => ({
-      ...normalizeUser(student),
-      applyingProgramCount: student.applying_program_count,
-      agents: (student.agents || []).map((agent) => agent.toString?.() || agent),
-      editors: (student.editors || []).map((editor) => editor.toString?.() || editor)
-    }))
+    data: students.map(normalizeStudentPickerRow)
+  };
+};
+
+const listAccessibleStudents = async (req, args = {}) => {
+  const filter = await getAccessibleStudentFilter(req);
+  const students = await req.db
+    .model('Student')
+    .find(filter)
+    .select(
+      'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count'
+    )
+    .limit(clampLimit(args.limit, 25, 50))
+    .lean();
+
+  return {
+    data: students.map(normalizeStudentPickerRow)
   };
 };
 
 const getStudentSummary = async (req, args = {}) => {
-  const student = await req.db
-    .model('Student')
-    .findById(args.studentId)
-    .select(
-      'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count'
-    )
-    .populate('agents editors', 'firstname lastname email role archiv')
-    .lean();
-
-  if (!student) {
-    throw new ErrorResponse(404, 'Student not found');
-  }
+  const student = await requireAccessibleStudent(req, args.studentId);
 
   return {
     data: {
@@ -82,6 +111,7 @@ const getStudentSummary = async (req, args = {}) => {
 };
 
 const getStudentApplications = async (req, args = {}) => {
+  await requireAccessibleStudent(req, args.studentId);
   const applications = await req.db
     .model('Application')
     .find({ studentId: args.studentId })
@@ -104,6 +134,7 @@ const getStudentApplications = async (req, args = {}) => {
 };
 
 const getLatestCommunications = async (req, args = {}) => {
+  await requireAccessibleStudent(req, args.studentId);
   const limit = clampLimit(args.limit, 10, 50);
   const messages = await req.db
     .model('Communication')
@@ -119,15 +150,7 @@ const getLatestCommunications = async (req, args = {}) => {
 };
 
 const getProfileDocuments = async (req, args = {}) => {
-  const student = await req.db
-    .model('Student')
-    .findById(args.studentId)
-    .select('profile')
-    .lean();
-
-  if (!student) {
-    throw new ErrorResponse(404, 'Student not found');
-  }
+  const student = await requireAccessibleStudent(req, args.studentId);
 
   return {
     data: (student.profile || []).map(normalizeProfileDocument)
@@ -144,6 +167,9 @@ const getAdmissionsOverview = async (req, args = {}) => {
 };
 
 const getSupportTickets = async (req, args = {}) => {
+  if (args.studentId) {
+    await requireAccessibleStudent(req, args.studentId);
+  }
   const tickets = await req.db
     .model('Complaint')
     .find(args.studentId ? { requester_id: args.studentId } : {})
@@ -166,6 +192,7 @@ const getProgramBrief = async (req, args = {}) => {
 
 const registry = {
   search_accessible_students: searchAccessibleStudents,
+  list_accessible_students: listAccessibleStudents,
   get_student_summary: getStudentSummary,
   get_student_applications: getStudentApplications,
   get_latest_communications: getLatestCommunications,
@@ -185,5 +212,9 @@ const runTool = async (req, toolName, args) => {
 
 module.exports = {
   registry,
-  runTool
+  runTool,
+  requireAccessibleStudent,
+  listAccessibleStudents,
+  normalizeStudentPickerRow,
+  searchAccessibleStudents
 };

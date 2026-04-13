@@ -1,6 +1,7 @@
 const { desc, eq } = require('drizzle-orm');
 const { OpenAiModel, openAIClient } = require('../openai');
 const {
+  aiAssistConversations,
   aiAssistMessages,
   aiAssistToolCalls
 } = require('../../drizzle/schema/schema');
@@ -55,12 +56,19 @@ const stringifyToolOutput = (value) => JSON.stringify(value, null, 2);
 const loadConversationContext = async (postgres, conversationId) => {
   if (!postgres.select) {
     return {
+      boundStudentId: undefined,
+      boundStudentDisplayName: undefined,
       recentMessages: [],
       recentToolCalls: []
     };
   }
 
-  const [messages, toolCalls] = await Promise.all([
+  const [conversation, messages, toolCalls] = await Promise.all([
+    postgres
+      .select()
+      .from(aiAssistConversations)
+      .where(eq(aiAssistConversations.id, conversationId))
+      .limit(1),
     postgres
       .select()
       .from(aiAssistMessages)
@@ -76,6 +84,9 @@ const loadConversationContext = async (postgres, conversationId) => {
   ]);
 
   return {
+    boundStudentId: conversation?.[0]?.studentId || undefined,
+    boundStudentDisplayName:
+      conversation?.[0]?.studentDisplayName || undefined,
     recentMessages: messages
       .slice()
       .reverse()

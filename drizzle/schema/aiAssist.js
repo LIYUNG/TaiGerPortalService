@@ -16,6 +16,8 @@ const aiAssistConversations = pgTable('ai_assist_conversations', {
     .$defaultFn(() => nanoid()),
   ownerUserId: text('owner_user_id').notNull(),
   ownerRole: text('owner_role').notNull(),
+  studentId: text('student_id'),
+  studentDisplayName: text('student_display_name'),
   title: text('title').notNull().default('New AI Assist conversation'),
   status: text('status').notNull().default('active'),
   createdAt: timestamp('created_at').defaultNow(),

@@ -17,14 +17,18 @@ const getManagerStudentFilter = (user) => {
   const filters = [];
 
   if (
-    [ManagerType.Agent, ManagerType.AgentAndEditor].includes(user.manager_type) &&
+    [ManagerType.Agent, ManagerType.AgentAndEditor].includes(
+      user.manager_type
+    ) &&
     user.agents?.length
   ) {
     filters.push({ agents: { $in: user.agents } });
   }
 
   if (
-    [ManagerType.Editor, ManagerType.AgentAndEditor].includes(user.manager_type) &&
+    [ManagerType.Editor, ManagerType.AgentAndEditor].includes(
+      user.manager_type
+    ) &&
     user.editors?.length
   ) {
     filters.push({ editors: { $in: user.editors } });
@@ -46,19 +50,19 @@ const getAccessibleStudentFilter = async (req) => {
   if (is_TaiGer_Admin(user)) {
     return activeStudentFilter;
   }
-
-  if (is_TaiGer_Agent(user)) {
-    const permission = await getPermission(req, user);
-    return permission?.canAccessAllChat
-      ? activeStudentFilter
-      : { ...activeStudentFilter, agents: user._id };
+  const permission = await getPermission(req, user);
+  if (permission?.canAccessAllChat) {
+    return activeStudentFilter;
   }
 
-  if (is_TaiGer_Editor(user)) {
-    const permission = await getPermission(req, user);
-    return permission?.canAccessAllChat
-      ? activeStudentFilter
-      : { ...activeStudentFilter, editors: user._id };
+  const roleField = is_TaiGer_Agent(user)
+    ? 'agents'
+    : is_TaiGer_Editor(user)
+    ? 'editors'
+    : null;
+
+  if (roleField) {
+    return { ...activeStudentFilter, [roleField]: user._id };
   }
 
   if (user.role === Role.Manager) {

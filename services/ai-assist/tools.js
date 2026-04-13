@@ -5,7 +5,7 @@ const {
   normalizeMessage,
   normalizeProfileDocument,
   normalizeUser
-} = require('../chatbot/normalizers');
+} = require('./normalizers');
 
 const clampLimit = (value, fallback, max) =>
   Math.min(Math.max(Number(value) || fallback, 1), max);
@@ -17,7 +17,9 @@ const normalizeStudentPickerRow = (student) => ({
   ...normalizeUser(student),
   applyingProgramCount: student.applying_program_count,
   agents: (student.agents || []).map((agent) => agent.toString?.() || agent),
-  editors: (student.editors || []).map((editor) => editor.toString?.() || editor)
+  editors: (student.editors || []).map(
+    (editor) => editor.toString?.() || editor
+  )
 });
 
 const normalizeProgram = (program) => {

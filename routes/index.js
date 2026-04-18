@@ -1,4 +1,6 @@
 const { Router } = require('express');
+const logger = require('../services/logger');
+const { CRM_API_TARGET, isDev } = require('../config');
 
 const accountRouter = require('./account');
 const applicationsRouter = require('./applications');
@@ -33,7 +35,36 @@ const userlogsRouter = require('./userlogs');
 const widgetsRouter = require('./widget');
 const CRMRouter = require('./crm');
 
+function setupCrmProxy(app, target) {
+  if (!isDev()) return;
+
+  if (!target) {
+    logger.warn('CRM_API_TARGET not set, skipping CRM proxy');
+    app.use('/crm-api', (req, res) => {
+      res.status(501).json({ error: 'CRM API target not configured' });
+    });
+    return;
+  }
+
+  const { createProxyMiddleware } = require('http-proxy-middleware');
+  logger.info('Using dev proxy for CRM API', target);
+  app.use(
+    '/crm-api',
+    createProxyMiddleware({
+      target,
+      changeOrigin: true,
+      logLevel: 'debug',
+      cookieDomainRewrite: 'localhost',
+      pathRewrite: {
+        '^/crm-api': ''
+      }
+    })
+  );
+}
+
 const router = (app) => {
+  setupCrmProxy(app, CRM_API_TARGET); // enable local CRM lambda function calls
+
   const apiRouter = Router();
   apiRouter.use('/account', accountRouter);
   apiRouter.use('/applications', applicationsRouter);

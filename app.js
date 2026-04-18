@@ -8,10 +8,8 @@ const helmet = require('helmet');
 require('./middlewares/passport');
 
 const router = require('./routes');
-const { ORIGIN, CRM_API_TARGET, isProd, isDev, isTest } = require('./config');
+const { ORIGIN, isProd, isTest } = require('./config');
 const { errorHandler } = require('./middlewares/error-handler');
-const httpLogger = require('./services/httpLogger');
-const logger = require('./services/logger');
 
 const {
   tenantMiddleware,
@@ -76,24 +74,6 @@ app.use(methodOverride('_method')); // in order to make delete request
 app.use(express.json());
 app.use(compression());
 
-if (isDev()) {
-  logger.info('Using dev proxy for CRM API', CRM_API_TARGET);
-  const { createProxyMiddleware } = require('http-proxy-middleware');
-
-  app.use(
-    '/crm-api',
-    createProxyMiddleware({
-      target: CRM_API_TARGET,
-      changeOrigin: true,
-      logLevel: 'debug',
-      cookieDomainRewrite: 'localhost',
-      pathRewrite: {
-        '^/crm-api': '' // remove /crm-api from the start of the path
-      }
-    })
-  );
-}
-
 if (isProd()) {
   app.use(httpLogger);
 }
@@ -102,7 +82,6 @@ if (!isProd() && !isTest()) {
 }
 
 router(app);
-
 app.use(errorHandler);
 
 module.exports = { app };

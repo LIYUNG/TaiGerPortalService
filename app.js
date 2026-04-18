@@ -9,6 +9,7 @@ require('./middlewares/passport');
 
 const router = require('./routes');
 const { ORIGIN, isProd, isTest } = require('./config');
+const httpLogger = require('./services/httpLogger');
 const { errorHandler } = require('./middlewares/error-handler');
 
 const {

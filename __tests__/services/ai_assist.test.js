@@ -1561,7 +1561,11 @@ describe('AI Assist Postgres persistence', () => {
       }
     });
 
-    expect(insertedValues[1]).toMatchObject({
+    const assistantInsert = insertedValues.find(
+      (value) => value.role === 'assistant'
+    );
+
+    expect(assistantInsert).toMatchObject({
       role: 'assistant',
       skillTrace: expect.objectContaining({
         requestedSkill: 'identify_risk',

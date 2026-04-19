@@ -41,7 +41,11 @@ const createAssistantMessage = (
   });
 
 const buildSkillTrace = (assistContext = {}) => {
-  if (!assistContext.requestedSkill && !assistContext.unknownSkillText) {
+  if (
+    !assistContext.requestedSkill &&
+    !assistContext.resolvedSkill &&
+    !assistContext.unknownSkillText
+  ) {
     return undefined;
   }
 
@@ -49,7 +53,7 @@ const buildSkillTrace = (assistContext = {}) => {
     requestedSkill: assistContext.requestedSkill || null,
     resolvedSkill:
       assistContext.resolvedSkill || assistContext.requestedSkill || null,
-    mode: assistContext.requestedSkill ? 'skill' : 'freeform',
+    mode: assistContext.requestedSkill ? 'skill' : 'general',
     unknownSkillText: assistContext.unknownSkillText || null
   };
 };

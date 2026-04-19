@@ -204,6 +204,10 @@ const registry = {
   get_program_brief: getProgramBrief
 };
 
+const AI_ASSIST_TOOL_NAMES = Object.freeze(Object.keys(registry));
+
+const hasTool = (toolName) => Boolean(registry[toolName]);
+
 const runTool = async (req, toolName, args) => {
   const tool = registry[toolName];
   if (!tool) {
@@ -213,6 +217,8 @@ const runTool = async (req, toolName, args) => {
 };
 
 module.exports = {
+  AI_ASSIST_TOOL_NAMES,
+  hasTool,
   registry,
   runTool,
   requireAccessibleStudent,

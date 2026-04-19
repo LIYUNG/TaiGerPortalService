@@ -103,6 +103,21 @@ const aiAssistToolDefinitions = [
   )
 ];
 
+const aiAssistToolDefinitionsByName = aiAssistToolDefinitions.reduce(
+  (definitions, definition) => ({
+    ...definitions,
+    [definition.name]: definition
+  }),
+  {}
+);
+
+const selectAiAssistToolDefinitions = (toolNames = []) =>
+  toolNames
+    .map((toolName) => aiAssistToolDefinitionsByName[toolName])
+    .filter(Boolean);
+
 module.exports = {
-  aiAssistToolDefinitions
+  aiAssistToolDefinitions,
+  aiAssistToolDefinitionsByName,
+  selectAiAssistToolDefinitions
 };

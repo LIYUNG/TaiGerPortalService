@@ -83,6 +83,15 @@ const conditionIncludesValue = (condition, expectedValue) => {
 };
 
 const createLifecyclePostgres = (conversation) => {
+  const insertedRows = [
+    { id: 'msg_user', role: 'user', content: 'question' },
+    {
+      id: 'msg_assistant',
+      role: 'assistant',
+      content: 'mocked AI Assist answer'
+    }
+  ];
+  let insertIndex = 0;
   const where = jest.fn((condition) => {
     const activeOnly = conditionIncludesValue(condition, 'active');
     const readRows = () =>
@@ -97,6 +106,15 @@ const createLifecyclePostgres = (conversation) => {
   });
 
   const postgres = {
+    insert: jest.fn(() => ({
+      values: jest.fn(() => ({
+        returning: jest.fn().mockImplementation(() => {
+          const row = insertedRows[insertIndex] || insertedRows[insertedRows.length - 1];
+          insertIndex += 1;
+          return Promise.resolve([row]);
+        })
+      }))
+    })),
     select: jest.fn(() => ({
       from: jest.fn(() => ({
         where
@@ -514,11 +532,20 @@ describe('AI Assist Postgres persistence', () => {
       body: {
         message: 'Summarize Abby',
         studentId: 'student_abby',
-        studentDisplayName: 'Abby Student'
+        studentDisplayName: 'Abby Student',
+        assistContext: {
+          mentionedStudent: { id: 'student_abby', displayName: 'Abby Student' },
+          requestedSkill: 'summarize_student',
+          unknownSkillText: null
+        }
       },
       db: studentReq.db
     };
     const res = createResponse();
+    const runAiAssistSpy = jest.spyOn(
+      require('../../services/ai-assist/orchestrator'),
+      'runAiAssist'
+    );
 
     await sendFirstMessage(req, res);
 
@@ -533,6 +560,69 @@ describe('AI Assist Postgres persistence', () => {
     });
     expect(res.send.mock.calls[0][0].data.answer).toBe('mocked AI Assist answer');
     expect(updateSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) });
+    expect(runAiAssistSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        assistContext: {
+          mentionedStudent: { id: 'student_abby', displayName: 'Abby Student' },
+          requestedSkill: 'summarize_student',
+          unknownSkillText: null
+        }
+      })
+    );
+  });
+
+  it('passes assistContext through sendMessage into runAiAssist', async () => {
+    const conversation = {
+      id: 'conv_1',
+      ownerUserId: 'agent_1',
+      ownerRole: Role.Agent,
+      status: 'active'
+    };
+    const postgres = createLifecyclePostgres(conversation);
+    getPostgresDb.mockReturnValue(postgres);
+    const res = createResponse();
+    const { req } = createStudentAccessReq({
+      students: [
+        {
+          _id: 'student_abby',
+          firstname: 'Abby',
+          lastname: 'Student',
+          email: 'abbystudent@gmail.com',
+          role: Role.Student,
+          agents: ['agent_1'],
+          editors: [],
+          applying_program_count: 10
+        }
+      ]
+    });
+    req.params = { conversationId: 'conv_1' };
+    req.user = { _id: 'agent_1', role: Role.Agent };
+    req.body = {
+      message: '@Abby Student #identify_risk',
+      assistContext: {
+        mentionedStudent: { id: 'student_abby', displayName: 'Abby Student' },
+        requestedSkill: 'identify_risk',
+        unknownSkillText: null
+      }
+    };
+    const runAiAssistSpy = jest.spyOn(
+      require('../../services/ai-assist/orchestrator'),
+      'runAiAssist'
+    );
+
+    await sendMessage(req, res);
+
+    expect(runAiAssistSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        assistContext: {
+          mentionedStudent: { id: 'student_abby', displayName: 'Abby Student' },
+          requestedSkill: 'identify_risk',
+          unknownSkillText: null
+        }
+      })
+    );
   });
 
   it('rolls back first-message creation if persistence fails after insert', async () => {

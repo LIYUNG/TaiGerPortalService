@@ -7,7 +7,7 @@ const {
   aiAssistMessages,
   aiAssistToolCalls
 } = require('../drizzle/schema/schema');
-const { runAiAssist } = require('../services/ai-assist/orchestrator');
+const aiAssistOrchestrator = require('../services/ai-assist/orchestrator');
 const {
   normalizeStudentPickerRow,
   requireAccessibleStudent,
@@ -27,6 +27,13 @@ const STUDENT_PICKER_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count';
 
 const currentUserId = (req) => req.user?._id?.toString();
+
+const VALID_AI_ASSIST_SKILLS = new Set([
+  'summarize_student',
+  'identify_risk',
+  'review_messages',
+  'review_open_tasks'
+]);
 
 const resolveBoundStudentMetadata = async (req) => {
   const studentId = req.body?.studentId?.trim?.() || req.body?.studentId || null;
@@ -70,6 +77,35 @@ const resolveBoundStudentMetadata = async (req) => {
       normalizedStudent.name ||
       normalizedStudent.chineseName ||
       null
+  };
+};
+
+const resolveAssistContextPayload = async (req) => {
+  const raw = req.body?.assistContext;
+  if (!raw) {
+    return undefined;
+  }
+
+  if (raw.mentionedStudent?.id) {
+    await requireAccessibleStudent(req, raw.mentionedStudent.id);
+  }
+
+  const requestedSkill = VALID_AI_ASSIST_SKILLS.has(raw.requestedSkill)
+    ? raw.requestedSkill
+    : null;
+
+  return {
+    mentionedStudent: raw.mentionedStudent?.id
+      ? {
+          id: raw.mentionedStudent.id,
+          displayName: raw.mentionedStudent.displayName || null
+        }
+      : null,
+    requestedSkill,
+    unknownSkillText:
+      raw.requestedSkill && !requestedSkill
+        ? raw.requestedSkill
+        : raw.unknownSkillText || null
   };
 };
 
@@ -384,9 +420,10 @@ const sendMessage = asyncHandler(async (req, res) => {
   const result = await postgres.transaction(async (tx) => {
     await requireActiveConversationOwner(tx, conversationId, currentUserId(req));
 
-    const assistantResult = await runAiAssist(tx, {
+    const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
       conversationId,
       message,
+      assistContext: await resolveAssistContextPayload(req),
       req
     });
 
@@ -423,9 +460,10 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
       studentDisplayName: boundStudentMetadata.studentDisplayName
     });
 
-    const assistantResult = await runAiAssist(tx, {
+    const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
       conversationId: conversation.id,
       message,
+      assistContext: await resolveAssistContextPayload(req),
       req
     });
 

@@ -37,6 +37,7 @@ const aiAssistMessages = pgTable('ai_assist_messages', {
   model: text('model'),
   responseId: text('response_id'),
   usage: jsonb('usage'),
+  skillTrace: jsonb('skill_trace'),
   createdAt: timestamp('created_at').defaultNow()
 });
 

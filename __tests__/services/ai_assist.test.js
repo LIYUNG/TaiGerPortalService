@@ -1543,6 +1543,33 @@ describe('AI Assist Postgres persistence', () => {
     expect(updateReturning).toHaveBeenCalled();
     expect(find).toHaveBeenCalled();
   });
+
+  it('stores skillTrace on the assistant message record', async () => {
+    const { postgres, insertedValues } = createAiAssistPostgresWithContext({});
+
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: '@Abby Student #identify_risk focus on blockers',
+      assistContext: {
+        mentionedStudent: { id: 'student_abby', displayName: 'Abby Student' },
+        requestedSkill: 'identify_risk',
+        unknownSkillText: null
+      },
+      req: {
+        user: { _id: 'agent_1', role: Role.Agent },
+        db: { model: jest.fn() }
+      }
+    });
+
+    expect(insertedValues[1]).toMatchObject({
+      role: 'assistant',
+      skillTrace: expect.objectContaining({
+        requestedSkill: 'identify_risk',
+        resolvedSkill: 'identify_risk',
+        mode: 'skill'
+      })
+    });
+  });
 });
 
 describe('AI Assist Responses function tool loop', () => {

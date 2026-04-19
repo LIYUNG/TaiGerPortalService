@@ -26,15 +26,33 @@ const createUserMessage = (postgres, { conversationId, content }) =>
     content
   });
 
-const createAssistantMessage = (postgres, { conversationId, content, response }) =>
+const createAssistantMessage = (
+  postgres,
+  { conversationId, content, response, skillTrace }
+) =>
   insertReturningOne(postgres, aiAssistMessages, {
     conversationId,
     role: 'assistant',
     content,
     model: DEFAULT_MODEL,
     responseId: response?.id,
-    usage: response?.usage
+    usage: response?.usage,
+    skillTrace
   });
+
+const buildSkillTrace = (assistContext = {}) => {
+  if (!assistContext.requestedSkill && !assistContext.unknownSkillText) {
+    return undefined;
+  }
+
+  return {
+    requestedSkill: assistContext.requestedSkill || null,
+    resolvedSkill:
+      assistContext.resolvedSkill || assistContext.requestedSkill || null,
+    mode: assistContext.requestedSkill ? 'skill' : 'freeform',
+    unknownSkillText: assistContext.unknownSkillText || null
+  };
+};
 
 const createToolCall = (postgres, values) =>
   insertReturningOne(postgres, aiAssistToolCalls, values);
@@ -247,7 +265,10 @@ const runChatFallback = async ({ message }) => {
   };
 };
 
-const runAiAssist = async (postgres, { conversationId, message, req }) => {
+const runAiAssist = async (
+  postgres,
+  { conversationId, message, req, assistContext }
+) => {
   const conversationContext = await loadConversationContext(
     postgres,
     conversationId
@@ -263,7 +284,8 @@ const runAiAssist = async (postgres, { conversationId, message, req }) => {
   const assistantMessage = await createAssistantMessage(postgres, {
     conversationId,
     content: answer,
-    response: result.response
+    response: result.response,
+    skillTrace: buildSkillTrace(assistContext)
   });
   const trace = await Promise.all(
     result.trace.map((toolCall) =>

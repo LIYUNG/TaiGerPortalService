@@ -387,8 +387,7 @@ const sendMessage = asyncHandler(async (req, res) => {
     const assistantResult = await runAiAssist(tx, {
       conversationId,
       message,
-      req,
-      assistContext: req.body?.assistContext
+      req
     });
 
     await updateOwnedActiveConversation(
@@ -427,8 +426,7 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
     const assistantResult = await runAiAssist(tx, {
       conversationId: conversation.id,
       message,
-      req,
-      assistContext: req.body?.assistContext
+      req
     });
 
     await updateOwnedActiveConversation(

@@ -40,17 +40,17 @@ const createAssistantMessage = (
     skillTrace
   });
 
-const buildSkillTrace = (message) => {
-  const requestedSkill = message?.match?.(/#([A-Za-z0-9_]+)/)?.[1];
-
-  if (!requestedSkill) {
+const buildSkillTrace = (assistContext = {}) => {
+  if (!assistContext.requestedSkill && !assistContext.unknownSkillText) {
     return undefined;
   }
 
   return {
-    requestedSkill,
-    resolvedSkill: requestedSkill,
-    mode: 'skill'
+    requestedSkill: assistContext.requestedSkill || null,
+    resolvedSkill:
+      assistContext.resolvedSkill || assistContext.requestedSkill || null,
+    mode: assistContext.requestedSkill ? 'skill' : 'freeform',
+    unknownSkillText: assistContext.unknownSkillText || null
   };
 };
 
@@ -267,7 +267,7 @@ const runChatFallback = async ({ message }) => {
 
 const runAiAssist = async (
   postgres,
-  { conversationId, message, req }
+  { conversationId, message, req, assistContext }
 ) => {
   const conversationContext = await loadConversationContext(
     postgres,
@@ -285,7 +285,7 @@ const runAiAssist = async (
     conversationId,
     content: answer,
     response: result.response,
-    skillTrace: buildSkillTrace(message)
+    skillTrace: buildSkillTrace(assistContext)
   });
   const trace = await Promise.all(
     result.trace.map((toolCall) =>

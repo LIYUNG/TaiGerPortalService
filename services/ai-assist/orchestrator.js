@@ -588,6 +588,7 @@ const runAiAssist = async (
     assistantMessage,
     answer,
     trace,
+    skillTrace: assistantMessage.skillTrace || result.skillTrace || null,
     usage: result.response?.usage
   };
 };

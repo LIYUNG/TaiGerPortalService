@@ -1606,6 +1606,51 @@ describe('AI Assist Postgres persistence', () => {
       })
     });
   });
+
+  it('returns skillTrace with sendMessage responses', async () => {
+    const conversation = {
+      id: 'conv_1',
+      ownerUserId: 'agent_1',
+      ownerRole: Role.Agent,
+      status: 'active',
+      studentId: 'student_abby',
+      studentDisplayName: 'Abby Student'
+    };
+    const postgres = createLifecyclePostgres(conversation);
+    getPostgresDb.mockReturnValue(postgres);
+    const res = createResponse();
+
+    await sendMessage(
+      {
+        params: { conversationId: 'conv_1' },
+        user: { _id: 'agent_1', role: Role.Agent },
+        body: {
+          message: '@Abby Student #identify_risk focus on blockers',
+          assistContext: {
+            mentionedStudent: {
+              id: 'student_abby',
+              displayName: 'Abby Student'
+            },
+            requestedSkill: 'identify_risk',
+            unknownSkillText: null
+          }
+        },
+        db: createAiAssistReq().req.db
+      },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send.mock.calls[0][0].data.skillTrace).toMatchObject({
+      requestedSkill: 'identify_risk',
+      resolvedSkill: 'identify_risk',
+      mode: 'skill',
+      student: {
+        id: 'student_abby',
+        displayName: 'Abby Student'
+      }
+    });
+  });
 });
 
 describe('AI Assist Responses function tool loop', () => {

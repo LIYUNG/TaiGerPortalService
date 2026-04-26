@@ -331,17 +331,32 @@ const getResponseText = (response) => {
     .join('\n');
 };
 
-const executeFunctionCall = async (req, functionCall) => {
+const executeFunctionCall = async (req, functionCall, { onProgress } = {}) => {
   const startedAt = Date.now();
   const toolName = functionCall.name;
+  const args = parseArguments(functionCall.arguments);
+
+  await safeEmitProgress(onProgress, {
+    type: 'tool_start',
+    toolName,
+    arguments: args
+  });
 
   try {
     if (!tools.hasTool(toolName)) {
       throw new Error(`Unknown AI Assist tool: ${toolName}`);
     }
 
-    const args = parseArguments(functionCall.arguments);
     const result = await tools.runTool(req, toolName, args);
+    const durationMs = Date.now() - startedAt;
+
+    await safeEmitProgress(onProgress, {
+      type: 'tool_done',
+      toolName,
+      arguments: args,
+      status: 'success',
+      durationMs
+    });
 
     return {
       trace: {
@@ -349,7 +364,7 @@ const executeFunctionCall = async (req, functionCall) => {
         arguments: args,
         result,
         status: 'success',
-        durationMs: Date.now() - startedAt,
+        durationMs,
         permissionOutcome: { inheritedUserPermission: true }
       },
       output: {
@@ -362,14 +377,24 @@ const executeFunctionCall = async (req, functionCall) => {
     const result = {
       error: error instanceof Error ? error.message : 'Tool execution failed'
     };
+    const durationMs = Date.now() - startedAt;
+
+    await safeEmitProgress(onProgress, {
+      type: 'tool_done',
+      toolName,
+      arguments: args,
+      status: 'failed',
+      durationMs,
+      errorMessage: result.error
+    });
 
     return {
       trace: {
         toolName,
-        arguments: functionCall.arguments,
+        arguments: args,
         result,
         status: 'failed',
-        durationMs: Date.now() - startedAt,
+        durationMs,
         errorMessage: result.error,
         permissionOutcome: { inheritedUserPermission: true }
       },
@@ -382,35 +407,61 @@ const executeFunctionCall = async (req, functionCall) => {
   }
 };
 
-const executeSkillStep = async (req, step) => {
+const executeSkillStep = async (req, step, { onProgress } = {}) => {
   const startedAt = Date.now();
+  await safeEmitProgress(onProgress, {
+    type: 'tool_start',
+    toolName: step.toolName,
+    arguments: step.args
+  });
 
   if (!tools.hasTool(step.toolName)) {
     throw new Error(`Unknown AI Assist skill tool: ${step.toolName}`);
   }
 
   const result = await tools.runTool(req, step.toolName, step.args);
+  const durationMs = Date.now() - startedAt;
+  await safeEmitProgress(onProgress, {
+    type: 'tool_done',
+    toolName: step.toolName,
+    arguments: step.args,
+    status: 'success',
+    durationMs
+  });
 
   return {
     toolName: step.toolName,
     arguments: step.args,
     result,
     status: 'success',
-    durationMs: Date.now() - startedAt,
+    durationMs,
     permissionOutcome: { inheritedUserPermission: true }
   };
 };
 
-const executeIntentTool = async (req, toolName, args = {}) => {
+const executeIntentTool = async (req, toolName, args = {}, { onProgress } = {}) => {
   const startedAt = Date.now();
+  await safeEmitProgress(onProgress, {
+    type: 'tool_start',
+    toolName,
+    arguments: args
+  });
   const result = await tools.runTool(req, toolName, args);
+  const durationMs = Date.now() - startedAt;
+  await safeEmitProgress(onProgress, {
+    type: 'tool_done',
+    toolName,
+    arguments: args,
+    status: 'success',
+    durationMs
+  });
 
   return {
     toolName,
     arguments: args,
     result,
     status: 'success',
-    durationMs: Date.now() - startedAt,
+    durationMs,
     permissionOutcome: { inheritedUserPermission: true }
   };
 };
@@ -491,7 +542,12 @@ const resolveIntentStudent = async ({ req, assistContext, intentResult }) => {
   };
 };
 
-const runIntentPlan = async ({ req, intentResult, resolvedStudent }) => {
+const runIntentPlan = async ({
+  req,
+  intentResult,
+  resolvedStudent,
+  onProgress
+}) => {
   const toolNames = INTENT_TOOL_PLAN[intentResult.intent] || [];
   const trace = [];
   const toolContext = {};
@@ -499,7 +555,7 @@ const runIntentPlan = async ({ req, intentResult, resolvedStudent }) => {
   for (const toolName of toolNames) {
     const toolTrace = await executeIntentTool(req, toolName, {
       studentId: resolvedStudent?.student?.id
-    });
+    }, { onProgress });
     trace.push(toolTrace);
     toolContext[toolName] = toolTrace.result;
   }
@@ -515,16 +571,38 @@ const runIntentFirstFlow = async ({
   req,
   assistContext,
   conversationContext,
-  responseLanguageInstruction
+  responseLanguageInstruction,
+  onProgress
 }) => {
+  await safeEmitProgress(onProgress, {
+    type: 'thinking',
+    phase: 'intent_routing',
+    message: 'Classifying intent'
+  });
   const intentResult = await classifyIntent({
     message,
     conversationContext
+  });
+  await safeEmitProgress(onProgress, {
+    type: 'status',
+    phase: 'intent_routing',
+    intent: intentResult.intent
+  });
+
+  await safeEmitProgress(onProgress, {
+    type: 'thinking',
+    phase: 'entity_resolution',
+    message: 'Resolving student'
   });
   const resolvedStudent = await resolveIntentStudent({
     req,
     assistContext,
     intentResult
+  });
+  await safeEmitProgress(onProgress, {
+    type: 'status',
+    phase: 'entity_resolution',
+    resolutionStatus: resolvedStudent.status
   });
 
   if (
@@ -551,8 +629,14 @@ const runIntentFirstFlow = async ({
       : await runIntentPlan({
           req,
           intentResult,
-          resolvedStudent
+          resolvedStudent,
+          onProgress
         });
+  await safeEmitProgress(onProgress, {
+    type: 'thinking',
+    phase: 'answer_composer',
+    message: 'Composing answer'
+  });
   const composed = await composeAnswer({
     message,
     intentResult,
@@ -618,15 +702,27 @@ const runSkillPlan = async ({
   req,
   conversationContext,
   resolvedAssistContext,
-  responseLanguageInstruction
+  responseLanguageInstruction,
+  onProgress
 }) => {
   const plan = SKILL_PLANS[resolvedAssistContext.resolvedSkill];
   const trace = [];
 
   for (const createStep of plan.steps) {
-    trace.push(await executeSkillStep(req, createStep(resolvedAssistContext.student)));
+    trace.push(
+      await executeSkillStep(
+        req,
+        createStep(resolvedAssistContext.student),
+        { onProgress }
+      )
+    );
   }
 
+  await safeEmitProgress(onProgress, {
+    type: 'thinking',
+    phase: 'answer_composer',
+    message: 'Composing skill answer'
+  });
   const response = await openAIClient.responses.create({
     model: DEFAULT_MODEL,
     instructions: `${instructions} ${languagePolicyInstructions} ${plan.synthesisInstruction} Use only the provided skill data. Do not call tools.`,
@@ -660,7 +756,8 @@ const runResponsesToolLoop = async ({
   message,
   req,
   conversationContext,
-  responseLanguageInstruction
+  responseLanguageInstruction,
+  onProgress
 }) => {
   let input = buildInitialInput({
     message,
@@ -671,6 +768,12 @@ const runResponsesToolLoop = async ({
   let response;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    await safeEmitProgress(onProgress, {
+      type: 'thinking',
+      phase: 'legacy_tool_loop',
+      round: round + 1,
+      message: 'Model thinking'
+    });
     response = await openAIClient.responses.create({
       model: DEFAULT_MODEL,
       instructions: `${instructions} ${languagePolicyInstructions}`,
@@ -688,7 +791,9 @@ const runResponsesToolLoop = async ({
     }
 
     const toolResults = await Promise.all(
-      functionCalls.map((functionCall) => executeFunctionCall(req, functionCall))
+      functionCalls.map((functionCall) =>
+        executeFunctionCall(req, functionCall, { onProgress })
+      )
     );
     trace.push(...toolResults.map((toolResult) => toolResult.trace));
     input = [...input, ...functionCalls, ...toolResults.map((item) => item.output)];
@@ -702,7 +807,12 @@ const runResponsesToolLoop = async ({
   };
 };
 
-const runChatFallback = async ({ message }) => {
+const runChatFallback = async ({ message, onProgress }) => {
+  await safeEmitProgress(onProgress, {
+    type: 'thinking',
+    phase: 'chat_fallback',
+    message: 'Model thinking'
+  });
   const response = await openAIClient.chat.completions.create({
     model: DEFAULT_MODEL,
     messages: [
@@ -735,10 +845,37 @@ const shouldRunSkillMode = (resolvedAssistContext) =>
 const shouldUseLegacyToolLoop = (resolvedAssistContext, req) =>
   Boolean(resolvedAssistContext?.fallbackReason) || !req?.db;
 
+const safeEmitProgress = async (onProgress, event) => {
+  if (typeof onProgress !== 'function') {
+    return;
+  }
+
+  try {
+    await onProgress({
+      timestamp: new Date().toISOString(),
+      ...event
+    });
+  } catch (error) {
+    // Progress events are best-effort.
+  }
+};
+
 const runAiAssist = async (
   postgres,
-  { conversationId, message, req, assistContext, preferredLanguage }
+  {
+    conversationId,
+    message,
+    req,
+    assistContext,
+    preferredLanguage,
+    onProgress
+  }
 ) => {
+  await safeEmitProgress(onProgress, {
+    type: 'status',
+    phase: 'start',
+    message: 'Request received'
+  });
   const conversationContext = await loadConversationContext(
     postgres,
     conversationId
@@ -762,33 +899,56 @@ const runAiAssist = async (
   let result;
 
   if (useSkillMode) {
+    await safeEmitProgress(onProgress, {
+      type: 'status',
+      phase: 'mode',
+      mode: 'skill'
+    });
     result = await runSkillPlan({
       message,
       req,
       conversationContext,
       resolvedAssistContext,
-      responseLanguageInstruction
+      responseLanguageInstruction,
+      onProgress
     });
   } else if (
     openAIClient.responses?.create &&
     shouldUseLegacyToolLoop(resolvedAssistContext, req)
   ) {
+    await safeEmitProgress(onProgress, {
+      type: 'status',
+      phase: 'mode',
+      mode: 'legacy_tool_loop'
+    });
     result = await runResponsesToolLoop({
       message,
       req,
       conversationContext,
-      responseLanguageInstruction
+      responseLanguageInstruction,
+      onProgress
     });
   } else if (openAIClient.responses?.create) {
+    await safeEmitProgress(onProgress, {
+      type: 'status',
+      phase: 'mode',
+      mode: 'intent_first'
+    });
     result = await runIntentFirstFlow({
       message,
       req,
       assistContext,
       conversationContext,
-      responseLanguageInstruction
+      responseLanguageInstruction,
+      onProgress
     });
   } else {
-    result = await runChatFallback({ message });
+    await safeEmitProgress(onProgress, {
+      type: 'status',
+      phase: 'mode',
+      mode: 'chat_fallback'
+    });
+    result = await runChatFallback({ message, onProgress });
   }
   const answer = result.answer || 'No answer was returned by AI Assist.';
   const fallbackReason =
@@ -826,6 +986,12 @@ const runAiAssist = async (
       })
     )
   );
+
+  await safeEmitProgress(onProgress, {
+    type: 'status',
+    phase: 'completed',
+    traceCount: trace.length
+  });
 
   return {
     userMessage,

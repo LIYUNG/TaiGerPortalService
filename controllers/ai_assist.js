@@ -72,6 +72,30 @@ const resolvePreferredLanguage = (req) => {
     : 'en';
 };
 
+const isStreamingRequest = (req) => {
+  const streamQuery = String(req.query?.stream || '').toLowerCase();
+  if (streamQuery === '1' || streamQuery === 'true') {
+    return true;
+  }
+
+  return String(req.headers?.accept || '')
+    .toLowerCase()
+    .includes('text/event-stream');
+};
+
+const initSse = (res) => {
+  res.status(200);
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+};
+
+const writeSse = (res, event, payload) => {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+};
+
 const requireActiveConversationOwner = async (
   postgres,
   conversationId,
@@ -375,6 +399,54 @@ const sendMessage = asyncHandler(async (req, res) => {
     throw new ErrorResponse(400, 'message is required');
   }
 
+  if (isStreamingRequest(req)) {
+    const postgres = getPostgresDb();
+    initSse(res);
+
+    try {
+      const result = await postgres.transaction(async (tx) => {
+        await requireActiveConversationOwner(tx, conversationId, currentUserId(req));
+
+        const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
+          conversationId,
+          message,
+          assistContext: await resolveAssistContextPayload(req),
+          preferredLanguage: resolvePreferredLanguage(req),
+          req,
+          onProgress: async (event) => {
+            writeSse(res, 'progress', event);
+          }
+        });
+
+        await updateOwnedActiveConversation(
+          tx,
+          conversationId,
+          currentUserId(req),
+          {
+            updatedAt: new Date()
+          }
+        );
+
+        return assistantResult;
+      });
+
+      writeSse(res, 'final', {
+        success: true,
+        data: result
+      });
+      writeSse(res, 'done', { ok: true });
+    } catch (error) {
+      writeSse(res, 'error', {
+        message:
+          error instanceof Error ? error.message : 'AI Assist streaming failed'
+      });
+    } finally {
+      res.end();
+    }
+
+    return;
+  }
+
   const postgres = getPostgresDb();
   const result = await postgres.transaction(async (tx) => {
     await requireActiveConversationOwner(tx, conversationId, currentUserId(req));
@@ -410,6 +482,57 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
 
   if (!message || typeof message !== 'string') {
     throw new ErrorResponse(400, 'message is required');
+  }
+
+  if (isStreamingRequest(req)) {
+    const postgres = getPostgresDb();
+    initSse(res);
+
+    try {
+      const result = await postgres.transaction(async (tx) => {
+        const [conversation] = await createConversationRecord(tx, req);
+
+        const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
+          conversationId: conversation.id,
+          message,
+          assistContext: await resolveAssistContextPayload(req),
+          preferredLanguage: resolvePreferredLanguage(req),
+          req,
+          onProgress: async (event) => {
+            writeSse(res, 'progress', event);
+          }
+        });
+
+        await updateOwnedActiveConversation(
+          tx,
+          conversation.id,
+          currentUserId(req),
+          {
+            updatedAt: new Date()
+          }
+        );
+
+        return {
+          conversation,
+          ...assistantResult
+        };
+      });
+
+      writeSse(res, 'final', {
+        success: true,
+        data: result
+      });
+      writeSse(res, 'done', { ok: true });
+    } catch (error) {
+      writeSse(res, 'error', {
+        message:
+          error instanceof Error ? error.message : 'AI Assist streaming failed'
+      });
+    } finally {
+      res.end();
+    }
+
+    return;
   }
 
   const postgres = getPostgresDb();

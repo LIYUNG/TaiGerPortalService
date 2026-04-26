@@ -10,6 +10,9 @@ const {
 const clampLimit = (value, fallback, max) =>
   Math.min(Math.max(Number(value) || fallback, 1), max);
 
+const escapeRegex = (value = '') =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const ACCESSIBLE_STUDENT_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count';
 
@@ -163,23 +166,110 @@ const requireAccessibleStudent = async (req, studentId) => {
 const searchAccessibleStudents = async (req, args = {}) => {
   const filter = await getAccessibleStudentFilter(req);
   const query = typeof args.query === 'string' ? args.query.trim() : '';
-  const finalFilter = query
-    ? {
-        ...filter,
-        $text: { $search: query }
-      }
-    : filter;
-  const students = await req.db
+  const limit = clampLimit(args.limit, 10, 25);
+
+  if (!query) {
+    const students = await req.db
+      .model('Student')
+      .find(filter)
+      .select(
+        'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count'
+      )
+      .limit(limit)
+      .lean();
+
+    return {
+      data: students.map(normalizeStudentPickerRow)
+    };
+  }
+
+  const textCandidates = await req.db
     .model('Student')
-    .find(finalFilter)
+    .find({
+      ...filter,
+      $text: { $search: query }
+    })
     .select(
       'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count'
     )
-    .limit(clampLimit(args.limit, 10, 25))
+    .limit(limit)
+    .lean();
+
+  if (textCandidates.length > 0) {
+    return {
+      data: textCandidates.map(normalizeStudentPickerRow)
+    };
+  }
+
+  const escapedQuery = escapeRegex(query);
+  const escapedQueryNoSpace = escapeRegex(query.replace(/\s+/g, ''));
+  const fallbackRegex = new RegExp(escapedQuery, 'i');
+  const fallbackNoSpaceRegex = new RegExp(escapedQueryNoSpace, 'i');
+
+  const fallbackCandidates = await req.db
+    .model('Student')
+    .find({
+      ...filter,
+      $or: [
+        { firstname: fallbackRegex },
+        { lastname: fallbackRegex },
+        { email: fallbackRegex },
+        { firstname_chinese: fallbackNoSpaceRegex },
+        { lastname_chinese: fallbackNoSpaceRegex },
+        {
+          $expr: {
+            $regexMatch: {
+              input: {
+                $concat: [
+                  { $ifNull: ['$lastname_chinese', ''] },
+                  { $ifNull: ['$firstname_chinese', ''] }
+                ]
+              },
+              regex: escapedQueryNoSpace,
+              options: 'i'
+            }
+          }
+        },
+        {
+          $expr: {
+            $regexMatch: {
+              input: {
+                $concat: [
+                  { $ifNull: ['$firstname', ''] },
+                  ' ',
+                  { $ifNull: ['$lastname', ''] }
+                ]
+              },
+              regex: escapedQuery,
+              options: 'i'
+            }
+          }
+        },
+        {
+          $expr: {
+            $regexMatch: {
+              input: {
+                $concat: [
+                  { $ifNull: ['$lastname', ''] },
+                  ' ',
+                  { $ifNull: ['$firstname', ''] }
+                ]
+              },
+              regex: escapedQuery,
+              options: 'i'
+            }
+          }
+        }
+      ]
+    })
+    .select(
+      'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count'
+    )
+    .limit(limit)
     .lean();
 
   return {
-    data: students.map(normalizeStudentPickerRow)
+    data: fallbackCandidates.map(normalizeStudentPickerRow)
   };
 };
 

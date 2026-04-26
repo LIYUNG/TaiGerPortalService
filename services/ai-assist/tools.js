@@ -38,6 +38,109 @@ const normalizeProgram = (program) => {
   };
 };
 
+const isTruthyFlag = (value) => value === true || value === 'O' || value === 'Y';
+
+const deriveApplicationStatus = (application = {}) => {
+  if (isTruthyFlag(application.finalEnrolment)) {
+    return 'final_enrolled';
+  }
+
+  if (application.admission === 'O') {
+    return 'admitted';
+  }
+
+  if (application.admission === 'X' || application.reject_reason) {
+    return 'rejected';
+  }
+
+  if (isTruthyFlag(application.closed)) {
+    return 'closed';
+  }
+
+  return 'in_progress';
+};
+
+const deriveApplicationDecision = (application = {}, normalizedStatus) => {
+  if (normalizedStatus === 'final_enrolled') {
+    return 'final enrolment confirmed';
+  }
+
+  if (normalizedStatus === 'admitted') {
+    return 'waiting for final enrolment decision';
+  }
+
+  if (normalizedStatus === 'rejected') {
+    return application.reject_reason || 'application rejected';
+  }
+
+  if (normalizedStatus === 'closed') {
+    return 'application closed';
+  }
+
+  return 'under review';
+};
+
+const deriveApplicationRisks = (application = {}, normalizedStatus) => {
+  const risks = [];
+
+  if (normalizedStatus === 'admitted' && !isTruthyFlag(application.finalEnrolment)) {
+    risks.push('final enrolment not confirmed');
+  }
+
+  if (application.uni_assist?.status === 'not_started') {
+    risks.push('uni-assist not started');
+  }
+
+  if (
+    application.admission_letter &&
+    !application.admission_letter.path &&
+    application.admission === 'O'
+  ) {
+    risks.push('admission letter file missing');
+  }
+
+  return risks;
+};
+
+const deriveApplicationNextActions = (application = {}, normalizedStatus) => {
+  const nextActions = [];
+
+  if (normalizedStatus === 'admitted' && !isTruthyFlag(application.finalEnrolment)) {
+    nextActions.push('confirm enrolment decision with student');
+  }
+
+  if (application.uni_assist?.status === 'not_started') {
+    nextActions.push('start uni-assist process');
+  }
+
+  if (
+    application.admission_letter &&
+    !application.admission_letter.path &&
+    application.admission === 'O'
+  ) {
+    nextActions.push('upload or verify admission letter');
+  }
+
+  return nextActions;
+};
+
+const normalizeApplicationContextItem = (application) => {
+  const status = deriveApplicationStatus(application);
+  const program = normalizeProgram(application.programId);
+
+  return {
+    id: application._id?.toString?.() || application.id,
+    program,
+    school: program?.school,
+    country: program?.country,
+    status,
+    decision: deriveApplicationDecision(application, status),
+    deadline: program?.applicationDeadline,
+    risks: deriveApplicationRisks(application, status),
+    nextActions: deriveApplicationNextActions(application, status)
+  };
+};
+
 const requireAccessibleStudent = async (req, studentId) => {
   const filter = await getAccessibleStudentFilter(req);
   const students = await req.db
@@ -79,6 +182,9 @@ const searchAccessibleStudents = async (req, args = {}) => {
     data: students.map(normalizeStudentPickerRow)
   };
 };
+
+const searchStudents = async (req, args = {}) =>
+  searchAccessibleStudents(req, args);
 
 const listAccessibleStudents = async (req, args = {}) => {
   const filter = await getAccessibleStudentFilter(req);
@@ -182,6 +288,118 @@ const getSupportTickets = async (req, args = {}) => {
   return { data: tickets };
 };
 
+const getStudentContext = async (req, args = {}) => {
+  const studentSummary = await getStudentSummary(req, args);
+  const student = studentSummary.data;
+
+  return {
+    data: {
+      student: {
+        id: student.id,
+        displayName: student.name,
+        chineseName: student.chineseName,
+        email: student.email,
+        role: student.role
+      },
+      applyingProgramCount: student.applyingProgramCount,
+      assignedTeam: student.assignedTeam,
+      profileDocuments: student.profileDocuments
+    }
+  };
+};
+
+const getApplicationContext = async (req, args = {}) => {
+  const student = await requireAccessibleStudent(req, args.studentId);
+  const applications = await req.db
+    .model('Application')
+    .find({ studentId: args.studentId })
+    .select(
+      'programId admission decided closed reject_reason admission_letter finalEnrolment application_year uni_assist'
+    )
+    .populate(
+      'programId',
+      'school program_name degree semester application_deadline country'
+    )
+    .lean();
+
+  return {
+    data: {
+      student: {
+        id: student._id?.toString?.() || student.id,
+        displayName:
+          [student.firstname, student.lastname].filter(Boolean).join(' ') ||
+          undefined,
+        email: student.email
+      },
+      applications: applications.map(normalizeApplicationContextItem)
+    }
+  };
+};
+
+const getRecentCommunicationContext = async (req, args = {}) => {
+  const student = await requireAccessibleStudent(req, args.studentId);
+  const messages = await getLatestCommunications(req, {
+    studentId: args.studentId,
+    limit: args.limit
+  });
+
+  return {
+    data: {
+      student: {
+        id: student._id?.toString?.() || student.id,
+        displayName:
+          [student.firstname, student.lastname].filter(Boolean).join(' ') ||
+          undefined,
+        email: student.email
+      },
+      messages: messages.data
+    }
+  };
+};
+
+const getDocumentContext = async (req, args = {}) => {
+  const student = await requireAccessibleStudent(req, args.studentId);
+  const documents = await getProfileDocuments(req, args);
+  const missingRequiredDocuments = documents.data.filter(
+    (document) => document.required && !document.hasFile
+  );
+
+  return {
+    data: {
+      student: {
+        id: student._id?.toString?.() || student.id,
+        displayName:
+          [student.firstname, student.lastname].filter(Boolean).join(' ') ||
+          undefined,
+        email: student.email
+      },
+      documents: documents.data,
+      missingRequiredDocuments
+    }
+  };
+};
+
+const getSupportTicketContext = async (req, args = {}) => {
+  const student = await requireAccessibleStudent(req, args.studentId);
+  const tickets = await getSupportTickets(req, {
+    studentId: args.studentId,
+    limit: args.limit
+  });
+
+  return {
+    data: {
+      student: {
+        id: student._id?.toString?.() || student.id,
+        displayName:
+          [student.firstname, student.lastname].filter(Boolean).join(' ') ||
+          undefined,
+        email: student.email
+      },
+      tickets: tickets.data
+    }
+  };
+};
+
 const getProgramBrief = async (req, args = {}) => {
   const program = await req.db
     .model('Program')
@@ -193,6 +411,12 @@ const getProgramBrief = async (req, args = {}) => {
 };
 
 const registry = {
+  search_students: searchStudents,
+  get_student_context: getStudentContext,
+  get_application_context: getApplicationContext,
+  get_recent_communication_context: getRecentCommunicationContext,
+  get_document_context: getDocumentContext,
+  get_support_ticket_context: getSupportTicketContext,
   search_accessible_students: searchAccessibleStudents,
   list_accessible_students: listAccessibleStudents,
   get_student_summary: getStudentSummary,

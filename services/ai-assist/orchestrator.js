@@ -10,6 +10,9 @@ const {
   aiAssistToolDefinitionsByName
 } = require('./toolDefinitions');
 const tools = require('./tools');
+const { classifyIntent } = require('./intentRouter');
+const { resolveStudent } = require('./entityResolver');
+const { composeAnswer } = require('./answerComposer');
 
 const DEFAULT_MODEL = OpenAiModel.GPT_4_o || 'gpt-4o';
 const MAX_TOOL_ROUNDS = 6;
@@ -20,6 +23,15 @@ const instructions =
 
 const languagePolicyInstructions =
   'Follow responseLanguageInstruction exactly. If it says to use the extra user prompt language, match that language and writing system exactly.';
+
+const INTENT_TOOL_PLAN = Object.freeze({
+  student_lookup: ['get_student_context'],
+  student_applications: ['get_application_context'],
+  student_communications: ['get_recent_communication_context'],
+  admissions_overview: ['get_application_context'],
+  support_tickets: ['get_support_ticket_context'],
+  student_documents: ['get_document_context']
+});
 
 const buildStudentToolStep = (toolName, extraArgs = {}) => (student) => ({
   toolName,
@@ -262,38 +274,6 @@ const autoDetectSkill = (message = '') => {
     return explicitSkillMatch[1];
   }
 
-  if (
-    /\b(review[_\s-]?open[_\s-]?tasks|open tasks?|todo|to-do|pending tasks?|checklist)\b/.test(
-      normalizedMessage
-    )
-  ) {
-    return 'review_open_tasks';
-  }
-
-  if (
-    /\b(review[_\s-]?messages|latest messages?|communications?|emails?|conversations?|chat history)\b/.test(
-      normalizedMessage
-    )
-  ) {
-    return 'review_messages';
-  }
-
-  if (
-    /\b(identify[_\s-]?risk|risks?|blockers?|concerns?|issues?|problems?)\b/.test(
-      normalizedMessage
-    )
-  ) {
-    return 'identify_risk';
-  }
-
-  if (
-    /\b(summarize[_\s-]?student|summar(?:y|ize)|overview)\b/.test(
-      normalizedMessage
-    )
-  ) {
-    return 'summarize_student';
-  }
-
   return null;
 };
 
@@ -418,6 +398,174 @@ const executeSkillStep = async (req, step) => {
     status: 'success',
     durationMs: Date.now() - startedAt,
     permissionOutcome: { inheritedUserPermission: true }
+  };
+};
+
+const executeIntentTool = async (req, toolName, args = {}) => {
+  const startedAt = Date.now();
+  const result = await tools.runTool(req, toolName, args);
+
+  return {
+    toolName,
+    arguments: args,
+    result,
+    status: 'success',
+    durationMs: Date.now() - startedAt,
+    permissionOutcome: { inheritedUserPermission: true }
+  };
+};
+
+const formatStudentCandidate = (student) => {
+  const pieces = [student.name];
+
+  if (student.chineseName) {
+    pieces.push(student.chineseName);
+  }
+
+  if (student.email) {
+    pieces.push(student.email);
+  }
+
+  if (student.id) {
+    pieces.push(`id: ${student.id}`);
+  }
+
+  return pieces.filter(Boolean).join(' | ');
+};
+
+const buildStudentResolutionReply = (resolutionResult) => {
+  if (resolutionResult.status === 'not_found') {
+    return 'No accessible student matched. Please provide full name or email.';
+  }
+
+  if (resolutionResult.status === 'ambiguous') {
+    const options = (resolutionResult.candidates || [])
+      .slice(0, 5)
+      .map((candidate, index) => `${index + 1}. ${formatStudentCandidate(candidate)}`)
+      .join('\n');
+
+    return `Multiple students matched. Please choose one:\n${options}`;
+  }
+
+  return 'Please provide student name or email.';
+};
+
+const resolveIntentStudent = async ({ req, assistContext, intentResult }) => {
+  if (assistContext?.mentionedStudent?.id) {
+    return {
+      status: 'resolved',
+      student: {
+        id: assistContext.mentionedStudent.id,
+        name: assistContext.mentionedStudent.displayName || null
+      },
+      source: 'assist_context',
+      trace: []
+    };
+  }
+
+  if (!intentResult.needsStudentResolution) {
+    return {
+      status: 'not_needed',
+      student: null,
+      source: 'intent',
+      trace: []
+    };
+  }
+
+  const resolution = await resolveStudent(req, intentResult.studentQuery);
+  const trace = [
+    {
+      toolName: 'search_accessible_students',
+      arguments: { query: intentResult.studentQuery, limit: 10 },
+      result: resolution.searchResult || { data: [] },
+      status: 'success',
+      durationMs: 0,
+      permissionOutcome: { inheritedUserPermission: true }
+    }
+  ];
+
+  return {
+    ...resolution,
+    source: 'student_search',
+    trace
+  };
+};
+
+const runIntentPlan = async ({ req, intentResult, resolvedStudent }) => {
+  const toolNames = INTENT_TOOL_PLAN[intentResult.intent] || [];
+  const trace = [];
+  const toolContext = {};
+
+  for (const toolName of toolNames) {
+    const toolTrace = await executeIntentTool(req, toolName, {
+      studentId: resolvedStudent?.student?.id
+    });
+    trace.push(toolTrace);
+    toolContext[toolName] = toolTrace.result;
+  }
+
+  return {
+    trace,
+    toolContext
+  };
+};
+
+const runIntentFirstFlow = async ({
+  message,
+  req,
+  assistContext,
+  conversationContext,
+  responseLanguageInstruction
+}) => {
+  const intentResult = await classifyIntent({
+    message,
+    conversationContext
+  });
+  const resolvedStudent = await resolveIntentStudent({
+    req,
+    assistContext,
+    intentResult
+  });
+
+  if (
+    intentResult.needsStudentResolution &&
+    resolvedStudent.status !== 'resolved'
+  ) {
+    return {
+      response: undefined,
+      answer: buildStudentResolutionReply(resolvedStudent),
+      trace: resolvedStudent.trace || [],
+      skillTrace: {
+        mode: 'general',
+        status: 'fallback',
+        steps: [],
+        fallbackReason: `student_resolution_${resolvedStudent.status}`,
+        student: null
+      }
+    };
+  }
+
+  const intentExecution =
+    intentResult.intent === 'general'
+      ? { trace: [], toolContext: {} }
+      : await runIntentPlan({
+          req,
+          intentResult,
+          resolvedStudent
+        });
+  const composed = await composeAnswer({
+    message,
+    intentResult,
+    conversationContext,
+    resolvedStudent: resolvedStudent.student || null,
+    toolContext: intentExecution.toolContext,
+    responseLanguageInstruction
+  });
+
+  return {
+    response: composed.response,
+    answer: composed.answer,
+    trace: [...(resolvedStudent.trace || []), ...intentExecution.trace]
   };
 };
 
@@ -584,6 +732,9 @@ const shouldRunSkillMode = (resolvedAssistContext) =>
       resolvedAssistContext?.student?.id
   );
 
+const shouldUseLegacyToolLoop = (resolvedAssistContext, req) =>
+  Boolean(resolvedAssistContext?.fallbackReason) || !req?.db;
+
 const runAiAssist = async (
   postgres,
   { conversationId, message, req, assistContext, preferredLanguage }
@@ -608,23 +759,41 @@ const runAiAssist = async (
   });
   const useSkillMode =
     openAIClient.responses?.create && shouldRunSkillMode(resolvedAssistContext);
-  const result = useSkillMode
-    ? await runSkillPlan({
-        message,
-        req,
-        conversationContext,
-        resolvedAssistContext,
-        responseLanguageInstruction
-      })
-    : openAIClient.responses?.create
-      ? await runResponsesToolLoop({
-          message,
-          req,
-          conversationContext,
-          responseLanguageInstruction
-        })
-      : await runChatFallback({ message });
+  let result;
+
+  if (useSkillMode) {
+    result = await runSkillPlan({
+      message,
+      req,
+      conversationContext,
+      resolvedAssistContext,
+      responseLanguageInstruction
+    });
+  } else if (
+    openAIClient.responses?.create &&
+    shouldUseLegacyToolLoop(resolvedAssistContext, req)
+  ) {
+    result = await runResponsesToolLoop({
+      message,
+      req,
+      conversationContext,
+      responseLanguageInstruction
+    });
+  } else if (openAIClient.responses?.create) {
+    result = await runIntentFirstFlow({
+      message,
+      req,
+      assistContext,
+      conversationContext,
+      responseLanguageInstruction
+    });
+  } else {
+    result = await runChatFallback({ message });
+  }
   const answer = result.answer || 'No answer was returned by AI Assist.';
+  const fallbackReason =
+    result.skillTrace?.fallbackReason || resolvedAssistContext.fallbackReason;
+  const nonSkillStatus = fallbackReason ? 'fallback' : 'completed';
   const assistantMessage = await createAssistantMessage(postgres, {
     conversationId,
     content: answer,
@@ -637,9 +806,9 @@ const runAiAssist = async (
         unknownSkillText: resolvedAssistContext.unknownSkillText,
         mode: useSkillMode ? 'skill' : 'general',
         student: resolvedAssistContext.student,
-        status: useSkillMode ? 'completed' : 'fallback',
+        status: useSkillMode ? 'completed' : nonSkillStatus,
         steps: [],
-        fallbackReason: resolvedAssistContext.fallbackReason
+        fallbackReason
       })
   });
   const trace = await Promise.all(
@@ -663,7 +832,7 @@ const runAiAssist = async (
     assistantMessage,
     answer,
     trace,
-    skillTrace: assistantMessage.skillTrace || result.skillTrace || null,
+    skillTrace: assistantMessage?.skillTrace || result.skillTrace || null,
     usage: result.response?.usage
   };
 };

@@ -1371,7 +1371,13 @@ describe('AI Assist Postgres persistence', () => {
       body: { message: 'Find my students' },
       db: {
         model: jest.fn(() => ({
-          find: jest.fn()
+          find: jest.fn(() => ({
+            select: jest.fn(() => ({
+              limit: jest.fn(() => ({
+                lean: jest.fn().mockResolvedValue([])
+              }))
+            }))
+          }))
         }))
       }
     };
@@ -1584,15 +1590,12 @@ describe('AI Assist Postgres persistence', () => {
       toolName: 'search_accessible_students',
       status: 'success'
     });
-    expect(openAIClient.responses.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tools: expect.arrayContaining([
-          expect.objectContaining({ name: 'search_accessible_students' })
-        ])
-      })
+    expect(openAIClient.responses.create).toHaveBeenCalledTimes(2);
+    expect(openAIClient.responses.create.mock.calls[0][0].instructions).toContain(
+      'Classify user request into one intent'
     );
     expect(insertedValues[2].arguments).toEqual({
-      query: 'Find Abby',
+      query: 'Abby',
       limit: 10
     });
     expect(postgres.update).toHaveBeenCalled();
@@ -1857,7 +1860,7 @@ describe('AI Assist Responses function tool loop', () => {
 
     const firstInput = openAIClient.responses.create.mock.calls[0][0].input;
     expect(firstInput[0].content).toContain('"conversationContext"');
-    expect(firstInput[0].content).toContain('"currentUserMessage": "2"');
+    expect(firstInput[0].content).toContain('"message": "2"');
     expect(firstInput[0].content).not.toContain('"boundStudentId"');
     expect(firstInput[0].content).not.toContain('"boundStudentDisplayName"');
     expect(firstInput[0].content).toContain('student_abby');
@@ -1970,13 +1973,18 @@ describe('AI Assist Responses function tool loop', () => {
     await runAiAssist(postgres, {
       conversationId: 'conv_1',
       message: '幫我看學生艾比最近 message 對話重點',
+      assistContext: {
+        mentionedStudent: { id: 'student_abby', displayName: 'Abby Student' }
+      },
       req
     });
 
     const modelInstructions =
-      openAIClient.responses.create.mock.calls[0][0].instructions;
+      openAIClient.responses.create.mock.calls[
+        openAIClient.responses.create.mock.calls.length - 1
+      ][0].instructions;
     expect(modelInstructions).toContain(
-      "Match the user's current language and writing system exactly"
+      'Follow responseLanguageInstruction exactly'
     );
     expect(modelInstructions).not.toContain('Traditional Chinese');
     expect(modelInstructions).not.toContain('Simplified Chinese');
@@ -1985,28 +1993,9 @@ describe('AI Assist Responses function tool loop', () => {
   it('executes model-selected application tools and returns tool outputs to the model', async () => {
     openAIClient.responses.create
       .mockResolvedValueOnce({
-        id: 'resp_search',
+        id: 'resp_intent',
         output_text: '',
-        output: [
-          {
-            type: 'function_call',
-            call_id: 'call_search',
-            name: 'search_accessible_students',
-            arguments: JSON.stringify({ query: 'Abby', limit: 5 })
-          }
-        ]
-      })
-      .mockResolvedValueOnce({
-        id: 'resp_applications',
-        output_text: '',
-        output: [
-          {
-            type: 'function_call',
-            call_id: 'call_applications',
-            name: 'get_student_applications',
-            arguments: JSON.stringify({ studentId: 'student_abby' })
-          }
-        ]
+        output: []
       })
       .mockResolvedValueOnce({
         id: 'resp_final',
@@ -2030,45 +2019,18 @@ describe('AI Assist Responses function tool loop', () => {
       insertedValues
         .filter((value) => value.toolName)
         .map((value) => value.toolName)
-    ).toEqual(['search_accessible_students', 'get_student_applications']);
-    expect(openAIClient.responses.create.mock.calls[0][0].tools).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: 'get_student_applications' })
-      ])
-    );
-    expect(openAIClient.responses.create.mock.calls[1][0].input).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: 'function_call_output',
-          call_id: 'call_search',
-          output: expect.stringContaining('abby Student')
-        })
-      ])
-    );
-    expect(openAIClient.responses.create.mock.calls[2][0].input).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: 'function_call_output',
-          call_id: 'call_applications',
-          output: expect.stringContaining('TU Berlin')
-        })
-      ])
+    ).toEqual(['search_accessible_students', 'get_application_context']);
+    expect(openAIClient.responses.create.mock.calls[0][0].instructions).toContain(
+      'Classify user request into one intent'
     );
   });
 
   it('executes model-selected communication tools and returns tool outputs to the model', async () => {
     openAIClient.responses.create
       .mockResolvedValueOnce({
-        id: 'resp_messages',
+        id: 'resp_intent',
         output_text: '',
-        output: [
-          {
-            type: 'function_call',
-            call_id: 'call_messages',
-            name: 'get_latest_communications',
-            arguments: JSON.stringify({ studentId: 'student_abby', limit: 10 })
-          }
-        ]
+        output: []
       })
       .mockResolvedValueOnce({
         id: 'resp_final',
@@ -2080,27 +2042,15 @@ describe('AI Assist Responses function tool loop', () => {
 
     await runAiAssist(postgres, {
       conversationId: 'conv_1',
-      message: 'Summarize Abby latest messages',
+      message: 'Abby latest messages',
       req
     });
 
-    expect(models.Communication.find).toHaveBeenCalledWith({
-      student_id: 'student_abby'
-    });
     expect(
       insertedValues
         .filter((value) => value.toolName)
         .map((value) => value.toolName)
-    ).toEqual(['get_latest_communications']);
-    expect(openAIClient.responses.create.mock.calls[1][0].input).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: 'function_call_output',
-          call_id: 'call_messages',
-          output: expect.stringContaining('missing transcript')
-        })
-      ])
-    );
+    ).toEqual(['search_accessible_students', 'get_recent_communication_context']);
   });
 });
 

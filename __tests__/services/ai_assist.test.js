@@ -427,11 +427,15 @@ describe('AI Assist Postgres persistence', () => {
     });
   });
 
-  it('rejects inaccessible bound student metadata when creating a conversation', async () => {
-    const postgres = {
-      insert: jest.fn()
+  it('ignores bound student metadata when creating a conversation', async () => {
+    const conversation = {
+      id: 'conv_1',
+      ownerUserId: 'agent_1',
+      ownerRole: Role.Agent,
+      title: 'New AI Assist conversation',
+      status: 'active'
     };
-    getPostgresDb.mockReturnValue(postgres);
+    getPostgresDb.mockReturnValue(createInsertReturningDb(conversation));
     const { req } = createStudentAccessReq({
       students: [
         {
@@ -452,18 +456,20 @@ describe('AI Assist Postgres persistence', () => {
     };
     const res = createResponse();
 
-    await expect(createConversation(req, res)).rejects.toThrow();
+    await createConversation(req, res);
 
-    expect(postgres.insert).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.send.mock.calls[0][0].data).not.toHaveProperty('studentId');
+    expect(res.send.mock.calls[0][0].data).not.toHaveProperty(
+      'studentDisplayName'
+    );
   });
 
-  it('creates a first-message conversation with bound student context', async () => {
+  it('creates a first-message conversation with message-level student context', async () => {
     const conversation = {
       id: 'conv_1',
       ownerUserId: 'agent_1',
       ownerRole: Role.Agent,
-      studentId: 'student_abby',
-      studentDisplayName: 'Abby Student',
       title: 'New AI Assist conversation',
       status: 'active'
     };
@@ -546,8 +552,6 @@ describe('AI Assist Postgres persistence', () => {
     expect(postgres.insert).toHaveBeenCalledTimes(5);
     expect(res.send.mock.calls[0][0].data.conversation).toMatchObject({
       id: 'conv_1',
-      studentId: 'student_abby',
-      studentDisplayName: 'Abby Student',
       status: 'active'
     });
     expect(res.send.mock.calls[0][0].data.answer).toBe('mocked AI Assist answer');
@@ -683,12 +687,40 @@ describe('AI Assist Postgres persistence', () => {
     expect(res.send).not.toHaveBeenCalled();
   });
 
-  it('rejects mismatched bound student display names on first-message conversations', async () => {
+  it('ignores bound student fields on first-message conversations', async () => {
     const postgres = {
-      insert: jest.fn(),
-      transaction: jest.fn()
+      insert: jest.fn(() => ({
+        values: jest.fn(() => ({
+          returning: jest
+            .fn()
+            .mockResolvedValue([{ id: 'conv_1', status: 'active' }])
+        }))
+      })),
+      select: jest.fn(() => ({
+        from: jest.fn(() => ({
+          where: jest.fn(() => ({
+            limit: jest.fn().mockResolvedValue([{ id: 'conv_1' }]),
+            orderBy: jest.fn(() => ({
+              limit: jest.fn().mockResolvedValue([])
+            }))
+          }))
+        }))
+      })),
+      update: jest.fn(() => ({
+        set: jest.fn(() => ({
+          where: jest.fn(() => ({
+            returning: jest.fn().mockResolvedValue([{ id: 'conv_1' }])
+          }))
+        }))
+      })),
+      transaction: jest.fn(async (callback) => callback(postgres))
     };
     getPostgresDb.mockReturnValue(postgres);
+    openAIClient.responses.create.mockResolvedValueOnce({
+      id: 'resp_final',
+      output_text: 'mocked AI Assist answer',
+      output: []
+    });
     const { req: studentReq } = createAiAssistReq();
     const req = {
       user: { _id: 'agent_1', role: Role.Agent },
@@ -701,10 +733,10 @@ describe('AI Assist Postgres persistence', () => {
     };
     const res = createResponse();
 
-    await expect(sendFirstMessage(req, res)).rejects.toThrow();
+    await sendFirstMessage(req, res);
 
-    expect(postgres.insert).not.toHaveBeenCalled();
-    expect(postgres.transaction).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(postgres.transaction).toHaveBeenCalledTimes(1);
   });
 
   it('retries first-message conversation creation once on transient Postgres failure', async () => {
@@ -792,14 +824,10 @@ describe('AI Assist Postgres persistence', () => {
 
     await sendFirstMessage(req, res);
 
-    expect(insertedValues[0]).toMatchObject({
-      studentId: 'student_abby',
-      studentDisplayName: 'abby Student'
-    });
-    expect(insertedValues[1]).toMatchObject({
-      studentId: 'student_abby',
-      studentDisplayName: 'abby Student'
-    });
+    expect(insertedValues[0]).not.toHaveProperty('studentId');
+    expect(insertedValues[0]).not.toHaveProperty('studentDisplayName');
+    expect(insertedValues[1]).not.toHaveProperty('studentId');
+    expect(insertedValues[1]).not.toHaveProperty('studentDisplayName');
     expect(insertedValues[2]).toMatchObject({
       conversationId: 'conv_1',
       role: 'user'
@@ -1830,15 +1858,107 @@ describe('AI Assist Responses function tool loop', () => {
     const firstInput = openAIClient.responses.create.mock.calls[0][0].input;
     expect(firstInput[0].content).toContain('"conversationContext"');
     expect(firstInput[0].content).toContain('"currentUserMessage": "2"');
-    expect(firstInput[0].content).toContain('"boundStudentId": "student_abby"');
-    expect(firstInput[0].content).toContain(
-      '"boundStudentDisplayName": "Abby Student"'
-    );
+    expect(firstInput[0].content).not.toContain('"boundStudentId"');
+    expect(firstInput[0].content).not.toContain('"boundStudentDisplayName"');
     expect(firstInput[0].content).toContain('student_abby');
     expect(firstInput[0].content).toContain('abbystudent@gmail.com');
   });
 
-  it('instructs the model to mirror the current user language without forcing Traditional Chinese', async () => {
+  it('does not use a bound conversation student as skill context', async () => {
+    openAIClient.responses.create.mockResolvedValueOnce({
+      id: 'resp_general',
+      output_text: 'General answer',
+      output: []
+    });
+    const { postgres, insertedValues } = createAiAssistPostgresWithContext({
+      conversation: {
+        id: 'conv_1',
+        studentId: 'student_abby',
+        studentDisplayName: 'Abby Student'
+      }
+    });
+    const { req } = createAiAssistReq();
+
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: '#identify_risk',
+      assistContext: {
+        requestedSkill: 'identify_risk'
+      },
+      req
+    });
+
+    expect(openAIClient.responses.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: expect.arrayContaining([
+          expect.objectContaining({ name: 'get_student_applications' })
+        ])
+      })
+    );
+    expect(
+      insertedValues.find((value) => value.role === 'assistant')?.skillTrace
+    ).toMatchObject({
+      requestedSkill: 'identify_risk',
+      resolvedSkill: null,
+      mode: 'general',
+      student: null,
+      fallbackReason: 'Skill mode requires a message-level @student.'
+    });
+  });
+
+  it('uses preferred language when a skill-only message has no extra prompt text', async () => {
+    openAIClient.responses.create.mockResolvedValueOnce({
+      id: 'resp_skill',
+      output_text: '中文回答',
+      output: []
+    });
+    const { postgres } = createAiAssistPostgresWithContext({});
+    const { req } = createAiAssistReq();
+
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: '@Abby Student #summarize_student',
+      assistContext: {
+        mentionedStudent: { id: 'student_abby', displayName: 'Abby Student' },
+        requestedSkill: 'summarize_student'
+      },
+      preferredLanguage: 'zh-TW',
+      req
+    });
+
+    const modelInput = openAIClient.responses.create.mock.calls[0][0].input;
+    expect(modelInput[0].content).toContain(
+      '"responseLanguageInstruction": "Respond in Traditional Chinese."'
+    );
+  });
+
+  it('uses the prompt language when the message includes extra user input', async () => {
+    openAIClient.responses.create.mockResolvedValueOnce({
+      id: 'resp_skill',
+      output_text: 'English answer',
+      output: []
+    });
+    const { postgres } = createAiAssistPostgresWithContext({});
+    const { req } = createAiAssistReq();
+
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: '@Abby Student #summarize_student please answer in English',
+      assistContext: {
+        mentionedStudent: { id: 'student_abby', displayName: 'Abby Student' },
+        requestedSkill: 'summarize_student'
+      },
+      preferredLanguage: 'zh-TW',
+      req
+    });
+
+    const modelInput = openAIClient.responses.create.mock.calls[0][0].input;
+    expect(modelInput[0].content).toContain(
+      '"responseLanguageInstruction": "Use the language of the extra user prompt."'
+    );
+  });
+
+  it('instructs the model to follow the request language policy without forcing Traditional Chinese', async () => {
     openAIClient.responses.create.mockResolvedValueOnce({
       id: 'resp_final',
       output_text: '繁體中文回答',

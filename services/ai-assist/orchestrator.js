@@ -18,6 +18,9 @@ const DEFAULT_SKILL_MESSAGE_LIMIT = 10;
 const instructions =
   'You are TaiGer AI Assist. Answer only from TaiGer Portal data returned by tools. Match the user\'s current language and writing system exactly. Do not switch scripts or translate the user\'s chosen language unless asked. Use tools whenever the user asks about TaiGer students, applications, communications, documents, tickets, or programs. Start by searching for a student when you need a studentId. Use conversationContext to resolve follow-up references such as numbers, names, emails, "he", "she", "他", "她", "這位", or "that student". If multiple students match, ask the user to choose one and list concise candidates. Do not invent tool names, IDs, facts, or future tool calls.';
 
+const languagePolicyInstructions =
+  'Follow responseLanguageInstruction exactly. If it says to use the extra user prompt language, match that language and writing system exactly.';
+
 const buildStudentToolStep = (toolName, extraArgs = {}) => (student) => ({
   toolName,
   args: {
@@ -117,6 +120,55 @@ const buildSkillTrace = (assistContext = {}) => {
 const createToolCall = (postgres, values) =>
   insertReturningOne(postgres, aiAssistToolCalls, values);
 
+const escapeRegExp = (value = '') =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const stripAssistControlTokens = (message = '', assistContext = {}) => {
+  let promptText = message;
+  const displayName = assistContext.mentionedStudent?.displayName;
+
+  if (displayName) {
+    promptText = promptText.replace(
+      new RegExp(`@${escapeRegExp(displayName)}`, 'gi'),
+      ' '
+    );
+  }
+
+  return promptText.replace(/#[a-z_]+/gi, ' ').replace(/\s+/g, ' ').trim();
+};
+
+const languageNameFromPreference = (preferredLanguage = 'en') => {
+  const normalized = String(preferredLanguage || 'en').toLowerCase();
+
+  if (normalized.startsWith('zh-tw')) {
+    return 'Traditional Chinese';
+  }
+
+  if (normalized.startsWith('zh-cn')) {
+    return 'Simplified Chinese';
+  }
+
+  if (normalized.startsWith('zh')) {
+    return 'Chinese';
+  }
+
+  return 'English';
+};
+
+const buildResponseLanguageInstruction = ({
+  message,
+  assistContext,
+  preferredLanguage
+}) => {
+  const extraPromptText = stripAssistControlTokens(message, assistContext);
+
+  if (extraPromptText) {
+    return 'Use the language of the extra user prompt.';
+  }
+
+  return `Respond in ${languageNameFromPreference(preferredLanguage)}.`;
+};
+
 const parseArguments = (rawArguments) => {
   if (!rawArguments) {
     return {};
@@ -162,9 +214,8 @@ const loadConversationContext = async (postgres, conversationId) => {
   ]);
 
   return {
-    boundStudentId: conversation?.[0]?.studentId || undefined,
-    boundStudentDisplayName:
-      conversation?.[0]?.studentDisplayName || undefined,
+    boundStudentId: undefined,
+    boundStudentDisplayName: undefined,
     recentMessages: messages
       .slice()
       .reverse()
@@ -184,12 +235,17 @@ const loadConversationContext = async (postgres, conversationId) => {
   };
 };
 
-const buildInitialInput = ({ message, conversationContext }) => [
+const buildInitialInput = ({
+  message,
+  conversationContext,
+  responseLanguageInstruction
+}) => [
   {
     role: 'user',
     content: JSON.stringify(
       {
         currentUserMessage: message,
+        responseLanguageInstruction,
         conversationContext
       },
       null,
@@ -253,12 +309,7 @@ const resolveAssistContext = ({
         id: assistContext.mentionedStudent.id,
         displayName: assistContext.mentionedStudent.displayName || null
       }
-    : conversationContext.boundStudentId
-      ? {
-          id: conversationContext.boundStudentId,
-          displayName: conversationContext.boundStudentDisplayName || null
-        }
-      : null;
+    : null;
   const candidateSkill =
     requestedSkill || (!unknownSkillText ? autoDetectSkill(message) : null);
   let resolvedSkill = candidateSkill;
@@ -271,7 +322,7 @@ const resolveAssistContext = ({
     fallbackReason = `Unsupported skill request: ${candidateSkill}`;
     resolvedSkill = null;
   } else if (candidateSkill && !student?.id) {
-    fallbackReason = 'Skill mode requires a student context.';
+    fallbackReason = 'Skill mode requires a message-level @student.';
     resolvedSkill = null;
   }
 
@@ -375,13 +426,15 @@ const buildSkillSynthesisInput = ({
   conversationContext,
   resolvedAssistContext,
   toolTrace,
-  synthesisInstruction
+  synthesisInstruction,
+  responseLanguageInstruction
 }) => [
   {
     role: 'user',
     content: JSON.stringify(
       {
         currentUserMessage: message,
+        responseLanguageInstruction,
         conversationContext,
         skillContext: {
           requestedSkill: resolvedAssistContext.requestedSkill,
@@ -416,7 +469,8 @@ const runSkillPlan = async ({
   message,
   req,
   conversationContext,
-  resolvedAssistContext
+  resolvedAssistContext,
+  responseLanguageInstruction
 }) => {
   const plan = SKILL_PLANS[resolvedAssistContext.resolvedSkill];
   const trace = [];
@@ -427,13 +481,14 @@ const runSkillPlan = async ({
 
   const response = await openAIClient.responses.create({
     model: DEFAULT_MODEL,
-    instructions: `${instructions} ${plan.synthesisInstruction} Use only the provided skill data. Do not call tools.`,
+    instructions: `${instructions} ${languagePolicyInstructions} ${plan.synthesisInstruction} Use only the provided skill data. Do not call tools.`,
     input: buildSkillSynthesisInput({
       message,
       conversationContext,
       resolvedAssistContext,
       toolTrace: trace,
-      synthesisInstruction: plan.synthesisInstruction
+      synthesisInstruction: plan.synthesisInstruction,
+      responseLanguageInstruction
     })
   });
 
@@ -453,15 +508,24 @@ const runSkillPlan = async ({
   };
 };
 
-const runResponsesToolLoop = async ({ message, req, conversationContext }) => {
-  let input = buildInitialInput({ message, conversationContext });
+const runResponsesToolLoop = async ({
+  message,
+  req,
+  conversationContext,
+  responseLanguageInstruction
+}) => {
+  let input = buildInitialInput({
+    message,
+    conversationContext,
+    responseLanguageInstruction
+  });
   const trace = [];
   let response;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     response = await openAIClient.responses.create({
       model: DEFAULT_MODEL,
-      instructions,
+      instructions: `${instructions} ${languagePolicyInstructions}`,
       input,
       tools: aiAssistToolDefinitions
     });
@@ -522,7 +586,7 @@ const shouldRunSkillMode = (resolvedAssistContext) =>
 
 const runAiAssist = async (
   postgres,
-  { conversationId, message, req, assistContext }
+  { conversationId, message, req, assistContext, preferredLanguage }
 ) => {
   const conversationContext = await loadConversationContext(
     postgres,
@@ -537,6 +601,11 @@ const runAiAssist = async (
     conversationContext,
     message
   });
+  const responseLanguageInstruction = buildResponseLanguageInstruction({
+    message,
+    assistContext,
+    preferredLanguage
+  });
   const useSkillMode =
     openAIClient.responses?.create && shouldRunSkillMode(resolvedAssistContext);
   const result = useSkillMode
@@ -544,10 +613,16 @@ const runAiAssist = async (
         message,
         req,
         conversationContext,
-        resolvedAssistContext
+        resolvedAssistContext,
+        responseLanguageInstruction
       })
     : openAIClient.responses?.create
-      ? await runResponsesToolLoop({ message, req, conversationContext })
+      ? await runResponsesToolLoop({
+          message,
+          req,
+          conversationContext,
+          responseLanguageInstruction
+        })
       : await runChatFallback({ message });
   const answer = result.answer || 'No answer was returned by AI Assist.';
   const assistantMessage = await createAssistantMessage(postgres, {

@@ -35,51 +35,6 @@ const VALID_AI_ASSIST_SKILLS = new Set([
   'review_open_tasks'
 ]);
 
-const resolveBoundStudentMetadata = async (req) => {
-  const studentId = req.body?.studentId?.trim?.() || req.body?.studentId || null;
-  const studentDisplayName =
-    req.body?.studentDisplayName?.trim?.() || req.body?.studentDisplayName || null;
-
-  if (!studentId && !studentDisplayName) {
-    return {
-      studentId: null,
-      studentDisplayName: null
-    };
-  }
-
-  if (!studentId) {
-    throw new ErrorResponse(
-      400,
-      'studentId is required when studentDisplayName is provided'
-    );
-  }
-
-  const student = await requireAccessibleStudent(req, studentId);
-  const normalizedStudent = normalizeStudentPickerRow(student);
-  const allowedDisplayNames = [normalizedStudent.name, normalizedStudent.chineseName].filter(
-    Boolean
-  );
-
-  if (
-    studentDisplayName &&
-    !allowedDisplayNames.includes(studentDisplayName)
-  ) {
-    throw new ErrorResponse(
-      400,
-      'studentDisplayName does not match accessible student'
-    );
-  }
-
-  return {
-    studentId: normalizedStudent.id,
-    studentDisplayName:
-      studentDisplayName ||
-      normalizedStudent.name ||
-      normalizedStudent.chineseName ||
-      null
-  };
-};
-
 const resolveAssistContextPayload = async (req) => {
   const raw = req.body?.assistContext;
   if (!raw) {
@@ -107,6 +62,14 @@ const resolveAssistContextPayload = async (req) => {
         ? raw.requestedSkill
         : raw.unknownSkillText || null
   };
+};
+
+const resolvePreferredLanguage = (req) => {
+  const preferredLanguage = req.body?.preferredLanguage;
+
+  return typeof preferredLanguage === 'string' && preferredLanguage.trim()
+    ? preferredLanguage.trim()
+    : 'en';
 };
 
 const requireActiveConversationOwner = async (
@@ -184,12 +147,8 @@ const createConversationRecord = async (postgres, req, extraValues = {}) => {
 };
 
 const createConversation = asyncHandler(async (req, res) => {
-  const boundStudentMetadata = await resolveBoundStudentMetadata(req);
   const postgres = getPostgresDb();
-  const [conversation] = await createConversationRecord(postgres, req, {
-    studentId: boundStudentMetadata.studentId,
-    studentDisplayName: boundStudentMetadata.studentDisplayName
-  });
+  const [conversation] = await createConversationRecord(postgres, req);
 
   res.status(201).send({
     success: true,
@@ -424,6 +383,7 @@ const sendMessage = asyncHandler(async (req, res) => {
       conversationId,
       message,
       assistContext: await resolveAssistContextPayload(req),
+      preferredLanguage: resolvePreferredLanguage(req),
       req
     });
 
@@ -452,18 +412,15 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
     throw new ErrorResponse(400, 'message is required');
   }
 
-  const boundStudentMetadata = await resolveBoundStudentMetadata(req);
   const postgres = getPostgresDb();
   const result = await postgres.transaction(async (tx) => {
-    const [conversation] = await createConversationRecord(tx, req, {
-      studentId: boundStudentMetadata.studentId,
-      studentDisplayName: boundStudentMetadata.studentDisplayName
-    });
+    const [conversation] = await createConversationRecord(tx, req);
 
     const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
       conversationId: conversation.id,
       message,
       assistContext: await resolveAssistContextPayload(req),
+      preferredLanguage: resolvePreferredLanguage(req),
       req
     });
 

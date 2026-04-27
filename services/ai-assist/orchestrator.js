@@ -434,15 +434,16 @@ const getResponseText = (response) => {
 const executeFunctionCall = async (req, functionCall, { onProgress } = {}) => {
   const startedAt = Date.now();
   const toolName = functionCall.name;
-  const args = parseArguments(functionCall.arguments);
-
-  await safeEmitProgress(onProgress, {
-    type: 'tool_start',
-    toolName,
-    arguments: args
-  });
+  let args;
 
   try {
+    args = parseArguments(functionCall.arguments);
+    await safeEmitProgress(onProgress, {
+      type: 'tool_start',
+      toolName,
+      arguments: args
+    });
+
     if (!tools.hasTool(toolName)) {
       throw new Error(`Unknown AI Assist tool: ${toolName}`);
     }
@@ -478,11 +479,15 @@ const executeFunctionCall = async (req, functionCall, { onProgress } = {}) => {
       error: error instanceof Error ? error.message : 'Tool execution failed'
     };
     const durationMs = Date.now() - startedAt;
+    const safeArgs =
+      args && typeof args === 'object'
+        ? args
+        : { _raw: functionCall.arguments || null };
 
     await safeEmitProgress(onProgress, {
       type: 'tool_done',
       toolName,
-      arguments: args,
+      arguments: safeArgs,
       status: 'failed',
       durationMs,
       errorMessage: result.error
@@ -491,7 +496,7 @@ const executeFunctionCall = async (req, functionCall, { onProgress } = {}) => {
     return {
       trace: {
         toolName,
-        arguments: args,
+        arguments: safeArgs,
         result,
         status: 'failed',
         durationMs,

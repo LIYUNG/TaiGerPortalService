@@ -25,6 +25,20 @@ const normalizeStudentPickerRow = (student) => ({
   )
 });
 
+const normalizeAssignedTeamMember = (member) => {
+  const normalized = normalizeUser(member);
+  if (normalized?.id) {
+    return normalized;
+  }
+
+  const id =
+    typeof member === 'string'
+      ? member
+      : member?._id?.toString?.() || member?.id?.toString?.();
+
+  return id ? { id } : undefined;
+};
+
 const normalizeProgram = (program) => {
   if (!program) {
     return undefined;
@@ -300,8 +314,12 @@ const getStudentSummary = async (req, args = {}) => {
       ...normalizeUser(student),
       applyingProgramCount: student.applying_program_count,
       assignedTeam: {
-        agents: (student.agents || []).map(normalizeUser),
-        editors: (student.editors || []).map(normalizeUser)
+        agents: (student.agents || [])
+          .map(normalizeAssignedTeamMember)
+          .filter(Boolean),
+        editors: (student.editors || [])
+          .map(normalizeAssignedTeamMember)
+          .filter(Boolean)
       },
       profileDocuments: (student.profile || []).map(normalizeProfileDocument)
     }

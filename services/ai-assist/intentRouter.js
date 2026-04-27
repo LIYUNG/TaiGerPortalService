@@ -55,7 +55,7 @@ const normalizeIntentResult = (result = {}, message = '') => {
     return {
       intent: normalizedIntent,
       studentQuery,
-      needsStudentResolution
+      needsStudentResolution: true
     };
   }
 

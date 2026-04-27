@@ -742,7 +742,7 @@ const sendMessage = asyncHandler(async (req, res) => {
         status: 'annotating_references'
       });
       writeSse(res, 'references', {
-        references: result?.assistantMessage?.linkHints || []
+        references: result?.assistantMessage?.linkHints ?? {}
       });
       writeSse(res, 'final', {
         success: true,
@@ -905,7 +905,7 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
         status: 'annotating_references'
       });
       writeSse(res, 'references', {
-        references: result?.assistantMessage?.linkHints || []
+        references: result?.assistantMessage?.linkHints ?? {}
       });
       writeSse(res, 'final', {
         success: true,

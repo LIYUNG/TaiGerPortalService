@@ -487,6 +487,9 @@ const sendMessage = asyncHandler(async (req, res) => {
           req,
           onProgress: async (event) => {
             writeSse(res, 'progress', event);
+          },
+          onToken: async (text) => {
+            writeSse(res, 'token', { text });
           }
         });
 
@@ -599,6 +602,9 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
           req,
           onProgress: async (event) => {
             writeSse(res, 'progress', event);
+          },
+          onToken: async (text) => {
+            writeSse(res, 'token', { text });
           }
         });
 

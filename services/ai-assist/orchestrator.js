@@ -12,7 +12,7 @@ const {
 const tools = require('./tools');
 const { classifyIntent } = require('./intentRouter');
 const { resolveStudent } = require('./entityResolver');
-const { composeAnswer } = require('./answerComposer');
+const { composeAnswer, generateAnswerFromInput } = require('./answerComposer');
 
 const DEFAULT_MODEL = OpenAiModel.GPT_4_o || 'gpt-4o';
 const MAX_TOOL_ROUNDS = 6;
@@ -603,7 +603,8 @@ const runIntentFirstFlow = async ({
   assistContext,
   conversationContext,
   responseLanguageInstruction,
-  onProgress
+  onProgress,
+  onToken
 }) => {
   await safeEmitProgress(onProgress, {
     type: 'thinking',
@@ -674,7 +675,8 @@ const runIntentFirstFlow = async ({
     conversationContext,
     resolvedStudent: resolvedStudent.student || null,
     toolContext: intentExecution.toolContext,
-    responseLanguageInstruction
+    responseLanguageInstruction,
+    onToken
   });
 
   return {
@@ -734,7 +736,8 @@ const runSkillPlan = async ({
   conversationContext,
   resolvedAssistContext,
   responseLanguageInstruction,
-  onProgress
+  onProgress,
+  onToken
 }) => {
   const plan = SKILL_PLANS[resolvedAssistContext.resolvedSkill];
   const trace = [];
@@ -754,8 +757,11 @@ const runSkillPlan = async ({
     phase: 'answer_composer',
     message: 'Composing skill answer'
   });
-  const response = await openAIClient.responses.create({
-    model: DEFAULT_MODEL,
+  const {
+    response,
+    answer
+  } = await generateAnswerFromInput({
+    onToken,
     instructions: `${instructions} ${languagePolicyInstructions} ${plan.synthesisInstruction} Use only the provided skill data. Do not call tools.`,
     input: buildSkillSynthesisInput({
       message,
@@ -769,7 +775,7 @@ const runSkillPlan = async ({
 
   return {
     response,
-    answer: getResponseText(response),
+    answer,
     trace,
     skillTrace: {
       requestedSkill: resolvedAssistContext.requestedSkill || null,
@@ -838,12 +844,49 @@ const runResponsesToolLoop = async ({
   };
 };
 
-const runChatFallback = async ({ message, onProgress }) => {
+const runChatFallback = async ({ message, onProgress, onToken }) => {
   await safeEmitProgress(onProgress, {
     type: 'thinking',
     phase: 'chat_fallback',
     message: 'Model thinking'
   });
+  if (typeof onToken === 'function') {
+    const stream = await openAIClient.chat.completions.create({
+      model: DEFAULT_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: instructions
+        },
+        { role: 'user', content: message }
+      ],
+      temperature: 0.2,
+      stream: true
+    });
+
+    let answer = '';
+    for await (const part of stream) {
+      const chunk = part.choices?.[0]?.delta?.content || '';
+      if (chunk) {
+        answer += chunk;
+        try {
+          await onToken(chunk);
+        } catch {
+          // Token streaming is best-effort.
+        }
+      }
+    }
+
+    return {
+      response: {
+        id: undefined,
+        usage: undefined
+      },
+      answer,
+      trace: []
+    };
+  }
+
   const response = await openAIClient.chat.completions.create({
     model: DEFAULT_MODEL,
     messages: [
@@ -899,7 +942,8 @@ const runAiAssist = async (
     req,
     assistContext,
     preferredLanguage,
-    onProgress
+    onProgress,
+    onToken
   }
 ) => {
   await safeEmitProgress(onProgress, {
@@ -945,7 +989,8 @@ const runAiAssist = async (
       conversationContext,
       resolvedAssistContext,
       responseLanguageInstruction,
-      onProgress
+      onProgress,
+      onToken
     });
   } else if (
     openAIClient.responses?.create &&
@@ -975,7 +1020,8 @@ const runAiAssist = async (
       assistContext,
       conversationContext,
       responseLanguageInstruction,
-      onProgress
+      onProgress,
+      onToken
     });
   } else {
     await safeEmitProgress(onProgress, {
@@ -983,7 +1029,7 @@ const runAiAssist = async (
       phase: 'mode',
       mode: 'chat_fallback'
     });
-    result = await runChatFallback({ message, onProgress });
+    result = await runChatFallback({ message, onProgress, onToken });
   }
   const answer = result.answer || 'No answer was returned by AI Assist.';
   const fallbackReason =

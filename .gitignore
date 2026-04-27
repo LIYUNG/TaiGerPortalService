@@ -63,3 +63,4 @@ globalConfig.json
 /python/PortalDataExtractor/output/
 
 .eslintcache
+.worktrees/

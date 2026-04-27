@@ -9,6 +9,7 @@ const agentsRouter = require('./agents');
 const allCoursesRouter = require('./allcourses');
 const authRouter = require('./auth');
 const auditRouter = require('./audit');
+const aiAssistRouter = require('./ai_assist');
 const complaintsRouter = require('./complaints');
 const communicationsRouter = require('./communications');
 const coursekewordsRouter = require('./coursekeywords');
@@ -73,6 +74,7 @@ const router = (app) => {
   apiRouter.use('/agents', agentsRouter);
   apiRouter.use('/all-courses', allCoursesRouter);
   apiRouter.use('/audit', auditRouter);
+  apiRouter.use('/ai-assist', aiAssistRouter);
   apiRouter.use('/admissions', admissionsRouter);
   apiRouter.use('/course-keywords', coursekewordsRouter);
   apiRouter.use('/courses', coursesRouter);

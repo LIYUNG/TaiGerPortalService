@@ -11,16 +11,13 @@ Only mention data returned by tools.
 Be concise and cite which portal section data came from.
 Do not expose internal IDs unless needed for disambiguation.`;
 const LINK_HINT_INSTRUCTIONS = `Given an answer and candidate entities, return strict JSON only:
-{"answer":"... [link:1|Some Label] ...","references":[{"refId":"1","label":"Some Label","title":"...","entityType":"student|program","entityId":"...","route":"student_database_profile|student_profile|program_detail"}]}
+{"answer":"... [reflink:1|Some Label] ...","link_hints":{"1":{"entityType":"student|program","entityId":"..."}}}
 Rules:
 - Keep answer language and meaning.
-- Add [link:<id>|<label>] markers in answer where inline links should appear.
+- Add [reflink:<id>|<label>] markers in answer where inline links should appear.
 - Use short numeric refId values: "1", "2", ...
 - Use candidate entityId exactly; never invent IDs.
-- Prefer route student_database_profile for "@Name" labels.
-- Use student_profile for plain student name labels.
-- Use program_detail for program labels.
-- Return at most 8 links.`;
+- Return at most 8 link_hints entries.`;
 
 const getResponseText = (response) => {
   if (response?.output_text) {
@@ -108,65 +105,45 @@ const generateAnswerFromInput = async ({ instructions, input, onToken }) => {
   };
 };
 
-const normalizeReferences = ({ answerWithMarkers, candidates, rawReferences }) => {
-  if (!Array.isArray(rawReferences) || !Array.isArray(candidates)) {
-    return [];
+const normalizeLinkHints = ({ answerWithMarkers, candidates, rawLinkHints }) => {
+  if (!rawLinkHints || typeof rawLinkHints !== 'object' || !Array.isArray(candidates)) {
+    return {};
   }
 
   const candidateKeySet = new Set(
     candidates.map((candidate) => `${candidate.entityType}:${candidate.entityId}`)
   );
-  const validRoutes = new Set([
-    'student_database_profile',
-    'student_profile',
-    'program_detail'
-  ]);
+  const validEntityTypes = new Set(['student', 'program']);
 
   const markerByRefId = new Map(
     Array.from(
-      answerWithMarkers.matchAll(/\[link:([a-zA-Z0-9_-]+)\|([^\]]+)\]/g)
-    ).map((match) => [String(match[1] || '').trim(), String(match[2] || '').trim()])
+      answerWithMarkers.matchAll(/\[reflink:([a-zA-Z0-9_-]+)\|([^\]]+)\]/g)
+    ).map((match) => [String(match[1] || '').trim(), true])
   );
 
-  return rawReferences
-    .map((item) => ({
-      refId: typeof item?.refId === 'string' ? item.refId.trim() : '',
-      label: typeof item?.label === 'string' ? item.label.trim() : '',
-      title: typeof item?.title === 'string' ? item.title.trim() : '',
-      entityType: item?.entityType,
-      entityId: typeof item?.entityId === 'string' ? item.entityId.trim() : '',
-      route: item?.route
-    }))
-    .filter((item) => {
-      if (
-        !item.refId ||
-        !item.label ||
-        !item.entityId ||
-        !validRoutes.has(item.route)
-      ) {
-        return false;
-      }
+  const normalized = {};
+  Object.entries(rawLinkHints).forEach(([refIdRaw, value]) => {
+    const refId = String(refIdRaw || '').trim();
+    const entityType = String(value?.entityType || '').trim();
+    const entityId = String(value?.entityId || '').trim();
 
-      if (!candidateKeySet.has(`${item.entityType}:${item.entityId}`)) {
-        return false;
-      }
+    if (!refId || !markerByRefId.has(refId)) {
+      return;
+    }
+    if (!entityId || !validEntityTypes.has(entityType)) {
+      return;
+    }
+    if (!candidateKeySet.has(`${entityType}:${entityId}`)) {
+      return;
+    }
 
-      return markerByRefId.has(item.refId);
-    })
-    .map((item) => ({
-      ...item,
-      label: markerByRefId.get(item.refId) || item.label,
-      title: item.title || markerByRefId.get(item.refId) || item.label
-    }))
-    .filter(Boolean)
-    .reduce((unique, item) => {
-      const exists = unique.some((known) => known.refId === item.refId);
-      if (!exists) {
-        unique.push(item);
-      }
-      return unique;
-    }, [])
-    .slice(0, 8);
+    normalized[refId] = {
+      entityType,
+      entityId
+    };
+  });
+
+  return Object.fromEntries(Object.entries(normalized).slice(0, 8));
 };
 
 const extractAnswerLinkHints = async ({ answer, candidates = [] }) => {
@@ -179,7 +156,7 @@ const extractAnswerLinkHints = async ({ answer, candidates = [] }) => {
   ) {
     return {
       answer,
-      references: []
+      linkHints: {}
     };
   }
 
@@ -213,20 +190,20 @@ const extractAnswerLinkHints = async ({ answer, candidates = [] }) => {
       typeof parsed?.answer === 'string' && parsed.answer.trim()
         ? parsed.answer
         : answer;
-    const references = normalizeReferences({
+    const linkHints = normalizeLinkHints({
       answerWithMarkers,
       candidates,
-      rawReferences: parsed?.references
+      rawLinkHints: parsed?.link_hints
     });
 
     return {
       answer: answerWithMarkers,
-      references
+      linkHints
     };
   } catch (error) {
     return {
       answer,
-      references: []
+      linkHints: {}
     };
   }
 };
@@ -240,13 +217,16 @@ const extractAnswerReferences = async ({ answer, candidates = [] }) => {
   if (!result || typeof result !== 'object') {
     return {
       answer,
-      references: []
+      linkHints: {}
     };
   }
 
   return {
     answer: result.answer || answer,
-    references: Array.isArray(result.references) ? result.references : []
+    linkHints:
+      result.linkHints && typeof result.linkHints === 'object'
+        ? result.linkHints
+        : {}
   };
 };
 

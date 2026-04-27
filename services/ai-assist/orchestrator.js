@@ -110,7 +110,7 @@ const createAssistantMessage = (
     model: DEFAULT_MODEL,
     responseId: response?.id,
     usage: response?.usage,
-    linkHints: linkHints || [],
+    linkHints: linkHints || {},
     skillTrace
   });
 
@@ -1170,9 +1170,11 @@ const runAiAssist = async (
   });
   const normalizedAnswer =
     answerReferences?.answer || answer;
-  const references = Array.isArray(answerReferences?.references)
-    ? answerReferences.references
-    : [];
+  const linkHints =
+    answerReferences?.linkHints &&
+    typeof answerReferences.linkHints === 'object'
+      ? answerReferences.linkHints
+      : {};
   const fallbackReason =
     result.skillTrace?.fallbackReason || resolvedAssistContext.fallbackReason;
   const nonSkillStatus = fallbackReason ? 'fallback' : 'completed';
@@ -1180,7 +1182,7 @@ const runAiAssist = async (
     conversationId,
     content: normalizedAnswer,
     response: result.response,
-    linkHints: references,
+    linkHints,
     skillTrace:
       result.skillTrace ||
       buildSkillTrace({

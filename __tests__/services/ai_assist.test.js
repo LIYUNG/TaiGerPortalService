@@ -1638,6 +1638,35 @@ describe('AI Assist Postgres persistence', () => {
     });
   });
 
+  it('stores mentioned student and requested skill on the user message record', async () => {
+    const { postgres, insertedValues } = createAiAssistPostgresWithContext({});
+
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: '@Abby Student #identify_risk focus on blockers',
+      assistContext: {
+        mentionedStudent: { id: 'student_abby', displayName: 'Abby Student' },
+        requestedSkill: 'identify_risk',
+        unknownSkillText: null
+      },
+      req: createAiAssistReq().req
+    });
+
+    const userInsert = insertedValues.find((value) => value.role === 'user');
+
+    expect(userInsert).toMatchObject({
+      role: 'user',
+      skillTrace: expect.objectContaining({
+        requestedSkill: 'identify_risk',
+        mode: 'composer',
+        student: {
+          id: 'student_abby',
+          displayName: 'Abby Student'
+        }
+      })
+    });
+  });
+
   it('returns skillTrace with sendMessage responses', async () => {
     const conversation = {
       id: 'conv_1',

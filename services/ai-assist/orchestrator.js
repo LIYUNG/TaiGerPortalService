@@ -87,11 +87,12 @@ const insertReturningOne = async (postgres, table, values) => {
   return row;
 };
 
-const createUserMessage = (postgres, { conversationId, content }) =>
+const createUserMessage = (postgres, { conversationId, content, skillTrace }) =>
   insertReturningOne(postgres, aiAssistMessages, {
     conversationId,
     role: 'user',
-    content
+    content,
+    skillTrace
   });
 
 const createAssistantMessage = (
@@ -126,6 +127,36 @@ const buildSkillTrace = (assistContext = {}) => {
     status: assistContext.status || 'fallback',
     steps: assistContext.steps || [],
     fallbackReason: assistContext.fallbackReason || null
+  };
+};
+
+const buildUserMessageSkillTrace = ({
+  assistContext = {},
+  resolvedAssistContext = {}
+}) => {
+  const mentionedStudent = assistContext.mentionedStudent?.id
+    ? {
+        id: assistContext.mentionedStudent.id,
+        displayName: assistContext.mentionedStudent.displayName || null
+      }
+    : null;
+
+  if (
+    !mentionedStudent &&
+    !assistContext.requestedSkill &&
+    !assistContext.unknownSkillText
+  ) {
+    return undefined;
+  }
+
+  return {
+    requestedSkill: assistContext.requestedSkill || null,
+    resolvedSkill: resolvedAssistContext.resolvedSkill || null,
+    mode: 'composer',
+    student: mentionedStudent,
+    status: 'captured',
+    steps: [],
+    fallbackReason: resolvedAssistContext.fallbackReason || null
   };
 };
 
@@ -880,14 +911,18 @@ const runAiAssist = async (
     postgres,
     conversationId
   );
-  const userMessage = await createUserMessage(postgres, {
-    conversationId,
-    content: message
-  });
   const resolvedAssistContext = resolveAssistContext({
     assistContext,
     conversationContext,
     message
+  });
+  const userMessage = await createUserMessage(postgres, {
+    conversationId,
+    content: message,
+    skillTrace: buildUserMessageSkillTrace({
+      assistContext,
+      resolvedAssistContext
+    })
   });
   const responseLanguageInstruction = buildResponseLanguageInstruction({
     message,

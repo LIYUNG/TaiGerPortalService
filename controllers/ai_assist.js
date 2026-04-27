@@ -217,6 +217,21 @@ const updateOwnedActiveConversation = async (
   return rows[0];
 };
 
+const buildConversationUpdateValues = (assistantResult = {}) => {
+  const values = {
+    updatedAt: new Date()
+  };
+  const activeStudent = assistantResult.activeStudent;
+
+  if (activeStudent?.id) {
+    values.studentId = activeStudent.id;
+    values.studentDisplayName =
+      activeStudent.displayName || activeStudent.name || null;
+  }
+
+  return values;
+};
+
 const insertConversationRecord = async (db, req, extraValues = {}) => {
   return db
     .insert(aiAssistConversations)
@@ -497,9 +512,7 @@ const sendMessage = asyncHandler(async (req, res) => {
           tx,
           conversationId,
           currentUserId(req),
-          {
-            updatedAt: new Date()
-          }
+          buildConversationUpdateValues(assistantResult)
         );
 
         return assistantResult;
@@ -550,9 +563,7 @@ const sendMessage = asyncHandler(async (req, res) => {
         tx,
         conversationId,
         currentUserId(req),
-        {
-          updatedAt: new Date()
-        }
+        buildConversationUpdateValues(assistantResult)
       );
 
       return assistantResult;
@@ -608,17 +619,15 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
           }
         });
 
-        await updateOwnedActiveConversation(
+        const updatedConversation = await updateOwnedActiveConversation(
           tx,
           conversation.id,
           currentUserId(req),
-          {
-            updatedAt: new Date()
-          }
+          buildConversationUpdateValues(assistantResult)
         );
 
         return {
-          conversation,
+          conversation: updatedConversation,
           ...assistantResult
         };
       });
@@ -664,17 +673,15 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
         req
       });
 
-      await updateOwnedActiveConversation(
+      const updatedConversation = await updateOwnedActiveConversation(
         tx,
         conversation.id,
         currentUserId(req),
-        {
-          updatedAt: new Date()
-        }
+        buildConversationUpdateValues(assistantResult)
       );
 
       return {
-        conversation,
+        conversation: updatedConversation,
         ...assistantResult
       };
     });

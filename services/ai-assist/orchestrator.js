@@ -11,7 +11,7 @@ const {
 } = require('./toolDefinitions');
 const tools = require('./tools');
 const { classifyIntent } = require('./intentRouter');
-const { resolveStudent } = require('./entityResolver');
+const { resolveStudent, resolveStudentById } = require('./entityResolver');
 const { composeAnswer, generateAnswerFromInput } = require('./answerComposer');
 
 const DEFAULT_MODEL = OpenAiModel.GPT_4_o || 'gpt-4o';
@@ -256,9 +256,14 @@ const loadConversationContext = async (postgres, conversationId) => {
       .limit(12)
   ]);
 
+  const conversationRow = conversation?.[0] || null;
+
   return {
-    boundStudentId: undefined,
-    boundStudentDisplayName: undefined,
+    boundStudentId:
+      conversationRow?.studentId?.toString?.() ||
+      conversationRow?.studentId ||
+      undefined,
+    boundStudentDisplayName: conversationRow?.studentDisplayName || undefined,
     recentMessages: messages
       .slice()
       .reverse()
@@ -315,12 +320,25 @@ const resolveAssistContext = ({
 }) => {
   const requestedSkill = assistContext.requestedSkill || null;
   const unknownSkillText = assistContext.unknownSkillText || null;
-  const student = assistContext.mentionedStudent?.id
+  const explicitStudent = assistContext.mentionedStudent?.id
     ? {
         id: assistContext.mentionedStudent.id,
         displayName: assistContext.mentionedStudent.displayName || null
       }
     : null;
+  const contextStudent =
+    !explicitStudent && conversationContext?.boundStudentId
+      ? {
+          id: conversationContext.boundStudentId,
+          displayName: conversationContext.boundStudentDisplayName || null
+        }
+      : null;
+  const student = explicitStudent || contextStudent;
+  const studentSource = explicitStudent
+    ? 'assist_context'
+    : contextStudent
+      ? 'conversation_active'
+      : null;
   const candidateSkill =
     requestedSkill || (!unknownSkillText ? autoDetectSkill(message) : null);
   let resolvedSkill = candidateSkill;
@@ -342,6 +360,7 @@ const resolveAssistContext = ({
     resolvedSkill,
     unknownSkillText,
     student,
+    studentSource,
     fallbackReason
   };
 };
@@ -532,7 +551,12 @@ const buildStudentResolutionReply = (resolutionResult) => {
   return 'Please provide student name or email.';
 };
 
-const resolveIntentStudent = async ({ req, assistContext, intentResult }) => {
+const resolveIntentStudent = async ({
+  req,
+  assistContext,
+  intentResult,
+  conversationContext
+}) => {
   if (assistContext?.mentionedStudent?.id) {
     return {
       status: 'resolved',
@@ -540,7 +564,7 @@ const resolveIntentStudent = async ({ req, assistContext, intentResult }) => {
         id: assistContext.mentionedStudent.id,
         name: assistContext.mentionedStudent.displayName || null
       },
-      source: 'assist_context',
+      source: 'explicit_mention',
       trace: []
     };
   }
@@ -549,7 +573,21 @@ const resolveIntentStudent = async ({ req, assistContext, intentResult }) => {
     return {
       status: 'not_needed',
       student: null,
-      source: 'intent',
+      source: 'intent_not_needed',
+      trace: []
+    };
+  }
+
+  if (conversationContext?.boundStudentId && !intentResult.studentQuery) {
+    const resolvedFromConversation = await resolveStudentById(
+      req,
+      conversationContext.boundStudentId,
+      conversationContext.boundStudentDisplayName
+    );
+
+    return {
+      ...resolvedFromConversation,
+      source: 'conversation_active',
       trace: []
     };
   }
@@ -629,7 +667,8 @@ const runIntentFirstFlow = async ({
   const resolvedStudent = await resolveIntentStudent({
     req,
     assistContext,
-    intentResult
+    intentResult,
+    conversationContext
   });
   await safeEmitProgress(onProgress, {
     type: 'status',
@@ -645,6 +684,8 @@ const runIntentFirstFlow = async ({
       response: undefined,
       answer: buildStudentResolutionReply(resolvedStudent),
       trace: resolvedStudent.trace || [],
+      activeStudent: null,
+      activeStudentSource: resolvedStudent.source || null,
       skillTrace: {
         mode: 'general',
         status: 'fallback',
@@ -682,7 +723,10 @@ const runIntentFirstFlow = async ({
   return {
     response: composed.response,
     answer: composed.answer,
-    trace: [...(resolvedStudent.trace || []), ...intentExecution.trace]
+    trace: [...(resolvedStudent.trace || []), ...intentExecution.trace],
+    activeStudent:
+      resolvedStudent.status === 'resolved' ? resolvedStudent.student : null,
+    activeStudentSource: resolvedStudent.source || null
   };
 };
 
@@ -777,6 +821,8 @@ const runSkillPlan = async ({
     response,
     answer,
     trace,
+    activeStudent: resolvedAssistContext.student || null,
+    activeStudentSource: resolvedAssistContext.studentSource || null,
     skillTrace: {
       requestedSkill: resolvedAssistContext.requestedSkill || null,
       resolvedSkill: resolvedAssistContext.resolvedSkill,
@@ -823,7 +869,9 @@ const runResponsesToolLoop = async ({
       return {
         response,
         answer: getResponseText(response),
-        trace
+        trace,
+        activeStudent: null,
+        activeStudentSource: null
       };
     }
 
@@ -840,7 +888,9 @@ const runResponsesToolLoop = async ({
     response,
     answer:
       'AI Assist reached the maximum number of tool calls before producing an answer.',
-    trace
+    trace,
+    activeStudent: null,
+    activeStudentSource: null
   };
 };
 
@@ -883,7 +933,9 @@ const runChatFallback = async ({ message, onProgress, onToken }) => {
         usage: undefined
       },
       answer,
-      trace: []
+      trace: [],
+      activeStudent: null,
+      activeStudentSource: null
     };
   }
 
@@ -905,7 +957,9 @@ const runChatFallback = async ({ message, onProgress, onToken }) => {
       usage: response.usage
     },
     answer: response.choices?.[0]?.message?.content || '',
-    trace: []
+    trace: [],
+    activeStudent: null,
+    activeStudentSource: null
   };
 };
 
@@ -1046,7 +1100,7 @@ const runAiAssist = async (
         resolvedSkill: resolvedAssistContext.resolvedSkill,
         unknownSkillText: resolvedAssistContext.unknownSkillText,
         mode: useSkillMode ? 'skill' : 'general',
-        student: resolvedAssistContext.student,
+        student: result.activeStudent || resolvedAssistContext.student,
         status: useSkillMode ? 'completed' : nonSkillStatus,
         steps: [],
         fallbackReason
@@ -1079,6 +1133,9 @@ const runAiAssist = async (
     assistantMessage,
     answer,
     trace,
+    activeStudent: result.activeStudent || resolvedAssistContext.student || null,
+    activeStudentSource:
+      result.activeStudentSource || resolvedAssistContext.studentSource || null,
     skillTrace: assistantMessage?.skillTrace || result.skillTrace || null,
     usage: result.response?.usage
   };

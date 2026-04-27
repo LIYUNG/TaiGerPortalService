@@ -570,7 +570,11 @@ describe('AI Assist Postgres persistence', () => {
       status: 'active'
     });
     expect(res.send.mock.calls[0][0].data.answer).toBe('mocked AI Assist answer');
-    expect(updateSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) });
+    expect(updateSet).toHaveBeenCalledWith({
+      updatedAt: expect.any(Date),
+      studentId: 'student_abby',
+      studentDisplayName: 'abby Student'
+    });
     expect(runAiAssistSpy).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -1682,7 +1686,13 @@ describe('AI Assist Postgres persistence', () => {
       limit: 10
     });
     expect(postgres.update).toHaveBeenCalled();
-    expect(updateSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) });
+    expect(updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        updatedAt: expect.any(Date),
+        studentId: 'student_1',
+        studentDisplayName: 'abby Student'
+      })
+    );
     expect(updateWhere).toHaveBeenCalled();
     expect(updateReturning).toHaveBeenCalled();
     expect(find).toHaveBeenCalled();
@@ -1973,16 +1983,18 @@ describe('AI Assist Responses function tool loop', () => {
     const firstInput = openAIClient.responses.create.mock.calls[0][0].input;
     expect(firstInput[0].content).toContain('"conversationContext"');
     expect(firstInput[0].content).toContain('"message": "2"');
-    expect(firstInput[0].content).not.toContain('"boundStudentId"');
-    expect(firstInput[0].content).not.toContain('"boundStudentDisplayName"');
+    expect(firstInput[0].content).toContain('"boundStudentId": "student_abby"');
+    expect(firstInput[0].content).toContain(
+      '"boundStudentDisplayName": "Abby Student"'
+    );
     expect(firstInput[0].content).toContain('student_abby');
     expect(firstInput[0].content).toContain('abbystudent@gmail.com');
   });
 
-  it('does not use a bound conversation student as skill context', async () => {
+  it('uses a bound conversation student as skill context when no mention is provided', async () => {
     openAIClient.responses.create.mockResolvedValueOnce({
-      id: 'resp_general',
-      output_text: 'General answer',
+      id: 'resp_skill',
+      output_text: 'Skill answer',
       output: []
     });
     const { postgres, insertedValues } = createAiAssistPostgresWithContext({
@@ -2004,20 +2016,21 @@ describe('AI Assist Responses function tool loop', () => {
     });
 
     expect(openAIClient.responses.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tools: expect.arrayContaining([
-          expect.objectContaining({ name: 'get_student_applications' })
-        ])
+      expect.not.objectContaining({
+        tools: expect.anything()
       })
     );
     expect(
       insertedValues.find((value) => value.role === 'assistant')?.skillTrace
     ).toMatchObject({
       requestedSkill: 'identify_risk',
-      resolvedSkill: null,
-      mode: 'general',
-      student: null,
-      fallbackReason: 'Skill mode requires a message-level @student.'
+      resolvedSkill: 'identify_risk',
+      mode: 'skill',
+      student: {
+        id: 'student_abby',
+        displayName: 'Abby Student'
+      },
+      fallbackReason: null
     });
   });
 

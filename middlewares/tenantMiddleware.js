@@ -18,7 +18,6 @@ const getTenantFromRequest = (req) => {
 const checkTenantDBMiddleware = asyncHandler(async (req, res, next) => {
   const tenentIdHeader = getTenantFromRequest(req);
   const { tenantId } = req.decryptedToken;
-  console.log(`checkTenantDBMiddleware: tenantId from header: ${tenentIdHeader}, tenantId from token: ${tenantId}`);
   const dbUri = `${mongoDb(tenantDb)}`;
   if (!connections[tenantDb]) {
     const connection = mongoose.createConnection(dbUri, {});

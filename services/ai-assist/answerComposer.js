@@ -15,16 +15,26 @@ const LINK_HINT_INSTRUCTIONS = `Given an answer and candidate entities, return s
 Rules:
 - Keep answer language and meaning.
 - Add [reflink:<id>|<label>] markers in answer where inline links should appear.
+- For student refs, label should be the student display name.
+- For program refs, label MUST include both school and program name in one full phrase.
+- For program refs, never link only the program name substring.
+- For program refs, wrap the entire school+program phrase in ONE reflink marker.
+- Prefer program label format: "<School> - <Program Name>".
 - Use short numeric refId values: "1", "2", ...
 - Use candidate entityId exactly; never invent IDs.
-- Return at most 8 link_hints entries.`;
+Example:
+Input phrase: "Technische Universität München - MSc Data Engineering"
+Good: "[reflink:2|Technische Universität München - MSc Data Engineering]"
+Bad: "Technische Universität München - [reflink:2|MSc Data Engineering]"`;
 
 const getResponseText = (response) => {
   if (response?.output_text) {
     return response.output_text;
   }
 
-  const message = (response?.output || []).find((item) => item.type === 'message');
+  const message = (response?.output || []).find(
+    (item) => item.type === 'message'
+  );
   return (message?.content || [])
     .map((part) => part.text || part.content || '')
     .filter(Boolean)
@@ -105,13 +115,23 @@ const generateAnswerFromInput = async ({ instructions, input, onToken }) => {
   };
 };
 
-const normalizeLinkHints = ({ answerWithMarkers, candidates, rawLinkHints }) => {
-  if (!rawLinkHints || typeof rawLinkHints !== 'object' || !Array.isArray(candidates)) {
+const normalizeLinkHints = ({
+  answerWithMarkers,
+  candidates,
+  rawLinkHints
+}) => {
+  if (
+    !rawLinkHints ||
+    typeof rawLinkHints !== 'object' ||
+    !Array.isArray(candidates)
+  ) {
     return {};
   }
 
   const candidateKeySet = new Set(
-    candidates.map((candidate) => `${candidate.entityType}:${candidate.entityId}`)
+    candidates.map(
+      (candidate) => `${candidate.entityType}:${candidate.entityId}`
+    )
   );
   const validEntityTypes = new Set(['student', 'program']);
 

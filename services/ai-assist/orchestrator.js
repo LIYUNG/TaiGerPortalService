@@ -1164,6 +1164,11 @@ const runAiAssist = async (
     result = await runChatFallback({ message, onProgress, onToken });
   }
   const answer = result.answer || 'No answer was returned by AI Assist.';
+  await safeEmitProgress(onProgress, {
+    type: 'status',
+    phase: 'annotation',
+    status: 'annotating_references'
+  });
   const answerReferences = await extractAnswerReferences({
     answer,
     candidates: result.linkHintCandidates || []

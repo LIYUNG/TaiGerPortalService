@@ -736,6 +736,11 @@ const sendMessage = asyncHandler(async (req, res) => {
         return assistantResult;
       });
 
+      writeSse(res, 'progress', {
+        type: 'status',
+        phase: 'annotation',
+        status: 'annotating_references'
+      });
       writeSse(res, 'references', {
         references: result?.assistantMessage?.linkHints || []
       });
@@ -894,6 +899,11 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
         };
       });
 
+      writeSse(res, 'progress', {
+        type: 'status',
+        phase: 'annotation',
+        status: 'annotating_references'
+      });
       writeSse(res, 'references', {
         references: result?.assistantMessage?.linkHints || []
       });

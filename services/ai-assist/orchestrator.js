@@ -15,7 +15,7 @@ const { resolveStudent, resolveStudentById } = require('./entityResolver');
 const {
   composeAnswer,
   generateAnswerFromInput,
-  extractAnswerLinkHints
+  extractAnswerReferences
 } = require('./answerComposer');
 
 const DEFAULT_MODEL = OpenAiModel.GPT_4_o || 'gpt-4o';
@@ -1164,18 +1164,23 @@ const runAiAssist = async (
     result = await runChatFallback({ message, onProgress, onToken });
   }
   const answer = result.answer || 'No answer was returned by AI Assist.';
-  const linkHints = await extractAnswerLinkHints({
+  const answerReferences = await extractAnswerReferences({
     answer,
     candidates: result.linkHintCandidates || []
   });
+  const normalizedAnswer =
+    answerReferences?.answer || answer;
+  const references = Array.isArray(answerReferences?.references)
+    ? answerReferences.references
+    : [];
   const fallbackReason =
     result.skillTrace?.fallbackReason || resolvedAssistContext.fallbackReason;
   const nonSkillStatus = fallbackReason ? 'fallback' : 'completed';
   const assistantMessage = await createAssistantMessage(postgres, {
     conversationId,
-    content: answer,
+    content: normalizedAnswer,
     response: result.response,
-    linkHints,
+    linkHints: references,
     skillTrace:
       result.skillTrace ||
       buildSkillTrace({
@@ -1214,7 +1219,7 @@ const runAiAssist = async (
   return {
     userMessage,
     assistantMessage,
-    answer,
+    answer: normalizedAnswer,
     trace,
     activeStudent: result.activeStudent || resolvedAssistContext.student || null,
     activeStudentSource:

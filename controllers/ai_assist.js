@@ -736,6 +736,9 @@ const sendMessage = asyncHandler(async (req, res) => {
         return assistantResult;
       });
 
+      writeSse(res, 'references', {
+        references: result?.assistantMessage?.linkHints || []
+      });
       writeSse(res, 'final', {
         success: true,
         data: result
@@ -891,6 +894,9 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
         };
       });
 
+      writeSse(res, 'references', {
+        references: result?.assistantMessage?.linkHints || []
+      });
       writeSse(res, 'final', {
         success: true,
         data: result

@@ -8,13 +8,10 @@ RUN apk add --no-cache bash curl
 
 WORKDIR /app
 
-# Install dependencies before copying source so Docker can reuse this layer
-# unless package.json or package-lock.json changes.
-COPY package*.json ./
-RUN npm ci --omit=dev --no-audit
-
 # Copy the rest of the application
 COPY . .
+
+RUN npm install --production 
 
 # Expose the port the app is listening on (default for Express is 3000)
 EXPOSE 3000

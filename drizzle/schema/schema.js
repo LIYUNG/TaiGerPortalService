@@ -19,15 +19,13 @@ const { deals, dealStatusEnum } = require('./deals');
 const {
   aiAssistConversations,
   aiAssistMessages,
-  aiAssistToolCalls,
-  aiAssistUsage
+  aiAssistToolCalls
 } = require('./aiAssist');
 
 module.exports = {
   aiAssistConversations,
   aiAssistMessages,
   aiAssistToolCalls,
-  aiAssistUsage,
   leads,
   leadProfile,
   leadTags,

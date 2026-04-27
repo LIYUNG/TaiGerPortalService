@@ -3,9 +3,7 @@ const {
   text,
   timestamp,
   integer,
-  jsonb,
-  numeric,
-  date
+  jsonb
 } = require('drizzle-orm/pg-core');
 const { nanoid } = require('nanoid');
 
@@ -59,30 +57,12 @@ const aiAssistToolCalls = pgTable('ai_assist_tool_calls', {
   status: text('status').notNull(),
   durationMs: integer('duration_ms'),
   permissionOutcome: jsonb('permission_outcome'),
-  errorCode: text('error_code'),
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at').defaultNow()
-});
-
-const aiAssistUsage = pgTable('ai_assist_usage', {
-  id: text('id')
-    .primaryKey()
-    .notNull()
-    .$defaultFn(() => nanoid()),
-  userId: text('user_id').notNull(),
-  model: text('model').notNull(),
-  date: date('date').notNull(),
-  inputTokens: integer('input_tokens').notNull().default(0),
-  outputTokens: integer('output_tokens').notNull().default(0),
-  toolCallCount: integer('tool_call_count').notNull().default(0),
-  estimatedCost: numeric('estimated_cost', { precision: 12, scale: 6 }),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow()
 });
 
 module.exports = {
   aiAssistConversations,
   aiAssistMessages,
-  aiAssistToolCalls,
-  aiAssistUsage
+  aiAssistToolCalls
 };

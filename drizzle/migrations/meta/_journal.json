@@ -4,17 +4,22 @@
   "entries": [
     {
       "idx": 0,
-      "tag": "0001_split_leads",
+      "tag": "0001_ai_assist",
       "when": 0
     },
     {
       "idx": 1,
-      "tag": "0002_clean_up_leads",
+      "tag": "0002_ai_assist_conversation_context",
       "when": 0
     },
     {
       "idx": 2,
-      "tag": "0003_ai_assist",
+      "tag": "0003_ai_assist_skill_trace",
+      "when": 0
+    },
+    {
+      "idx": 3,
+      "tag": "0004_ai_assist_schema_optimization",
       "when": 0
     }
   ]

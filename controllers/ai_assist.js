@@ -17,6 +17,7 @@ const {
   getAccessibleStudentFilter
 } = require('../services/ai-assist/studentAccess');
 const { withPostgresRetry } = require('../services/ai-assist/postgresRetry');
+const logger = require('../services/logger');
 
 const DEFAULT_TITLE = 'New AI Assist conversation';
 const ACTIVE_STATUS = 'active';
@@ -34,6 +35,77 @@ const VALID_AI_ASSIST_SKILLS = new Set([
   'review_messages',
   'review_open_tasks'
 ]);
+
+const lower = (value) => String(value || '').toLowerCase();
+
+const extractOpenAiErrorMetadata = (error) => ({
+  status:
+    Number(error?.status) ||
+    Number(error?.statusCode) ||
+    Number(error?.error?.status) ||
+    null,
+  code: lower(error?.code || error?.type || error?.error?.code || error?.error?.type),
+  message:
+    error?.error?.message ||
+    error?.message ||
+    ''
+});
+
+const mapAiAssistExecutionError = (error) => {
+  if (error instanceof ErrorResponse) {
+    return null;
+  }
+
+  const metadata = extractOpenAiErrorMetadata(error);
+  const message = lower(metadata.message);
+  const isLikelyOpenAiError =
+    Boolean(metadata.status) ||
+    Boolean(metadata.code) ||
+    message.includes('openai') ||
+    message.includes('api key') ||
+    message.includes('quota');
+
+  if (!isLikelyOpenAiError) {
+    return null;
+  }
+
+  const invalidKey =
+    metadata.status === 401 ||
+    metadata.code.includes('invalid_api_key') ||
+    metadata.code.includes('incorrect_api_key') ||
+    message.includes('api key') ||
+    message.includes('not valid') ||
+    message.includes('not provided');
+
+  if (invalidKey) {
+    return {
+      statusCode: 502,
+      clientMessage: 'AI Assist is temporarily unavailable. Please try again.',
+      warningDetail: metadata.message || metadata.code || 'OpenAI invalid key'
+    };
+  }
+
+  const quotaExceeded =
+    metadata.status === 429 ||
+    metadata.code.includes('insufficient_quota') ||
+    metadata.code.includes('quota') ||
+    message.includes('quota') ||
+    message.includes('rate limit');
+
+  if (quotaExceeded) {
+    return {
+      statusCode: 503,
+      clientMessage: 'AI Assist is temporarily unavailable. Please try again.',
+      warningDetail: metadata.message || metadata.code || 'OpenAI quota exceeded'
+    };
+  }
+
+  return {
+    statusCode: 502,
+    clientMessage: 'AI Assist is temporarily unavailable. Please try again.',
+    warningDetail: metadata.message || metadata.code || 'OpenAI request failed'
+  };
+};
 
 const resolveAssistContextPayload = async (req) => {
   const raw = req.body?.assistContext;
@@ -436,10 +508,20 @@ const sendMessage = asyncHandler(async (req, res) => {
       });
       writeSse(res, 'done', { ok: true });
     } catch (error) {
-      writeSse(res, 'error', {
-        message:
-          error instanceof Error ? error.message : 'AI Assist streaming failed'
-      });
+      const mappedError = mapAiAssistExecutionError(error);
+      if (mappedError) {
+        logger.warn(
+          `[AI Assist] streaming sendMessage failed: ${mappedError.warningDetail}`
+        );
+        writeSse(res, 'error', {
+          message: mappedError.clientMessage
+        });
+      } else {
+        writeSse(res, 'error', {
+          message:
+            error instanceof Error ? error.message : 'AI Assist streaming failed'
+        });
+      }
     } finally {
       res.end();
     }
@@ -448,28 +530,45 @@ const sendMessage = asyncHandler(async (req, res) => {
   }
 
   const postgres = getPostgresDb();
-  const result = await postgres.transaction(async (tx) => {
-    await requireActiveConversationOwner(tx, conversationId, currentUserId(req));
+  let result;
+  try {
+    result = await postgres.transaction(async (tx) => {
+      await requireActiveConversationOwner(tx, conversationId, currentUserId(req));
 
-    const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
-      conversationId,
-      message,
-      assistContext: await resolveAssistContextPayload(req),
-      preferredLanguage: resolvePreferredLanguage(req),
-      req
+      const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
+        conversationId,
+        message,
+        assistContext: await resolveAssistContextPayload(req),
+        preferredLanguage: resolvePreferredLanguage(req),
+        req
+      });
+
+      await updateOwnedActiveConversation(
+        tx,
+        conversationId,
+        currentUserId(req),
+        {
+          updatedAt: new Date()
+        }
+      );
+
+      return assistantResult;
     });
+  } catch (error) {
+    const mappedError = mapAiAssistExecutionError(error);
+    if (!mappedError) {
+      throw error;
+    }
 
-    await updateOwnedActiveConversation(
-      tx,
-      conversationId,
-      currentUserId(req),
-      {
-        updatedAt: new Date()
-      }
+    logger.warn(
+      `[AI Assist] sendMessage failed: ${mappedError.warningDetail}`
     );
-
-    return assistantResult;
-  });
+    res.status(mappedError.statusCode).send({
+      success: false,
+      message: mappedError.clientMessage
+    });
+    return;
+  }
 
   res.status(200).send({
     success: true,
@@ -524,10 +623,20 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
       });
       writeSse(res, 'done', { ok: true });
     } catch (error) {
-      writeSse(res, 'error', {
-        message:
-          error instanceof Error ? error.message : 'AI Assist streaming failed'
-      });
+      const mappedError = mapAiAssistExecutionError(error);
+      if (mappedError) {
+        logger.warn(
+          `[AI Assist] streaming sendFirstMessage failed: ${mappedError.warningDetail}`
+        );
+        writeSse(res, 'error', {
+          message: mappedError.clientMessage
+        });
+      } else {
+        writeSse(res, 'error', {
+          message:
+            error instanceof Error ? error.message : 'AI Assist streaming failed'
+        });
+      }
     } finally {
       res.end();
     }
@@ -536,31 +645,48 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
   }
 
   const postgres = getPostgresDb();
-  const result = await postgres.transaction(async (tx) => {
-    const [conversation] = await createConversationRecord(tx, req);
+  let result;
+  try {
+    result = await postgres.transaction(async (tx) => {
+      const [conversation] = await createConversationRecord(tx, req);
 
-    const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
-      conversationId: conversation.id,
-      message,
-      assistContext: await resolveAssistContextPayload(req),
-      preferredLanguage: resolvePreferredLanguage(req),
-      req
+      const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
+        conversationId: conversation.id,
+        message,
+        assistContext: await resolveAssistContextPayload(req),
+        preferredLanguage: resolvePreferredLanguage(req),
+        req
+      });
+
+      await updateOwnedActiveConversation(
+        tx,
+        conversation.id,
+        currentUserId(req),
+        {
+          updatedAt: new Date()
+        }
+      );
+
+      return {
+        conversation,
+        ...assistantResult
+      };
     });
+  } catch (error) {
+    const mappedError = mapAiAssistExecutionError(error);
+    if (!mappedError) {
+      throw error;
+    }
 
-    await updateOwnedActiveConversation(
-      tx,
-      conversation.id,
-      currentUserId(req),
-      {
-        updatedAt: new Date()
-      }
+    logger.warn(
+      `[AI Assist] sendFirstMessage failed: ${mappedError.warningDetail}`
     );
-
-    return {
-      conversation,
-      ...assistantResult
-    };
-  });
+    res.status(mappedError.statusCode).send({
+      success: false,
+      message: mappedError.clientMessage
+    });
+    return;
+  }
 
   res.status(201).send({
     success: true,

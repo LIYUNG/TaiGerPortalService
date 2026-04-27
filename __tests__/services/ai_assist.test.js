@@ -19,10 +19,17 @@ jest.mock('../../utils/queryFunctions', () => ({
   getPermission: jest.fn()
 }));
 
+jest.mock('../../services/logger', () => ({
+  warn: jest.fn(),
+  error: jest.fn(),
+  info: jest.fn()
+}));
+
 const { Role } = require('../../constants');
 const { getPostgresDb } = require('../../database');
 const { openAIClient } = require('../../services/openai');
 const { getPermission } = require('../../utils/queryFunctions');
+const logger = require('../../services/logger');
 const {
   createConversation,
   archiveConversation,
@@ -54,6 +61,14 @@ const createResponse = () => {
   };
   return res;
 };
+
+const createSseResponse = () => ({
+  status: jest.fn().mockReturnThis(),
+  setHeader: jest.fn(),
+  flushHeaders: jest.fn(),
+  write: jest.fn(),
+  end: jest.fn()
+});
 
 const conditionIncludesValue = (condition, expectedValue) => {
   const stack = [condition];
@@ -606,6 +621,74 @@ describe('AI Assist Postgres persistence', () => {
         }
       })
     );
+  });
+
+  it('returns generic non-stream error response and logs warning for OpenAI failures', async () => {
+    const conversation = {
+      id: 'conv_1',
+      ownerUserId: 'agent_1',
+      ownerRole: Role.Agent,
+      status: 'active'
+    };
+    const postgres = createLifecyclePostgres(conversation);
+    getPostgresDb.mockReturnValue(postgres);
+    openAIClient.responses.create.mockRejectedValueOnce({
+      status: 401,
+      error: {
+        code: 'invalid_api_key',
+        message: 'Incorrect API key provided'
+      }
+    });
+
+    const { req } = createAiAssistReq();
+    req.params = { conversationId: 'conv_1' };
+    req.user = { _id: 'agent_1', role: Role.Agent };
+    req.body = { message: 'What is the status?' };
+    const res = createResponse();
+
+    await sendMessage(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(502);
+    expect(res.send).toHaveBeenCalledWith({
+      success: false,
+      message: 'AI Assist is temporarily unavailable. Please try again.'
+    });
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it('streams generic error message and logs warning for OpenAI quota failures', async () => {
+    const conversation = {
+      id: 'conv_1',
+      ownerUserId: 'agent_1',
+      ownerRole: Role.Agent,
+      status: 'active'
+    };
+    const postgres = createLifecyclePostgres(conversation);
+    getPostgresDb.mockReturnValue(postgres);
+    openAIClient.responses.create.mockRejectedValueOnce({
+      status: 429,
+      error: {
+        code: 'insufficient_quota',
+        message: 'You exceeded your current quota.'
+      }
+    });
+
+    const { req } = createAiAssistReq();
+    req.params = { conversationId: 'conv_1' };
+    req.user = { _id: 'agent_1', role: Role.Agent };
+    req.body = { message: 'What is the status?' };
+    req.query = { stream: '1' };
+    req.headers = { accept: 'text/event-stream' };
+    const res = createSseResponse();
+
+    await sendMessage(req, res);
+
+    const allWrites = res.write.mock.calls.map((call) => call[0]).join('');
+    expect(allWrites).toContain('event: error');
+    expect(allWrites).toContain(
+      'AI Assist is temporarily unavailable. Please try again.'
+    );
+    expect(logger.warn).toHaveBeenCalled();
   });
 
   it('rolls back first-message creation if persistence fails after insert', async () => {

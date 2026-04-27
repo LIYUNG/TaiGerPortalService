@@ -12,7 +12,11 @@ const {
 const tools = require('./tools');
 const { classifyIntent } = require('./intentRouter');
 const { resolveStudent, resolveStudentById } = require('./entityResolver');
-const { composeAnswer, generateAnswerFromInput } = require('./answerComposer');
+const {
+  composeAnswer,
+  generateAnswerFromInput,
+  extractAnswerLinkHints
+} = require('./answerComposer');
 
 const DEFAULT_MODEL = OpenAiModel.GPT_4_o || 'gpt-4o';
 const MAX_TOOL_ROUNDS = 6;
@@ -97,7 +101,7 @@ const createUserMessage = (postgres, { conversationId, content, skillTrace }) =>
 
 const createAssistantMessage = (
   postgres,
-  { conversationId, content, response, skillTrace }
+  { conversationId, content, response, skillTrace, linkHints }
 ) =>
   insertReturningOne(postgres, aiAssistMessages, {
     conversationId,
@@ -106,6 +110,7 @@ const createAssistantMessage = (
     model: DEFAULT_MODEL,
     responseId: response?.id,
     usage: response?.usage,
+    linkHints: linkHints || [],
     skillTrace
   });
 
@@ -301,6 +306,51 @@ const buildInitialInput = ({
     )
   }
 ];
+
+const addStudentCandidate = (student, byKey) => {
+  const studentId = student?.id;
+  const studentName = student?.displayName || student?.name;
+
+  if (!studentId || !studentName) {
+    return;
+  }
+
+  byKey.set(`student:${studentId}`, {
+    entityType: 'student',
+    entityId: studentId,
+    displayName: studentName
+  });
+};
+
+const collectProgramCandidatesFromValue = (value, byKey) => {
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectProgramCandidatesFromValue(item, byKey));
+    return;
+  }
+
+  const record = value;
+  const program = record.program || null;
+  const id = typeof program?.id === 'string' ? program.id : '';
+  const name = typeof program?.name === 'string' ? program.name : '';
+  const school = typeof program?.school === 'string' ? program.school : '';
+
+  if (id && name) {
+    byKey.set(`program:${id}`, {
+      entityType: 'program',
+      entityId: id,
+      displayName: name,
+      school
+    });
+  }
+
+  Object.values(record).forEach((nested) =>
+    collectProgramCandidatesFromValue(nested, byKey)
+  );
+};
 
 const autoDetectSkill = (message = '') => {
   const normalizedMessage = message.toLowerCase();
@@ -726,7 +776,17 @@ const runIntentFirstFlow = async ({
     trace: [...(resolvedStudent.trace || []), ...intentExecution.trace],
     activeStudent:
       resolvedStudent.status === 'resolved' ? resolvedStudent.student : null,
-    activeStudentSource: resolvedStudent.source || null
+    activeStudentSource: resolvedStudent.source || null,
+    linkHintCandidates: (() => {
+      const byKey = new Map();
+      if (resolvedStudent.status === 'resolved') {
+        addStudentCandidate(resolvedStudent.student, byKey);
+      }
+      Object.values(intentExecution.toolContext || {}).forEach((toolResult) =>
+        collectProgramCandidatesFromValue(toolResult, byKey)
+      );
+      return Array.from(byKey.values());
+    })()
   };
 };
 
@@ -823,6 +883,12 @@ const runSkillPlan = async ({
     trace,
     activeStudent: resolvedAssistContext.student || null,
     activeStudentSource: resolvedAssistContext.studentSource || null,
+    linkHintCandidates: (() => {
+      const byKey = new Map();
+      addStudentCandidate(resolvedAssistContext.student, byKey);
+      trace.forEach((step) => collectProgramCandidatesFromValue(step.result, byKey));
+      return Array.from(byKey.values());
+    })(),
     skillTrace: {
       requestedSkill: resolvedAssistContext.requestedSkill || null,
       resolvedSkill: resolvedAssistContext.resolvedSkill,
@@ -871,7 +937,12 @@ const runResponsesToolLoop = async ({
         answer: getResponseText(response),
         trace,
         activeStudent: null,
-        activeStudentSource: null
+        activeStudentSource: null,
+        linkHintCandidates: (() => {
+          const byKey = new Map();
+          trace.forEach((step) => collectProgramCandidatesFromValue(step.result, byKey));
+          return Array.from(byKey.values());
+        })()
       };
     }
 
@@ -890,7 +961,12 @@ const runResponsesToolLoop = async ({
       'AI Assist reached the maximum number of tool calls before producing an answer.',
     trace,
     activeStudent: null,
-    activeStudentSource: null
+    activeStudentSource: null,
+    linkHintCandidates: (() => {
+      const byKey = new Map();
+      trace.forEach((step) => collectProgramCandidatesFromValue(step.result, byKey));
+      return Array.from(byKey.values());
+    })()
   };
 };
 
@@ -935,7 +1011,8 @@ const runChatFallback = async ({ message, onProgress, onToken }) => {
       answer,
       trace: [],
       activeStudent: null,
-      activeStudentSource: null
+      activeStudentSource: null,
+      linkHintCandidates: []
     };
   }
 
@@ -959,7 +1036,8 @@ const runChatFallback = async ({ message, onProgress, onToken }) => {
     answer: response.choices?.[0]?.message?.content || '',
     trace: [],
     activeStudent: null,
-    activeStudentSource: null
+    activeStudentSource: null,
+    linkHintCandidates: []
   };
 };
 
@@ -1086,6 +1164,10 @@ const runAiAssist = async (
     result = await runChatFallback({ message, onProgress, onToken });
   }
   const answer = result.answer || 'No answer was returned by AI Assist.';
+  const linkHints = await extractAnswerLinkHints({
+    answer,
+    candidates: result.linkHintCandidates || []
+  });
   const fallbackReason =
     result.skillTrace?.fallbackReason || resolvedAssistContext.fallbackReason;
   const nonSkillStatus = fallbackReason ? 'fallback' : 'completed';
@@ -1093,6 +1175,7 @@ const runAiAssist = async (
     conversationId,
     content: answer,
     response: result.response,
+    linkHints,
     skillTrace:
       result.skillTrace ||
       buildSkillTrace({

@@ -31,6 +31,11 @@
       "idx": 5,
       "tag": "0008_ai_assist_auto_title_controls",
       "when": 0
+    },
+    {
+      "idx": 6,
+      "tag": "0009_ai_assist_message_link_hints",
+      "when": 0
     }
   ]
 }

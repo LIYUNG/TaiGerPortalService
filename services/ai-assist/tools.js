@@ -3,7 +3,9 @@ const { Role } = require('@taiger-common/core');
 const { and, desc, eq, not } = require('drizzle-orm');
 const { getPostgresDb } = require('../../database');
 const { leads } = require('../../drizzle/schema/leads');
-const { meetingTranscripts } = require('../../drizzle/schema/meetingTranscripts');
+const {
+  meetingTranscripts
+} = require('../../drizzle/schema/meetingTranscripts');
 const { getAccessibleStudentFilter } = require('./studentAccess');
 const {
   normalizeApplication,
@@ -62,7 +64,8 @@ const normalizeProgram = (program) => {
   };
 };
 
-const isTruthyFlag = (value) => value === true || value === 'O' || value === 'Y';
+const isTruthyFlag = (value) =>
+  value === true || value === 'O' || value === 'Y';
 
 const deriveApplicationStatus = (application = {}) => {
   if (isTruthyFlag(application.finalEnrolment)) {
@@ -107,7 +110,10 @@ const deriveApplicationDecision = (application = {}, normalizedStatus) => {
 const deriveApplicationRisks = (application = {}, normalizedStatus) => {
   const risks = [];
 
-  if (normalizedStatus === 'admitted' && !isTruthyFlag(application.finalEnrolment)) {
+  if (
+    normalizedStatus === 'admitted' &&
+    !isTruthyFlag(application.finalEnrolment)
+  ) {
     risks.push('final enrolment not confirmed');
   }
 
@@ -129,7 +135,10 @@ const deriveApplicationRisks = (application = {}, normalizedStatus) => {
 const deriveApplicationNextActions = (application = {}, normalizedStatus) => {
   const nextActions = [];
 
-  if (normalizedStatus === 'admitted' && !isTruthyFlag(application.finalEnrolment)) {
+  if (
+    normalizedStatus === 'admitted' &&
+    !isTruthyFlag(application.finalEnrolment)
+  ) {
     nextActions.push('confirm enrolment decision with student');
   }
 
@@ -187,11 +196,7 @@ const safeDate = (value) => {
 };
 
 const extractThreadMessageText = (message = {}) =>
-  message.message ||
-  message.text ||
-  message.content ||
-  message.body ||
-  '';
+  message.message || message.text || message.content || message.body || '';
 
 const extractThreadMessageCreatedAt = (message = {}) =>
   safeDate(message.createdAt) ||
@@ -199,9 +204,7 @@ const extractThreadMessageCreatedAt = (message = {}) =>
   safeDate(message.timestamp);
 
 const extractThreadMessageAuthor = (message = {}) =>
-  toObjectIdString(message.user_id) ||
-  toObjectIdString(message.userId) ||
-  '';
+  toObjectIdString(message.user_id) || toObjectIdString(message.userId) || '';
 
 const normalizeThreadMessages = (messages = [], limit = 3) =>
   (Array.isArray(messages) ? messages : [])
@@ -244,7 +247,7 @@ const buildThreadRiskFlags = ({ isFinalVersion, latestMessageAt }) => {
   return risks;
 };
 
-const assertLeadAccessForStudent = async (req, studentId) => {
+const assertLeadAccessForStudent = async (req, studentId, studentParam) => {
   const role = req?.user?.role;
   if (role === Role.Admin || role === Role.Manager) {
     return;
@@ -254,11 +257,13 @@ const assertLeadAccessForStudent = async (req, studentId) => {
     throw new ErrorResponse(403, 'You are not allowed to view CRM lead data');
   }
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .select('agents editors')
-    .lean();
+  const student =
+    studentParam ||
+    (await req.db
+      .model('Student')
+      .findById(studentId)
+      .select('agents editors')
+      .lean());
 
   if (!student) {
     throw new ErrorResponse(404, 'Student not found');
@@ -466,13 +471,28 @@ const getStudentApplications = async (req, args = {}) => {
 };
 
 const getLatestCommunications = async (req, args = {}) => {
-  await requireAccessibleStudent(req, args.studentId);
+  // If caller passes a cached student in `_student`, skip access re-check.
+  if (!args._student) {
+    await requireAccessibleStudent(req, args.studentId);
+  }
   const limit = clampLimit(args.limit, 10, 50);
-  const sinceDays = Number(args.days);
-  const sinceDate =
-    Number.isFinite(sinceDays) && sinceDays > 0
-      ? new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000)
-      : null;
+
+  // Normalize `days` argument:
+  // - if `days` is omitted -> no date filter (caller likely wants all-time)
+  // - if `days` is provided and >0 -> use clamped positive integer (max 365)
+  // - if `days` is provided but non-positive or invalid -> fall back to RECENT_COMMUNICATION_DAYS
+  let sinceDate = null;
+  if (args.days != null) {
+    const raw = Number(args.days);
+    if (Number.isFinite(raw) && raw > 0) {
+      const days = Math.min(Math.floor(raw), 365);
+      sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    } else {
+      const days = RECENT_COMMUNICATION_DAYS;
+      sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    }
+  }
+
   const query = {
     student_id: args.studentId
   };
@@ -577,7 +597,8 @@ const getRecentCommunicationContext = async (req, args = {}) => {
   const messages = await getLatestCommunications(req, {
     studentId: args.studentId,
     limit: args.limit,
-    days: args.days || RECENT_COMMUNICATION_DAYS
+    days: args.days ?? RECENT_COMMUNICATION_DAYS,
+    _student: student
   });
 
   return {
@@ -693,7 +714,9 @@ const getDocumentThreadContext = async (req, args = {}) => {
         appId,
         application.programId
           ? {
-              id: toObjectIdString(application.programId._id || application.programId.id),
+              id: toObjectIdString(
+                application.programId._id || application.programId.id
+              ),
               school: application.programId.school,
               name:
                 application.programId.program_name ||
@@ -714,7 +737,9 @@ const getDocumentThreadContext = async (req, args = {}) => {
     return {
       threadType: applicationId ? 'application' : 'general',
       fileType: thread.file_type || null,
-      program: applicationId ? programByApplicationId.get(applicationId) || null : null,
+      program: applicationId
+        ? programByApplicationId.get(applicationId) || null
+        : null,
       isFinalVersion,
       latestMessageAt: latestMessageAt?.toISOString?.() || null,
       latestMessageBy: latestMessageBy || null,
@@ -727,7 +752,9 @@ const getDocumentThreadContext = async (req, args = {}) => {
     };
   });
 
-  const openThreads = normalizedThreads.filter((thread) => !thread.isFinalVersion);
+  const openThreads = normalizedThreads.filter(
+    (thread) => !thread.isFinalVersion
+  );
 
   return {
     data: {
@@ -748,7 +775,7 @@ const getDocumentThreadContext = async (req, args = {}) => {
 const getCrmLeadMeetingContext = async (req, args = {}) => {
   const student = await requireAccessibleStudent(req, args.studentId);
   const studentId = toObjectIdString(student._id || student.id);
-  await assertLeadAccessForStudent(req, studentId);
+  await assertLeadAccessForStudent(req, studentId, student);
 
   const postgres = getPostgresDb();
   const [lead] = await postgres

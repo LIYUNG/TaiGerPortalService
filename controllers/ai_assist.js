@@ -34,6 +34,10 @@ const VALID_AI_ASSIST_SKILLS = new Set([
   'summarize_student',
   'identify_risk',
   'review_messages',
+  'review_messages_recent',
+  'review_messages_all',
+  'review_document_threads',
+  'summarize_lead_meetings',
   'review_open_tasks'
 ]);
 const AUTO_TITLE_MAX_LENGTH = 56;
@@ -44,6 +48,10 @@ const SKILL_TITLE_LABELS = Object.freeze({
   summarize_student: 'Student summary',
   identify_risk: 'Application risk check',
   review_messages: 'Message review',
+  review_messages_recent: 'Recent message summary',
+  review_messages_all: 'All message summary',
+  review_document_threads: 'Document thread review',
+  summarize_lead_meetings: 'Lead meeting summary',
   review_open_tasks: 'Open task review'
 });
 

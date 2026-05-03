@@ -2418,4 +2418,197 @@ describe('AI Assist read-only tools', () => {
       }
     });
   });
+
+  it('get_recent_communication_context applies 30-day filter for recent skill mode', async () => {
+    const student = {
+      _id: 'student_1',
+      firstname: 'Ada',
+      lastname: 'Lovelace',
+      email: 'ada@example.com',
+      role: Role.Student,
+      agents: ['agent_1'],
+      editors: [],
+      profile: [],
+      applying_program_count: 2
+    };
+    const communicationFind = jest.fn(() => ({
+      populate: jest.fn(() => ({
+        sort: jest.fn(() => ({
+          limit: jest.fn(() => ({
+            lean: jest.fn().mockResolvedValue([])
+          }))
+        }))
+      }))
+    }));
+    const req = {
+      user: { role: Role.Admin, _id: 'admin_1' },
+      db: {
+        model: jest.fn((name) => {
+          if (name === 'Student') {
+            return {
+              find: jest.fn(() => ({
+                select: jest.fn(() => ({
+                  limit: jest.fn(() => ({
+                    lean: jest.fn().mockResolvedValue([student])
+                  }))
+                }))
+              }))
+            };
+          }
+
+          if (name === 'Communication') {
+            return { find: communicationFind };
+          }
+
+          throw new Error(`Unexpected model: ${name}`);
+        })
+      }
+    };
+
+    await runTool(req, 'get_recent_communication_context', {
+      studentId: 'student_1',
+      days: 30
+    });
+
+    const calledQuery = communicationFind.mock.calls[0][0];
+    expect(calledQuery.student_id).toBe('student_1');
+    expect(calledQuery.createdAt).toBeDefined();
+    expect(calledQuery.createdAt.$gte instanceof Date).toBe(true);
+  });
+
+  it('get_all_communication_context does not apply date filter and honors cap', async () => {
+    const student = {
+      _id: 'student_1',
+      firstname: 'Ada',
+      lastname: 'Lovelace',
+      email: 'ada@example.com',
+      role: Role.Student,
+      agents: ['agent_1'],
+      editors: [],
+      profile: [],
+      applying_program_count: 2
+    };
+    const communicationLimit = jest.fn(() => ({
+      lean: jest.fn().mockResolvedValue([])
+    }));
+    const communicationFind = jest.fn(() => ({
+      populate: jest.fn(() => ({
+        sort: jest.fn(() => ({
+          limit: communicationLimit
+        }))
+      }))
+    }));
+    const req = {
+      user: { role: Role.Admin, _id: 'admin_1' },
+      db: {
+        model: jest.fn((name) => {
+          if (name === 'Student') {
+            return {
+              find: jest.fn(() => ({
+                select: jest.fn(() => ({
+                  limit: jest.fn(() => ({
+                    lean: jest.fn().mockResolvedValue([student])
+                  }))
+                }))
+              }))
+            };
+          }
+
+          if (name === 'Communication') {
+            return { find: communicationFind };
+          }
+
+          throw new Error(`Unexpected model: ${name}`);
+        })
+      }
+    };
+
+    await runTool(req, 'get_all_communication_context', {
+      studentId: 'student_1',
+      limit: 999
+    });
+
+    const calledQuery = communicationFind.mock.calls[0][0];
+    expect(calledQuery).toEqual({ student_id: 'student_1' });
+    expect(communicationLimit).toHaveBeenCalledWith(200);
+  });
+});
+
+describe('AI Assist CRM lead meeting access', () => {
+  const baseStudent = {
+    _id: 'student_1',
+    firstname: 'Ada',
+    lastname: 'Lovelace',
+    email: 'ada@example.com',
+    role: Role.Student,
+    agents: ['agent_1'],
+    editors: ['editor_1'],
+    profile: [],
+    applying_program_count: 2
+  };
+
+  const buildReq = (role, userId) => ({
+    user: { role, _id: userId },
+    db: {
+      model: jest.fn((name) => {
+        if (name === 'Student') {
+          return {
+            find: jest.fn(() => ({
+              select: jest.fn(() => ({
+                limit: jest.fn(() => ({
+                  lean: jest.fn().mockResolvedValue([baseStudent])
+                }))
+              }))
+            })),
+            findById: jest.fn(() => ({
+              select: jest.fn(() => ({
+                lean: jest.fn().mockResolvedValue(baseStudent)
+              }))
+            }))
+          };
+        }
+        throw new Error(`Unexpected model: ${name}`);
+      })
+    }
+  });
+
+  it('allows Admin to read student lead meetings', async () => {
+    const leadLimit = jest.fn().mockResolvedValue([
+      {
+        id: 'lead_1',
+        fullName: 'Ada Lead',
+        status: 'active'
+      }
+    ]);
+    const meetingsLimit = jest.fn().mockResolvedValue([]);
+    getPostgresDb.mockReturnValue({
+      select: jest
+        .fn()
+        .mockImplementationOnce(() => ({
+          from: jest.fn(() => ({ where: jest.fn(() => ({ limit: leadLimit })) }))
+        }))
+        .mockImplementationOnce(() => ({
+          from: jest.fn(() => ({
+            where: jest.fn(() => ({
+              orderBy: jest.fn(() => ({ limit: meetingsLimit }))
+            }))
+          }))
+        }))
+    });
+
+    const result = await runTool(buildReq(Role.Admin, 'admin_1'), 'get_crm_lead_meeting_context', {
+      studentId: 'student_1'
+    });
+
+    expect(result.data.lead).toMatchObject({ id: 'lead_1' });
+  });
+
+  it('denies Agent when not assigned as student agent/editor', async () => {
+    const unassignedReq = buildReq(Role.Agent, 'agent_other');
+    await expect(
+      runTool(unassignedReq, 'get_crm_lead_meeting_context', {
+        studentId: 'student_1'
+      })
+    ).rejects.toThrow();
+  });
 });

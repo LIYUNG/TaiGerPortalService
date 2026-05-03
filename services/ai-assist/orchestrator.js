@@ -73,6 +73,39 @@ const SKILL_PLANS = Object.freeze({
     synthesisInstruction:
       'Review the recent communications and summarize the key themes, requests, decisions, and pending follow-ups using only the provided data.'
   },
+  review_messages_recent: {
+    steps: [
+      buildStudentToolStep('get_recent_communication_context', {
+        limit: DEFAULT_SKILL_MESSAGE_LIMIT,
+        days: 30
+      })
+    ],
+    synthesisInstruction:
+      'Summarize recent communications from the last 30 days only. Focus on key updates, requests, blockers, decisions, and next follow-ups.'
+  },
+  review_messages_all: {
+    steps: [
+      buildStudentToolStep('get_all_communication_context', {
+        limit: 120
+      })
+    ],
+    synthesisInstruction:
+      'Summarize all available communications (capped). Provide a concise timeline and highlight recurring issues, major decisions, and pending work.'
+  },
+  review_document_threads: {
+    steps: [buildStudentToolStep('get_document_thread_context')],
+    synthesisInstruction:
+      'Review document thread status and messages. Highlight open threads, pending owner, risk flags, and immediate next actions.'
+  },
+  summarize_lead_meetings: {
+    steps: [
+      buildStudentToolStep('get_crm_lead_meeting_context', {
+        limit: 8
+      })
+    ],
+    synthesisInstruction:
+      'Summarize CRM lead meeting transcripts and meeting summaries. Extract student goals, concerns, objections, agreed actions, and latest momentum.'
+  },
   review_open_tasks: {
     steps: [
       buildStudentToolStep('get_student_applications'),

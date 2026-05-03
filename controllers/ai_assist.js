@@ -41,7 +41,7 @@ const VALID_AI_ASSIST_SKILLS = new Set([
   'review_open_tasks'
 ]);
 const AUTO_TITLE_MAX_LENGTH = 56;
-const AUTO_TITLE_MODEL = OpenAiModel.GPT_4_o || 'gpt-4o';
+const AUTO_TITLE_MODEL = OpenAiModel.GPT_5_4_nano || 'gpt-5.4-nano';
 const AUTO_TITLE_INSTRUCTIONS =
   'Generate one concise conversation title for internal staff usage. Use plain text only, no quotes, no markdown, no IDs. Keep it short and specific.';
 const SKILL_TITLE_LABELS = Object.freeze({
@@ -63,11 +63,10 @@ const extractOpenAiErrorMetadata = (error) => ({
     Number(error?.statusCode) ||
     Number(error?.error?.status) ||
     null,
-  code: lower(error?.code || error?.type || error?.error?.code || error?.error?.type),
-  message:
-    error?.error?.message ||
-    error?.message ||
-    ''
+  code: lower(
+    error?.code || error?.type || error?.error?.code || error?.error?.type
+  ),
+  message: error?.error?.message || error?.message || ''
 });
 
 const mapAiAssistExecutionError = (error) => {
@@ -115,7 +114,8 @@ const mapAiAssistExecutionError = (error) => {
     return {
       statusCode: 503,
       clientMessage: 'AI Assist is temporarily unavailable. Please try again.',
-      warningDetail: metadata.message || metadata.code || 'OpenAI quota exceeded'
+      warningDetail:
+        metadata.message || metadata.code || 'OpenAI quota exceeded'
     };
   }
 
@@ -142,10 +142,16 @@ const stripAssistTokens = (message = '', assistContext = {}) => {
   const displayName = assistContext?.mentionedStudent?.displayName;
 
   if (displayName) {
-    plain = plain.replace(new RegExp(`@${escapeRegExp(displayName)}`, 'gi'), ' ');
+    plain = plain.replace(
+      new RegExp(`@${escapeRegExp(displayName)}`, 'gi'),
+      ' '
+    );
   }
 
-  return plain.replace(/#[a-z_]+/gi, ' ').replace(/\s+/g, ' ').trim();
+  return plain
+    .replace(/#[a-z_]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 };
 
 const resolveSkillLabel = (assistContext = {}, assistantResult = {}) =>
@@ -171,7 +177,9 @@ const buildRuleBasedTitle = ({
   const skillLabel = normalizeAutoTitle(
     resolveSkillLabel(assistContext, assistantResult)
   );
-  const plainMessage = normalizeAutoTitle(stripAssistTokens(message, assistContext));
+  const plainMessage = normalizeAutoTitle(
+    stripAssistTokens(message, assistContext)
+  );
 
   if (studentName && skillLabel) {
     return normalizeAutoTitle(`${studentName} · ${skillLabel}`);
@@ -372,7 +380,10 @@ const queueAiTitleRefinement = ({
 
   setTimeout(async () => {
     try {
-      const studentName = resolveTitleStudentName(assistContext, assistantResult);
+      const studentName = resolveTitleStudentName(
+        assistContext,
+        assistantResult
+      );
       const skillLabel = resolveSkillLabel(assistContext, assistantResult);
       const response = await openAIClient.responses.create({
         model: AUTO_TITLE_MODEL,
@@ -555,7 +566,10 @@ const listRecentStudents = asyncHandler(async (req, res) => {
     .lean();
 
   const studentsById = new Map(
-    students.map((student) => [student._id?.toString?.() || student.id, student])
+    students.map((student) => [
+      student._id?.toString?.() || student.id,
+      student
+    ])
   );
   const data = recentStudentIds
     .map((studentId) => {
@@ -770,7 +784,9 @@ const sendMessage = asyncHandler(async (req, res) => {
       } else {
         writeSse(res, 'error', {
           message:
-            error instanceof Error ? error.message : 'AI Assist streaming failed'
+            error instanceof Error
+              ? error.message
+              : 'AI Assist streaming failed'
         });
       }
     } finally {
@@ -829,9 +845,7 @@ const sendMessage = asyncHandler(async (req, res) => {
       throw error;
     }
 
-    logger.warn(
-      `[AI Assist] sendMessage failed: ${mappedError.warningDetail}`
-    );
+    logger.warn(`[AI Assist] sendMessage failed: ${mappedError.warningDetail}`);
     res.status(mappedError.statusCode).send({
       success: false,
       message: mappedError.clientMessage
@@ -933,7 +947,9 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
       } else {
         writeSse(res, 'error', {
           message:
-            error instanceof Error ? error.message : 'AI Assist streaming failed'
+            error instanceof Error
+              ? error.message
+              : 'AI Assist streaming failed'
         });
       }
     } finally {

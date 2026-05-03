@@ -50,10 +50,20 @@ const aiAssistToolDefinitions = [
   ),
   makeTool(
     'get_recent_communication_context',
-    'Get normalized recent communication context for one accessible TaiGer student.',
+    'Get normalized recent communication context for one accessible TaiGer student (default 30 days).',
     {
       studentId: stringProperty('TaiGer student id returned by search_students.'),
-      limit: integerProperty('Maximum number of messages to return.', 50)
+      limit: integerProperty('Maximum number of messages to return.', 50),
+      days: integerProperty('How many recent days to include.', 90)
+    },
+    ['studentId']
+  ),
+  makeTool(
+    'get_all_communication_context',
+    'Get normalized all-time communication context for one accessible TaiGer student with capped message volume.',
+    {
+      studentId: stringProperty('TaiGer student id returned by search_students.'),
+      limit: integerProperty('Maximum number of messages to return.', 200)
     },
     ['studentId']
   ),
@@ -71,6 +81,23 @@ const aiAssistToolDefinitions = [
     {
       studentId: stringProperty('TaiGer student id returned by search_students.'),
       limit: integerProperty('Maximum number of tickets to return.', 25)
+    },
+    ['studentId']
+  ),
+  makeTool(
+    'get_document_thread_context',
+    'Get normalized document thread status and recent messages for one accessible TaiGer student.',
+    {
+      studentId: stringProperty('TaiGer student id returned by search_students.')
+    },
+    ['studentId']
+  ),
+  makeTool(
+    'get_crm_lead_meeting_context',
+    'Get CRM lead + meetings transcript context for one accessible TaiGer student, with role and assignment checks.',
+    {
+      studentId: stringProperty('TaiGer student id returned by search_students.'),
+      limit: integerProperty('Maximum number of meetings to return.', 20)
     },
     ['studentId']
   ),

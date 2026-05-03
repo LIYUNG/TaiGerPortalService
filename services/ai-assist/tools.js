@@ -1,4 +1,9 @@
 const { ErrorResponse } = require('../../common/errors');
+const { Role } = require('@taiger-common/core');
+const { and, desc, eq, not } = require('drizzle-orm');
+const { getPostgresDb } = require('../../database');
+const { leads } = require('../../drizzle/schema/leads');
+const { meetingTranscripts } = require('../../drizzle/schema/meetingTranscripts');
 const { getAccessibleStudentFilter } = require('./studentAccess');
 const {
   normalizeApplication,
@@ -9,6 +14,8 @@ const {
 
 const clampLimit = (value, fallback, max) =>
   Math.min(Math.max(Number(value) || fallback, 1), max);
+const RECENT_COMMUNICATION_DAYS = 30;
+const ALL_COMMUNICATION_MAX_LIMIT = 200;
 
 const escapeRegex = (value = '') =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -156,6 +163,115 @@ const normalizeApplicationContextItem = (application) => {
     risks: deriveApplicationRisks(application, status),
     nextActions: deriveApplicationNextActions(application, status)
   };
+};
+
+const toObjectIdString = (value) => {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return value.toString?.() || '';
+};
+
+const safeDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const extractThreadMessageText = (message = {}) =>
+  message.message ||
+  message.text ||
+  message.content ||
+  message.body ||
+  '';
+
+const extractThreadMessageCreatedAt = (message = {}) =>
+  safeDate(message.createdAt) ||
+  safeDate(message.updatedAt) ||
+  safeDate(message.timestamp);
+
+const extractThreadMessageAuthor = (message = {}) =>
+  toObjectIdString(message.user_id) ||
+  toObjectIdString(message.userId) ||
+  '';
+
+const normalizeThreadMessages = (messages = [], limit = 3) =>
+  (Array.isArray(messages) ? messages : [])
+    .map((message) => ({
+      text: extractThreadMessageText(message),
+      createdAt: extractThreadMessageCreatedAt(message),
+      authorId: extractThreadMessageAuthor(message)
+    }))
+    .filter((message) => message.text || message.createdAt || message.authorId)
+    .sort((a, b) => {
+      const aTime = a.createdAt ? a.createdAt.getTime() : 0;
+      const bTime = b.createdAt ? b.createdAt.getTime() : 0;
+      return aTime - bTime;
+    })
+    .slice(-Math.max(limit, 1))
+    .map((message) => ({
+      text: message.text || '',
+      createdAt: message.createdAt?.toISOString?.() || null,
+      authorId: message.authorId || null
+    }));
+
+const resolvePendingOwner = ({ latestMessageBy, studentId }) => {
+  if (!latestMessageBy) {
+    return 'unknown';
+  }
+
+  return latestMessageBy === studentId ? 'team' : 'student';
+};
+
+const buildThreadRiskFlags = ({ isFinalVersion, latestMessageAt }) => {
+  const risks = [];
+  if (!isFinalVersion) {
+    risks.push('not_finalized');
+  }
+
+  if (!latestMessageAt) {
+    risks.push('no_recent_message');
+  }
+
+  return risks;
+};
+
+const assertLeadAccessForStudent = async (req, studentId) => {
+  const role = req?.user?.role;
+  if (role === Role.Admin || role === Role.Manager) {
+    return;
+  }
+
+  if (role !== Role.Agent && role !== Role.Editor) {
+    throw new ErrorResponse(403, 'You are not allowed to view CRM lead data');
+  }
+
+  const student = await req.db
+    .model('Student')
+    .findById(studentId)
+    .select('agents editors')
+    .lean();
+
+  if (!student) {
+    throw new ErrorResponse(404, 'Student not found');
+  }
+
+  const userId = toObjectIdString(req?.user?._id);
+  const isAssigned = [...(student.agents || []), ...(student.editors || [])]
+    .map((id) => toObjectIdString(id))
+    .includes(userId);
+
+  if (!isAssigned) {
+    throw new ErrorResponse(403, 'You are not allowed to view CRM lead data');
+  }
 };
 
 const requireAccessibleStudent = async (req, studentId) => {
@@ -352,9 +468,21 @@ const getStudentApplications = async (req, args = {}) => {
 const getLatestCommunications = async (req, args = {}) => {
   await requireAccessibleStudent(req, args.studentId);
   const limit = clampLimit(args.limit, 10, 50);
+  const sinceDays = Number(args.days);
+  const sinceDate =
+    Number.isFinite(sinceDays) && sinceDays > 0
+      ? new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000)
+      : null;
+  const query = {
+    student_id: args.studentId
+  };
+  if (sinceDate) {
+    query.createdAt = { $gte: sinceDate };
+  }
+
   const messages = await req.db
     .model('Communication')
-    .find({ student_id: args.studentId })
+    .find(query)
     .populate('user_id', 'firstname lastname role')
     .sort({ createdAt: -1 })
     .limit(limit)
@@ -448,7 +576,8 @@ const getRecentCommunicationContext = async (req, args = {}) => {
   const student = await requireAccessibleStudent(req, args.studentId);
   const messages = await getLatestCommunications(req, {
     studentId: args.studentId,
-    limit: args.limit
+    limit: args.limit,
+    days: args.days || RECENT_COMMUNICATION_DAYS
   });
 
   return {
@@ -461,6 +590,34 @@ const getRecentCommunicationContext = async (req, args = {}) => {
         email: student.email
       },
       messages: messages.data
+    }
+  };
+};
+
+const getAllCommunicationContext = async (req, args = {}) => {
+  const student = await requireAccessibleStudent(req, args.studentId);
+  const limit = clampLimit(args.limit, 120, ALL_COMMUNICATION_MAX_LIMIT);
+  const messages = await req.db
+    .model('Communication')
+    .find({
+      student_id: args.studentId
+    })
+    .populate('user_id', 'firstname lastname role')
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+
+  return {
+    data: {
+      student: {
+        id: student._id?.toString?.() || student.id,
+        displayName:
+          [student.firstname, student.lastname].filter(Boolean).join(' ') ||
+          undefined,
+        email: student.email
+      },
+      messageScope: 'all',
+      messages: messages.reverse().map(normalizeMessage)
     }
   };
 };
@@ -508,6 +665,163 @@ const getSupportTicketContext = async (req, args = {}) => {
   };
 };
 
+const getDocumentThreadContext = async (req, args = {}) => {
+  const student = await requireAccessibleStudent(req, args.studentId);
+  const studentId = toObjectIdString(student._id || student.id);
+
+  const [threads, applications] = await Promise.all([
+    req.db
+      .model('Documentthread')
+      .find({ student_id: args.studentId })
+      .select(
+        'file_type student_id application_id isFinalVersion latest_message_left_by_id updatedAt messages'
+      )
+      .sort({ updatedAt: -1 })
+      .lean(),
+    req.db
+      .model('Application')
+      .find({ studentId: args.studentId })
+      .select('programId')
+      .populate('programId', 'school program_name')
+      .lean()
+  ]);
+
+  const programByApplicationId = new Map(
+    (applications || []).map((application) => {
+      const appId = toObjectIdString(application._id || application.id);
+      return [
+        appId,
+        application.programId
+          ? {
+              id: toObjectIdString(application.programId._id || application.programId.id),
+              school: application.programId.school,
+              name:
+                application.programId.program_name ||
+                application.programId.programName ||
+                application.programId.name
+            }
+          : null
+      ];
+    })
+  );
+
+  const normalizedThreads = (threads || []).map((thread) => {
+    const applicationId = toObjectIdString(thread.application_id);
+    const latestMessageAt = safeDate(thread.updatedAt);
+    const latestMessageBy = toObjectIdString(thread.latest_message_left_by_id);
+    const isFinalVersion = Boolean(thread.isFinalVersion);
+
+    return {
+      threadType: applicationId ? 'application' : 'general',
+      fileType: thread.file_type || null,
+      program: applicationId ? programByApplicationId.get(applicationId) || null : null,
+      isFinalVersion,
+      latestMessageAt: latestMessageAt?.toISOString?.() || null,
+      latestMessageBy: latestMessageBy || null,
+      pendingOwner: resolvePendingOwner({ latestMessageBy, studentId }),
+      riskFlags: buildThreadRiskFlags({
+        isFinalVersion,
+        latestMessageAt
+      }),
+      recentMessages: normalizeThreadMessages(thread.messages, 3)
+    };
+  });
+
+  const openThreads = normalizedThreads.filter((thread) => !thread.isFinalVersion);
+
+  return {
+    data: {
+      student: {
+        id: studentId,
+        displayName:
+          [student.firstname, student.lastname].filter(Boolean).join(' ') ||
+          undefined,
+        email: student.email
+      },
+      totalThreads: normalizedThreads.length,
+      openThreadsCount: openThreads.length,
+      threads: normalizedThreads
+    }
+  };
+};
+
+const getCrmLeadMeetingContext = async (req, args = {}) => {
+  const student = await requireAccessibleStudent(req, args.studentId);
+  const studentId = toObjectIdString(student._id || student.id);
+  await assertLeadAccessForStudent(req, studentId);
+
+  const postgres = getPostgresDb();
+  const [lead] = await postgres
+    .select({
+      id: leads.id,
+      fullName: leads.fullName,
+      status: leads.status,
+      closeLikelihood: leads.closeLikelihood,
+      salesUserId: leads.salesUserId,
+      updatedAt: leads.updatedAt
+    })
+    .from(leads)
+    .where(eq(leads.userId, studentId))
+    .limit(1);
+
+  if (!lead) {
+    return {
+      data: {
+        student: {
+          id: studentId,
+          displayName:
+            [student.firstname, student.lastname].filter(Boolean).join(' ') ||
+            undefined,
+          email: student.email
+        },
+        lead: null,
+        meetings: []
+      }
+    };
+  }
+
+  const meetings = await postgres
+    .select({
+      id: meetingTranscripts.id,
+      title: meetingTranscripts.title,
+      date: meetingTranscripts.date,
+      dateString: meetingTranscripts.dateString,
+      duration: meetingTranscripts.duration,
+      summary: meetingTranscripts.summary,
+      transcriptUrl: meetingTranscripts.transcriptUrl,
+      participants: meetingTranscripts.participants
+    })
+    .from(meetingTranscripts)
+    .where(
+      and(
+        eq(meetingTranscripts.leadId, lead.id),
+        not(eq(meetingTranscripts.isArchived, true))
+      )
+    )
+    .orderBy(desc(meetingTranscripts.date))
+    .limit(clampLimit(args.limit, 8, 20));
+
+  return {
+    data: {
+      student: {
+        id: studentId,
+        displayName:
+          [student.firstname, student.lastname].filter(Boolean).join(' ') ||
+          undefined,
+        email: student.email
+      },
+      lead,
+      meetings: (meetings || []).map((meeting) => ({
+        ...meeting,
+        date:
+          typeof meeting.date === 'number'
+            ? new Date(meeting.date).toISOString()
+            : meeting.date
+      }))
+    }
+  };
+};
+
 const getProgramBrief = async (req, args = {}) => {
   const program = await req.db
     .model('Program')
@@ -523,7 +837,10 @@ const registry = {
   get_student_context: getStudentContext,
   get_application_context: getApplicationContext,
   get_recent_communication_context: getRecentCommunicationContext,
+  get_all_communication_context: getAllCommunicationContext,
   get_document_context: getDocumentContext,
+  get_document_thread_context: getDocumentThreadContext,
+  get_crm_lead_meeting_context: getCrmLeadMeetingContext,
   get_support_ticket_context: getSupportTicketContext,
   search_accessible_students: searchAccessibleStudents,
   list_accessible_students: listAccessibleStudents,

@@ -125,7 +125,8 @@ const createLifecyclePostgres = (conversation) => {
     insert: jest.fn(() => ({
       values: jest.fn(() => ({
         returning: jest.fn().mockImplementation(() => {
-          const row = insertedRows[insertIndex] || insertedRows[insertedRows.length - 1];
+          const row =
+            insertedRows[insertIndex] || insertedRows[insertedRows.length - 1];
           insertIndex += 1;
           return Promise.resolve([row]);
         })
@@ -216,7 +217,11 @@ const createAiAssistPostgresWithContext = ({
     from: jest.fn(() => {
       const callIndex = selectCall++;
       const rows =
-        callIndex === 0 ? [conversation] : callIndex === 1 ? messages : toolCalls;
+        callIndex === 0
+          ? [conversation]
+          : callIndex === 1
+          ? messages
+          : toolCalls;
 
       return {
         where: jest.fn(() => ({
@@ -491,7 +496,11 @@ describe('AI Assist Postgres persistence', () => {
     const insertedRows = [
       conversation,
       { id: 'msg_user', role: 'user', content: 'Summarize Abby' },
-      { id: 'msg_assistant', role: 'assistant', content: 'mocked AI Assist answer' }
+      {
+        id: 'msg_assistant',
+        role: 'assistant',
+        content: 'mocked AI Assist answer'
+      }
     ];
     let insertIndex = 0;
     const updateWhere = jest.fn(() => ({
@@ -569,7 +578,9 @@ describe('AI Assist Postgres persistence', () => {
       id: 'conv_1',
       status: 'active'
     });
-    expect(res.send.mock.calls[0][0].data.answer).toBe('mocked AI Assist answer');
+    expect(res.send.mock.calls[0][0].data.answer).toBe(
+      'mocked AI Assist answer'
+    );
     expect(updateSet).toHaveBeenCalledWith(
       expect.objectContaining({
         updatedAt: expect.any(Date),
@@ -1109,15 +1120,15 @@ describe('AI Assist Postgres persistence', () => {
       }
     };
 
-    await expect(getConversation(archivedGetReq, createResponse())).rejects.toThrow(
-      'AI Assist conversation not found'
-    );
+    await expect(
+      getConversation(archivedGetReq, createResponse())
+    ).rejects.toThrow('AI Assist conversation not found');
     await expect(
       updateConversation(archivedUpdateReq, createResponse())
     ).rejects.toThrow('AI Assist conversation not found');
-    await expect(sendMessage(archivedSendReq, createResponse())).rejects.toThrow(
-      'AI Assist conversation not found'
-    );
+    await expect(
+      sendMessage(archivedSendReq, createResponse())
+    ).rejects.toThrow('AI Assist conversation not found');
 
     const listRes = createResponse();
     await listConversations(
@@ -1273,7 +1284,9 @@ describe('AI Assist Postgres persistence', () => {
       id: `conv_dup_${index}`,
       studentId: index % 2 === 0 ? 'student_dup_1' : 'student_dup_2',
       studentDisplayName: index % 2 === 0 ? 'Duplicate One' : 'Duplicate Two',
-      updatedAt: new Date(`2026-04-12T10:${String(index).padStart(2, '0')}:00.000Z`),
+      updatedAt: new Date(
+        `2026-04-12T10:${String(index).padStart(2, '0')}:00.000Z`
+      ),
       status: 'active'
     }));
     const uniqueRows = Array.from({ length: 30 }, (_, index) => ({
@@ -1295,9 +1308,11 @@ describe('AI Assist Postgres persistence', () => {
             where: jest.fn(() => ({
               orderBy: jest.fn(() => ({
                 offset: jest.fn((offsetValue) => ({
-                  limit: jest.fn().mockResolvedValue(
-                    conversationRows.slice(offsetValue, offsetValue + 50)
-                  )
+                  limit: jest
+                    .fn()
+                    .mockResolvedValue(
+                      conversationRows.slice(offsetValue, offsetValue + 50)
+                    )
                 }))
               }))
             }))
@@ -1308,8 +1323,18 @@ describe('AI Assist Postgres persistence', () => {
     getPostgresDb.mockReturnValue(postgres);
     const { req } = createStudentQuickStartReq({
       students: [
-        { _id: 'student_dup_1', firstname: 'Duplicate', lastname: 'One', role: Role.Student },
-        { _id: 'student_dup_2', firstname: 'Duplicate', lastname: 'Two', role: Role.Student },
+        {
+          _id: 'student_dup_1',
+          firstname: 'Duplicate',
+          lastname: 'One',
+          role: Role.Student
+        },
+        {
+          _id: 'student_dup_2',
+          firstname: 'Duplicate',
+          lastname: 'Two',
+          role: Role.Student
+        },
         ...Array.from({ length: 30 }, (_, index) => ({
           _id: `student_${String(index + 1).padStart(2, '0')}`,
           firstname: 'Student',
@@ -1329,9 +1354,7 @@ describe('AI Assist Postgres persistence', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send.mock.calls[0][0].data).toHaveLength(25);
     expect(res.send.mock.calls[0][0].data).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 'student_23' })
-      ])
+      expect.arrayContaining([expect.objectContaining({ id: 'student_23' })])
     );
   });
 
@@ -1429,9 +1452,11 @@ describe('AI Assist Postgres persistence', () => {
     const postgres = {
       insert: jest.fn(() => ({
         values: jest.fn(() => ({
-          returning: jest.fn().mockResolvedValue([
-            { id: 'msg_user', role: 'user', content: 'Find my students' }
-          ])
+          returning: jest
+            .fn()
+            .mockResolvedValue([
+              { id: 'msg_user', role: 'user', content: 'Find my students' }
+            ])
         }))
       })),
       select: jest.fn(() => ({
@@ -1682,9 +1707,9 @@ describe('AI Assist Postgres persistence', () => {
       status: 'success'
     });
     expect(openAIClient.responses.create).toHaveBeenCalledTimes(2);
-    expect(openAIClient.responses.create.mock.calls[0][0].instructions).toContain(
-      'Classify user request into one intent'
-    );
+    expect(
+      openAIClient.responses.create.mock.calls[0][0].instructions
+    ).toContain('Classify user request into one intent');
     expect(insertedValues[2].arguments).toEqual({
       query: 'Abby',
       limit: 10
@@ -2149,9 +2174,9 @@ describe('AI Assist Responses function tool loop', () => {
         .filter((value) => value.toolName)
         .map((value) => value.toolName)
     ).toEqual(['search_accessible_students', 'get_application_context']);
-    expect(openAIClient.responses.create.mock.calls[0][0].instructions).toContain(
-      'Classify user request into one intent'
-    );
+    expect(
+      openAIClient.responses.create.mock.calls[0][0].instructions
+    ).toContain('Classify user request into one intent');
   });
 
   it('executes model-selected communication tools and returns tool outputs to the model', async () => {
@@ -2179,7 +2204,10 @@ describe('AI Assist Responses function tool loop', () => {
       insertedValues
         .filter((value) => value.toolName)
         .map((value) => value.toolName)
-    ).toEqual(['search_accessible_students', 'get_recent_communication_context']);
+    ).toEqual([
+      'search_accessible_students',
+      'get_recent_communication_context'
+    ]);
   });
 });
 
@@ -2585,7 +2613,9 @@ describe('AI Assist CRM lead meeting access', () => {
       select: jest
         .fn()
         .mockImplementationOnce(() => ({
-          from: jest.fn(() => ({ where: jest.fn(() => ({ limit: leadLimit })) }))
+          from: jest.fn(() => ({
+            where: jest.fn(() => ({ limit: leadLimit }))
+          }))
         }))
         .mockImplementationOnce(() => ({
           from: jest.fn(() => ({
@@ -2596,9 +2626,13 @@ describe('AI Assist CRM lead meeting access', () => {
         }))
     });
 
-    const result = await runTool(buildReq(Role.Admin, 'admin_1'), 'get_crm_lead_meeting_context', {
-      studentId: 'student_1'
-    });
+    const result = await runTool(
+      buildReq(Role.Admin, 'admin_1'),
+      'get_crm_lead_meeting_context',
+      {
+        studentId: 'student_1'
+      }
+    );
 
     expect(result.data.lead).toMatchObject({ id: 'lead_1' });
   });

@@ -36,7 +36,9 @@ const aiAssistToolDefinitions = [
     'get_student_context',
     'Get normalized profile context for one accessible TaiGer student.',
     {
-      studentId: stringProperty('TaiGer student id returned by search_students.')
+      studentId: stringProperty(
+        'TaiGer student id returned by search_students.'
+      )
     },
     ['studentId']
   ),
@@ -44,7 +46,9 @@ const aiAssistToolDefinitions = [
     'get_application_context',
     'Get normalized application context for one accessible TaiGer student, including status, risks, and next actions.',
     {
-      studentId: stringProperty('TaiGer student id returned by search_students.')
+      studentId: stringProperty(
+        'TaiGer student id returned by search_students.'
+      )
     },
     ['studentId']
   ),
@@ -52,7 +56,9 @@ const aiAssistToolDefinitions = [
     'get_recent_communication_context',
     'Get normalized recent communication context for one accessible TaiGer student (default 30 days).',
     {
-      studentId: stringProperty('TaiGer student id returned by search_students.'),
+      studentId: stringProperty(
+        'TaiGer student id returned by search_students.'
+      ),
       limit: integerProperty('Maximum number of messages to return.', 50),
       days: integerProperty('How many recent days to include.', 90)
     },
@@ -62,7 +68,9 @@ const aiAssistToolDefinitions = [
     'get_all_communication_context',
     'Get normalized all-time communication context for one accessible TaiGer student with capped message volume.',
     {
-      studentId: stringProperty('TaiGer student id returned by search_students.'),
+      studentId: stringProperty(
+        'TaiGer student id returned by search_students.'
+      ),
       limit: integerProperty('Maximum number of messages to return.', 200)
     },
     ['studentId']
@@ -71,7 +79,9 @@ const aiAssistToolDefinitions = [
     'get_document_context',
     'Get normalized profile document context for one accessible TaiGer student, including missing required documents.',
     {
-      studentId: stringProperty('TaiGer student id returned by search_students.')
+      studentId: stringProperty(
+        'TaiGer student id returned by search_students.'
+      )
     },
     ['studentId']
   ),
@@ -79,7 +89,9 @@ const aiAssistToolDefinitions = [
     'get_support_ticket_context',
     'Get normalized support ticket context for one accessible TaiGer student.',
     {
-      studentId: stringProperty('TaiGer student id returned by search_students.'),
+      studentId: stringProperty(
+        'TaiGer student id returned by search_students.'
+      ),
       limit: integerProperty('Maximum number of tickets to return.', 25)
     },
     ['studentId']
@@ -88,7 +100,9 @@ const aiAssistToolDefinitions = [
     'get_document_thread_context',
     'Get normalized document thread status and recent messages for one accessible TaiGer student.',
     {
-      studentId: stringProperty('TaiGer student id returned by search_students.')
+      studentId: stringProperty(
+        'TaiGer student id returned by search_students.'
+      )
     },
     ['studentId']
   ),
@@ -96,7 +110,9 @@ const aiAssistToolDefinitions = [
     'get_crm_lead_meeting_context',
     'Get CRM lead + meetings transcript context for one accessible TaiGer student, with role and assignment checks.',
     {
-      studentId: stringProperty('TaiGer student id returned by search_students.'),
+      studentId: stringProperty(
+        'TaiGer student id returned by search_students.'
+      ),
       limit: integerProperty('Maximum number of meetings to return.', 20)
     },
     ['studentId']
@@ -175,7 +191,9 @@ const aiAssistToolDefinitions = [
     'get_program_brief',
     'Get basic program facts for a TaiGer program id seen in prior tool output.',
     {
-      programId: stringProperty('TaiGer program id from application tool output.')
+      programId: stringProperty(
+        'TaiGer program id from application tool output.'
+      )
     },
     ['programId']
   )

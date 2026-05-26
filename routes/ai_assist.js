@@ -33,7 +33,9 @@ router
   .route('/students/recent')
   .get(GeneralGETRequestRateLimiter, listRecentStudents);
 
-router.route('/students/mine').get(GeneralGETRequestRateLimiter, listMyStudents);
+router
+  .route('/students/mine')
+  .get(GeneralGETRequestRateLimiter, listMyStudents);
 
 router
   .route('/students/search')

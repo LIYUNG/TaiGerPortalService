@@ -6,7 +6,8 @@ function normalizeUser(user) {
 
   return {
     id: user._id?.toString?.() || user.id,
-    name: [user.firstname, user.lastname].filter(Boolean).join(' ') || undefined,
+    name:
+      [user.firstname, user.lastname].filter(Boolean).join(' ') || undefined,
     chineseName:
       [user.lastname_chinese, user.firstname_chinese]
         .filter(Boolean)
@@ -111,11 +112,7 @@ function extractEditorText(rawMessage) {
       return editorText.map(stripHtml).filter(Boolean).join('\n').trim();
     }
 
-    return collectText(parsed)
-      .map(stripHtml)
-      .filter(Boolean)
-      .join('\n')
-      .trim();
+    return collectText(parsed).map(stripHtml).filter(Boolean).join('\n').trim();
   } catch (error) {
     return stripHtml(rawMessage) || '';
   }

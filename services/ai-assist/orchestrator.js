@@ -37,13 +37,15 @@ const INTENT_TOOL_PLAN = Object.freeze({
   student_documents: ['get_document_context']
 });
 
-const buildStudentToolStep = (toolName, extraArgs = {}) => (student) => ({
-  toolName,
-  args: {
-    studentId: student.id,
-    ...extraArgs
-  }
-});
+const buildStudentToolStep =
+  (toolName, extraArgs = {}) =>
+  (student) => ({
+    toolName,
+    args: {
+      studentId: student.id,
+      ...extraArgs
+    }
+  });
 
 const SKILL_PLANS = Object.freeze({
   summarize_student: {
@@ -215,7 +217,10 @@ const stripAssistControlTokens = (message = '', assistContext = {}) => {
     );
   }
 
-  return promptText.replace(/#[a-z_]+/gi, ' ').replace(/\s+/g, ' ').trim();
+  return promptText
+    .replace(/#[a-z_]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 };
 
 const languageNameFromPreference = (preferredLanguage = 'en') => {
@@ -420,8 +425,8 @@ const resolveAssistContext = ({
   const studentSource = explicitStudent
     ? 'assist_context'
     : contextStudent
-      ? 'conversation_active'
-      : null;
+    ? 'conversation_active'
+    : null;
   const candidateSkill =
     requestedSkill || (!unknownSkillText ? autoDetectSkill(message) : null);
   let resolvedSkill = candidateSkill;
@@ -456,7 +461,9 @@ const getResponseText = (response) => {
     return response.output_text;
   }
 
-  const message = (response?.output || []).find((item) => item.type === 'message');
+  const message = (response?.output || []).find(
+    (item) => item.type === 'message'
+  );
   const textParts = message?.content || [];
   return textParts
     .map((part) => part.text || part.content || '')
@@ -577,7 +584,12 @@ const executeSkillStep = async (req, step, { onProgress } = {}) => {
   };
 };
 
-const executeIntentTool = async (req, toolName, args = {}, { onProgress } = {}) => {
+const executeIntentTool = async (
+  req,
+  toolName,
+  args = {},
+  { onProgress } = {}
+) => {
   const startedAt = Date.now();
   await safeEmitProgress(onProgress, {
     type: 'tool_start',
@@ -630,7 +642,10 @@ const buildStudentResolutionReply = (resolutionResult) => {
   if (resolutionResult.status === 'ambiguous') {
     const options = (resolutionResult.candidates || [])
       .slice(0, 5)
-      .map((candidate, index) => `${index + 1}. ${formatStudentCandidate(candidate)}`)
+      .map(
+        (candidate, index) =>
+          `${index + 1}. ${formatStudentCandidate(candidate)}`
+      )
       .join('\n');
 
     return `Multiple students matched. Please choose one:\n${options}`;
@@ -710,9 +725,14 @@ const runIntentPlan = async ({
   const toolContext = {};
 
   for (const toolName of toolNames) {
-    const toolTrace = await executeIntentTool(req, toolName, {
-      studentId: resolvedStudent?.student?.id
-    }, { onProgress });
+    const toolTrace = await executeIntentTool(
+      req,
+      toolName,
+      {
+        studentId: resolvedStudent?.student?.id
+      },
+      { onProgress }
+    );
     trace.push(toolTrace);
     toolContext[toolName] = toolTrace.result;
   }
@@ -869,7 +889,8 @@ const buildSkillTraceSteps = (trace = []) =>
     toolName: step.toolName,
     status: step.status,
     arguments: step.arguments,
-    description: aiAssistToolDefinitionsByName[step.toolName]?.description || null
+    description:
+      aiAssistToolDefinitionsByName[step.toolName]?.description || null
   }));
 
 const runSkillPlan = async ({
@@ -886,11 +907,9 @@ const runSkillPlan = async ({
 
   for (const createStep of plan.steps) {
     trace.push(
-      await executeSkillStep(
-        req,
-        createStep(resolvedAssistContext.student),
-        { onProgress }
-      )
+      await executeSkillStep(req, createStep(resolvedAssistContext.student), {
+        onProgress
+      })
     );
   }
 
@@ -899,10 +918,7 @@ const runSkillPlan = async ({
     phase: 'answer_composer',
     message: 'Composing skill answer'
   });
-  const {
-    response,
-    answer
-  } = await generateAnswerFromInput({
+  const { response, answer } = await generateAnswerFromInput({
     onToken,
     instructions: `${instructions} ${languagePolicyInstructions} ${plan.synthesisInstruction} Use only the provided skill data. Do not call tools.`,
     input: buildSkillSynthesisInput({
@@ -924,7 +940,9 @@ const runSkillPlan = async ({
     linkHintCandidates: (() => {
       const byKey = new Map();
       addStudentCandidate(resolvedAssistContext.student, byKey);
-      trace.forEach((step) => collectProgramCandidatesFromValue(step.result, byKey));
+      trace.forEach((step) =>
+        collectProgramCandidatesFromValue(step.result, byKey)
+      );
       return Array.from(byKey.values());
     })(),
     skillTrace: {
@@ -978,7 +996,9 @@ const runResponsesToolLoop = async ({
         activeStudentSource: null,
         linkHintCandidates: (() => {
           const byKey = new Map();
-          trace.forEach((step) => collectProgramCandidatesFromValue(step.result, byKey));
+          trace.forEach((step) =>
+            collectProgramCandidatesFromValue(step.result, byKey)
+          );
           return Array.from(byKey.values());
         })()
       };
@@ -990,7 +1010,11 @@ const runResponsesToolLoop = async ({
       )
     );
     trace.push(...toolResults.map((toolResult) => toolResult.trace));
-    input = [...input, ...functionCalls, ...toolResults.map((item) => item.output)];
+    input = [
+      ...input,
+      ...functionCalls,
+      ...toolResults.map((item) => item.output)
+    ];
   }
 
   return {
@@ -1002,7 +1026,9 @@ const runResponsesToolLoop = async ({
     activeStudentSource: null,
     linkHintCandidates: (() => {
       const byKey = new Map();
-      trace.forEach((step) => collectProgramCandidatesFromValue(step.result, byKey));
+      trace.forEach((step) =>
+        collectProgramCandidatesFromValue(step.result, byKey)
+      );
       return Array.from(byKey.values());
     })()
   };
@@ -1211,8 +1237,7 @@ const runAiAssist = async (
     answer,
     candidates: result.linkHintCandidates || []
   });
-  const normalizedAnswer =
-    answerReferences?.answer || answer;
+  const normalizedAnswer = answerReferences?.answer || answer;
   const linkHints =
     answerReferences?.linkHints &&
     typeof answerReferences.linkHints === 'object'
@@ -1266,7 +1291,8 @@ const runAiAssist = async (
     assistantMessage,
     answer: normalizedAnswer,
     trace,
-    activeStudent: result.activeStudent || resolvedAssistContext.student || null,
+    activeStudent:
+      result.activeStudent || resolvedAssistContext.student || null,
     activeStudentSource:
       result.activeStudentSource || resolvedAssistContext.studentSource || null,
     skillTrace: assistantMessage?.skillTrace || result.skillTrace || null,

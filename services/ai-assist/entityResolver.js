@@ -13,8 +13,9 @@ const normalizeResolvedStudent = (student, fallbackDisplayName = null) => ({
   id: student._id?.toString?.() || student.id,
   name: formatStudentName(student, fallbackDisplayName),
   chineseName:
-    [student.lastname_chinese, student.firstname_chinese].filter(Boolean).join('') ||
-    undefined,
+    [student.lastname_chinese, student.firstname_chinese]
+      .filter(Boolean)
+      .join('') || undefined,
   email: student.email,
   applyingProgramCount: student.applying_program_count
 });
@@ -51,7 +52,11 @@ const resolveStudent = async (req, studentQuery) => {
   };
 };
 
-const resolveStudentById = async (req, studentId, fallbackDisplayName = null) => {
+const resolveStudentById = async (
+  req,
+  studentId,
+  fallbackDisplayName = null
+) => {
   const normalizedStudentId =
     typeof studentId === 'string' ? studentId.trim() : '';
 

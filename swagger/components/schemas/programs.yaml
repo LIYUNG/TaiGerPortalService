@@ -298,9 +298,21 @@ ProgramListResponse:
       type: array
       items:
         $ref: '#/ProgramListItem'
+    total:
+      type: integer
+      example: 120
+    page:
+      type: integer
+      example: 1
+    limit:
+      type: integer
+      example: 20
   required:
     - success
     - data
+    - total
+    - page
+    - limit
 
 ProgramDetailResponse:
   type: object

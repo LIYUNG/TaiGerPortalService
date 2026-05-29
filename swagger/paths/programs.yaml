@@ -63,9 +63,89 @@
   get:
     tags:
       - Programs
-    summary: Get all programs
-    description: Retrieve a list of all programs
+    summary: Get programs (paginated)
+    description: Retrieve a paginated list of active programs
     operationId: getPrograms
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        description: Page number (1-based)
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of programs per page
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Case-insensitive search across school, program, country, degree, language, and test score fields
+      - name: school
+        in: query
+        schema:
+          type: string
+      - name: program_name
+        in: query
+        schema:
+          type: string
+      - name: country
+        in: query
+        schema:
+          type: string
+        description: Comma-separated country codes
+      - name: programSubjects
+        in: query
+        schema:
+          type: string
+        description: Comma-separated program subject codes
+      - name: tags
+        in: query
+        schema:
+          type: string
+        description: Comma-separated school tag codes
+      - name: lockStatus
+        in: query
+        schema:
+          type: string
+          enum: [Locked, Unlocked]
+      - name: degree
+        in: query
+        schema:
+          type: string
+      - name: semester
+        in: query
+        schema:
+          type: string
+      - name: lang
+        in: query
+        schema:
+          type: string
+      - name: sortBy
+        in: query
+        schema:
+          type: string
+          enum:
+            - school
+            - program_name
+            - country
+            - degree
+            - semester
+            - updatedAt
+            - application_deadline
+          default: school
+      - name: sortOrder
+        in: query
+        schema:
+          type: string
+          enum: [asc, desc]
+          default: asc
     responses:
       '200':
         description: Programs retrieved successfully

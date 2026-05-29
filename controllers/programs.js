@@ -446,15 +446,16 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
 });
 
 const getPrograms = asyncHandler(async (req, res) => {
-  const programs = await req.db
-    .model('Program')
-    .find({ isArchiv: { $ne: true } })
-    .select(
-      '-tuition_fees -website -special_notes -comments -optionalDocuments -requiredDocuments -uni_assist -daad_link -ml_required -ml_requirements -rl_required -essay_required -essay_requirements -application_portal_a -application_portal_b -fpso -program_duration -deprecated'
-    )
-    .lean();
+  const { programs, total, page, limit } =
+    await ProgramService.getProgramsPaginated(req, req.query);
 
-  res.send({ success: true, data: programs });
+  res.send({
+    success: true,
+    data: programs,
+    total,
+    page,
+    limit
+  });
 });
 
 const getStudentsByProgram = asyncHandler(async (req, programId) => {

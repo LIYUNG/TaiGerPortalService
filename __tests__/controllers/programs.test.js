@@ -68,16 +68,85 @@ describe('GET /api/programs', () => {
     req.user = admin;
     next();
   });
-  it('should return all programs', async () => {
+  it('should return paginated programs', async () => {
     const resp = await requestWithSupertest
       .get('/api/programs')
       .set('tenantId', TENANT_ID);
-    const { success, data } = resp.body;
+    const { success, data, total, page, limit } = resp.body;
 
     expect(resp.status).toBe(200);
     expect(success).toBe(true);
     expect(data).toEqual(expect.any(Array));
+    expect(total).toBe(programs.length);
+    expect(page).toBe(1);
+    expect(limit).toBe(20);
     expect(data.length).toBe(programs.length);
+  });
+
+  it('should respect page and limit query params', async () => {
+    const resp = await requestWithSupertest
+      .get('/api/programs?page=1&limit=2')
+      .set('tenantId', TENANT_ID);
+    const { data, total, page, limit } = resp.body;
+
+    expect(resp.status).toBe(200);
+    expect(data.length).toBe(2);
+    expect(total).toBe(programs.length);
+    expect(page).toBe(1);
+    expect(limit).toBe(2);
+  });
+
+  it('should filter programs by global search', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const ProgramModel = db.model('Program', programSchema);
+    const targetSchool = 'UniqueSearchableSchoolXYZ';
+
+    await ProgramModel.create({
+      ...generateProgram(),
+      school: targetSchool,
+      program_name: 'Searchable Program',
+      isArchiv: false
+    });
+
+    const resp = await requestWithSupertest
+      .get('/api/programs?search=UniqueSearchableSchool')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    expect(resp.body.total).toBeGreaterThanOrEqual(1);
+    expect(
+      resp.body.data.some((program) => program.school === targetSchool)
+    ).toBe(true);
+  });
+
+  it('should filter programs by column filters', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const ProgramModel = db.model('Program', programSchema);
+    const targetSchool = 'ColumnFilterSchoolXYZ';
+
+    await ProgramModel.create({
+      ...generateProgram(),
+      school: targetSchool,
+      country: 'de',
+      isArchiv: false
+    });
+
+    const resp = await requestWithSupertest
+      .get(
+        `/api/programs?school=${encodeURIComponent(
+          'ColumnFilterSchool'
+        )}&country=de`
+      )
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    expect(resp.body.total).toBeGreaterThanOrEqual(1);
+    expect(resp.body.data.every((program) => program.country === 'de')).toBe(
+      true
+    );
+    expect(
+      resp.body.data.some((program) => program.school === targetSchool)
+    ).toBe(true);
   });
 });
 

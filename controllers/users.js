@@ -212,13 +212,54 @@ const addUser = asyncHandler(async (req, res, next) => {
 });
 
 const getUsers = asyncHandler(async (req, res) => {
-  const { agents, editors, archiv, role } = req.query;
-  const { filter } = new UserQueryBuilder()
+  const {
+    agents,
+    editors,
+    archiv,
+    role,
+    page,
+    limit,
+    search,
+    sortBy,
+    sortOrder
+  } = req.query;
+
+  const builder = new UserQueryBuilder()
     .withEditors(editors ? new mongoose.Types.ObjectId(editors) : null)
     .withAgents(agents ? new mongoose.Types.ObjectId(agents) : null)
     .withArchiv(archiv)
-    .withRole(role)
-    .build();
+    .withRole(role);
+
+  const { filter } = builder.build();
+  const isPaginated = page !== undefined || limit !== undefined;
+
+  if (isPaginated) {
+    const paginationQuery = UserService.parseUsersPaginationQuery({
+      page,
+      limit,
+      search,
+      sortBy,
+      sortOrder
+    });
+
+    const {
+      users,
+      total,
+      page: currentPage,
+      limit: pageSize
+    } = await UserService.getUsersPaginated(req, {
+      filter,
+      ...paginationQuery
+    });
+
+    return res.status(200).send({
+      success: true,
+      data: users,
+      total,
+      page: currentPage,
+      limit: pageSize
+    });
+  }
 
   const users = await UserService.getUsers(req, filter);
   res.status(200).send({ success: true, data: users });

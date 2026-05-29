@@ -2,9 +2,62 @@
   get:
     tags:
       - Users
-    summary: Get all users
-    description: Get all users in the system
+    summary: Get users
+    description: Get users in the system. Returns all users by default, or a paginated result when page or limit is provided.
     operationId: getAllUsers
+    parameters:
+      - name: role
+        in: query
+        schema:
+          type: string
+      - name: agents
+        in: query
+        schema:
+          type: string
+      - name: editors
+        in: query
+        schema:
+          type: string
+      - name: archiv
+        in: query
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Case-insensitive search on name and email fields
+      - name: sortBy
+        in: query
+        schema:
+          type: string
+          enum:
+            - firstname
+            - lastname
+            - email
+            - role
+            - lastLoginAt
+            - createdAt
+          default: lastname
+      - name: sortOrder
+        in: query
+        schema:
+          type: string
+          enum: [asc, desc]
+          default: asc
     responses:
       '200':
         description: Users retrieved successfully

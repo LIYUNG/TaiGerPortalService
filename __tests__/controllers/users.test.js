@@ -84,6 +84,39 @@ describe('GET /api/users', () => {
     expect(data).toEqual(expect.any(Array));
     expect(data.length).toBe(users.length);
   });
+
+  it('should return paginated users', async () => {
+    const resp = await requestWithSupertest
+      .get('/api/users?page=1&limit=5')
+      .set('tenantId', TENANT_ID);
+    const { success, data, total, page, limit } = resp.body;
+
+    expect(resp.status).toBe(200);
+    expect(success).toBe(true);
+    expect(data.length).toBe(5);
+    expect(total).toBe(users.length);
+    expect(page).toBe(1);
+    expect(limit).toBe(5);
+  });
+
+  it('should filter paginated users by search', async () => {
+    const targetUser = agents[0];
+    const resp = await requestWithSupertest
+      .get(
+        `/api/users?page=1&limit=20&search=${encodeURIComponent(
+          targetUser.firstname
+        )}`
+      )
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    expect(resp.body.total).toBeGreaterThanOrEqual(1);
+    expect(
+      resp.body.data.some(
+        (user) => user._id.toString() === targetUser._id.toString()
+      )
+    ).toBe(true);
+  });
 });
 
 // TODO: move below to their own files?

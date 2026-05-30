@@ -22,7 +22,6 @@ const {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
   getStudentsAndDocLinks,
-  getStudents,
   getStudent,
   getStudentsByIds,
   updateStudentsArchivStatus,
@@ -59,24 +58,6 @@ const {
 const router = Router();
 
 router.use(protect);
-
-router
-  .route('/')
-  .get(
-    GeneralGETRequestRateLimiter,
-    permit(
-      Role.Admin,
-      Role.Manager,
-      Role.Agent,
-      Role.Editor,
-      Role.Student,
-      Role.External,
-      Role.Guest
-    ),
-    permission_canAccessStudentDatabase_filter,
-    getStudents,
-    logAccess
-  );
 
 router
   .route('/v3')

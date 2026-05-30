@@ -449,23 +449,6 @@ describe('POST /api/students/:studentId/files/:category', () => {
 //   });
 // });
 
-describe('GET /api/students', () => {
-  beforeEach(() => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
-    });
-  });
-
-  it('should return all students for admin', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/students')
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-  });
-});
-
 describe('GET /api/students/active', () => {
   beforeEach(() => {
     protect.mockImplementation(async (req, res, next) => {

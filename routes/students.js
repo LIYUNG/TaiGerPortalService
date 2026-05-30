@@ -312,7 +312,7 @@ router
   .get(
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     permission_canAccessStudentDatabase_filter,
     multitenant_filter,
     getStudent,

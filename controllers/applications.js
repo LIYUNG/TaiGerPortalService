@@ -19,6 +19,7 @@ const ApplicationService = require('../services/applications');
 const UserService = require('../services/users');
 const StudentService = require('../services/students');
 const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
+const UserQueryBuilder = require('../builders/UserQueryBuilder');
 
 const getApplications = asyncHandler(async (req, res) => {
   const {
@@ -82,9 +83,25 @@ const getMyStudentsApplications = asyncHandler(async (req, res) => {
 });
 
 const getActiveStudentsApplications = asyncHandler(async (req, res) => {
+  const { filter } = new UserQueryBuilder()
+    .withRole(Role.Student)
+    .withArchiv(false)
+    .build();
+
+  const activeStudents = await StudentService.getStudents(req, {
+    filter,
+    options: {}
+  });
+
   const applications = await ApplicationService.getActiveStudentsApplications(
     req,
-    {}
+    {
+      filter: {
+        studentId: {
+          $in: activeStudents.map((student) => student._id.toString())
+        }
+      }
+    }
   );
 
   res.status(200).send({

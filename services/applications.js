@@ -12,7 +12,7 @@ const ApplicationService = {
     });
     return application;
   },
-  async getActiveStudentsApplications(req, filter) {
+  async getActiveStudentsApplications(req, { filter = {}, options = {} }) {
     const applications = await req.db
       .model('Application')
       .find(filter)
@@ -36,10 +36,8 @@ const ApplicationService = {
       )
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
-    const filteredApplications = applications.filter(
-      (app) => app.studentId.archiv !== true
-    );
-    return filteredApplications;
+
+    return applications;
   },
   async getStudentsApplicationsByTaiGerUserId(
     req,

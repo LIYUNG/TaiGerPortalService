@@ -29,6 +29,7 @@ const {
   assignEditorToStudent,
   assignAttributesToStudent,
   getStudentsV3,
+  getStudentsV3Paginated,
   getActiveStudents
 } = require('../controllers/students');
 const {
@@ -66,6 +67,16 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
     getStudentsV3,
+    logAccess
+  );
+
+router
+  .route('/v3/paginated')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    permission_canAccessStudentDatabase_filter,
+    getStudentsV3Paginated,
     logAccess
   );
 

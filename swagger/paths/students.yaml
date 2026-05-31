@@ -65,6 +65,89 @@
       '403':
         $ref: '../components/responses/common.yaml#/Forbidden'
 
+/api/students/v3/paginated:
+  get:
+    tags:
+      - Students
+    summary: Get students (v3, paginated)
+    description: >
+      Server-side paginated, sorted and searchable students list. Supports the
+      same filtering surface as the client table (name, agent/editor names,
+      attributes, university, application preference) plus a free-text search.
+    operationId: getStudentsV3Paginated
+    parameters:
+      - { name: page, in: query, schema: { type: integer, default: 1 } }
+      - {
+          name: limit,
+          in: query,
+          schema: { type: integer, default: 20, maximum: 100 }
+        }
+      - name: sortBy
+        in: query
+        schema:
+          type: string
+          enum:
+            - name_en
+            - name_zh
+            - archiv
+            - agentNames
+            - editorNames
+            - attended_university
+            - attended_university_program
+            - application_year
+            - target_degree
+            - application_semester
+      - {
+          name: sortOrder,
+          in: query,
+          schema: { type: string, enum: [asc, desc], default: asc }
+        }
+      - { name: search, in: query, schema: { type: string } }
+      - { name: archiv, in: query, schema: { type: boolean } }
+      - { name: agents, in: query, schema: { type: string } }
+      - { name: editors, in: query, schema: { type: string } }
+      - { name: name_en, in: query, schema: { type: string } }
+      - { name: name_zh, in: query, schema: { type: string } }
+      - { name: agentNames, in: query, schema: { type: string } }
+      - { name: editorNames, in: query, schema: { type: string } }
+      - { name: attributesString, in: query, schema: { type: string } }
+      - { name: attended_university, in: query, schema: { type: string } }
+      - {
+          name: attended_university_program,
+          in: query,
+          schema: { type: string }
+        }
+      - { name: application_year, in: query, schema: { type: string } }
+      - { name: target_degree, in: query, schema: { type: string } }
+      - { name: application_semester, in: query, schema: { type: string } }
+    responses:
+      '200':
+        description: Paginated students retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    students:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/students.yaml#/StudentListItem'
+                    total:
+                      type: integer
+                    page:
+                      type: integer
+                    limit:
+                      type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
 /api/students/batch:
   get:
     tags:

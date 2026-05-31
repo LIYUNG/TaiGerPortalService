@@ -249,6 +249,23 @@ const getStudentsV3 = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const getStudentsV3Paginated = asyncHandler(async (req, res, next) => {
+  const { editors, agents, archiv } = req.query;
+  const { filter } = new UserQueryBuilder()
+    .withEditors(editors)
+    .withAgents(agents)
+    .withArchiv(archiv)
+    .build();
+
+  const result = await StudentService.getStudentsPaginated(req, {
+    filter,
+    query: req.query
+  });
+
+  res.status(200).send({ success: true, data: result });
+  next();
+});
+
 const getStudent = asyncHandler(async (req, res, next) => {
   const {
     params: { studentId }
@@ -696,6 +713,7 @@ module.exports = {
   updateDocumentationHelperLink,
   getActiveStudents,
   getStudentsV3,
+  getStudentsV3Paginated,
   getStudent,
   getStudentsByIds,
   getStudentsAndDocLinks,

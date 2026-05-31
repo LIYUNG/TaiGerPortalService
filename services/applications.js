@@ -444,6 +444,112 @@ const ApplicationService = {
 
     return { applications: docs, total, page, limit };
   },
+
+  /**
+   * Deadline distribution for the "Open Applications Distribution" chart,
+   * computed entirely in the DB so only the {name, active, potentials} buckets
+   * are returned (not the full application set).
+   *
+   * Mirrors the frontend frequencyDistribution + application_deadline_V2_calculator:
+   * - only OPEN applications (closed === '-');
+   * - bucketed by the derived deadline string ("YYYY/MM/DD" or "{year}-Rolling",
+   *   with the WS/SS year-prior adjustment);
+   * - kept when the deadline is within ~1 year (or rolling);
+   * - `active` = decided ('O'), `potentials` = undecided ('-').
+   *
+   * @param {string[]} studentIds active/supervised student ids to scope to
+   * @returns {Array<{ name: string, active: number, potentials: number }>}
+   */
+  async getActiveStudentsApplicationsDeadlineDistribution(
+    req,
+    { studentIds = [] }
+  ) {
+    const Application = req.db.model('Application');
+    if (studentIds.length === 0) {
+      return [];
+    }
+
+    const objectIds = studentIds.map(
+      (id) => new mongoose.Types.ObjectId(id.toString())
+    );
+    // Frontend keeps deadlines with differenceInDays(deadline, now) < 365, i.e.
+    // earlier than one year from now (rolling deadlines are kept separately).
+    const cutoff = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+    const pipeline = [
+      { $match: { studentId: { $in: objectIds }, closed: '-' } },
+      {
+        $lookup: {
+          from: 'programs',
+          let: { pid: '$programId' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$_id', '$$pid'] } } },
+            { $project: { semester: 1, application_deadline: 1 } }
+          ],
+          as: 'prog'
+        }
+      },
+      { $unwind: { path: '$prog', preserveNullAndEmptyArrays: false } },
+      ...DEADLINE_DATE_STAGES,
+      {
+        $addFields: {
+          // Bucket label matching application_deadline_V2_calculator output.
+          bucketKey: {
+            $cond: [
+              '$_isRolling',
+              {
+                $concat: [{ $ifNull: ['$application_year', ''] }, '-Rolling']
+              },
+              {
+                $cond: [
+                  { $ne: ['$deadlineDate', null] },
+                  {
+                    $concat: [
+                      { $toString: '$_dlYear' },
+                      '/',
+                      { $toString: { $arrayElemAt: ['$_dlParts', 0] } },
+                      '/',
+                      { $toString: { $arrayElemAt: ['$_dlParts', 1] } }
+                    ]
+                  },
+                  null
+                ]
+              }
+            ]
+          }
+        }
+      },
+      // Keep rolling, or real deadlines within the next year.
+      {
+        $match: {
+          $or: [{ _isRolling: true }, { deadlineDate: { $lt: cutoff } }]
+        }
+      },
+      { $match: { bucketKey: { $ne: null } } },
+      {
+        $group: {
+          _id: '$bucketKey',
+          active: { $sum: { $cond: [{ $eq: ['$decided', 'O'] }, 1, 0] } },
+          potentials: { $sum: { $cond: [{ $eq: ['$decided', '-'] }, 1, 0] } }
+        }
+      },
+      // Drop empty date buckets; rolling buckets are kept regardless.
+      {
+        $match: {
+          $or: [
+            { _id: { $regex: 'Rolling', $options: 'i' } },
+            { active: { $gt: 0 } },
+            { potentials: { $gt: 0 } }
+          ]
+        }
+      },
+      { $project: { _id: 0, name: '$_id', active: 1, potentials: 1 } },
+      { $sort: { name: 1 } }
+    ];
+
+    return Application.aggregate(pipeline).allowDiskUse(true);
+  },
+
   async getStudentsApplicationsByTaiGerUserId(
     req,
     userId,

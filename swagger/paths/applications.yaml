@@ -230,6 +230,52 @@
       '403':
         $ref: '../components/responses/common.yaml#/Forbidden'
 
+/api/applications/distribution:
+  get:
+    tags:
+      - Applications
+    summary: Open applications deadline distribution
+    description: >
+      Deadline distribution for the chart, computed in the DB. Returns only the
+      buckets ({name, active, potentials}) — name is the derived deadline label
+      ("YYYY/MM/DD" or "{year}-Rolling"), active = decided, potentials = undecided.
+      Without `userId` it covers all active students; with `userId` it scopes to
+      the students that TaiGer user supervises (agent or editor).
+    operationId: getApplicationsDeadlineDistribution
+    parameters:
+      - in: query
+        name: userId
+        required: false
+        schema:
+          type: string
+        description: Optional agent/editor id to scope the distribution to.
+    responses:
+      '200':
+        description: Distribution retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        example: '2025/01/15'
+                      active:
+                        type: integer
+                      potentials:
+                        type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
 /api/applications/student/{studentId}/{application_id}:
   put:
     tags:

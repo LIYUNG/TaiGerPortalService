@@ -19,6 +19,7 @@ const {
   getActiveStudentsApplications,
   getActiveStudentsApplicationsPaginated,
   getMyStudentsApplicationsPaginated,
+  getApplicationsDeadlineDistribution,
   updateApplication,
   refreshApplication
 } = require('../controllers/applications');
@@ -72,6 +73,14 @@ router
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     getActiveStudentsApplicationsPaginated
+  );
+
+router
+  .route('/distribution')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getApplicationsDeadlineDistribution
   );
 
 router.route('/student/:studentId/:application_id').put(

@@ -173,6 +173,43 @@ const getMyStudentsApplicationsPaginated = asyncHandler(async (req, res) => {
   });
 });
 
+// Open-applications deadline distribution. Without `userId` it covers all
+// active students; with `userId` it scopes to the students that TaiGer user
+// supervises (as agent OR editor).
+const getApplicationsDeadlineDistribution = asyncHandler(async (req, res) => {
+  const { userId } = req.query;
+
+  const { filter } = new UserQueryBuilder()
+    .withRole(Role.Student)
+    .withArchiv(false)
+    .build();
+
+  if (userId) {
+    const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, supervisionOr];
+      delete filter.$or;
+    } else {
+      Object.assign(filter, supervisionOr);
+    }
+  }
+
+  const students = await StudentService.getStudents(req, {
+    filter,
+    options: {}
+  });
+
+  const data =
+    await ApplicationService.getActiveStudentsApplicationsDeadlineDistribution(
+      req,
+      {
+        studentIds: students.map((student) => student._id.toString())
+      }
+    );
+
+  res.status(200).send({ success: true, data });
+});
+
 const getStudentApplications = asyncHandler(async (req, res) => {
   const {
     user,
@@ -644,6 +681,7 @@ module.exports = {
   getMyStudentsApplicationsPaginated,
   getActiveStudentsApplications,
   getActiveStudentsApplicationsPaginated,
+  getApplicationsDeadlineDistribution,
   getStudentApplications,
   updateStudentApplications,
   updateApplication,

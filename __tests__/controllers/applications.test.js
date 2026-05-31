@@ -1,4 +1,5 @@
 const fs = require('fs');
+const mongoose = require('mongoose');
 const request = require('supertest');
 
 const { UPLOAD_PATH } = require('../../config');
@@ -333,5 +334,252 @@ describe('DELETE /api/applications/application/:applicationId', () => {
       .set('tenantId', TENANT_ID);
     // why TODO:Got 5
     expect(resp3_std.body.data.applications).toHaveLength(1);
+  });
+});
+
+// Paginated / sorted / searchable active applications
+describe('GET /api/applications/all/active/applications/paginated', () => {
+  const PAGINATED_URL = '/api/applications/all/active/applications/paginated';
+
+  // Programs with deterministic string deadlines + semesters so the derived
+  // deadlineDate is predictable. With application_year 2025:
+  //   Alpha: WS, 01-15 -> month 1 (<=9) -> 2025/01/15
+  //   Beta : SS, 05-01 -> month 5 (>3)  -> 2024/05/01
+  //   Gamma: WS, 11-30 -> month 11 (>9) -> 2024/11/30
+  // => deadlineDate ascending order is Beta, Gamma, Alpha.
+  const progAlpha = {
+    ...program1,
+    _id: undefined,
+    program_name: 'Alpha Program',
+    school: 'Aalto University',
+    country: 'Finland',
+    semester: 'WS',
+    application_deadline: '01-15'
+  };
+  const progBeta = {
+    ...program1,
+    _id: undefined,
+    program_name: 'Beta Program',
+    school: 'Berlin University',
+    country: 'Germany',
+    semester: 'SS',
+    application_deadline: '05-01'
+  };
+  const progGamma = {
+    ...program1,
+    _id: undefined,
+    program_name: 'Gamma Program',
+    school: 'Cologne University',
+    country: 'Germany',
+    semester: 'WS',
+    application_deadline: '11-30'
+  };
+
+  beforeEach(async () => {
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = agent;
+      next();
+    });
+
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const ProgramModel = db.model('Program', programSchema);
+    const ApplicationModel = db.model('Application');
+
+    const created = await ProgramModel.insertMany([
+      progAlpha,
+      progBeta,
+      progGamma
+    ]);
+    const [alpha, beta, gamma] = created;
+
+    await ApplicationModel.insertMany(
+      [alpha, beta, gamma].map((prog) => ({
+        studentId: student._id,
+        programId: prog._id,
+        application_year: '2025',
+        decided: 'O',
+        closed: '-'
+      }))
+    );
+  });
+
+  const deadlineNames = (resp) =>
+    resp.body.data.applications.map(
+      (application) => application.programId.program_name
+    );
+
+  it('returns the deadline-ascending page with a total count', async () => {
+    const resp = await requestWithSupertest
+      .get(`${PAGINATED_URL}?page=1&limit=20&sortBy=deadline&sortOrder=asc`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    expect(resp.body.data.total).toBe(3);
+    // Derived deadlineDate ordering (the tricky year-adjustment part).
+    expect(deadlineNames(resp)).toEqual([
+      'Beta Program',
+      'Gamma Program',
+      'Alpha Program'
+    ]);
+  });
+
+  it('paginates: limit caps the page while total stays the full count', async () => {
+    const page1 = await requestWithSupertest
+      .get(`${PAGINATED_URL}?page=1&limit=2&sortBy=deadline&sortOrder=asc`)
+      .set('tenantId', TENANT_ID);
+    const page2 = await requestWithSupertest
+      .get(`${PAGINATED_URL}?page=2&limit=2&sortBy=deadline&sortOrder=asc`)
+      .set('tenantId', TENANT_ID);
+
+    expect(page1.body.data.applications).toHaveLength(2);
+    expect(page1.body.data.total).toBe(3);
+    expect(page2.body.data.applications).toHaveLength(1);
+    expect(deadlineNames(page1)).toEqual(['Beta Program', 'Gamma Program']);
+    expect(deadlineNames(page2)).toEqual(['Alpha Program']);
+  });
+
+  it('sorts by a joined program field (program_name)', async () => {
+    const resp = await requestWithSupertest
+      .get(`${PAGINATED_URL}?sortBy=program_name&sortOrder=asc`)
+      .set('tenantId', TENANT_ID);
+
+    expect(deadlineNames(resp)).toEqual([
+      'Alpha Program',
+      'Beta Program',
+      'Gamma Program'
+    ]);
+  });
+
+  it('searches across joined fields', async () => {
+    const resp = await requestWithSupertest
+      .get(`${PAGINATED_URL}?search=Berlin`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.body.data.total).toBe(1);
+    expect(deadlineNames(resp)).toEqual(['Beta Program']);
+
+    // Global search also covers the program's application_deadline string.
+    const byDeadline = await requestWithSupertest
+      .get(`${PAGINATED_URL}?search=11-30`)
+      .set('tenantId', TENANT_ID);
+
+    expect(byDeadline.body.data.total).toBe(1);
+    expect(deadlineNames(byDeadline)).toEqual(['Gamma Program']);
+  });
+
+  it('filters by exact decided / closed status (column filters)', async () => {
+    // All three applications are decided 'O', closed '-'.
+    const decidedMatch = await requestWithSupertest
+      .get(`${PAGINATED_URL}?decided=O`)
+      .set('tenantId', TENANT_ID);
+    const decidedNone = await requestWithSupertest
+      .get(`${PAGINATED_URL}?decided=X`)
+      .set('tenantId', TENANT_ID);
+    const closedNone = await requestWithSupertest
+      .get(`${PAGINATED_URL}?closed=O`)
+      .set('tenantId', TENANT_ID);
+
+    expect(decidedMatch.body.data.total).toBe(3);
+    expect(decidedNone.body.data.total).toBe(0);
+    expect(closedNone.body.data.total).toBe(0);
+  });
+
+  it('filters country by $in over comma-separated values (multi-select)', async () => {
+    // Alpha -> Finland, Beta & Gamma -> Germany.
+    const germany = await requestWithSupertest
+      .get(`${PAGINATED_URL}?country=Germany`)
+      .set('tenantId', TENANT_ID);
+    const both = await requestWithSupertest
+      .get(`${PAGINATED_URL}?country=Finland,Germany&sortBy=program_name`)
+      .set('tenantId', TENANT_ID);
+
+    expect(germany.body.data.total).toBe(2);
+    expect(deadlineNames(germany).sort()).toEqual([
+      'Beta Program',
+      'Gamma Program'
+    ]);
+    expect(both.body.data.total).toBe(3);
+  });
+
+  it('filters by student name (first or last name, contains)', async () => {
+    // All three applications belong to `student`.
+    const byFirst = await requestWithSupertest
+      .get(
+        `${PAGINATED_URL}?studentName=${encodeURIComponent(student.firstname)}`
+      )
+      .set('tenantId', TENANT_ID);
+    const byLast = await requestWithSupertest
+      .get(
+        `${PAGINATED_URL}?studentName=${encodeURIComponent(student.lastname)}`
+      )
+      .set('tenantId', TENANT_ID);
+    const noMatch = await requestWithSupertest
+      .get(`${PAGINATED_URL}?studentName=zzzznomatchzzzz`)
+      .set('tenantId', TENANT_ID);
+
+    expect(byFirst.body.data.total).toBe(3);
+    expect(byLast.body.data.total).toBe(3);
+    expect(noMatch.body.data.total).toBe(0);
+  });
+
+  it('filters semester by case-insensitive contains, application_year exact', async () => {
+    // Alpha & Gamma -> WS, Beta -> SS. All -> application_year 2025.
+    const ws = await requestWithSupertest
+      .get(`${PAGINATED_URL}?semester=WS&sortBy=program_name`)
+      .set('tenantId', TENANT_ID);
+    // Free-text semester filter is case-insensitive (lowercase still matches).
+    const wsLower = await requestWithSupertest
+      .get(`${PAGINATED_URL}?semester=ws`)
+      .set('tenantId', TENANT_ID);
+    const ss = await requestWithSupertest
+      .get(`${PAGINATED_URL}?semester=SS`)
+      .set('tenantId', TENANT_ID);
+    const year2025 = await requestWithSupertest
+      .get(`${PAGINATED_URL}?application_year=2025`)
+      .set('tenantId', TENANT_ID);
+    const yearNone = await requestWithSupertest
+      .get(`${PAGINATED_URL}?application_year=2099`)
+      .set('tenantId', TENANT_ID);
+
+    expect(ws.body.data.total).toBe(2);
+    expect(deadlineNames(ws)).toEqual(['Alpha Program', 'Gamma Program']);
+    expect(wsLower.body.data.total).toBe(2);
+    expect(ss.body.data.total).toBe(1);
+    expect(year2025.body.data.total).toBe(3);
+    expect(yearNone.body.data.total).toBe(0);
+  });
+
+  it('scopes to a supervising TaiGer user (my-students paginated)', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const UserModel = db.model('User', UserSchema);
+    // `agents` lives on the Student discriminator, not the base User schema the
+    // test registers — so set it via the native driver (bypassing strict mode)
+    // with real ObjectIds, matching how production student docs store it.
+    await UserModel.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(student._id) },
+      {
+        $set: { agents: [new mongoose.Types.ObjectId(agent._id)] }
+      }
+    );
+
+    const mine = await requestWithSupertest
+      .get(
+        `/api/applications/taiger-user/${agent._id}/paginated?sortBy=program_name`
+      )
+      .set('tenantId', TENANT_ID);
+    // A user who supervises nobody sees nothing.
+    const other = await requestWithSupertest
+      .get(`/api/applications/taiger-user/${student2._id}/paginated`)
+      .set('tenantId', TENANT_ID);
+
+    expect(mine.status).toBe(200);
+    expect(mine.body.data.total).toBe(3);
+    expect(deadlineNames(mine)).toEqual([
+      'Alpha Program',
+      'Beta Program',
+      'Gamma Program'
+    ]);
+    expect(other.body.data.total).toBe(0);
   });
 });

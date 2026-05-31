@@ -117,6 +117,119 @@
       '403':
         $ref: '../components/responses/common.yaml#/Forbidden'
 
+/api/applications/all/active/applications/paginated:
+  get:
+    tags:
+      - Applications
+    summary: Get active applications (paginated)
+    description: >
+      Server-side paginated, sorted and searchable list of active student
+      applications. The application deadline (`deadlineDate`) is derived from the
+      student's application_year and the program's application_deadline/semester
+      and can be sorted on.
+    operationId: getActiveStudentsApplicationsPaginated
+    parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+        description: 1-based page number
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 20
+          maximum: 100
+        description: Page size (capped at 100)
+      - in: query
+        name: sortBy
+        schema:
+          type: string
+          enum:
+            - program_name
+            - school
+            - semester
+            - degree
+            - country
+            - application_year
+            - target_year
+            - deadline
+            - firstname_lastname
+            - decided
+            - closed
+            - admission
+        description: Field to sort by (defaults to deadline)
+      - in: query
+        name: sortOrder
+        schema:
+          type: string
+          enum: [asc, desc]
+          default: asc
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Free-text search across program name, school, country, degree, semester, student name and application year
+      - in: query
+        name: decided
+        schema:
+          type: string
+      - in: query
+        name: closed
+        schema:
+          type: string
+      - in: query
+        name: admission
+        schema:
+          type: string
+      - in: query
+        name: application_year
+        schema:
+          type: string
+      - in: query
+        name: semester
+        description: Exact program semester (e.g. WS, SS)
+        schema:
+          type: string
+      - in: query
+        name: country
+        description: Comma-separated country codes (matched with $in)
+        schema:
+          type: string
+      - in: query
+        name: studentName
+        description: Matches the student's first or last name (contains, case-insensitive)
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Paginated active applications retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    applications:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/applications.yaml#/ApplicationListItem'
+                    total:
+                      type: integer
+                    page:
+                      type: integer
+                    limit:
+                      type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
 /api/applications/student/{studentId}/{application_id}:
   put:
     tags:

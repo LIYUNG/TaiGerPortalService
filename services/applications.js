@@ -2,6 +2,284 @@ const mongoose = require('mongoose');
 const { ErrorResponse } = require('../common/errors');
 const logger = require('./logger');
 
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
+
+// Map the field names the frontend table sends -> the field/path the
+// aggregation pipeline can sort on. Joined fields live under `prog`/`student`,
+// the computed deadline lives under `deadlineDate`.
+const SORT_FIELD_MAP = {
+  program_name: 'prog.program_name',
+  school: 'prog.school',
+  semester: 'prog.semester',
+  degree: 'prog.degree',
+  country: 'prog.country',
+  application_year: 'application_year',
+  target_year: 'application_year',
+  deadline: 'deadlineDate',
+  deadlineDate: 'deadlineDate',
+  firstname_lastname: 'student.firstname',
+  decided: 'decided',
+  closed: 'closed',
+  admission: 'admission'
+};
+
+// Fields a free-text `search` query is matched against (regex, case-insensitive).
+const GLOBAL_SEARCH_FIELDS = [
+  'prog.program_name',
+  'prog.school',
+  'prog.country',
+  'prog.degree',
+  'prog.semester',
+  'prog.application_deadline',
+  'student.firstname',
+  'student.lastname',
+  'application_year'
+];
+
+// Exact-match filters that live directly on the Application document.
+const APPLICATION_EXACT_FILTERS = [
+  'decided',
+  'closed',
+  'admission',
+  'application_year'
+];
+
+// $in (multi-select) filters that live on the joined program. Comma-separated
+// in the query string, mirroring the programs list endpoint.
+// (Per-field text filters for school/program_name/degree are intentionally
+// omitted: the global `search` already covers those fields.)
+const PROGRAM_ARRAY_FILTERS = {
+  country: 'prog.country'
+};
+
+// Regex (contains, case-insensitive) free-text filters on the joined program.
+const PROGRAM_TEXT_FILTERS = {
+  semester: 'prog.semester'
+};
+
+// Regex (contains, case-insensitive) filter matching the student's first OR
+// last name. Sent as a single `studentName` query param.
+const STUDENT_NAME_FILTER_KEY = 'studentName';
+const STUDENT_NAME_PATHS = ['student.firstname', 'student.lastname'];
+
+const escapeRegex = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const parseArrayParam = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value.map(String).filter(Boolean);
+  }
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const parseActiveApplicationsQuery = (query = {}) => {
+  const { page, limit, search, sortBy, sortOrder } = query;
+  const parsedPage = parseInt(page, 10);
+  const parsedLimit = parseInt(limit, 10);
+  const safePage = parsedPage > 0 ? parsedPage : DEFAULT_PAGE;
+  const safeLimit =
+    parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT;
+
+  const sortPath = SORT_FIELD_MAP[sortBy] || 'deadlineDate';
+  const sortDir = String(sortOrder || 'asc').toLowerCase() === 'desc' ? -1 : 1;
+
+  const filters = {};
+  APPLICATION_EXACT_FILTERS.forEach((field) => {
+    if (query[field] !== undefined && query[field] !== '') {
+      filters[field] = String(query[field]).trim();
+    }
+  });
+  Object.keys(PROGRAM_ARRAY_FILTERS).forEach((field) => {
+    const values = parseArrayParam(query[field]);
+    if (values.length > 0) {
+      filters[PROGRAM_ARRAY_FILTERS[field]] = values;
+    }
+  });
+  Object.keys(PROGRAM_TEXT_FILTERS).forEach((field) => {
+    if (query[field] !== undefined && query[field] !== '') {
+      filters[PROGRAM_TEXT_FILTERS[field]] = String(query[field]).trim();
+    }
+  });
+  if (
+    query[STUDENT_NAME_FILTER_KEY] !== undefined &&
+    query[STUDENT_NAME_FILTER_KEY] !== ''
+  ) {
+    filters[STUDENT_NAME_FILTER_KEY] = String(
+      query[STUDENT_NAME_FILTER_KEY]
+    ).trim();
+  }
+
+  return {
+    page: safePage,
+    limit: safeLimit,
+    skip: (safePage - 1) * safeLimit,
+    search: typeof search === 'string' ? search.trim() : '',
+    filters,
+    // Stable secondary sort on _id so pagination is deterministic.
+    sort: { [sortPath]: sortDir, _id: 1 }
+  };
+};
+
+// The application -> deadline date is derived (not stored): it combines the
+// application's `application_year` (String) with the program's
+// `application_deadline` ("MM-DD" or "rolling") and `semester` ("WS"/"SS"),
+// mirroring application_deadline_V2_calculator on the frontend. These stages
+// materialise a real Date (`deadlineDate`, null for rolling/no-data) so it can
+// be sorted and range-filtered at the DB.
+const DEADLINE_DATE_STAGES = [
+  {
+    $addFields: {
+      _appYearInt: {
+        $convert: {
+          input: '$application_year',
+          to: 'int',
+          onError: null,
+          onNull: null
+        }
+      },
+      // Coerce to string defensively: application_deadline is a String in
+      // production, but guard against null / Date / other types so the
+      // pipeline never throws inside $regexMatch / $split.
+      _dl: {
+        $cond: [
+          { $eq: [{ $type: '$prog.application_deadline' }, 'string'] },
+          '$prog.application_deadline',
+          ''
+        ]
+      }
+    }
+  },
+  {
+    $addFields: {
+      _isRolling: {
+        $regexMatch: { input: '$_dl', regex: 'rolling', options: 'i' }
+      },
+      _dlParts: { $split: ['$_dl', '-'] }
+    }
+  },
+  {
+    $addFields: {
+      _dlMonth: {
+        $cond: [
+          { $gte: [{ $size: '$_dlParts' }, 2] },
+          {
+            $convert: {
+              input: { $arrayElemAt: ['$_dlParts', 0] },
+              to: 'int',
+              onError: null,
+              onNull: null
+            }
+          },
+          null
+        ]
+      },
+      _dlDay: {
+        $cond: [
+          { $gte: [{ $size: '$_dlParts' }, 2] },
+          {
+            $convert: {
+              input: { $arrayElemAt: ['$_dlParts', 1] },
+              to: 'int',
+              onError: null,
+              onNull: null
+            }
+          },
+          null
+        ]
+      }
+    }
+  },
+  {
+    $addFields: {
+      _dlYear: {
+        $switch: {
+          branches: [
+            {
+              case: {
+                $and: [
+                  { $eq: ['$prog.semester', 'WS'] },
+                  { $gt: ['$_dlMonth', 9] }
+                ]
+              },
+              then: { $subtract: ['$_appYearInt', 1] }
+            },
+            {
+              case: {
+                $and: [
+                  { $eq: ['$prog.semester', 'SS'] },
+                  { $gt: ['$_dlMonth', 3] }
+                ]
+              },
+              then: { $subtract: ['$_appYearInt', 1] }
+            }
+          ],
+          default: '$_appYearInt'
+        }
+      }
+    }
+  },
+  {
+    $addFields: {
+      deadlineDate: {
+        $cond: [
+          {
+            $or: [
+              '$_isRolling',
+              { $eq: ['$_appYearInt', null] },
+              { $eq: ['$_dlMonth', null] },
+              { $eq: ['$_dlDay', null] },
+              { $lt: ['$_dlMonth', 1] },
+              { $gt: ['$_dlMonth', 12] },
+              { $lt: ['$_dlDay', 1] },
+              { $gt: ['$_dlDay', 31] }
+            ]
+          },
+          null,
+          {
+            $dateFromParts: {
+              year: '$_dlYear',
+              month: '$_dlMonth',
+              day: '$_dlDay'
+            }
+          }
+        ]
+      }
+    }
+  }
+];
+
+// Shared population chain so the paginated and non-paginated endpoints return
+// the exact same document shape (consumed by programs_refactor_v2 on the FE).
+const populateActiveApplications = (query) =>
+  query
+    .populate({
+      path: 'studentId',
+      populate: {
+        path: 'editors agents',
+        select: 'firstname lastname email pictureUrl'
+      }
+    })
+    .populate({
+      path: 'studentId',
+      populate: {
+        path: 'generaldocs_threads.doc_thread_id',
+        select: '-messages'
+      }
+    })
+    .populate(
+      'programId',
+      'school program_name degree semester lang country uni_assist application_deadline application_start whoupdated updatedAt'
+    )
+    .populate('doc_modification_thread.doc_thread_id', '-messages');
+
 const ApplicationService = {
   async createApplication(req) {
     const { studentId } = req.params;
@@ -13,31 +291,158 @@ const ApplicationService = {
     return application;
   },
   async getActiveStudentsApplications(req, { filter = {}, options = {} }) {
-    const applications = await req.db
-      .model('Application')
-      .find(filter)
-      .populate({
-        path: 'studentId',
-        populate: {
-          path: 'editors agents',
-          select: 'firstname lastname email pictureUrl'
-        }
-      })
-      .populate({
-        path: 'studentId',
-        populate: {
-          path: 'generaldocs_threads.doc_thread_id',
-          select: '-messages'
-        }
-      })
-      .populate(
-        'programId',
-        'school program_name degree semester lang country uni_assist application_deadline application_start whoupdated updatedAt'
-      )
-      .populate('doc_modification_thread.doc_thread_id', '-messages')
-      .lean();
+    const applications = await populateActiveApplications(
+      req.db.model('Application').find(filter)
+    ).lean();
 
     return applications;
+  },
+
+  /**
+   * Server-side paginated / sorted / searchable variant of
+   * getActiveStudentsApplications.
+   *
+   * Strategy: run a lightweight aggregation that joins program + student,
+   * computes the derived `deadlineDate`, applies search/filter/sort and returns
+   * only the page of `_id`s (+ a total count via $facet). Then hydrate just that
+   * page with the full population chain. This keeps the heavy populated payload
+   * bounded to `limit` documents — which is what fixes the data-transfer
+   * throttling — while still allowing sort/search across joined fields.
+   *
+   * @param {string[]} studentIds active (non-archived) student ids to scope to
+   * @param {object} query raw req.query (page, limit, sortBy, sortOrder, search, filters)
+   * @returns {{ applications: object[], total: number, page: number, limit: number }}
+   */
+  async getActiveStudentsApplicationsPaginated(
+    req,
+    { studentIds = [], query = {} }
+  ) {
+    const { page, limit, skip, search, filters, sort } =
+      parseActiveApplicationsQuery(query);
+    const Application = req.db.model('Application');
+
+    if (studentIds.length === 0) {
+      return { applications: [], total: 0, page, limit };
+    }
+
+    const objectIds = studentIds.map(
+      (id) => new mongoose.Types.ObjectId(id.toString())
+    );
+
+    // Application-level exact filters can be applied before the lookups (cheap,
+    // shrinks the working set as early as possible).
+    const preMatch = { studentId: { $in: objectIds } };
+    APPLICATION_EXACT_FILTERS.forEach((field) => {
+      if (filters[field] !== undefined) {
+        preMatch[field] = filters[field];
+      }
+    });
+
+    // Filters / search that touch joined program/student fields run after the
+    // lookups. Collected as $and conditions so multiple $or-groups (student name
+    // + global search) don't clobber each other.
+    const andConditions = [];
+    Object.values(PROGRAM_ARRAY_FILTERS).forEach((path) => {
+      if (Array.isArray(filters[path]) && filters[path].length > 0) {
+        andConditions.push({ [path]: { $in: filters[path] } });
+      }
+    });
+    Object.values(PROGRAM_TEXT_FILTERS).forEach((path) => {
+      if (typeof filters[path] === 'string') {
+        andConditions.push({
+          [path]: { $regex: escapeRegex(filters[path]), $options: 'i' }
+        });
+      }
+    });
+    if (filters[STUDENT_NAME_FILTER_KEY]) {
+      const pattern = escapeRegex(filters[STUDENT_NAME_FILTER_KEY]);
+      andConditions.push({
+        $or: STUDENT_NAME_PATHS.map((path) => ({
+          [path]: { $regex: pattern, $options: 'i' }
+        }))
+      });
+    }
+    if (search) {
+      const pattern = escapeRegex(search);
+      andConditions.push({
+        $or: GLOBAL_SEARCH_FIELDS.map((field) => ({
+          [field]: { $regex: pattern, $options: 'i' }
+        }))
+      });
+    }
+    const postMatch = andConditions.length > 0 ? { $and: andConditions } : {};
+
+    const pipeline = [
+      { $match: preMatch },
+      {
+        $lookup: {
+          from: 'programs',
+          let: { pid: '$programId' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$_id', '$$pid'] } } },
+            {
+              $project: {
+                program_name: 1,
+                school: 1,
+                semester: 1,
+                degree: 1,
+                country: 1,
+                application_deadline: 1
+              }
+            }
+          ],
+          as: 'prog'
+        }
+      },
+      { $unwind: { path: '$prog', preserveNullAndEmptyArrays: false } },
+      {
+        $lookup: {
+          from: 'users',
+          let: { sid: '$studentId' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$_id', '$$sid'] } } },
+            { $project: { firstname: 1, lastname: 1 } }
+          ],
+          as: 'student'
+        }
+      },
+      { $unwind: { path: '$student', preserveNullAndEmptyArrays: false } },
+      ...DEADLINE_DATE_STAGES,
+      ...(Object.keys(postMatch).length > 0 ? [{ $match: postMatch }] : []),
+      {
+        $facet: {
+          rows: [
+            { $sort: sort },
+            { $skip: skip },
+            { $limit: limit },
+            { $project: { _id: 1 } }
+          ],
+          total: [{ $count: 'count' }]
+        }
+      }
+    ];
+
+    const [aggResult] = await Application.aggregate(pipeline).allowDiskUse(
+      true
+    );
+    const ids = (aggResult?.rows ?? []).map((row) => row._id);
+    const total = aggResult?.total?.[0]?.count ?? 0;
+
+    if (ids.length === 0) {
+      return { applications: [], total, page, limit };
+    }
+
+    const docs = await populateActiveApplications(
+      Application.find({ _id: { $in: ids } })
+    ).lean();
+
+    // $in does not preserve the aggregation's sort order — restore it.
+    const orderMap = new Map(ids.map((id, index) => [id.toString(), index]));
+    docs.sort(
+      (a, b) => orderMap.get(a._id.toString()) - orderMap.get(b._id.toString())
+    );
+
+    return { applications: docs, total, page, limit };
   },
   async getStudentsApplicationsByTaiGerUserId(
     req,

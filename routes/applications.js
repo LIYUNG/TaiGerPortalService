@@ -17,6 +17,8 @@ const {
   getMyStudentsApplications,
   updateStudentApplications,
   getActiveStudentsApplications,
+  getActiveStudentsApplicationsPaginated,
+  getMyStudentsApplicationsPaginated,
   updateApplication,
   refreshApplication
 } = require('../controllers/applications');
@@ -64,6 +66,14 @@ router
     getActiveStudentsApplications
   );
 
+router
+  .route('/all/active/applications/paginated')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getActiveStudentsApplicationsPaginated
+  );
+
 router.route('/student/:studentId/:application_id').put(
   validateStudentId,
   getMessagesRateLimiter,
@@ -79,6 +89,14 @@ router
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     getMyStudentsApplications
+  );
+
+router
+  .route('/taiger-user/:userId/paginated')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getMyStudentsApplicationsPaginated
   );
 
 router

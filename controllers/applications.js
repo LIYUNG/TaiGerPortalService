@@ -110,6 +110,69 @@ const getActiveStudentsApplications = asyncHandler(async (req, res) => {
   });
 });
 
+const getActiveStudentsApplicationsPaginated = asyncHandler(
+  async (req, res) => {
+    const { filter } = new UserQueryBuilder()
+      .withRole(Role.Student)
+      .withArchiv(false)
+      .build();
+
+    const activeStudents = await StudentService.getStudents(req, {
+      filter,
+      options: {}
+    });
+
+    const result =
+      await ApplicationService.getActiveStudentsApplicationsPaginated(req, {
+        studentIds: activeStudents.map((student) => student._id.toString()),
+        query: req.query
+      });
+
+    res.status(200).send({
+      success: true,
+      data: result
+    });
+  }
+);
+
+const getMyStudentsApplicationsPaginated = asyncHandler(async (req, res) => {
+  const {
+    params: { userId }
+  } = req;
+
+  // Active students supervised by this TaiGer user (as agent OR editor) —
+  // same membership rule as getStudentsApplicationsByTaiGerUserId.
+  const { filter } = new UserQueryBuilder()
+    .withRole(Role.Student)
+    .withArchiv(false)
+    .build();
+  // withArchiv(false) already populated filter.$or (archiv condition); merge the
+  // supervision condition via $and so neither clobbers the other.
+  const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
+  if (filter.$or) {
+    filter.$and = [{ $or: filter.$or }, supervisionOr];
+    delete filter.$or;
+  } else {
+    Object.assign(filter, supervisionOr);
+  }
+
+  const supervisedStudents = await StudentService.getStudents(req, {
+    filter,
+    options: {}
+  });
+
+  const result =
+    await ApplicationService.getActiveStudentsApplicationsPaginated(req, {
+      studentIds: supervisedStudents.map((student) => student._id.toString()),
+      query: req.query
+    });
+
+  res.status(200).send({
+    success: true,
+    data: result
+  });
+});
+
 const getStudentApplications = asyncHandler(async (req, res) => {
   const {
     user,
@@ -578,7 +641,9 @@ module.exports = {
   getApplications,
   deleteApplication,
   getMyStudentsApplications,
+  getMyStudentsApplicationsPaginated,
   getActiveStudentsApplications,
+  getActiveStudentsApplicationsPaginated,
   getStudentApplications,
   updateStudentApplications,
   updateApplication,

@@ -14,7 +14,6 @@ const {
   getStudentApplications,
   deleteApplication,
   createApplicationV2,
-  getMyStudentsApplications,
   updateStudentApplications,
   getActiveStudentsApplications,
   getActiveStudentsApplicationsPaginated,
@@ -101,14 +100,6 @@ router.route('/student/:studentId/:application_id').put(
   InnerTaigerMultitenantFilter,
   updateApplication
 );
-
-router
-  .route('/taiger-user/:userId')
-  .get(
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getMyStudentsApplications
-  );
 
 router
   .route('/taiger-user/:userId/paginated')

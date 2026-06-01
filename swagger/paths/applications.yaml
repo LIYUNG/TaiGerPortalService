@@ -276,6 +276,66 @@
       '403':
         $ref: '../components/responses/common.yaml#/Forbidden'
 
+/api/applications/program-update-status:
+  get:
+    tags:
+      - Applications
+    summary: Programs update status (distinct programs)
+    description: >
+      Distinct programs referenced by active students' applications, with update
+      metadata, computed in the DB (only the small program list is returned).
+      Without `userId` it covers all active students; with `userId` it scopes to
+      that user's supervised students. `decided=O` returns only programs with a
+      decided application.
+    operationId: getApplicationProgramsUpdateStatus
+    parameters:
+      - in: query
+        name: userId
+        required: false
+        schema:
+          type: string
+        description: Optional agent/editor id to scope to.
+      - in: query
+        name: decided
+        required: false
+        schema:
+          type: string
+        description: When 'O', only programs with a decided application are returned.
+    responses:
+      '200':
+        description: Programs update status retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      program_id:
+                        type: string
+                      school:
+                        type: string
+                      program_name:
+                        type: string
+                      degree:
+                        type: string
+                      semester:
+                        type: string
+                      whoupdated:
+                        type: string
+                      updatedAt:
+                        type: string
+                        format: date-time
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
 /api/applications/student/{studentId}/{application_id}:
   put:
     tags:

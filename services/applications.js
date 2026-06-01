@@ -550,6 +550,63 @@ const ApplicationService = {
     return Application.aggregate(pipeline).allowDiskUse(true);
   },
 
+  /**
+   * Distinct programs referenced by the given students' applications, with the
+   * fields the "Programs Update Status" table needs. Computed in the DB so only
+   * the small program list is returned (not the full applications).
+   *
+   * @param {string[]} studentIds active/supervised student ids to scope to
+   * @param {string} [decided] when set (e.g. 'O'), only programs that have a
+   *   decided application are returned
+   * @returns {Array<{program_id, school, program_name, degree, semester, whoupdated, updatedAt}>}
+   */
+  async getApplicationProgramsUpdateStatus(req, { studentIds = [], decided }) {
+    const Application = req.db.model('Application');
+    if (studentIds.length === 0) {
+      return [];
+    }
+
+    const objectIds = studentIds.map(
+      (id) => new mongoose.Types.ObjectId(id.toString())
+    );
+    const match = {
+      studentId: { $in: objectIds },
+      programId: { $ne: null }
+    };
+    if (decided) {
+      match.decided = decided;
+    }
+
+    const pipeline = [
+      { $match: match },
+      { $group: { _id: '$programId' } },
+      {
+        $lookup: {
+          from: 'programs',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'prog'
+        }
+      },
+      { $unwind: { path: '$prog', preserveNullAndEmptyArrays: false } },
+      {
+        $project: {
+          _id: 0,
+          program_id: { $toString: '$_id' },
+          school: '$prog.school',
+          program_name: '$prog.program_name',
+          degree: '$prog.degree',
+          semester: '$prog.semester',
+          whoupdated: '$prog.whoupdated',
+          updatedAt: '$prog.updatedAt'
+        }
+      },
+      { $sort: { school: 1, program_name: 1 } }
+    ];
+
+    return Application.aggregate(pipeline).allowDiskUse(true);
+  },
+
   async getStudentsApplicationsByTaiGerUserId(
     req,
     userId,

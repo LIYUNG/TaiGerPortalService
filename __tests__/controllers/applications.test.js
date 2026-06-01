@@ -619,4 +619,33 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
     // A user who supervises nobody gets an empty distribution.
     expect(other.body.data).toEqual([]);
   });
+
+  it('returns distinct programs for the update-status tabs', async () => {
+    const resp = await requestWithSupertest
+      .get('/api/applications/program-update-status')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    // 3 distinct programs, sorted by school (Aalto, Berlin, Cologne).
+    expect(resp.body.data.map((p) => p.program_name)).toEqual([
+      'Alpha Program',
+      'Beta Program',
+      'Gamma Program'
+    ]);
+    expect(resp.body.data[0]).toMatchObject({
+      school: 'Aalto University',
+      semester: 'WS'
+    });
+
+    // decided=O matches all three (all apps are decided 'O'); decided=X none.
+    const decided = await requestWithSupertest
+      .get('/api/applications/program-update-status?decided=O')
+      .set('tenantId', TENANT_ID);
+    const none = await requestWithSupertest
+      .get('/api/applications/program-update-status?decided=X')
+      .set('tenantId', TENANT_ID);
+
+    expect(decided.body.data).toHaveLength(3);
+    expect(none.body.data).toEqual([]);
+  });
 });

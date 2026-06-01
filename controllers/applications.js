@@ -210,6 +210,44 @@ const getApplicationsDeadlineDistribution = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data });
 });
 
+// Distinct programs (with update metadata) referenced by active students'
+// applications, for the "Programs Update Status" tabs. Without `userId` it
+// covers all active students; with `userId` it scopes to that user's supervised
+// students. `decided=O` returns only programs with a decided application.
+const getApplicationProgramsUpdateStatus = asyncHandler(async (req, res) => {
+  const { userId, decided } = req.query;
+
+  const { filter } = new UserQueryBuilder()
+    .withRole(Role.Student)
+    .withArchiv(false)
+    .build();
+
+  if (userId) {
+    const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, supervisionOr];
+      delete filter.$or;
+    } else {
+      Object.assign(filter, supervisionOr);
+    }
+  }
+
+  const students = await StudentService.getStudents(req, {
+    filter,
+    options: {}
+  });
+
+  const data = await ApplicationService.getApplicationProgramsUpdateStatus(
+    req,
+    {
+      studentIds: students.map((student) => student._id.toString()),
+      decided
+    }
+  );
+
+  res.status(200).send({ success: true, data });
+});
+
 const getStudentApplications = asyncHandler(async (req, res) => {
   const {
     user,
@@ -682,6 +720,7 @@ module.exports = {
   getActiveStudentsApplications,
   getActiveStudentsApplicationsPaginated,
   getApplicationsDeadlineDistribution,
+  getApplicationProgramsUpdateStatus,
   getStudentApplications,
   updateStudentApplications,
   updateApplication,

@@ -91,6 +91,70 @@ const getActiveThreads = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: threads });
 });
 
+const getActiveThreadsPaginated = asyncHandler(async (req, res) => {
+  const activeStudents = await StudentService.fetchSimpleStudents(req, {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  });
+
+  const result = await DocumentThreadService.getActiveThreadsPaginated(req, {
+    studentIds: activeStudents.map((student) => student._id.toString()),
+    query: req.query
+  });
+
+  res.status(200).send({ success: true, data: result });
+});
+
+const getActiveThreadsCounts = asyncHandler(async (req, res) => {
+  const activeStudents = await StudentService.fetchSimpleStudents(req, {
+    $or: [{ archiv: { $exists: false } }, { archiv: false }]
+  });
+
+  const data = await DocumentThreadService.getActiveThreadsCounts(req, {
+    studentIds: activeStudents.map((student) => student._id.toString()),
+    query: req.query
+  });
+
+  res.status(200).send({ success: true, data });
+});
+
+// Active students supervised (agent/editor) by this user. Essay threads
+// outsourced to the user are added by the service via `outsourcedUserId`.
+const supervisedActiveStudentIds = async (req, userId) => {
+  const students = await StudentService.fetchSimpleStudents(req, {
+    $and: [
+      { $or: [{ archiv: { $exists: false } }, { archiv: false }] },
+      { $or: [{ agents: userId }, { editors: userId }] }
+    ]
+  });
+  return students.map((student) => student._id.toString());
+};
+
+const getMyStudentsThreadsPaginated = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const studentIds = await supervisedActiveStudentIds(req, userId);
+
+  const result = await DocumentThreadService.getActiveThreadsPaginated(req, {
+    studentIds,
+    outsourcedUserId: userId,
+    query: { ...req.query, viewerId: req.query.viewerId || userId }
+  });
+
+  res.status(200).send({ success: true, data: result });
+});
+
+const getMyStudentsThreadsCounts = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const studentIds = await supervisedActiveStudentIds(req, userId);
+
+  const data = await DocumentThreadService.getActiveThreadsCounts(req, {
+    studentIds,
+    outsourcedUserId: userId,
+    query: { ...req.query, viewerId: req.query.viewerId || userId }
+  });
+
+  res.status(200).send({ success: true, data });
+});
+
 const getMyStudentsThreads = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const { isFinalVersion, fileType } = req.query;
@@ -2099,6 +2163,10 @@ const getMyStudentMetrics = asyncHandler(async (req, res, next) => {
 
 module.exports = {
   getActiveThreads,
+  getActiveThreadsPaginated,
+  getActiveThreadsCounts,
+  getMyStudentsThreadsPaginated,
+  getMyStudentsThreadsCounts,
   getMyStudentsThreads,
   getSurveyInputs,
   postSurveyInput,

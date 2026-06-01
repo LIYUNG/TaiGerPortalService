@@ -290,17 +290,8 @@ const ApplicationService = {
     });
     return application;
   },
-  async getActiveStudentsApplications(req, { filter = {}, options = {} }) {
-    const applications = await populateActiveApplications(
-      req.db.model('Application').find(filter)
-    ).lean();
-
-    return applications;
-  },
-
   /**
-   * Server-side paginated / sorted / searchable variant of
-   * getActiveStudentsApplications.
+   * Server-side paginated / sorted / searchable active students' applications.
    *
    * Strategy: run a lightweight aggregation that joins program + student,
    * computes the derived `deadlineDate`, applies search/filter/sort and returns
@@ -669,25 +660,6 @@ const ApplicationService = {
     ]);
 
     return result || zero;
-  },
-
-  async getStudentsApplicationsByTaiGerUserId(
-    req,
-    userId,
-    applicationFilter = {}
-  ) {
-    const applications = await this.getActiveStudentsApplications(
-      req,
-      applicationFilter
-    );
-
-    const filteredApplications = applications.filter(
-      (app) =>
-        app.studentId.agents.some((agent) => agent._id.toString() === userId) ||
-        app.studentId.editors.some((editor) => editor._id.toString() === userId)
-    );
-
-    return filteredApplications;
   },
   getApplications(req, filter = {}, select = [], populate = true) {
     const query = req.db.model('Application').find(filter);

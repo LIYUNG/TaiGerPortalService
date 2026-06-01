@@ -29,6 +29,10 @@ const {
 
 const {
   getActiveThreads,
+  getActiveThreadsPaginated,
+  getActiveThreadsCounts,
+  getMyStudentsThreadsPaginated,
+  getMyStudentsThreadsCounts,
   initGeneralMessagesThread,
   initApplicationMessagesThread,
   getMessages,
@@ -96,11 +100,43 @@ router
   );
 
 router
+  .route('/overview/taiger-user/:userId/paginated')
+  .get(
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getMyStudentsThreadsPaginated
+  );
+
+router
+  .route('/overview/taiger-user/:userId/counts')
+  .get(
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getMyStudentsThreadsCounts
+  );
+
+router
   .route('/overview/all')
   .get(
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     getActiveThreads
+  );
+
+router
+  .route('/overview/all/paginated')
+  .get(
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getActiveThreadsPaginated
+  );
+
+router
+  .route('/overview/all/counts')
+  .get(
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getActiveThreadsCounts
   );
 
 router

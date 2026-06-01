@@ -565,12 +565,14 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
 
     const mine = await requestWithSupertest
       .get(
-        `/api/applications/taiger-user/${agent._id}/paginated?sortBy=program_name`
+        `/api/applications/all/active/applications/paginated?userId=${agent._id}&sortBy=program_name`
       )
       .set('tenantId', TENANT_ID);
     // A user who supervises nobody sees nothing.
     const other = await requestWithSupertest
-      .get(`/api/applications/taiger-user/${student2._id}/paginated`)
+      .get(
+        `/api/applications/all/active/applications/paginated?userId=${student2._id}`
+      )
       .set('tenantId', TENANT_ID);
 
     expect(mine.status).toBe(200);
@@ -581,6 +583,57 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
       'Gamma Program'
     ]);
     expect(other.body.data.total).toBe(0);
+  });
+
+  it('excludes archived students from my-students applications (paginated)', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const UserModel = db.model('User', UserSchema);
+    const ProgramModel = db.model('Program', programSchema);
+    const ApplicationModel = db.model('Application');
+
+    // `student` is active & supervised by `agent`; `student2` is ALSO supervised
+    // by `agent` but archived — its application must not leak into the cards.
+    await UserModel.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(student._id) },
+      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
+    );
+    await UserModel.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(student2._id) },
+      {
+        $set: {
+          agents: [new mongoose.Types.ObjectId(agent._id)],
+          archiv: true
+        }
+      }
+    );
+
+    const [archivedProg] = await ProgramModel.insertMany([
+      { ...progAlpha, _id: undefined, program_name: 'Archived Program' }
+    ]);
+    await ApplicationModel.insertMany([
+      {
+        studentId: student2._id,
+        programId: archivedProg._id,
+        application_year: '2025',
+        decided: 'O',
+        closed: '-'
+      }
+    ]);
+
+    const resp = await requestWithSupertest
+      .get(
+        `/api/applications/all/active/applications/paginated?userId=${agent._id}&decided=O&closed=-`
+      )
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    // Only the 3 active-student applications; the archived student's is dropped.
+    expect(resp.body.data.total).toBe(3);
+    expect(resp.body.data.applications).toHaveLength(3);
+    const studentIds = resp.body.data.applications.map((application) =>
+      application.studentId._id.toString()
+    );
+    expect(studentIds).not.toContain(student2._id.toString());
   });
 
   it('returns the deadline distribution (active vs potentials) computed in the DB', async () => {

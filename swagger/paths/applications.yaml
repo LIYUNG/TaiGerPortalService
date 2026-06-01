@@ -368,6 +368,59 @@
       '404':
         $ref: '../components/responses/common.yaml#/NotFound'
 
+/api/applications/taiger-user/{userId}/stats:
+  get:
+    tags:
+      - Applications
+    summary: Application status stats for a TaiGer user's students
+    description: >
+      Aggregated application status counts (computed in the DB) plus the TaiGer
+      user record, for the AgentPage stat cards. Scoped to the students this
+      user supervises (agent or editor).
+    operationId: getMyStudentsApplicationsStats
+    parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Stats retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    user:
+                      type: object
+                    stats:
+                      type: object
+                      properties:
+                        totalStudents:
+                          type: integer
+                        totalApplications:
+                          type: integer
+                        decidedYesApplications:
+                          type: integer
+                        decidedNoApplications:
+                          type: integer
+                        undecidedApplications:
+                          type: integer
+                        submittedApplications:
+                          type: integer
+                        pendingApplications:
+                          type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
 /api/applications/taiger-user/{userId}:
   get:
     tags:

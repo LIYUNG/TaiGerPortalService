@@ -648,4 +648,30 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
     expect(decided.body.data).toHaveLength(3);
     expect(none.body.data).toEqual([]);
   });
+
+  it('returns aggregated application stats for a supervising user', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const UserModel = db.model('User', UserSchema);
+    await UserModel.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(student._id) },
+      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
+    );
+
+    const resp = await requestWithSupertest
+      .get(`/api/applications/taiger-user/${agent._id}/stats`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    // student owns 3 apps, all decided 'O', closed '-'.
+    expect(resp.body.data.stats).toMatchObject({
+      totalStudents: 1,
+      totalApplications: 3,
+      decidedYesApplications: 3,
+      decidedNoApplications: 0,
+      undecidedApplications: 0,
+      submittedApplications: 0,
+      pendingApplications: 3
+    });
+    expect(resp.body.data.user._id.toString()).toBe(agent._id.toString());
+  });
 });

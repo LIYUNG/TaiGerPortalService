@@ -21,6 +21,7 @@ const {
   getMyStudentsApplicationsPaginated,
   getApplicationsDeadlineDistribution,
   getApplicationProgramsUpdateStatus,
+  getMyStudentsApplicationsStats,
   updateApplication,
   refreshApplication
 } = require('../controllers/applications');
@@ -115,6 +116,14 @@ router
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     getMyStudentsApplicationsPaginated
+  );
+
+router
+  .route('/taiger-user/:userId/stats')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getMyStudentsApplicationsStats
   );
 
 router

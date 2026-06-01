@@ -248,6 +248,45 @@ const getApplicationProgramsUpdateStatus = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data });
 });
 
+// Aggregated application stats + the agent's user record for the AgentPage stat
+// cards, computed in the DB (no full applications payload).
+const getMyStudentsApplicationsStats = asyncHandler(async (req, res) => {
+  const {
+    params: { userId }
+  } = req;
+
+  const { filter } = new UserQueryBuilder()
+    .withRole(Role.Student)
+    .withArchiv(false)
+    .build();
+  const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
+  if (filter.$or) {
+    filter.$and = [{ $or: filter.$or }, supervisionOr];
+    delete filter.$or;
+  } else {
+    Object.assign(filter, supervisionOr);
+  }
+
+  const students = await StudentService.getStudents(req, {
+    filter,
+    options: {}
+  });
+  const studentIds = students.map((student) => student._id.toString());
+
+  const [stats, user] = await Promise.all([
+    ApplicationService.getApplicationStatusStats(req, { studentIds }),
+    UserService.getUserById(req, userId)
+  ]);
+
+  res.status(200).send({
+    success: true,
+    data: {
+      user,
+      stats: { totalStudents: studentIds.length, ...stats }
+    }
+  });
+});
+
 const getStudentApplications = asyncHandler(async (req, res) => {
   const {
     user,
@@ -721,6 +760,7 @@ module.exports = {
   getActiveStudentsApplicationsPaginated,
   getApplicationsDeadlineDistribution,
   getApplicationProgramsUpdateStatus,
+  getMyStudentsApplicationsStats,
   getStudentApplications,
   updateStudentApplications,
   updateApplication,

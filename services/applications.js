@@ -607,6 +607,70 @@ const ApplicationService = {
     return Application.aggregate(pipeline).allowDiskUse(true);
   },
 
+  /**
+   * Application status counts for a set of students, computed in the DB (for the
+   * AgentPage stat cards). Returns zeros when there are no students.
+   *
+   * @param {string[]} studentIds
+   * @returns {{ totalApplications, decidedYesApplications, decidedNoApplications,
+   *   undecidedApplications, submittedApplications, pendingApplications }}
+   */
+  async getApplicationStatusStats(req, { studentIds = [] }) {
+    const zero = {
+      totalApplications: 0,
+      decidedYesApplications: 0,
+      decidedNoApplications: 0,
+      undecidedApplications: 0,
+      submittedApplications: 0,
+      pendingApplications: 0
+    };
+    if (studentIds.length === 0) {
+      return zero;
+    }
+
+    const objectIds = studentIds.map(
+      (id) => new mongoose.Types.ObjectId(id.toString())
+    );
+
+    const [result] = await req.db.model('Application').aggregate([
+      { $match: { studentId: { $in: objectIds } } },
+      {
+        $group: {
+          _id: null,
+          totalApplications: { $sum: 1 },
+          decidedYesApplications: {
+            $sum: { $cond: [{ $eq: ['$decided', 'O'] }, 1, 0] }
+          },
+          decidedNoApplications: {
+            $sum: { $cond: [{ $eq: ['$decided', 'X'] }, 1, 0] }
+          },
+          // Anything not decided 'O'/'X' (incl. '-' or missing) is undecided.
+          undecidedApplications: {
+            $sum: { $cond: [{ $in: ['$decided', ['O', 'X']] }, 0, 1] }
+          },
+          submittedApplications: {
+            $sum: { $cond: [{ $eq: ['$closed', 'O'] }, 1, 0] }
+          },
+          // Decided to apply but not yet submitted.
+          pendingApplications: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [{ $eq: ['$decided', 'O'] }, { $ne: ['$closed', 'O'] }]
+                },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      },
+      { $project: { _id: 0 } }
+    ]);
+
+    return result || zero;
+  },
+
   async getStudentsApplicationsByTaiGerUserId(
     req,
     userId,

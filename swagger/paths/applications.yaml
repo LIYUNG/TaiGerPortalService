@@ -98,61 +98,25 @@
       '404':
         $ref: '../components/responses/common.yaml#/NotFound'
 
-/api/applications/all/active/applications:
-  get:
-    tags:
-      - Applications
-    summary: Get active students' applications
-    description: >
-      Retrieve active (non-archived) students' applications. Without `userId` it
-      covers all active students; with `userId` it scopes to the students that
-      TaiGer user supervises (as agent or editor). Returns `{ applications, user }`.
-    operationId: getActiveStudentsApplications
-    parameters:
-      - name: userId
-        in: query
-        description: Scope to this TaiGer user's supervised students
-        schema:
-          type: string
-      - name: decided
-        in: query
-        description: Filter by decided status
-        schema:
-          type: string
-      - name: closed
-        in: query
-        description: Filter by closed status
-        schema:
-          type: string
-      - name: admission
-        in: query
-        description: Filter by admission status
-        schema:
-          type: string
-    responses:
-      '200':
-        description: Active applications retrieved successfully
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/applications.yaml#/ApplicationsWithUserResponse'
-      '401':
-        $ref: '../components/responses/common.yaml#/Unauthorized'
-      '403':
-        $ref: '../components/responses/common.yaml#/Forbidden'
-
 /api/applications/all/active/applications/paginated:
   get:
     tags:
       - Applications
     summary: Get active applications (paginated)
     description: >
-      Server-side paginated, sorted and searchable list of active student
-      applications. The application deadline (`deadlineDate`) is derived from the
-      student's application_year and the program's application_deadline/semester
-      and can be sorted on.
+      Server-side paginated, sorted and searchable list of active (non-archived)
+      students' applications. Without `userId` it covers all active students;
+      with `userId` it scopes to the students that TaiGer user supervises (as
+      agent or editor). The application deadline (`deadlineDate`) is derived from
+      the student's application_year and the program's
+      application_deadline/semester and can be sorted on.
     operationId: getActiveStudentsApplicationsPaginated
     parameters:
+      - in: query
+        name: userId
+        schema:
+          type: string
+        description: Scope to this TaiGer user's supervised students
       - in: query
         name: page
         schema:

@@ -57,74 +57,38 @@ const getApplications = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: applications });
 });
 
-// Active (non-archived) students' applications. Without `userId` it covers all
-// active students; with `userId` (query param) it scopes to the students that
-// TaiGer user supervises (as agent OR editor). `decided`/`closed`/`admission`
-// filter the applications. Response: { applications, user? } — archived
-// students are always excluded.
-const getActiveStudentsApplications = asyncHandler(async (req, res) => {
-  const { userId, decided, closed, admission } = req.query;
-  const { filter: applicationQuery } = new ApplicationQueryBuilder()
-    .withDecided(decided)
-    .withClosed(closed)
-    .withAdmission(admission)
-    .build();
-
-  const { filter: studentFilter } = new UserQueryBuilder()
-    .withRole(Role.Student)
-    .withArchiv(false)
-    .build();
-
-  if (userId) {
-    // withArchiv(false) already populated filter.$or (archiv condition); merge
-    // the supervision condition via $and so neither clobbers the other.
-    const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
-    if (studentFilter.$or) {
-      studentFilter.$and = [{ $or: studentFilter.$or }, supervisionOr];
-      delete studentFilter.$or;
-    } else {
-      Object.assign(studentFilter, supervisionOr);
-    }
-  }
-
-  const students = await StudentService.getStudents(req, {
-    filter: studentFilter,
-    options: {}
-  });
-
-  const applications = await ApplicationService.getActiveStudentsApplications(
-    req,
-    {
-      filter: {
-        ...applicationQuery,
-        studentId: { $in: students.map((student) => student._id.toString()) }
-      }
-    }
-  );
-
-  const user = userId ? await UserService.getUserById(req, userId) : undefined;
-
-  res.status(200).send({
-    success: true,
-    data: { applications, user }
-  });
-});
-
+// Server-side paginated active (non-archived) students' applications. Without
+// `userId` it covers all active students; with `userId` (query param) it scopes
+// to the students that TaiGer user supervises (as agent OR editor).
 const getActiveStudentsApplicationsPaginated = asyncHandler(
   async (req, res) => {
+    const { userId } = req.query;
+
     const { filter } = new UserQueryBuilder()
       .withRole(Role.Student)
       .withArchiv(false)
       .build();
 
-    const activeStudents = await StudentService.getStudents(req, {
+    if (userId) {
+      // withArchiv(false) already populated filter.$or (archiv condition); merge
+      // the supervision condition via $and so neither clobbers the other.
+      const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
+      if (filter.$or) {
+        filter.$and = [{ $or: filter.$or }, supervisionOr];
+        delete filter.$or;
+      } else {
+        Object.assign(filter, supervisionOr);
+      }
+    }
+
+    const students = await StudentService.getStudents(req, {
       filter,
       options: {}
     });
 
     const result =
       await ApplicationService.getActiveStudentsApplicationsPaginated(req, {
-        studentIds: activeStudents.map((student) => student._id.toString()),
+        studentIds: students.map((student) => student._id.toString()),
         query: req.query
       });
 
@@ -134,44 +98,6 @@ const getActiveStudentsApplicationsPaginated = asyncHandler(
     });
   }
 );
-
-const getMyStudentsApplicationsPaginated = asyncHandler(async (req, res) => {
-  const {
-    params: { userId }
-  } = req;
-
-  // Active students supervised by this TaiGer user (as agent OR editor) —
-  // same membership rule as getMyStudentsApplications.
-  const { filter } = new UserQueryBuilder()
-    .withRole(Role.Student)
-    .withArchiv(false)
-    .build();
-  // withArchiv(false) already populated filter.$or (archiv condition); merge the
-  // supervision condition via $and so neither clobbers the other.
-  const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
-  if (filter.$or) {
-    filter.$and = [{ $or: filter.$or }, supervisionOr];
-    delete filter.$or;
-  } else {
-    Object.assign(filter, supervisionOr);
-  }
-
-  const supervisedStudents = await StudentService.getStudents(req, {
-    filter,
-    options: {}
-  });
-
-  const result =
-    await ApplicationService.getActiveStudentsApplicationsPaginated(req, {
-      studentIds: supervisedStudents.map((student) => student._id.toString()),
-      query: req.query
-    });
-
-  res.status(200).send({
-    success: true,
-    data: result
-  });
-});
 
 // Open-applications deadline distribution. Without `userId` it covers all
 // active students; with `userId` it scopes to the students that TaiGer user
@@ -754,8 +680,6 @@ const refreshApplication = asyncHandler(async (req, res) => {
 module.exports = {
   getApplications,
   deleteApplication,
-  getMyStudentsApplicationsPaginated,
-  getActiveStudentsApplications,
   getActiveStudentsApplicationsPaginated,
   getApplicationsDeadlineDistribution,
   getApplicationProgramsUpdateStatus,

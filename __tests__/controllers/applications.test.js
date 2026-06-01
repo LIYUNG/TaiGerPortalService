@@ -565,12 +565,14 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
 
     const mine = await requestWithSupertest
       .get(
-        `/api/applications/taiger-user/${agent._id}/paginated?sortBy=program_name`
+        `/api/applications/all/active/applications/paginated?userId=${agent._id}&sortBy=program_name`
       )
       .set('tenantId', TENANT_ID);
     // A user who supervises nobody sees nothing.
     const other = await requestWithSupertest
-      .get(`/api/applications/taiger-user/${student2._id}/paginated`)
+      .get(
+        `/api/applications/all/active/applications/paginated?userId=${student2._id}`
+      )
       .set('tenantId', TENANT_ID);
 
     expect(mine.status).toBe(200);
@@ -583,7 +585,7 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
     expect(other.body.data.total).toBe(0);
   });
 
-  it('excludes archived students from my-students applications (non-paginated)', async () => {
+  it('excludes archived students from my-students applications (paginated)', async () => {
     const db = connectToDatabase(TENANT_ID, dbUri);
     const UserModel = db.model('User', UserSchema);
     const ProgramModel = db.model('Program', programSchema);
@@ -620,12 +622,13 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
 
     const resp = await requestWithSupertest
       .get(
-        `/api/applications/all/active/applications?userId=${agent._id}&decided=O&closed=-`
+        `/api/applications/all/active/applications/paginated?userId=${agent._id}&decided=O&closed=-`
       )
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     // Only the 3 active-student applications; the archived student's is dropped.
+    expect(resp.body.data.total).toBe(3);
     expect(resp.body.data.applications).toHaveLength(3);
     const studentIds = resp.body.data.applications.map((application) =>
       application.studentId._id.toString()

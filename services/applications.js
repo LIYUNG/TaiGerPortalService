@@ -290,17 +290,8 @@ const ApplicationService = {
     });
     return application;
   },
-  async getActiveStudentsApplications(req, { filter = {}, options = {} }) {
-    const applications = await populateActiveApplications(
-      req.db.model('Application').find(filter)
-    ).lean();
-
-    return applications;
-  },
-
   /**
-   * Server-side paginated / sorted / searchable variant of
-   * getActiveStudentsApplications.
+   * Server-side paginated / sorted / searchable active students' applications.
    *
    * Strategy: run a lightweight aggregation that joins program + student,
    * computes the derived `deadlineDate`, applies search/filter/sort and returns

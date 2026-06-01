@@ -230,6 +230,112 @@
       '403':
         $ref: '../components/responses/common.yaml#/Forbidden'
 
+/api/applications/distribution:
+  get:
+    tags:
+      - Applications
+    summary: Open applications deadline distribution
+    description: >
+      Deadline distribution for the chart, computed in the DB. Returns only the
+      buckets ({name, active, potentials}) — name is the derived deadline label
+      ("YYYY/MM/DD" or "{year}-Rolling"), active = decided, potentials = undecided.
+      Without `userId` it covers all active students; with `userId` it scopes to
+      the students that TaiGer user supervises (agent or editor).
+    operationId: getApplicationsDeadlineDistribution
+    parameters:
+      - in: query
+        name: userId
+        required: false
+        schema:
+          type: string
+        description: Optional agent/editor id to scope the distribution to.
+    responses:
+      '200':
+        description: Distribution retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        example: '2025/01/15'
+                      active:
+                        type: integer
+                      potentials:
+                        type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
+/api/applications/program-update-status:
+  get:
+    tags:
+      - Applications
+    summary: Programs update status (distinct programs)
+    description: >
+      Distinct programs referenced by active students' applications, with update
+      metadata, computed in the DB (only the small program list is returned).
+      Without `userId` it covers all active students; with `userId` it scopes to
+      that user's supervised students. `decided=O` returns only programs with a
+      decided application.
+    operationId: getApplicationProgramsUpdateStatus
+    parameters:
+      - in: query
+        name: userId
+        required: false
+        schema:
+          type: string
+        description: Optional agent/editor id to scope to.
+      - in: query
+        name: decided
+        required: false
+        schema:
+          type: string
+        description: When 'O', only programs with a decided application are returned.
+    responses:
+      '200':
+        description: Programs update status retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      program_id:
+                        type: string
+                      school:
+                        type: string
+                      program_name:
+                        type: string
+                      degree:
+                        type: string
+                      semester:
+                        type: string
+                      whoupdated:
+                        type: string
+                      updatedAt:
+                        type: string
+                        format: date-time
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
+
 /api/applications/student/{studentId}/{application_id}:
   put:
     tags:
@@ -261,6 +367,59 @@
         $ref: '../components/responses/common.yaml#/Forbidden'
       '404':
         $ref: '../components/responses/common.yaml#/NotFound'
+
+/api/applications/taiger-user/{userId}/stats:
+  get:
+    tags:
+      - Applications
+    summary: Application status stats for a TaiGer user's students
+    description: >
+      Aggregated application status counts (computed in the DB) plus the TaiGer
+      user record, for the AgentPage stat cards. Scoped to the students this
+      user supervises (agent or editor).
+    operationId: getMyStudentsApplicationsStats
+    parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Stats retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    user:
+                      type: object
+                    stats:
+                      type: object
+                      properties:
+                        totalStudents:
+                          type: integer
+                        totalApplications:
+                          type: integer
+                        decidedYesApplications:
+                          type: integer
+                        decidedNoApplications:
+                          type: integer
+                        undecidedApplications:
+                          type: integer
+                        submittedApplications:
+                          type: integer
+                        pendingApplications:
+                          type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses/common.yaml#/Forbidden'
 
 /api/applications/taiger-user/{userId}:
   get:

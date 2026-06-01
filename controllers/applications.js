@@ -173,6 +173,120 @@ const getMyStudentsApplicationsPaginated = asyncHandler(async (req, res) => {
   });
 });
 
+// Open-applications deadline distribution. Without `userId` it covers all
+// active students; with `userId` it scopes to the students that TaiGer user
+// supervises (as agent OR editor).
+const getApplicationsDeadlineDistribution = asyncHandler(async (req, res) => {
+  const { userId } = req.query;
+
+  const { filter } = new UserQueryBuilder()
+    .withRole(Role.Student)
+    .withArchiv(false)
+    .build();
+
+  if (userId) {
+    const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, supervisionOr];
+      delete filter.$or;
+    } else {
+      Object.assign(filter, supervisionOr);
+    }
+  }
+
+  const students = await StudentService.getStudents(req, {
+    filter,
+    options: {}
+  });
+
+  const data =
+    await ApplicationService.getActiveStudentsApplicationsDeadlineDistribution(
+      req,
+      {
+        studentIds: students.map((student) => student._id.toString())
+      }
+    );
+
+  res.status(200).send({ success: true, data });
+});
+
+// Distinct programs (with update metadata) referenced by active students'
+// applications, for the "Programs Update Status" tabs. Without `userId` it
+// covers all active students; with `userId` it scopes to that user's supervised
+// students. `decided=O` returns only programs with a decided application.
+const getApplicationProgramsUpdateStatus = asyncHandler(async (req, res) => {
+  const { userId, decided } = req.query;
+
+  const { filter } = new UserQueryBuilder()
+    .withRole(Role.Student)
+    .withArchiv(false)
+    .build();
+
+  if (userId) {
+    const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, supervisionOr];
+      delete filter.$or;
+    } else {
+      Object.assign(filter, supervisionOr);
+    }
+  }
+
+  const students = await StudentService.getStudents(req, {
+    filter,
+    options: {}
+  });
+
+  const data = await ApplicationService.getApplicationProgramsUpdateStatus(
+    req,
+    {
+      studentIds: students.map((student) => student._id.toString()),
+      decided
+    }
+  );
+
+  res.status(200).send({ success: true, data });
+});
+
+// Aggregated application stats + the agent's user record for the AgentPage stat
+// cards, computed in the DB (no full applications payload).
+const getMyStudentsApplicationsStats = asyncHandler(async (req, res) => {
+  const {
+    params: { userId }
+  } = req;
+
+  const { filter } = new UserQueryBuilder()
+    .withRole(Role.Student)
+    .withArchiv(false)
+    .build();
+  const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
+  if (filter.$or) {
+    filter.$and = [{ $or: filter.$or }, supervisionOr];
+    delete filter.$or;
+  } else {
+    Object.assign(filter, supervisionOr);
+  }
+
+  const students = await StudentService.getStudents(req, {
+    filter,
+    options: {}
+  });
+  const studentIds = students.map((student) => student._id.toString());
+
+  const [stats, user] = await Promise.all([
+    ApplicationService.getApplicationStatusStats(req, { studentIds }),
+    UserService.getUserById(req, userId)
+  ]);
+
+  res.status(200).send({
+    success: true,
+    data: {
+      user,
+      stats: { totalStudents: studentIds.length, ...stats }
+    }
+  });
+});
+
 const getStudentApplications = asyncHandler(async (req, res) => {
   const {
     user,
@@ -644,6 +758,9 @@ module.exports = {
   getMyStudentsApplicationsPaginated,
   getActiveStudentsApplications,
   getActiveStudentsApplicationsPaginated,
+  getApplicationsDeadlineDistribution,
+  getApplicationProgramsUpdateStatus,
+  getMyStudentsApplicationsStats,
   getStudentApplications,
   updateStudentApplications,
   updateApplication,

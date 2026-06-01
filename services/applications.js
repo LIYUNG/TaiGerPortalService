@@ -444,6 +444,233 @@ const ApplicationService = {
 
     return { applications: docs, total, page, limit };
   },
+
+  /**
+   * Deadline distribution for the "Open Applications Distribution" chart,
+   * computed entirely in the DB so only the {name, active, potentials} buckets
+   * are returned (not the full application set).
+   *
+   * Mirrors the frontend frequencyDistribution + application_deadline_V2_calculator:
+   * - only OPEN applications (closed === '-');
+   * - bucketed by the derived deadline string ("YYYY/MM/DD" or "{year}-Rolling",
+   *   with the WS/SS year-prior adjustment);
+   * - kept when the deadline is within ~1 year (or rolling);
+   * - `active` = decided ('O'), `potentials` = undecided ('-').
+   *
+   * @param {string[]} studentIds active/supervised student ids to scope to
+   * @returns {Array<{ name: string, active: number, potentials: number }>}
+   */
+  async getActiveStudentsApplicationsDeadlineDistribution(
+    req,
+    { studentIds = [] }
+  ) {
+    const Application = req.db.model('Application');
+    if (studentIds.length === 0) {
+      return [];
+    }
+
+    const objectIds = studentIds.map(
+      (id) => new mongoose.Types.ObjectId(id.toString())
+    );
+    // Frontend keeps deadlines with differenceInDays(deadline, now) < 365, i.e.
+    // earlier than one year from now (rolling deadlines are kept separately).
+    const cutoff = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+    const pipeline = [
+      { $match: { studentId: { $in: objectIds }, closed: '-' } },
+      {
+        $lookup: {
+          from: 'programs',
+          let: { pid: '$programId' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$_id', '$$pid'] } } },
+            { $project: { semester: 1, application_deadline: 1 } }
+          ],
+          as: 'prog'
+        }
+      },
+      { $unwind: { path: '$prog', preserveNullAndEmptyArrays: false } },
+      ...DEADLINE_DATE_STAGES,
+      {
+        $addFields: {
+          // Bucket label matching application_deadline_V2_calculator output.
+          bucketKey: {
+            $cond: [
+              '$_isRolling',
+              {
+                $concat: [{ $ifNull: ['$application_year', ''] }, '-Rolling']
+              },
+              {
+                $cond: [
+                  { $ne: ['$deadlineDate', null] },
+                  {
+                    $concat: [
+                      { $toString: '$_dlYear' },
+                      '/',
+                      { $toString: { $arrayElemAt: ['$_dlParts', 0] } },
+                      '/',
+                      { $toString: { $arrayElemAt: ['$_dlParts', 1] } }
+                    ]
+                  },
+                  null
+                ]
+              }
+            ]
+          }
+        }
+      },
+      // Keep rolling, or real deadlines within the next year.
+      {
+        $match: {
+          $or: [{ _isRolling: true }, { deadlineDate: { $lt: cutoff } }]
+        }
+      },
+      { $match: { bucketKey: { $ne: null } } },
+      {
+        $group: {
+          _id: '$bucketKey',
+          active: { $sum: { $cond: [{ $eq: ['$decided', 'O'] }, 1, 0] } },
+          potentials: { $sum: { $cond: [{ $eq: ['$decided', '-'] }, 1, 0] } }
+        }
+      },
+      // Drop empty date buckets; rolling buckets are kept regardless.
+      {
+        $match: {
+          $or: [
+            { _id: { $regex: 'Rolling', $options: 'i' } },
+            { active: { $gt: 0 } },
+            { potentials: { $gt: 0 } }
+          ]
+        }
+      },
+      { $project: { _id: 0, name: '$_id', active: 1, potentials: 1 } },
+      { $sort: { name: 1 } }
+    ];
+
+    return Application.aggregate(pipeline).allowDiskUse(true);
+  },
+
+  /**
+   * Distinct programs referenced by the given students' applications, with the
+   * fields the "Programs Update Status" table needs. Computed in the DB so only
+   * the small program list is returned (not the full applications).
+   *
+   * @param {string[]} studentIds active/supervised student ids to scope to
+   * @param {string} [decided] when set (e.g. 'O'), only programs that have a
+   *   decided application are returned
+   * @returns {Array<{program_id, school, program_name, degree, semester, whoupdated, updatedAt}>}
+   */
+  async getApplicationProgramsUpdateStatus(req, { studentIds = [], decided }) {
+    const Application = req.db.model('Application');
+    if (studentIds.length === 0) {
+      return [];
+    }
+
+    const objectIds = studentIds.map(
+      (id) => new mongoose.Types.ObjectId(id.toString())
+    );
+    const match = {
+      studentId: { $in: objectIds },
+      programId: { $ne: null }
+    };
+    if (decided) {
+      match.decided = decided;
+    }
+
+    const pipeline = [
+      { $match: match },
+      { $group: { _id: '$programId' } },
+      {
+        $lookup: {
+          from: 'programs',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'prog'
+        }
+      },
+      { $unwind: { path: '$prog', preserveNullAndEmptyArrays: false } },
+      {
+        $project: {
+          _id: 0,
+          program_id: { $toString: '$_id' },
+          school: '$prog.school',
+          program_name: '$prog.program_name',
+          degree: '$prog.degree',
+          semester: '$prog.semester',
+          whoupdated: '$prog.whoupdated',
+          updatedAt: '$prog.updatedAt'
+        }
+      },
+      { $sort: { school: 1, program_name: 1 } }
+    ];
+
+    return Application.aggregate(pipeline).allowDiskUse(true);
+  },
+
+  /**
+   * Application status counts for a set of students, computed in the DB (for the
+   * AgentPage stat cards). Returns zeros when there are no students.
+   *
+   * @param {string[]} studentIds
+   * @returns {{ totalApplications, decidedYesApplications, decidedNoApplications,
+   *   undecidedApplications, submittedApplications, pendingApplications }}
+   */
+  async getApplicationStatusStats(req, { studentIds = [] }) {
+    const zero = {
+      totalApplications: 0,
+      decidedYesApplications: 0,
+      decidedNoApplications: 0,
+      undecidedApplications: 0,
+      submittedApplications: 0,
+      pendingApplications: 0
+    };
+    if (studentIds.length === 0) {
+      return zero;
+    }
+
+    const objectIds = studentIds.map(
+      (id) => new mongoose.Types.ObjectId(id.toString())
+    );
+
+    const [result] = await req.db.model('Application').aggregate([
+      { $match: { studentId: { $in: objectIds } } },
+      {
+        $group: {
+          _id: null,
+          totalApplications: { $sum: 1 },
+          decidedYesApplications: {
+            $sum: { $cond: [{ $eq: ['$decided', 'O'] }, 1, 0] }
+          },
+          decidedNoApplications: {
+            $sum: { $cond: [{ $eq: ['$decided', 'X'] }, 1, 0] }
+          },
+          // Anything not decided 'O'/'X' (incl. '-' or missing) is undecided.
+          undecidedApplications: {
+            $sum: { $cond: [{ $in: ['$decided', ['O', 'X']] }, 0, 1] }
+          },
+          submittedApplications: {
+            $sum: { $cond: [{ $eq: ['$closed', 'O'] }, 1, 0] }
+          },
+          // Decided to apply but not yet submitted.
+          pendingApplications: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [{ $eq: ['$decided', 'O'] }, { $ne: ['$closed', 'O'] }]
+                },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      },
+      { $project: { _id: 0 } }
+    ]);
+
+    return result || zero;
+  },
+
   async getStudentsApplicationsByTaiGerUserId(
     req,
     userId,

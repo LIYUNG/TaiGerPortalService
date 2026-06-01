@@ -582,4 +582,96 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
     ]);
     expect(other.body.data.total).toBe(0);
   });
+
+  it('returns the deadline distribution (active vs potentials) computed in the DB', async () => {
+    const resp = await requestWithSupertest
+      .get('/api/applications/distribution')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    // 3 open applications, all decided 'O' -> one active per deadline bucket.
+    // Deadlines (application_year 2025): Beta 2024/05/01, Gamma 2024/11/30,
+    // Alpha 2025/01/15 — sorted ascending by the deadline string.
+    expect(resp.body.data).toEqual([
+      { name: '2024/05/01', active: 1, potentials: 0 },
+      { name: '2024/11/30', active: 1, potentials: 0 },
+      { name: '2025/01/15', active: 1, potentials: 0 }
+    ]);
+  });
+
+  it('scopes the distribution to a supervising user via ?userId', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const UserModel = db.model('User', UserSchema);
+    await UserModel.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(student._id) },
+      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
+    );
+
+    const mine = await requestWithSupertest
+      .get(`/api/applications/distribution?userId=${agent._id}`)
+      .set('tenantId', TENANT_ID);
+    const other = await requestWithSupertest
+      .get(`/api/applications/distribution?userId=${student2._id}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(mine.status).toBe(200);
+    expect(mine.body.data).toHaveLength(3);
+    // A user who supervises nobody gets an empty distribution.
+    expect(other.body.data).toEqual([]);
+  });
+
+  it('returns distinct programs for the update-status tabs', async () => {
+    const resp = await requestWithSupertest
+      .get('/api/applications/program-update-status')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    // 3 distinct programs, sorted by school (Aalto, Berlin, Cologne).
+    expect(resp.body.data.map((p) => p.program_name)).toEqual([
+      'Alpha Program',
+      'Beta Program',
+      'Gamma Program'
+    ]);
+    expect(resp.body.data[0]).toMatchObject({
+      school: 'Aalto University',
+      semester: 'WS'
+    });
+
+    // decided=O matches all three (all apps are decided 'O'); decided=X none.
+    const decided = await requestWithSupertest
+      .get('/api/applications/program-update-status?decided=O')
+      .set('tenantId', TENANT_ID);
+    const none = await requestWithSupertest
+      .get('/api/applications/program-update-status?decided=X')
+      .set('tenantId', TENANT_ID);
+
+    expect(decided.body.data).toHaveLength(3);
+    expect(none.body.data).toEqual([]);
+  });
+
+  it('returns aggregated application stats for a supervising user', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const UserModel = db.model('User', UserSchema);
+    await UserModel.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(student._id) },
+      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
+    );
+
+    const resp = await requestWithSupertest
+      .get(`/api/applications/taiger-user/${agent._id}/stats`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    // student owns 3 apps, all decided 'O', closed '-'.
+    expect(resp.body.data.stats).toMatchObject({
+      totalStudents: 1,
+      totalApplications: 3,
+      decidedYesApplications: 3,
+      decidedNoApplications: 0,
+      undecidedApplications: 0,
+      submittedApplications: 0,
+      pendingApplications: 3
+    });
+    expect(resp.body.data.user._id.toString()).toBe(agent._id.toString());
+  });
 });

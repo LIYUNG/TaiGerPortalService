@@ -34,6 +34,7 @@
  */
 
 const { isProd, isTest } = require('../config');
+const { getRequestId } = require('../middlewares/requestContext');
 
 // ANSI color codes for console output
 const colors = {
@@ -64,10 +65,14 @@ const getTimestamp = () => new Date().toISOString();
 
 // Helper function to format log message
 const formatMessage = (level, message, meta = {}) => {
+  // Tag every line with the current request's id (from AsyncLocalStorage) so a
+  // single 5XX line can be expanded to the whole request via `requestId`.
+  const requestId = getRequestId();
+  const enrichedMeta = requestId ? { requestId, ...meta } : meta;
   const logData = {
     level: level.toUpperCase(),
     message,
-    ...meta
+    ...enrichedMeta
   };
 
   // In production or CloudWatch environment, output JSON for structured logging
@@ -91,8 +96,10 @@ const formatMessage = (level, message, meta = {}) => {
 
   let formattedMessage = `${prefix} ${time} ${message}`;
 
-  if (Object.keys(meta).length > 0) {
-    formattedMessage += ` ${colors.cyan}${JSON.stringify(meta)}${colors.reset}`;
+  if (Object.keys(enrichedMeta).length > 0) {
+    formattedMessage += ` ${colors.cyan}${JSON.stringify(enrichedMeta)}${
+      colors.reset
+    }`;
   }
 
   return formattedMessage;

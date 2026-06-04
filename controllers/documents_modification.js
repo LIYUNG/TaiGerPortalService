@@ -1848,7 +1848,10 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
     throw new ErrorResponse(404, 'Message not found');
   }
   // Prevent multitenant
-  if (msg.user_id.toString() !== user._id.toString()) {
+  if (
+    msg.user_id.toString() !== user._id.toString() &&
+    !is_TaiGer_Admin(user)
+  ) {
     logger.error(
       'deleteAMessageInThread : You can only delete your own message.'
     );

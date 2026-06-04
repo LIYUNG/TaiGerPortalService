@@ -11,6 +11,7 @@ const router = require('./routes');
 const { ORIGIN, isProd, isTest } = require('./config');
 const httpLogger = require('./services/httpLogger');
 const { errorHandler } = require('./middlewares/error-handler');
+const { requestContextMiddleware } = require('./middlewares/requestContext');
 
 const {
   tenantMiddleware,
@@ -24,6 +25,10 @@ const compression = require('compression');
 
 const app = express();
 app.set('trust proxy', 1);
+// First in the chain: establish the per-request context (ALB X-Amzn-Trace-Id ->
+// requestId) so every downstream log line — including httpLogger and the error
+// handler — is tagged with the request's id.
+app.use(requestContextMiddleware);
 app.use(helmet.contentSecurityPolicy());
 app.use(helmet.crossOriginEmbedderPolicy());
 app.use(helmet.crossOriginOpenerPolicy());
@@ -41,7 +46,7 @@ app.use(helmet.referrerPolicy());
 app.use(helmet.xssFilter());
 app.use(
   cors({
-    exposedHeaders: ['Content-Disposition'],
+    exposedHeaders: ['Content-Disposition', 'X-Request-Id'],
     origin: ORIGIN,
     credentials: true
   })

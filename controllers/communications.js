@@ -35,8 +35,12 @@ const getSearchUserMessages = asyncHandler(async (req, res, next) => {
     {
       $lookup: {
         from: 'communications',
-        localField: '_id',
-        foreignField: 'student_id',
+        let: { studentId: '$_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 }
+        ],
         as: 'communications'
       }
     },
@@ -46,15 +50,8 @@ const getSearchUserMessages = asyncHandler(async (req, res, next) => {
         lastname: 1,
         role: 1,
         latestCommunication: {
-          $arrayElemAt: ['$communications', -1]
+          $arrayElemAt: ['$communications', 0]
         }
-        // communications: {
-        //   _id: 1,
-        //   user_id: 1,
-        //   message: 1,
-        //   readBy: 1
-        //   // Include only the fields you want to retrieve
-        // }
       }
     }
   ]);
@@ -128,8 +125,12 @@ const getSearchMessageKeywords = asyncHandler(async (req, res) => {
     {
       $lookup: {
         from: 'communications',
-        localField: '_id',
-        foreignField: 'student_id',
+        let: { studentId: '$_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 }
+        ],
         as: 'communications'
       }
     },
@@ -139,15 +140,8 @@ const getSearchMessageKeywords = asyncHandler(async (req, res) => {
         lastname: 1,
         role: 1,
         latestCommunication: {
-          $arrayElemAt: ['$communications', -1]
+          $arrayElemAt: ['$communications', 0]
         }
-        // communications: {
-        //   _id: 1,
-        //   user_id: 1,
-        //   message: 1,
-        //   readBy: 1
-        //   // Include only the fields you want to retrieve
-        // }
       }
     }
   ]);
@@ -250,8 +244,12 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
     {
       $lookup: {
         from: 'communications',
-        localField: '_id',
-        foreignField: 'student_id',
+        let: { studentId: '$_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 }
+        ],
         as: 'communications'
       }
     },
@@ -263,7 +261,7 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
         lastname_chinese: 1,
         role: 1,
         latestCommunication: {
-          $arrayElemAt: ['$communications', -1]
+          $arrayElemAt: ['$communications', 0]
         }
       }
     },
@@ -319,8 +317,12 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
     {
       $lookup: {
         from: 'communications',
-        localField: '_id',
-        foreignField: 'student_id',
+        let: { studentId: '$_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 }
+        ],
         as: 'communications'
       }
     },
@@ -334,7 +336,7 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
         role: 1,
         attributes: 1,
         latestCommunication: {
-          $arrayElemAt: ['$communications', -1]
+          $arrayElemAt: ['$communications', 0]
         }
       }
     },

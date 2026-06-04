@@ -1,299 +1,267 @@
-// This legacy test file uses real multerS3 file uploads (file-upload.js is not mocked)
-// and requires more time than the global testTimeout: 15000.
-jest.setTimeout(60000);
+// DB-free rewrite.
+//
+// This suite used to boot an in-memory Mongo plus a separate tenant connection
+// (`connect()` + `connectToDatabase(TENANT_ID, dbUri)`) and tear them down in
+// `afterAll`. Creating applications fires the `handleProgramChanges` /
+// `enableVersionControl` Mongoose plugins, whose async writes were still
+// in-flight when the connection was closed — so teardown intermittently threw
+//   MongoClientClosedError: Operation interrupted because client was closed
+// making the whole file flaky.
+//
+// The ORM is now mocked end-to-end, so no Mongo connection is ever opened:
+//   1. `createApplicationV2` is unit-tested against fake models — real
+//      controller logic, fake data layer. This is the "create ML thread when a
+//      program with ML required is assigned" behaviour.
+//   2. The thread file-upload validation (.exe / .pdf / size limit) is tested
+//      against the *real* multer middleware with S3 mocked — no DB involved.
 
-const fs = require('fs');
+const express = require('express');
 const request = require('supertest');
 const { mockClient } = require('aws-sdk-client-mock');
-const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const mongoose = require('mongoose');
 
-const { UPLOAD_PATH } = require('../../config');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { User, UserSchema } = require('../../models/User');
-const { programSchema } = require('../../models/Program');
-const { protect } = require('../../middlewares/auth');
-const {
-  permission_canAccessStudentDatabase_filter
-} = require('../../middlewares/permission-filter');
-const {
-  InnerTaigerMultitenantFilter
-} = require('../../middlewares/InnerTaigerMultitenantFilter');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { TENANT_ID } = require('../fixtures/constants');
-const { users, agent, student } = require('../mock/user');
+// Mock the email layer so the post-response notification in createApplicationV2
+// never tries to send a real email.
+jest.mock('../../services/email', () => ({
+  createApplicationToStudentEmail: jest.fn().mockResolvedValue(undefined),
+  UpdateStudentApplicationsEmail: jest.fn().mockResolvedValue(undefined),
+  NewMLRLEssayTasksEmail: jest.fn().mockResolvedValue(undefined),
+  NewMLRLEssayTasksEmailFromTaiGer: jest.fn().mockResolvedValue(undefined)
+}));
+
+const { createApplicationV2 } = require('../../controllers/applications');
+const { MessagesThreadUpload } = require('../../middlewares/file-upload');
+const { errorHandler } = require('../../middlewares/error-handler');
 const { s3Client } = require('../../aws');
-const { program1 } = require('../mock/programs');
-const { disconnectFromDatabase } = require('../../database');
 
-const s3ClientMock = mockClient(s3Client);
+// ---------------------------------------------------------------------------
+// Tiny Mongoose-ish test doubles
+// ---------------------------------------------------------------------------
 
-const requestWithSupertest = request(app);
+// A chainable, awaitable query stub: `.find().populate().lean()` etc. all
+// resolve to `value`.
+const makeQuery = (value) => {
+  const query = {
+    populate: () => query,
+    select: () => query,
+    sort: () => query,
+    lean: () => Promise.resolve(value),
+    countDocuments: () =>
+      Promise.resolve(Array.isArray(value) ? value.length : value),
+    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+  };
+  return query;
+};
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
+// Builds a fake `req.db` plus handles to inspect what the controller created.
+const buildMockDb = ({ studentId, programId }) => {
+  const createdThreads = [];
+
+  const studentDoc = {
+    _id: studentId,
+    firstname: 'Test',
+    lastname: 'Student',
+    email: 'student@example.com',
+    application_preference: { expected_application_date: '2025' },
+    generaldocs_threads: [],
+    notification: {},
+    save: jest.fn().mockResolvedValue(true)
+  };
+
+  // ml_required: 'yes' -> the supplementary-form loop should create one ML
+  // thread. rl_required left undefined -> the RL block is skipped.
+  const programDoc = {
+    _id: new mongoose.Types.ObjectId(programId),
+    school: 'Test School',
+    program_name: 'Test Program',
+    degree: 'MSc',
+    semester: 'WS',
+    country: 'de',
+    ml_required: 'yes'
+  };
+
+  // `application.doc_modification_thread` is a subdoc array: it must support
+  // both Array#push and Mongoose's `.create()` helper.
+  const docModThread = [];
+  docModThread.create = (entry) => entry;
+  const applicationDoc = {
+    _id: new mongoose.Types.ObjectId(),
+    studentId,
+    doc_modification_thread: docModThread,
+    save: jest.fn().mockResolvedValue(true)
+  };
+
+  // Documentthread used as a constructor: `new Documentthread({...})`.
+  function Documentthread(doc) {
+    Object.assign(this, doc);
+    this._id = new mongoose.Types.ObjectId();
+    this.save = jest.fn().mockResolvedValue(this);
+    createdThreads.push(this);
+  }
+  Documentthread.find = () => makeQuery([]);
+
+  const models = {
+    Student: { findById: jest.fn().mockResolvedValue(studentDoc) },
+    Program: { find: jest.fn(() => makeQuery([programDoc])) },
+    Application: {
+      find: jest.fn(() => makeQuery([])),
+      create: jest.fn().mockResolvedValue(applicationDoc)
+    },
+    Documentthread
+  };
+
+  return {
+    db: { model: (name) => models[name] },
+    studentDoc,
+    applicationDoc,
+    createdThreads
+  };
+};
+
+describe('createApplicationV2 (ORM mocked)', () => {
+  it('creates an ML thread when a program with ML required is assigned', async () => {
+    const studentId = new mongoose.Types.ObjectId().toString();
+    const programId = new mongoose.Types.ObjectId().toString();
+    const mock = buildMockDb({ studentId, programId });
+
+    const req = {
+      db: mock.db,
+      user: { firstname: 'Agent', lastname: 'Smith', email: 'agent@a.com' },
+      params: { studentId },
+      body: { program_id_set: [programId] }
+    };
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis()
+    };
+    const next = jest.fn();
+
+    await createApplicationV2(req, res, next);
+
+    // No error path was taken.
+    expect(next).not.toHaveBeenCalledWith(expect.any(Error));
+    expect(res.status).toHaveBeenCalledWith(201);
+
+    // The application was created and persisted.
+    expect(mock.applicationDoc.save).toHaveBeenCalled();
+    expect(mock.studentDoc.save).toHaveBeenCalled();
+
+    // Exactly one thread, of type ML, was created and saved.
+    const mlThreads = mock.createdThreads.filter((t) => t.file_type === 'ML');
+    expect(mlThreads).toHaveLength(1);
+    expect(mlThreads[0].student_id.toString()).toBe(studentId);
+    expect(mlThreads[0].save).toHaveBeenCalled();
+    // It is linked into the application's doc_modification_thread list.
+    expect(mock.applicationDoc.doc_modification_thread).toContainEqual(
+      expect.objectContaining({
+        doc_thread_id: mlThreads[0]._id
+      })
+    );
+  });
+
+  it('rejects when more than the max number of programs are assigned', async () => {
+    const studentId = new mongoose.Types.ObjectId().toString();
+    const mock = buildMockDb({
+      studentId,
+      programId: new mongoose.Types.ObjectId().toString()
+    });
+    const program_id_set = Array.from({ length: 21 }, () =>
+      new mongoose.Types.ObjectId().toString()
+    );
+
+    const req = {
+      db: mock.db,
+      user: { firstname: 'Agent', lastname: 'Smith', email: 'agent@a.com' },
+      params: { studentId },
+      body: { program_id_set }
+    };
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis()
+    };
+    const next = jest.fn();
+
+    await createApplicationV2(req, res, next);
+
+    // asyncHandler forwards the ErrorResponse to next(); nothing is created.
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 400 })
+    );
+    expect(res.status).not.toHaveBeenCalledWith(201);
+    expect(mock.createdThreads).toHaveLength(0);
+  });
+});
+
+describe('Document thread file upload validation (multer, S3 mocked, no DB)', () => {
+  const s3ClientMock = mockClient(s3Client);
+
+  // The thread storage's `key`/`metadata` callbacks read req.params and query
+  // req.db to derive the S3 object name — inject a fake thread so the upload
+  // can complete without a real connection.
+  const injectFakeDb = (req, res, next) => {
+    const threadDoc = {
+      _id: 'thread1',
+      file_type: 'ML',
+      program_id: undefined,
+      student_id: { firstname: 'Test', lastname: 'Student' },
+      messages: []
+    };
+    req.db = {
+      model: () => ({
+        findById: () => ({ populate: () => Promise.resolve(threadDoc) })
+      })
+    };
     next();
   };
 
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const ProgramModel = db.model('Program', programSchema);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-  await ProgramModel.deleteMany();
-  await ProgramModel.create(program1);
-
-  s3ClientMock.on(PutObjectCommand).callsFake(async (input, getClient) => {
-    getClient().config.endpoint = () => ({ hostname: '' });
-    return {};
-  });
-  s3ClientMock.on(GetObjectCommand).callsFake(async () => ({
-    Body: {
-      transformToByteArray: async () => Buffer.from('mock file content')
-    }
-  }));
-});
-
-afterAll(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const ProgramModel = db.model('Program', programSchema);
-  await UserModel.deleteMany();
-  await ProgramModel.deleteMany();
-
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-beforeEach(async () => {});
-
-afterEach(() => {
-  fs.rmSync(UPLOAD_PATH, { recursive: true, force: true });
-});
-
-describe('POST /api/document-threads/:category', () => {
-  beforeEach(async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = await User.findById(student._id);
-      next();
-    });
-  });
-
-  it('todo', async () => {
-    expect(200).toBe(200);
-  });
-});
-
-// user: Agent
-describe('POST /api/document-threads/init/application/:studentId/:application_id/:document_category', () => {
-  const { _id: studentId } = student;
-  const { _id: programId } = program1;
-  const filename = 'my-file.pdf'; // will be overwrite to docName
-
-  let messagesThreadId;
-
-  permission_canAccessStudentDatabase_filter.mockImplementation(
-    async (req, res, next) => {
-      next();
+  // Minimal app exercising only the real upload middleware + error handler.
+  const uploadApp = express();
+  uploadApp.post(
+    '/upload/:messagesThreadId/:studentId',
+    injectFakeDb,
+    MessagesThreadUpload,
+    (req, res) => {
+      res.status(200).send({ success: true });
     }
   );
-  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) => {
-    next();
-  });
-  protect.mockImplementation((req, res, next) => {
-    req.user = agent;
-    next();
-  });
+  uploadApp.use(errorHandler);
 
-  expect(200).toBe(200);
+  const uploadAgent = request(uploadApp);
+  const uploadUrl = '/upload/653d1e116f4c8c637dd1c971/653d1e116f4c8c637dd1c000';
 
-  // TODO: need to simplify mock data.
-  it('should create a new ML thread when assigned a new program with ML required', async () => {
-    const resp = await requestWithSupertest
-      .post(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: [programId.toString()] });
-
-    expect(resp.status).toBe(201);
-
-    const resp_std = await requestWithSupertest
-      .get(`/api/students/doc-links/${studentId}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp_std.status).toBe(200);
-    const newStudentData = resp_std.body.data;
-
-    const newApplication = newStudentData.applications.find(
-      (appl) => appl.programId._id?.toString() === programId
-    );
-    const thread = newApplication.doc_modification_thread.find(
-      (thr) => thr.doc_thread_id.file_type === 'ML'
-    );
-    expect(thread.doc_thread_id.file_type).toBe('ML');
-    messagesThreadId = thread.doc_thread_id._id?.toString();
+  beforeEach(() => {
+    s3ClientMock.reset();
+    s3ClientMock.on(PutObjectCommand).callsFake(async (input, getClient) => {
+      // eslint-disable-next-line no-param-reassign
+      getClient().config.endpoint = () => ({ hostname: '' });
+      return {};
+    });
   });
 
   it.each([
     ['my-file.exe', 415, false],
     ['my-file.pdf', 200, true]
   ])(
-    '%p should return %p hen program specific file type not .pdf .png, .jpg and .jpeg .docx %p',
-    async (File_Name, status, success) => {
-      const buffer_1kB_exe = Buffer.alloc(1024 * 1); // 1 kB
-      const resp2 = await requestWithSupertest
-        .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
-        .set('tenantId', TENANT_ID)
-        .attach('files', buffer_1kB_exe, { filename: File_Name })
-        .field('message', '{}');
+    '%p should return %p (success=%p) based on the allowed file type',
+    async (filename, status, success) => {
+      const buffer = Buffer.alloc(1024); // 1 kB — under the limit
+      const resp = await uploadAgent
+        .post(uploadUrl)
+        .attach('files', buffer, { filename });
 
-      // expect(resp2).toBe('status');
-      expect(resp2.status).toBe(status);
-      expect(resp2.body.success).toBe(success);
+      expect(resp.status).toBe(status);
+      expect(resp.body.success).toBe(success);
     }
   );
-  // TODO: mock S3 isntead of
 
-  it('should return 413 when program specific file size (ML, Essay) over 1 MB', async () => {
-    const buffer_2MB = Buffer.alloc(1024 * 1024 * 2); // 1 kB
-    const resp2 = await requestWithSupertest
-      .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .attach('files', buffer_2MB, { filename });
+  it('rejects an upload that exceeds the 1 MB document size limit', async () => {
+    const buffer = Buffer.alloc(1024 * 1024 * 2); // 2 MB — over the limit
+    const resp = await uploadAgent
+      .post(uploadUrl)
+      .attach('files', buffer, { filename: 'my-file.pdf' });
 
-    expect(resp2.status).toBe(413);
-    expect(resp2.body.success).toBe(false);
+    expect(resp.status).toBe(413);
+    expect(resp.body.success).toBe(false);
   });
-
-  // it('should save the uploaded program specific file and store the path in db', async () => {
-  // const resp_std = await requestWithSupertest
-  //   .get(`/api/students/doc-links/${studentId}`)
-  //   .set('tenantId', TENANT_ID);
-
-  // expect(resp_std.status).toBe(200);
-  // const newStudentData = resp_std.body.data;
-  //   const application = newStudentData.applications.find(
-  //     (appl) => appl.programId._id?.toString() === programId
-  //   );
-
-  //   application.documents.forEach((editoroutput) => {
-  //     if (editoroutput.name.includes(fileCategory)) {
-  //       if (
-  //         editoroutput.name.match(r) !== null &&
-  //         editoroutput.name.match(r)[0] > version_number_max
-  //       ) {
-  //         version_number_max = editoroutput.name.match(r)[0]; // get the max version number
-  //       }
-  //     }
-  //   });
-
-  //   var version_number = version_number_max;
-  //   var same_file_name = true;
-  //   while (same_file_name) {
-  //     temp_name =
-  //       student.lastname +
-  //       '_' +
-  //       student.firstname +
-  //       '_' +
-  //       application.programId.school +
-  //       '_' +
-  //       application.programId.program_name +
-  //       '_' +
-  //       fileCategory +
-  //       '_v' +
-  //       version_number +
-  //       `${path.extname(filename)}`;
-  //     temp_name = temp_name.replace(/ /g, '_');
-  //   }
-  //   const doc_idx = application.documents.findIndex(({ name }) =>
-  //     name.includes(db_file_name)
-  //   );
-
-  //   file_name_inDB = path.basename(application.documents[doc_idx].path);
-  //   expect(file_name_inDB).toBe(temp_name);
-
-  //   // Test Download:
-  //   const resp2 = await requestWithSupertest
-  //     .get(
-  //       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
-  //     )
-  //     .set('tenantId', TENANT_ID)
-  //     .buffer();
-
-  //   expect(resp2.status).toBe(200);
-  //   expect(resp2.headers['content-disposition']).toEqual(
-  //     `attachment; filename="${temp_name}"`
-  //   );
-
-  //   // Mark as final documents
-  //   const resp6 = await requestWithSupertest
-  //     .put(
-  //       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
-  //     )
-  //     .set('tenantId', TENANT_ID);
-  //   expect(resp6.status).toBe(201);
-  //   expect(resp6.body.success).toBe(true);
-
-  //   // test download: should return 400 with invalid applicationId
-  //   const invalidApplicationId = 'invalidapplicationID';
-  //   const resp3 = await requestWithSupertest
-  //     .get(
-  //       `/api/account/files/programspecific/${studentId}/${invalidApplicationId}/${whoupdate}/${temp_name}`
-  //     )
-  //     .set('tenantId', TENANT_ID)
-  //     .buffer();
-
-  //   expect(resp3.status).toBe(400);
-  //   expect(resp3.body.success).toBe(false);
 });

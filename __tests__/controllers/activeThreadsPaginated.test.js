@@ -171,6 +171,21 @@ describe('GET /api/document-threads/overview/all/paginated', () => {
     expect(resp.body.data.threads[0].file_type).toBe('ML');
   });
 
+  it('filters by deadline (year/month text match)', async () => {
+    // ML thread's derived deadline is "2025/01/15".
+    const match = await requestWithSupertest
+      .get(`${PAGINATED_URL}?deadline=2025/01`)
+      .set('tenantId', TENANT_ID);
+    expect(match.body.data.total).toBe(1);
+    expect(match.body.data.threads[0].file_type).toBe('ML');
+
+    // A different month matches nothing.
+    const noMatch = await requestWithSupertest
+      .get(`${PAGINATED_URL}?deadline=2025/02`)
+      .set('tenantId', TENANT_ID);
+    expect(noMatch.body.data.total).toBe(0);
+  });
+
   it('filters by the tab category (in_progress vs no_input)', async () => {
     const inProgress = await requestWithSupertest
       .get(`${PAGINATED_URL}?category=in_progress`)

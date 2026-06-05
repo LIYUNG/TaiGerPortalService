@@ -80,6 +80,9 @@ const parseActiveThreadsQuery = (query = {}) => {
       file_type: trim(query.file_type),
       lang: trim(query.lang),
       status: trim(query.status),
+      // Year/month text match against the displayed deadline string
+      // (e.g. "2025/09"); also matches "Rolling"/"WITHDRAW".
+      deadline: trim(query.deadline),
       category: trim(query.category) || 'all'
     },
     sort: { [sortPath]: sortDir, _id: 1 }
@@ -866,6 +869,13 @@ const DocumentThreadService = {
     if (filters.lang) {
       andConditions.push({
         lang: { $regex: escapeRegex(filters.lang), $options: 'i' }
+      });
+    }
+    if (filters.deadline) {
+      // Match against the computed display string (e.g. "2025/09/15",
+      // "2026-Rolling", "WITHDRAW"), so "2025/09" narrows to that month.
+      andConditions.push({
+        deadline: { $regex: escapeRegex(filters.deadline), $options: 'i' }
       });
     }
     if (filters.status === 'Locked' || filters.status === 'Unlocked') {

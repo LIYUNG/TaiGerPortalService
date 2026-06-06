@@ -97,6 +97,7 @@
             - application_year
             - target_degree
             - application_semester
+            - createdAt
       - {
           name: sortOrder,
           in: query,

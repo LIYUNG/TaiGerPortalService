@@ -589,6 +589,19 @@ describe('GET /api/students/v3/paginated', () => {
     expect(ids).toContain(student._id.toString());
   });
 
+  it('sorts by createdAt (descending = newest first)', async () => {
+    const resp = await requestWithSupertest
+      .get(`${PAGINATED_URL}?sortBy=createdAt&sortOrder=desc`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    const createdAts = resp.body.data.students.map((s) =>
+      new Date(s.createdAt).getTime()
+    );
+    const sorted = [...createdAts].sort((a, b) => b - a);
+    expect(createdAts).toEqual(sorted);
+  });
+
   it('scopes to students supervised by a given agent id', async () => {
     // Make `agent` supervise `student` only.
     await Student.updateOne(

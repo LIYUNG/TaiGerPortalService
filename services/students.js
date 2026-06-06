@@ -18,7 +18,9 @@ const STUDENT_SORT_FIELD_MAP = {
     'academic_background.university.attended_university_program',
   application_year: 'application_preference.expected_application_date',
   target_degree: 'application_preference.target_degree',
-  application_semester: 'application_preference.expected_application_semester'
+  application_semester: 'application_preference.expected_application_semester',
+  // Native Mongoose timestamp on the root document (User has timestamps: true).
+  createdAt: 'createdAt'
 };
 
 // Frontend table column id -> aggregation path for regex (contains) filters.

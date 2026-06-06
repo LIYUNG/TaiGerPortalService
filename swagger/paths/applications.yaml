@@ -190,6 +190,21 @@
         description: Matches the student's first or last name (contains, case-insensitive)
         schema:
           type: string
+      - in: query
+        name: program
+        description: Matches the program's school or program name (contains, case-insensitive)
+        schema:
+          type: string
+      - in: query
+        name: agentName
+        description: Matches any supervising agent's first or last name (contains, case-insensitive)
+        schema:
+          type: string
+      - in: query
+        name: editorName
+        description: Matches any supervising editor's first or last name (contains, case-insensitive)
+        schema:
+          type: string
     responses:
       '200':
         description: Paginated active applications retrieved successfully

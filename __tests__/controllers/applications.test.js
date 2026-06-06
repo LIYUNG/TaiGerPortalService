@@ -17,7 +17,7 @@ const { programSchema } = require('../../models/Program');
 const { TENANT_ID } = require('../fixtures/constants');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
 const { documentThreadsSchema } = require('../../models/Documentthread');
-const { users, agent, student, student2 } = require('../mock/user');
+const { users, agent, editor, student, student2 } = require('../mock/user');
 const { program1, programs } = require('../mock/programs');
 const { disconnectFromDatabase } = require('../../database');
 
@@ -516,6 +516,81 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
       .set('tenantId', TENANT_ID);
     const noMatch = await requestWithSupertest
       .get(`${PAGINATED_URL}?studentName=zzzznomatchzzzz`)
+      .set('tenantId', TENANT_ID);
+
+    expect(byFirst.body.data.total).toBe(3);
+    expect(byLast.body.data.total).toBe(3);
+    expect(noMatch.body.data.total).toBe(0);
+  });
+
+  it('filters by program: spans school OR program_name (contains)', async () => {
+    // By program_name.
+    const byName = await requestWithSupertest
+      .get(`${PAGINATED_URL}?program=Alpha`)
+      .set('tenantId', TENANT_ID);
+    // By school: only Alpha is at "Aalto University".
+    const bySchool = await requestWithSupertest
+      .get(`${PAGINATED_URL}?program=Aalto`)
+      .set('tenantId', TENANT_ID);
+    // All three schools contain "University" (case-insensitive).
+    const allBySchoolWord = await requestWithSupertest
+      .get(`${PAGINATED_URL}?program=university`)
+      .set('tenantId', TENANT_ID);
+    const noMatch = await requestWithSupertest
+      .get(`${PAGINATED_URL}?program=zzzznomatchzzzz`)
+      .set('tenantId', TENANT_ID);
+
+    expect(byName.body.data.total).toBe(1);
+    expect(deadlineNames(byName)).toEqual(['Alpha Program']);
+    expect(bySchool.body.data.total).toBe(1);
+    expect(deadlineNames(bySchool)).toEqual(['Alpha Program']);
+    expect(allBySchoolWord.body.data.total).toBe(3);
+    expect(noMatch.body.data.total).toBe(0);
+  });
+
+  it('filters by agent name (first or last name, contains)', async () => {
+    // Make `agent` supervise `student` (who owns all three applications).
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const UserModel = db.model('User', UserSchema);
+    await UserModel.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(student._id) },
+      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
+    );
+
+    const byFirst = await requestWithSupertest
+      .get(`${PAGINATED_URL}?agentName=${encodeURIComponent(agent.firstname)}`)
+      .set('tenantId', TENANT_ID);
+    const byLast = await requestWithSupertest
+      .get(`${PAGINATED_URL}?agentName=${encodeURIComponent(agent.lastname)}`)
+      .set('tenantId', TENANT_ID);
+    const noMatch = await requestWithSupertest
+      .get(`${PAGINATED_URL}?agentName=zzzznomatchzzzz`)
+      .set('tenantId', TENANT_ID);
+
+    expect(byFirst.body.data.total).toBe(3);
+    expect(byLast.body.data.total).toBe(3);
+    expect(noMatch.body.data.total).toBe(0);
+  });
+
+  it('filters by editor name (first or last name, contains)', async () => {
+    // Make `editor` supervise `student` (who owns all three applications).
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const UserModel = db.model('User', UserSchema);
+    await UserModel.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(student._id) },
+      { $set: { editors: [new mongoose.Types.ObjectId(editor._id)] } }
+    );
+
+    const byFirst = await requestWithSupertest
+      .get(
+        `${PAGINATED_URL}?editorName=${encodeURIComponent(editor.firstname)}`
+      )
+      .set('tenantId', TENANT_ID);
+    const byLast = await requestWithSupertest
+      .get(`${PAGINATED_URL}?editorName=${encodeURIComponent(editor.lastname)}`)
+      .set('tenantId', TENANT_ID);
+    const noMatch = await requestWithSupertest
+      .get(`${PAGINATED_URL}?editorName=zzzznomatchzzzz`)
       .set('tenantId', TENANT_ID);
 
     expect(byFirst.body.data.total).toBe(3);

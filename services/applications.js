@@ -48,8 +48,6 @@ const APPLICATION_EXACT_FILTERS = [
 
 // $in (multi-select) filters that live on the joined program. Comma-separated
 // in the query string, mirroring the programs list endpoint.
-// (Per-field text filters for school/program_name/degree are intentionally
-// omitted: the global `search` already covers those fields.)
 const PROGRAM_ARRAY_FILTERS = {
   country: 'prog.country'
 };
@@ -59,10 +57,25 @@ const PROGRAM_TEXT_FILTERS = {
   semester: 'prog.semester'
 };
 
+// Regex (contains, case-insensitive) filter matching the program's school OR
+// program_name. The "Program" column shows "{school} - {program_name} ({degree})",
+// so the filter spans both fields. Sent as a single `program` query param.
+const PROGRAM_NAME_FILTER_KEY = 'program';
+const PROGRAM_NAME_PATHS = ['prog.school', 'prog.program_name'];
+
 // Regex (contains, case-insensitive) filter matching the student's first OR
 // last name. Sent as a single `studentName` query param.
 const STUDENT_NAME_FILTER_KEY = 'studentName';
 const STUDENT_NAME_PATHS = ['student.firstname', 'student.lastname'];
+
+// Regex (contains, case-insensitive) filters matching any supervising agent's /
+// editor's first OR last name. Each needs its own lookup stage, added to the
+// pipeline only when the corresponding filter is set.
+const AGENT_NAME_FILTER_KEY = 'agentName';
+const AGENT_NAME_PATHS = ['agents.firstname', 'agents.lastname'];
+
+const EDITOR_NAME_FILTER_KEY = 'editorName';
+const EDITOR_NAME_PATHS = ['editors.firstname', 'editors.lastname'];
 
 const escapeRegex = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -108,14 +121,17 @@ const parseActiveApplicationsQuery = (query = {}) => {
       filters[PROGRAM_TEXT_FILTERS[field]] = String(query[field]).trim();
     }
   });
-  if (
-    query[STUDENT_NAME_FILTER_KEY] !== undefined &&
-    query[STUDENT_NAME_FILTER_KEY] !== ''
-  ) {
-    filters[STUDENT_NAME_FILTER_KEY] = String(
-      query[STUDENT_NAME_FILTER_KEY]
-    ).trim();
-  }
+  // Single-key contains filters that match an $or over several joined paths.
+  [
+    PROGRAM_NAME_FILTER_KEY,
+    STUDENT_NAME_FILTER_KEY,
+    AGENT_NAME_FILTER_KEY,
+    EDITOR_NAME_FILTER_KEY
+  ].forEach((key) => {
+    if (query[key] !== undefined && query[key] !== '') {
+      filters[key] = String(query[key]).trim();
+    }
+  });
 
   return {
     page: safePage,
@@ -345,14 +361,23 @@ const ApplicationService = {
         });
       }
     });
-    if (filters[STUDENT_NAME_FILTER_KEY]) {
-      const pattern = escapeRegex(filters[STUDENT_NAME_FILTER_KEY]);
-      andConditions.push({
-        $or: STUDENT_NAME_PATHS.map((path) => ({
-          [path]: { $regex: pattern, $options: 'i' }
-        }))
-      });
-    }
+    // Single-value filters that match an $or across several joined paths
+    // (program school/name, student name, agent name, editor name).
+    [
+      { key: PROGRAM_NAME_FILTER_KEY, paths: PROGRAM_NAME_PATHS },
+      { key: STUDENT_NAME_FILTER_KEY, paths: STUDENT_NAME_PATHS },
+      { key: AGENT_NAME_FILTER_KEY, paths: AGENT_NAME_PATHS },
+      { key: EDITOR_NAME_FILTER_KEY, paths: EDITOR_NAME_PATHS }
+    ].forEach(({ key, paths }) => {
+      if (filters[key]) {
+        const pattern = escapeRegex(filters[key]);
+        andConditions.push({
+          $or: paths.map((path) => ({
+            [path]: { $regex: pattern, $options: 'i' }
+          }))
+        });
+      }
+    });
     if (search) {
       const pattern = escapeRegex(search);
       andConditions.push({
@@ -392,12 +417,44 @@ const ApplicationService = {
           let: { sid: '$studentId' },
           pipeline: [
             { $match: { $expr: { $eq: ['$_id', '$$sid'] } } },
-            { $project: { firstname: 1, lastname: 1 } }
+            { $project: { firstname: 1, lastname: 1, agents: 1, editors: 1 } }
           ],
           as: 'student'
         }
       },
       { $unwind: { path: '$student', preserveNullAndEmptyArrays: false } },
+      // Only resolve the student's agents / editors when the matching name
+      // filter is active — the extra lookups are wasted work otherwise.
+      ...(filters[AGENT_NAME_FILTER_KEY]
+        ? [
+            {
+              $lookup: {
+                from: 'users',
+                let: { agentIds: { $ifNull: ['$student.agents', []] } },
+                pipeline: [
+                  { $match: { $expr: { $in: ['$_id', '$$agentIds'] } } },
+                  { $project: { firstname: 1, lastname: 1 } }
+                ],
+                as: 'agents'
+              }
+            }
+          ]
+        : []),
+      ...(filters[EDITOR_NAME_FILTER_KEY]
+        ? [
+            {
+              $lookup: {
+                from: 'users',
+                let: { editorIds: { $ifNull: ['$student.editors', []] } },
+                pipeline: [
+                  { $match: { $expr: { $in: ['$_id', '$$editorIds'] } } },
+                  { $project: { firstname: 1, lastname: 1 } }
+                ],
+                as: 'editors'
+              }
+            }
+          ]
+        : []),
       ...DEADLINE_DATE_STAGES,
       ...(Object.keys(postMatch).length > 0 ? [{ $match: postMatch }] : []),
       {

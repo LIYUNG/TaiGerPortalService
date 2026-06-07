@@ -4,101 +4,13 @@ const logger = require('../services/logger');
 const { AWS_S3_BUCKET_NAME } = require('../config');
 const { getS3Object } = require('../aws/s3');
 const ApplicationService = require('../services/applications');
+const StudentService = require('../services/students');
 const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
 
-const getApplicationCountsResultCount = asyncHandler(async (req) => {
+// Overall admission/rejection/pending/notYetSubmitted counts.
+const getApplicationCountsResultCount = asyncHandler(async () => {
   try {
-    // Validate database connection
-    if (!req.db) {
-      throw new ErrorResponse(500, 'Database connection not available');
-    }
-
-    const result = await req.db.model('Application').aggregate([
-      // Match all applications with decided = "O"
-      {
-        $match: {
-          decided: 'O',
-          programId: { $exists: true, $ne: null }
-        }
-      },
-
-      // Group all applications together and count by status
-      {
-        $group: {
-          _id: null, // Group all documents together
-          admission: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ['$admission', 'O'] },
-                    { $ne: ['$closed', '-'] }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          },
-          rejection: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ['$admission', 'X'] },
-                    { $ne: ['$closed', '-'] }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          },
-          pending: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ['$admission', '-'] },
-                    { $eq: ['$closed', 'O'] }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          },
-          notYetSubmitted: {
-            $sum: {
-              $cond: [{ $eq: ['$closed', '-'] }, 1, 0]
-            }
-          }
-        }
-      },
-
-      // Project the result without _id
-      {
-        $project: {
-          _id: 0,
-          admission: 1,
-          rejection: 1,
-          pending: 1,
-          notYetSubmitted: 1
-        }
-      }
-    ]);
-
-    // Return the first (and only) result, or default values if no data
-    const counts =
-      result.length > 0
-        ? result[0]
-        : {
-            admission: 0,
-            rejection: 0,
-            pending: 0,
-            notYetSubmitted: 0
-          };
-
+    const counts = await ApplicationService.getAdmissionsStatusCounts();
     logger.info('Successfully fetched application counts:', counts);
     return counts;
   } catch (error) {
@@ -110,91 +22,9 @@ const getApplicationCountsResultCount = asyncHandler(async (req) => {
   }
 });
 
-const getProgramApplicationCounts = asyncHandler(async (req) => {
+const getProgramApplicationCounts = asyncHandler(async () => {
   try {
-    // Validate database connection
-    if (!req.db) {
-      throw new ErrorResponse(500, 'Database connection not available');
-    }
-
-    const result = await req.db.model('Application').aggregate([
-      // Match applications with decided and closed fields set to "O"
-      {
-        $match: {
-          decided: 'O',
-          closed: 'O',
-          programId: { $exists: true, $ne: null } // Ensure programId exists
-        }
-      },
-
-      // Group by programId and count occurrences
-      {
-        $group: {
-          _id: '$programId',
-          applicationCount: { $sum: 1 }, // Total count of applications
-          admissionCount: {
-            $sum: {
-              $cond: [{ $eq: ['$admission', 'O'] }, 1, 0] // Count admissions with "O"
-            }
-          },
-          finalEnrolmentCount: {
-            $sum: {
-              $cond: [{ $eq: ['$finalEnrolment', true] }, 1, 0] // Count final enrolments
-            }
-          },
-          rejectionCount: {
-            $sum: {
-              $cond: [{ $eq: ['$admission', 'X'] }, 1, 0] // Count rejections with "X"
-            }
-          },
-          pendingResultCount: {
-            $sum: {
-              $cond: [{ $eq: ['$admission', '-'] }, 1, 0] // Count pending with "-"
-            }
-          }
-        }
-      },
-
-      // Sort by count in descending order
-      { $sort: { applicationCount: -1 } },
-
-      // Lookup to populate program details
-      {
-        $lookup: {
-          from: 'programs', // Ensure this matches the name of your Program collection
-          localField: '_id',
-          foreignField: '_id',
-          as: 'programDetails'
-        }
-      },
-
-      // Unwind programDetails array for easier access
-      { $unwind: '$programDetails' },
-
-      // Project only specific fields from programDetails
-      {
-        $project: {
-          applicationCount: 1,
-          admissionCount: 1,
-          finalEnrolmentCount: 1,
-          rejectionCount: 1,
-          pendingResultCount: 1,
-          id: '$programDetails._id',
-          school: '$programDetails.school',
-          program_name: '$programDetails.program_name',
-          semester: '$programDetails.semester',
-          degree: '$programDetails.degree',
-          lang: '$programDetails.lang'
-        }
-      }
-    ]);
-
-    // Validate result
-    if (!Array.isArray(result)) {
-      logger.warn('Unexpected result format from aggregation pipeline');
-      return [];
-    }
-
+    const result = await ApplicationService.getProgramApplicationCounts();
     logger.info(
       `Successfully fetched application counts for ${result.length} programs`
     );
@@ -223,7 +53,7 @@ const getAdmissions = asyncHandler(async (req, res, next) => {
 
   const [result, applications] = await Promise.all([
     getProgramApplicationCounts(req),
-    ApplicationService.getApplicationsWithStudentDetails(req, filter)
+    ApplicationService.getApplicationsWithStudentDetails(filter)
   ]);
 
   res.status(200).send({
@@ -255,9 +85,9 @@ const getAdmissionLetter = asyncHandler(async (req, res, next) => {
 
 const getAdmissionsYear = asyncHandler(async (req, res) => {
   const { applications_year } = req.params;
-  const tasks = await req.db
-    .model('Student')
-    .find({ student_id: applications_year });
+  const tasks = await StudentService.findStudents({
+    student_id: applications_year
+  });
   res.status(200).send({ success: true, data: tasks });
 });
 

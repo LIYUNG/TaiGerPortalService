@@ -13,6 +13,7 @@ const { sql, getTableColumns, not, eq, desc, and } = require('drizzle-orm');
 const { nanoid } = require('nanoid');
 const logger = require('../services/logger');
 const { ten_minutes_cache } = require('../cache/node-cache');
+const UserService = require('../services/users');
 
 const { instantInviteTA } = require('../utils/meeting-assistant.service');
 
@@ -580,12 +581,8 @@ const createLeadFromStudent = asyncHandler(async (req, res) => {
     });
   }
 
-  // Fetch student
-  const student = await req.db
-    .model('User')
-    .findById(studentId)
-    .select('firstname lastname firstname_chinese lastname_chinese')
-    .lean();
+  // Fetch student (Mongo) via the default-connection User model.
+  const student = await UserService.getUserById(studentId);
 
   if (!student) {
     return res.status(404).send({

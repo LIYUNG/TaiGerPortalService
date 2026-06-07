@@ -61,8 +61,6 @@ const {
   docThreadMultitenant_filter,
   surveyMultitenantFilter
 } = require('../middlewares/documentThreadMultitenantFilter');
-
-const { logAccess } = require('../utils/log/log');
 const { editorIdsBodyFilter } = require('../middlewares/editorIdsBodyFilter');
 const {
   AssignOutsourcerFilter
@@ -87,8 +85,7 @@ router
   .get(
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getMyStudentMetrics,
-    logAccess
+    getMyStudentMetrics
   );
 
 router
@@ -217,8 +214,7 @@ router
     putMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent),
     docThreadMultitenant_filter,
-    IgnoreMessageInDocumentThread,
-    logAccess
+    IgnoreMessageInDocumentThread
   );
 
 router
@@ -228,8 +224,7 @@ router
     putMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
     docThreadMultitenant_filter,
-    putThreadFavorite,
-    logAccess
+    putThreadFavorite
   );
 
 router

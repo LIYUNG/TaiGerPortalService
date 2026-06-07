@@ -13,10 +13,7 @@ const httpLogger = require('./services/httpLogger');
 const { errorHandler } = require('./middlewares/error-handler');
 const { requestContextMiddleware } = require('./middlewares/requestContext');
 
-const {
-  tenantMiddleware,
-  checkTenantDBMiddleware
-} = require('./middlewares/tenantMiddleware');
+const { checkTenantDBMiddleware } = require('./middlewares/tenantMiddleware');
 const {
   decryptCookieMiddleware
 } = require('./middlewares/decryptCookieMiddleware');
@@ -74,7 +71,6 @@ app.get('/health', async (req, res) => {
 });
 app.use(decryptCookieMiddleware);
 app.use(checkTenantDBMiddleware);
-app.use(tenantMiddleware);
 
 app.use(methodOverride('_method')); // in order to make delete request
 app.use(express.json());

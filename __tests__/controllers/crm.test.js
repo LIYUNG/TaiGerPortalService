@@ -88,13 +88,6 @@ jest.mock('../../database', () => {
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // connectToDatabase — returns a real Mongoose tenant connection with all
-  // models registered, so req.db.model('VC') etc. work in the app layer.
-  // We cannot use jest.requireActual('../../database') because database.js
-  // instantiates a real Drizzle/Neon connection at module load time, which
-  // fails without a valid Postgres URI.
-  // ---------------------------------------------------------------------------
   const connections = {};
   const connectToDatabase = jest.fn().mockImplementation((tenantId) => {
     if (connections[tenantId]) return connections[tenantId];
@@ -146,7 +139,6 @@ jest.mock('../../database', () => {
     const {
       interviewSurveyResponseSchema
     } = require('../../models/InterviewSurveyResponse');
-    const { userlogSchema } = require('../../models/Userlog');
     const { ResponseTimeSchema } = require('../../models/ResponseTime');
     const { permissionSchema } = require('../../models/Permission');
     const { keywordSetSchema } = require('../../models/Keywordset');
@@ -199,7 +191,6 @@ jest.mock('../../database', () => {
     reg('VC', versionControlSchema);
     reg('ProgramChangeRequest', programChangeRequestSchema);
     reg('Program', programSchema);
-    reg('Userlog', userlogSchema);
 
     connections[tenantId] = conn;
     return conn;
@@ -232,10 +223,6 @@ jest.mock('../../cache/node-cache', () => ({
     get: jest.fn().mockReturnValue(null),
     set: jest.fn()
   }
-}));
-
-jest.mock('../../utils/log/log', () => ({
-  logAccess: (req, res, next) => next()
 }));
 
 jest.mock('../../utils/log/auditLog', () => ({
@@ -312,6 +299,7 @@ const { ObjectId } = require('mongoose').Types;
 const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
 const { UserSchema } = require('../../models/User');
+const { User: DefaultUserModel } = require('../../models');
 const { protect } = require('../../middlewares/auth');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
 const { disconnectFromDatabase, getPostgresDb } = require('../../database');
@@ -341,6 +329,10 @@ beforeEach(async () => {
   const UserModel = db.model('User', UserSchema);
   await UserModel.deleteMany();
   await UserModel.insertMany(users);
+
+  // Also seed the default-connection User collection used by the DAO layer.
+  await DefaultUserModel.deleteMany();
+  await DefaultUserModel.insertMany(users);
 
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;

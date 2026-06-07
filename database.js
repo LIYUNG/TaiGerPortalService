@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { drizzle } = require('drizzle-orm/node-postgres');
 const { Pool } = require('pg');
-const { MONGODB_URI, POSTGRES_URI } = require('./config');
+const { MONGODB_URI, POSTGRES_URI, TENANT_ID } = require('./config');
 const {
   UserSchema,
   Agent,
@@ -27,10 +27,6 @@ const { tokenSchema } = require('./models/Token');
 const { templatesSchema } = require('./models/Template');
 const { documentationsSchema } = require('./models/Documentation');
 const { internaldocsSchema } = require('./models/Internaldoc');
-const {
-  enableVersionControl,
-  handleProgramChanges
-} = require('./utils/modelHelper/versionControl');
 const { docspagesSchema } = require('./models/Docspage');
 const { expensesSchema } = require('./models/Expense');
 const { incomesSchema } = require('./models/Income');
@@ -40,7 +36,6 @@ const {
   interviewSurveyResponseSchema
 } = require('./models/InterviewSurveyResponse');
 const { notesSchema } = require('./models/Note');
-const { userlogSchema } = require('./models/Userlog');
 const { ResponseTimeSchema } = require('./models/ResponseTime');
 const { surveyInputSchema } = require('./models/SurveyInput');
 const { permissionSchema } = require('./models/Permission');
@@ -51,35 +46,29 @@ const { auditSchema } = require('./models/Audit');
 const { allCourseSchema } = require('./models/Allcourse');
 const { applicationSchema } = require('./models/Application');
 
-const connections = {};
+// The service is no longer multi-tenant: we maintain exactly ONE shared
+// Mongoose connection instead of a per-tenant map of connections.
+let appConnection = null;
 const tenantDb = 'Tenant';
 
 const mongoDb = (dbName) =>
   `${MONGODB_URI}/${dbName}?retryWrites=true&w=majority`;
 
-const applyProgramSchema = (
-  db,
-  VCModel,
-  StudentModel,
-  ApplicationModel,
-  DocumentthreadModel,
-  surveyInputModel
-) => {
-  programSchema.plugin(handleProgramChanges, {
-    StudentModel,
-    ApplicationModel,
-    DocumentthreadModel,
-    surveyInputModel
-  });
-  programSchema.plugin(enableVersionControl, { VCModel });
-  return db.model('Program', programSchema);
-};
+// The version-control + program-change plugins are applied ONCE on the shared
+// programSchema in models/Program.js (they resolve sibling models from the
+// model's own connection), so here we only need to compile the per-request
+// Program model from that already-plugged schema.
+const applyProgramSchema = (db) => db.model('Program', programSchema);
 
+// Returns the single shared application database connection, creating it on
+// first use. `tenant` is accepted for backward compatibility with existing
+// callers (and tests) but no longer selects a database. `uri` lets tests point
+// the connection at an in-memory server.
 const connectToDatabase = (tenant, uri = null) => {
-  if (!connections[tenant]) {
-    const dbUri = uri || `${mongoDb(tenant)}`;
+  if (!appConnection) {
+    const dbUri = uri || `${mongoDb(TENANT_ID)}`;
     const connection = mongoose.createConnection(dbUri, {});
-    connections[tenant] = connection;
+    appConnection = connection;
 
     connection.model('Allcourse', allCourseSchema);
     connection.model('Application', applicationSchema);
@@ -105,11 +94,8 @@ const connectToDatabase = (tenant, uri = null) => {
     connection.model('ProgramRequirement', programRequirementSchema);
     connection.model('ResponseTime', ResponseTimeSchema);
 
-    surveyInputSchema.index(
-      { studentId: 1, programId: 1, fileType: 1 },
-      { unique: true }
-    );
-
+    // surveyInput's unique index is declared once on the schema in
+    // models/SurveyInput.js (avoids a duplicate-index warning).
     connection.model('surveyInput', surveyInputSchema);
     connection.model('Template', templatesSchema);
     connection.model('Ticket', ticketSchema);
@@ -127,24 +113,17 @@ const connectToDatabase = (tenant, uri = null) => {
 
     connection.model('ProgramChangeRequest', programChangeRequestSchema);
     connection.model('VC', versionControlSchema);
-    applyProgramSchema(
-      connection,
-      connection.model('VC'),
-      connection.model('Student'),
-      connection.model('Application'),
-      connection.model('Documentthread'),
-      connection.model('surveyInput')
-    );
-    connection.model('Userlog', userlogSchema);
+    applyProgramSchema(connection);
   }
-  return connections[tenant];
+  return appConnection;
 };
 
-// Ensure disconnection after tests
-const disconnectFromDatabase = async (tenant) => {
-  if (connections[tenant]) {
-    await connections[tenant].close();
-    delete connections[tenant];
+// Close the single shared connection. `tenant` is accepted for backward
+// compatibility but ignored.
+const disconnectFromDatabase = async () => {
+  if (appConnection) {
+    await appConnection.close();
+    appConnection = null;
   }
 };
 
@@ -179,7 +158,6 @@ module.exports = {
   getPostgresDb,
   closePostgresPool,
   tenantDb,
-  connections,
   connectToDatabase,
   disconnectFromDatabase
 };

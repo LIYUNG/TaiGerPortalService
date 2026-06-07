@@ -1112,8 +1112,8 @@ const shouldRunSkillMode = (resolvedAssistContext) =>
       resolvedAssistContext?.student?.id
   );
 
-const shouldUseLegacyToolLoop = (resolvedAssistContext, req) =>
-  Boolean(resolvedAssistContext?.fallbackReason) || !req?.db;
+const shouldUseLegacyToolLoop = (resolvedAssistContext) =>
+  Boolean(resolvedAssistContext?.fallbackReason);
 
 const safeEmitProgress = async (onProgress, event) => {
   if (typeof onProgress !== 'function') {
@@ -1190,7 +1190,7 @@ const runAiAssist = async (
     });
   } else if (
     openAIClient.responses?.create &&
-    shouldUseLegacyToolLoop(resolvedAssistContext, req)
+    shouldUseLegacyToolLoop(resolvedAssistContext)
   ) {
     await safeEmitProgress(onProgress, {
       type: 'status',

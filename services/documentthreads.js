@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 const StudentService = require('./students');
+const DocumentthreadDAO = require('../dao/documentthread.dao');
+const { Student, Application, Documentthread } = require('../models');
+const {
+  createApplicationThreadV2
+} = require('../utils/modelHelper/versionControl');
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -158,10 +163,69 @@ const buildCategoryMatch = (category, viewerId) => {
 };
 
 const DocumentThreadService = {
-  async getThreadById(req, messagesThreadId) {
-    const thread = await req.db
-      .model('Documentthread')
-      .findById(messagesThreadId)
+  // Default-connection helpers (no req) used by the migrated application flow.
+  newThread(payload) {
+    return DocumentthreadDAO.newThread(payload);
+  },
+  countThreads(filter) {
+    return DocumentthreadDAO.countThreads(filter);
+  },
+  createThread(payload) {
+    return DocumentthreadDAO.createThread(payload);
+  },
+  deleteThreadById(id) {
+    return DocumentthreadDAO.deleteThreadById(id);
+  },
+  updateThreadFields(id, payload) {
+    return DocumentthreadDAO.updateThreadFields(id, payload);
+  },
+  getThreadByIdLean(id) {
+    return DocumentthreadDAO.getThreadByIdLean(id);
+  },
+  findThreads(filter, select) {
+    return DocumentthreadDAO.findThreads(filter, select);
+  },
+  findThreadsSelectSorted(filter, select, sort) {
+    return DocumentthreadDAO.findThreadsSelectSorted(filter, select, sort);
+  },
+  getThreadDocById(id) {
+    return DocumentthreadDAO.getThreadDocById(id);
+  },
+  getThreadDocByIdPopulated(id, populates) {
+    return DocumentthreadDAO.getThreadDocByIdPopulated(id, populates);
+  },
+  findThreadByIdPopulated(id, populates) {
+    return DocumentthreadDAO.findThreadByIdPopulated(id, populates);
+  },
+  findOneThreadPopulated(filter, populates) {
+    return DocumentthreadDAO.findOneThreadPopulated(filter, populates);
+  },
+  findOneThreadDoc(filter) {
+    return DocumentthreadDAO.findOneThreadDoc(filter);
+  },
+  clearAllOutsourcedUsers() {
+    return DocumentthreadDAO.clearAllOutsourcedUsers();
+  },
+  setMessageIgnore(messageId, ignoreMessageState) {
+    return DocumentthreadDAO.setMessageIgnore(messageId, ignoreMessageState);
+  },
+  // Wraps the version-control thread-creation helper with the central
+  // default-connection models (no req).
+  createApplicationThread(studentId, applicationId, documentCategory) {
+    return createApplicationThreadV2(
+      {
+        StudentModel: Student,
+        ApplicationModel: Application,
+        DocumentthreadModel: Documentthread
+      },
+      studentId,
+      applicationId,
+      documentCategory
+    );
+  },
+
+  async getThreadById(messagesThreadId) {
+    const thread = await Documentthread.findById(messagesThreadId)
       .populate(
         'student_id',
         'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
@@ -176,10 +240,8 @@ const DocumentThreadService = {
 
     return thread;
   },
-  async getStudentThreadsByStudentId(req, studentId) {
-    const threads = await req.db
-      .model('Documentthread')
-      .find({ student_id: studentId })
+  async getStudentThreadsByStudentId(studentId) {
+    const threads = await Documentthread.find({ student_id: studentId })
       .populate(
         'program_id',
         'school program_name application_deadline degree semester lang country updatedAt'
@@ -198,14 +260,8 @@ const DocumentThreadService = {
 
     return filteredThreads;
   },
-  async getStudentsThreadsByTaiGerUserId(
-    req,
-    userId,
-    documentThreadFilter = {}
-  ) {
-    const threads = await req.db
-      .model('Documentthread')
-      .find(documentThreadFilter)
+  async getStudentsThreadsByTaiGerUserId(userId, documentThreadFilter = {}) {
+    const threads = await Documentthread.find(documentThreadFilter)
       .populate(
         'messages.user_id outsourced_user_id',
         'firstname lastname email pictureUrl'
@@ -244,17 +300,15 @@ const DocumentThreadService = {
 
     return filteredThreads;
   },
-  async getAllStudentsThreads(req, query) {
+  async getAllStudentsThreads(query) {
     const queryFilter = { ...query };
-    const activeStudentsIds = await StudentService.fetchSimpleStudents(req, {
+    const activeStudentsIds = await StudentService.fetchSimpleStudents({
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     });
     queryFilter.student_id = {
       $in: activeStudentsIds.map((student) => student._id)
     };
-    const threads = await req.db
-      .model('Documentthread')
-      .find(queryFilter)
+    const threads = await Documentthread.find(queryFilter)
       .populate(
         'messages.user_id outsourced_user_id',
         'firstname lastname email pictureUrl'
@@ -292,13 +346,13 @@ const DocumentThreadService = {
    * @param {string[]} studentIds active (non-archived) student ids
    * @param {object} query raw req.query (page/limit/sort/search/filters/category)
    */
-  async getActiveThreadsPaginated(
-    req,
-    { studentIds = [], outsourcedUserId = null, query = {} }
-  ) {
+  async getActiveThreadsPaginated({
+    studentIds = [],
+    outsourcedUserId = null,
+    query = {}
+  }) {
     const { page, limit, skip, search, viewerId, filters, sort } =
       parseActiveThreadsQuery(query);
-    const Documentthread = req.db.model('Documentthread');
 
     if (studentIds.length === 0) {
       return { threads: [], total: 0, page, limit };
@@ -972,11 +1026,11 @@ const DocumentThreadService = {
    * mirror the original full-data tab partitions). `query.file_type` scopes to
    * a doc type (Essay); `query.viewerId` drives the viewer-dependent tabs.
    */
-  async getActiveThreadsCounts(
-    req,
-    { studentIds = [], outsourcedUserId = null, query = {} }
-  ) {
-    const Documentthread = req.db.model('Documentthread');
+  async getActiveThreadsCounts({
+    studentIds = [],
+    outsourcedUserId = null,
+    query = {}
+  }) {
     const zero = {
       all: 0,
       closed: 0,
@@ -1091,10 +1145,8 @@ const DocumentThreadService = {
     return result ? { ...zero, ...result } : zero;
   },
 
-  async getThreads(req, filter) {
-    const threads = await req.db
-      .model('Documentthread')
-      .find(filter)
+  async getThreads(filter) {
+    const threads = await Documentthread.find(filter)
       .populate(
         'student_id',
         'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
@@ -1107,17 +1159,15 @@ const DocumentThreadService = {
 
     return threads;
   },
-  async updateThreadById(req, threadId, payload) {
-    return req.db
-      .model('Documentthread')
-      .findByIdAndUpdate(threadId, payload, { new: true })
-      .lean();
+  async updateThreadById(threadId, payload) {
+    return Documentthread.findByIdAndUpdate(threadId, payload, {
+      new: true
+    }).lean();
   },
-  async updateThread(req, filter, payload) {
-    return req.db
-      .model('Documentthread')
-      .findOneAndUpdate(filter, payload, { new: true })
-      .lean();
+  async updateThread(filter, payload) {
+    return Documentthread.findOneAndUpdate(filter, payload, {
+      new: true
+    }).lean();
   }
 };
 

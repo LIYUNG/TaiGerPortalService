@@ -18,15 +18,16 @@ const {
   apiGatewayUrl
 } = require('../aws/constants');
 const CourseService = require('../services/course');
+const StudentService = require('../services/students');
 
 const getMycourses = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
-  const student = await req.db.model('Student').findById(studentId);
+  const student = await StudentService.getStudentByIdLean(studentId);
   if (!student) {
     logger.info('getMycourses: no student found');
     throw new ErrorResponse(500, 'Invalid student');
   }
-  const courses = await CourseService.getCourse(req, {
+  const courses = await CourseService.getCourse({
     student_id: studentId
   });
 
@@ -63,21 +64,14 @@ const putMycourses = asyncHandler(async (req, res) => {
     delete fields.table_data_string_locked;
   }
 
-  const courses2 = await req.db
-    .model('Course')
-    .findOneAndUpdate({ student_id: studentId }, fields, {
-      upsert: true,
-      new: false
-    })
-    .populate('student_id', 'firstname lastname pictureUrl');
+  const courses2 = await CourseService.upsertCourseByStudentId(
+    studentId,
+    fields
+  );
   res.send({ success: true, data: courses2 });
   if (is_TaiGer_Student(user)) {
     // TODO: send course update to Agent
-    const student = await req.db
-      .model('Student')
-      .findById(studentId)
-      .populate('agents', 'firstname lastname email pictureUrl')
-      .lean();
+    const student = await StudentService.getStudentByIdWithAgents(studentId);
 
     for (let i = 0; i < student.agents.length; i += 1) {
       if (isNotArchiv(student)) {
@@ -98,7 +92,7 @@ const putMycourses = asyncHandler(async (req, res) => {
   }
 });
 
-const processTranscript_api_gatway = asyncHandler(async (req, res, next) => {
+const processTranscript_api_gatway = asyncHandler(async (req, res) => {
   const {
     params: { studentId, language },
     body: { requirementIds, factor }
@@ -109,7 +103,7 @@ const processTranscript_api_gatway = asyncHandler(async (req, res, next) => {
       roleToAssumeForCourseAnalyzerAPIG
     );
 
-    const courses = await CourseService.getCourse(req, {
+    const courses = await CourseService.getCourse({
       student_id: studentId
     });
 
@@ -142,7 +136,6 @@ const processTranscript_api_gatway = asyncHandler(async (req, res, next) => {
     );
 
     await CourseService.updateCourse(
-      req,
       { student_id: studentId },
       {
         analysis: {
@@ -161,16 +154,14 @@ const processTranscript_api_gatway = asyncHandler(async (req, res, next) => {
     logger.info(err);
     throw new ErrorResponse(500, 'Error occurs while analyzing courses');
   }
-
-  next();
 });
 
-const downloadJson = asyncHandler(async (req, res, next) => {
+const downloadJson = asyncHandler(async (req, res) => {
   const {
     params: { studentId }
   } = req;
 
-  const course = await CourseService.getCourse(req, {
+  const course = await CourseService.getCourse({
     student_id: studentId
   });
 
@@ -198,19 +189,18 @@ const downloadJson = asyncHandler(async (req, res, next) => {
     student: course.student_id,
     fileKey: fileKey_converted
   });
-  next();
 });
 
 const deleteMyCourse = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
-  const course = await CourseService.getCourse(req, {
+  const course = await CourseService.getCourse({
     student_id: studentId
   });
   if (!course) {
     logger.error('deleteMyCourse: Course not found');
     throw new ErrorResponse(404, 'Course not found');
   }
-  await CourseService.deleteCourse(req, { student_id: studentId });
+  await CourseService.deleteCourse({ student_id: studentId });
   res.status(200).send({ success: true });
 });
 

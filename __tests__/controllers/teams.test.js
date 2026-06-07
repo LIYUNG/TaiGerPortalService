@@ -89,10 +89,6 @@ jest.mock('../../services/email', () => ({
   informEditorNewStudentEmail: jest.fn()
 }));
 
-jest.mock('../../utils/log/log', () => ({
-  logAccess: (req, res, next) => next()
-}));
-
 jest.mock('../../utils/log/auditLog', () => ({
   auditLog: (req, res, next) => next()
 }));

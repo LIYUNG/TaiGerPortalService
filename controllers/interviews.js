@@ -24,11 +24,14 @@ const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
 const { userChangesHelperFunction } = require('../utils/utils_function');
 const StudentService = require('../services/students');
 const ApplicationService = require('../services/applications');
+const InterviewService = require('../services/interviews');
+const EventService = require('../services/events');
+const DocumentThreadService = require('../services/documentthreads');
+const PermissionService = require('../services/permissions');
+const AuditService = require('../services/audit');
 
 const PrecheckInterview = asyncHandler(async (req, interview_id) => {
-  const precheck_interview = await req.db
-    .model('Interview')
-    .findById(interview_id);
+  const precheck_interview = await InterviewService.findByIdRaw(interview_id);
   if (precheck_interview.isClosed) {
     logger.info('updateInterview: interview is closed!');
     throw new ErrorResponse(403, 'Interview is closed');
@@ -93,7 +96,7 @@ const InterviewTrainingInvitation = async (
   );
 };
 
-const addInterviewStatus = async (db, interviews) => {
+const addInterviewStatus = async (interviews) => {
   const now = Date.now();
   const interviewsWithStatus = [];
   let openInterviews = [];
@@ -130,13 +133,7 @@ const addInterviewStatus = async (db, interviews) => {
 
   if (openStudentIds.size === 0) return interviewsWithStatus;
   const trainedStudentIds = (
-    await db
-      .model('Interview')
-      .find({
-        student_id: { $in: Array.from(openStudentIds) },
-        event_id: { $exists: true, $ne: null }
-      })
-      .distinct('student_id')
+    await InterviewService.distinctTrainedStudentIds(Array.from(openStudentIds))
   ).map((id) => id.toString());
 
   openInterviews = openInterviews.map((interview) => {
@@ -162,20 +159,17 @@ const getAllInterviews = asyncHandler(async (req, res) => {
     filter.trainer_id = trainer_id;
   }
 
-  let interviews = await req.db
-    .model('Interview')
-    .find(filter)
-    .populate('student_id trainer_id', 'firstname lastname email')
-    .populate('program_id', 'school program_name degree semester')
-    .populate('event_id')
-    .lean();
+  let interviews = await InterviewService.findInterviews(filter, [
+    ['student_id trainer_id', 'firstname lastname email'],
+    ['program_id', 'school program_name degree semester'],
+    ['event_id']
+  ]);
 
-  const interviewSurveys = await req.db
-    .model('InterviewSurveyResponse')
-    .find({ isFinal: true })
-    .lean();
+  const interviewSurveys = await InterviewService.findSurveys({
+    isFinal: true
+  });
 
-  interviews = await addInterviewStatus(req.db, interviews);
+  interviews = await addInterviewStatus(interviews);
   interviews = interviews.map((interview) => {
     const surveySubmitted = interviewSurveys.some(
       (survey) =>
@@ -192,11 +186,9 @@ const getAllInterviews = asyncHandler(async (req, res) => {
 const getInterviewQuestions = asyncHandler(async (req, res) => {
   const { programId } = req.params;
 
-  const interviewsSurveys = await req.db
-    .model('InterviewSurveyResponse')
-    .find()
-    .populate('student_id', 'firstname lastname email pictureUrl')
-    .lean();
+  const interviewsSurveys = await InterviewService.findSurveys({}, [
+    ['student_id', 'firstname lastname email pictureUrl']
+  ]);
 
   const questionsArray = interviewsSurveys.filter(
     (survey) => survey.interview_id.program_id.toString() === programId
@@ -214,13 +206,11 @@ const getMyInterview = asyncHandler(async (req, res) => {
   if (is_TaiGer_Student(user)) {
     filter.student_id = user._id.toString();
   }
-  let interviews = await req.db
-    .model('Interview')
-    .find(filter)
-    .populate('student_id trainer_id', 'firstname lastname email pictureUrl')
-    .populate('program_id', 'school program_name degree semester')
-    .populate('thread_id event_id')
-    .lean();
+  let interviews = await InterviewService.findInterviews(filter, [
+    ['student_id trainer_id', 'firstname lastname email pictureUrl'],
+    ['program_id', 'school program_name degree semester'],
+    ['thread_id event_id']
+  ]);
   if ([Role.Admin, Role.Agent, Role.Editor].includes(user.role)) {
     if ([Role.Agent, Role.Editor].includes(user.role)) {
       const permissions = await getPermission(req, user);
@@ -229,9 +219,8 @@ const getMyInterview = asyncHandler(async (req, res) => {
       }
     }
 
-    interviews = await addInterviewStatus(req.db, interviews);
+    interviews = await addInterviewStatus(interviews);
     const students = await StudentService.getStudentsWithApplications(
-      req,
       studentFilter
     );
 
@@ -242,12 +231,8 @@ const getMyInterview = asyncHandler(async (req, res) => {
 
     res.status(200).send({ success: true, data: interviews, students });
   } else {
-    const student = await StudentService.getStudentById(
-      req,
-      user._id.toString()
-    );
+    const student = await StudentService.getStudentById(user._id.toString());
     const applications = await ApplicationService.getApplicationsByStudentId(
-      req,
       user._id.toString()
     );
     student.applications = applications;
@@ -265,25 +250,28 @@ const getInterview = asyncHandler(async (req, res) => {
     params: { interview_id }
   } = req;
   try {
-    let interview = await req.db
-      .model('Interview')
-      .findById(interview_id)
-      .populate('student_id trainer_id', 'firstname lastname email pictureUrl')
-      .populate('program_id', 'school program_name degree semester')
-      .populate({
-        path: 'thread_id',
-        select:
-          'file_type isFinalVersion outsourced_user_id flag_by_user_id updatedAt messages.file messages.message messages.createdAt messages._id',
-        populate: {
-          path: 'messages.user_id',
-          select: 'firstname lastname'
-        }
-      })
-      .populate('event_id')
-      .lean();
+    let interview = await InterviewService.findInterviewByIdPopulated(
+      interview_id,
+      [
+        ['student_id trainer_id', 'firstname lastname email pictureUrl'],
+        ['program_id', 'school program_name degree semester'],
+        [
+          {
+            path: 'thread_id',
+            select:
+              'file_type isFinalVersion outsourced_user_id flag_by_user_id updatedAt messages.file messages.message messages.createdAt messages._id',
+            populate: {
+              path: 'messages.user_id',
+              select: 'firstname lastname'
+            }
+          }
+        ],
+        ['event_id']
+      ]
+    );
 
     if (interview) {
-      const [updatedInterview] = await addInterviewStatus(req.db, [interview]);
+      const [updatedInterview] = await addInterviewStatus([interview]);
       interview = updatedInterview;
     }
 
@@ -291,24 +279,10 @@ const getInterview = asyncHandler(async (req, res) => {
       logger.info('getInterview: this interview is not found!');
       throw new ErrorResponse(404, 'this interview is not found!');
     }
-    const interviewAuditLogPromise = req.db
-      .model('Audit')
-      .find({
-        interviewThreadId: interview_id
-      })
-      .populate(
-        'performedBy targetUserId',
-        'firstname lastname role pictureUrl'
-      )
-      .populate({
-        path: 'targetDocumentThreadId interviewThreadId',
-        select: 'program_id file_type',
-        populate: {
-          path: 'program_id',
-          select: 'school program_name degree semester'
-        }
-      })
-      .sort({ createdAt: -1 });
+    const interviewAuditLogPromise = AuditService.getAuditLogs(
+      { interviewThreadId: interview_id },
+      { sort: { createdAt: -1 } }
+    );
 
     const [interviewAuditLog] = await Promise.all([interviewAuditLogPromise]);
 
@@ -331,7 +305,7 @@ const deleteInterview = asyncHandler(async (req, res) => {
 
   await PrecheckInterview(req, interview_id);
 
-  const interview = await req.db.model('Interview').findById(interview_id);
+  const interview = await InterviewService.findByIdRaw(interview_id);
   // Delete files in S3
   if (
     interview.thread_id?.toString() &&
@@ -347,33 +321,29 @@ const deleteInterview = asyncHandler(async (req, res) => {
     // Delete event
     if (interview.event_id) {
       // send delete event email
-      const toBeDeletedEvent = await req.db
-        .model('Event')
-        .findByIdAndDelete(interview.event_id)
-        .populate('receiver_id requester_id', 'firstname lastname email archiv')
-        .lean();
-      const student_temp = await req.db
-        .model('Student')
-        .findById(interview.student_id)
-        .populate('agents', 'firstname lastname email pictureUrl');
+      const toBeDeletedEvent = await EventService.deleteEventByIdPopulated(
+        interview.event_id,
+        'firstname lastname email archiv'
+      );
+      const student_temp = await StudentService.getStudentByIdWithAgents(
+        interview.student_id
+      );
       const cc = [...toBeDeletedEvent.receiver_id, ...student_temp.agents];
       const receiver = toBeDeletedEvent.requester_id[0];
       if (isNotArchiv(receiver)) {
         await InterviewCancelledReminder(user, receiver, toBeDeletedEvent, cc);
       }
 
-      await req.db.model('Event').findByIdAndDelete(interview.event_id);
+      await EventService.deleteEventById(interview.event_id);
     }
     // Delete interview thread in mongoDB
-    await req.db.model('Documentthread').findByIdAndDelete(interview.thread_id);
+    await DocumentThreadService.deleteThreadById(interview.thread_id);
   }
 
   // Delete interview  in mongoDB
-  await req.db.model('Interview').findByIdAndDelete(interview_id);
+  await InterviewService.deleteInterviewById(interview_id);
   // Delete interview survey if existed
-  await req.db.model('InterviewSurveyResponse').findOneAndDelete({
-    interview_id
-  });
+  await InterviewService.deleteOneSurvey({ interview_id });
 
   res.status(200).send({ success: true });
 });
@@ -406,60 +376,44 @@ const addInterviewTrainingDateTime = asyncHandler(async (req, res, next) => {
     let newEvent;
     if (oldEvent._id) {
       try {
-        await req.db
-          .model('Event')
-          .findByIdAndUpdate(oldEvent._id, { ...oldEvent }, {});
-        newEvent = await req.db
-          .model('Event')
-          .findById(oldEvent._id)
-          .populate(
-            'receiver_id requester_id',
-            'firstname lastname email archiv'
-          )
-          .lean();
-        await req.db
-          .model('Interview')
-          .findByIdAndUpdate(
-            interview_id,
-            { event_id: oldEvent._id, status: 'Scheduled' },
-            {}
-          );
+        await EventService.updateEventRawById(oldEvent._id, { ...oldEvent });
+        newEvent = await EventService.getEventByIdPopulated(
+          oldEvent._id,
+          'firstname lastname email archiv'
+        );
+        await InterviewService.updateInterviewByIdRaw(interview_id, {
+          event_id: oldEvent._id,
+          status: 'Scheduled'
+        });
         isUpdatingEvent = true;
       } catch (e) {
         logger.error(`addInterviewTrainingDateTime: ${e.message}`);
         throw new ErrorResponse(403, e.message);
       }
     } else {
-      const write_NewEvent = await req.db.model('Event').create(oldEvent);
-      await write_NewEvent.save();
-      newEvent = await req.db
-        .model('Event')
-        .findById(write_NewEvent._id)
-        .populate('receiver_id requester_id', 'firstname lastname email archiv')
-        .lean();
-      await req.db
-        .model('Interview')
-        .findByIdAndUpdate(
-          interview_id,
-          { event_id: write_NewEvent._id?.toString(), status: 'Scheduled' },
-          {}
-        );
+      const write_NewEvent = await EventService.createEvent(oldEvent);
+      newEvent = await EventService.getEventByIdPopulated(
+        write_NewEvent._id,
+        'firstname lastname email archiv'
+      );
+      await InterviewService.updateInterviewByIdRaw(interview_id, {
+        event_id: write_NewEvent._id?.toString(),
+        status: 'Scheduled'
+      });
     }
 
     res.status(200).send({
       success: true
     });
 
-    const interview_tmep = await req.db
-      .model('Interview')
-      .findById(interview_id)
-      .populate('program_id')
-      .lean();
+    const interview_tmep = await InterviewService.findInterviewByIdPopulated(
+      interview_id,
+      [['program_id']]
+    );
     // inform agent for confirmed training date
-    const student_temp = await req.db
-      .model('Student')
-      .findById(interview_tmep.student_id)
-      .populate('agents', 'firstname lastname email pictureUrl');
+    const student_temp = await StudentService.getStudentByIdWithAgents(
+      interview_tmep.student_id
+    );
 
     const cc = [...newEvent.receiver_id, ...student_temp.agents];
 
@@ -479,12 +433,6 @@ const addInterviewTrainingDateTime = asyncHandler(async (req, res, next) => {
 
     await Promise.all(emailRequestsRequesters);
 
-    // const updatedEvent = await req.db.model('Event').findById(write_NewEvent._id)
-    //   .populate('requester_id receiver_id', 'firstname lastname email')
-    //   .lean();
-    // updatedEvent.requester_id.forEach((requester) => {
-    //   meetingConfirmationReminder(requester, user, updatedEvent.start);
-    // });
     next();
   } catch (err) {
     logger.error(`postEvent: ${err.message}`);
@@ -507,33 +455,31 @@ const updateInterview = asyncHandler(async (req, res, next) => {
   delete payload.program_id;
   delete payload.student_id;
   // Step 1: Fetch the current state (before update)
-  const beforeUpdate = await req.db
-    .model('Interview')
-    .findById(interview_id)
-    .populate(
-      'student_id trainer_id',
-      'firstname lastname email archiv pictureUrl'
-    )
-    .populate('program_id', 'school program_name degree semester')
-    .populate('thread_id event_id')
-    .lean();
+  const beforeUpdate = await InterviewService.findInterviewByIdPopulated(
+    interview_id,
+    [
+      ['student_id trainer_id', 'firstname lastname email archiv pictureUrl'],
+      ['program_id', 'school program_name degree semester'],
+      ['thread_id event_id']
+    ]
+  );
 
   if (!beforeUpdate) {
     return res.status(404).json({ error: 'Interview not found' });
   }
 
-  const interview = await req.db
-    .model('Interview')
-    .findByIdAndUpdate(interview_id, payload, {
-      new: true
-    })
-    .populate(
-      'student_id trainer_id',
-      'firstname lastname email archiv role pictureUrl'
-    )
-    .populate('program_id', 'school program_name degree semester')
-    .populate('thread_id event_id')
-    .lean();
+  const interview = await InterviewService.updateInterviewByIdPopulated(
+    interview_id,
+    payload,
+    [
+      [
+        'student_id trainer_id',
+        'firstname lastname email archiv role pictureUrl'
+      ],
+      ['program_id', 'school program_name degree semester'],
+      ['thread_id event_id']
+    ]
+  );
 
   if (!interview) {
     return res.status(500).json({ error: 'Failed to update interview' });
@@ -552,13 +498,10 @@ const updateInterview = asyncHandler(async (req, res, next) => {
   } = await userChangesHelperFunction(req, trainerObj, beforeUpdate.trainer_id);
 
   if (payload.isClosed === true || payload.isClosed === false) {
-    await req.db
-      .model('Documentthread')
-      .findByIdAndUpdate(
-        interview.thread_id?._id.toString(),
-        { isFinalVersion: payload.isClosed },
-        {}
-      );
+    await DocumentThreadService.updateThreadFields(
+      interview.thread_id?._id.toString(),
+      { isFinalVersion: payload.isClosed }
+    );
   }
   res.status(200).send({ success: true, data: interview });
   if (payload.trainer_id?.length > 0) {
@@ -636,14 +579,13 @@ const getInterviewSurvey = asyncHandler(async (req, res) => {
     params: { interview_id }
   } = req;
 
-  const interviewSurvey = await req.db
-    .model('InterviewSurveyResponse')
-    .findOne({
-      interview_id
-    })
-    .populate('student_id', 'firstname lastname email pictureUrl')
-    .populate('program_id', 'school program_name degree semester')
-    .lean();
+  const interviewSurvey = await InterviewService.findOneSurvey(
+    { interview_id },
+    [
+      ['student_id', 'firstname lastname email pictureUrl'],
+      ['program_id', 'school program_name degree semester']
+    ]
+  );
 
   res.status(200).send({ success: true, data: interviewSurvey });
 });
@@ -655,27 +597,24 @@ const updateInterviewSurvey = asyncHandler(async (req, res) => {
   } = req;
 
   const payload = req.body;
-  const interviewSurvey = await req.db
-    .model('InterviewSurveyResponse')
-    .findOneAndUpdate({ interview_id }, payload, {
-      new: true,
-      upsert: true
-    })
-    .populate('student_id', 'firstname lastname email')
-    .populate('program_id', 'school program_name degree semester')
-    .lean();
+  const interviewSurvey = await InterviewService.upsertSurvey(
+    { interview_id },
+    payload,
+    [
+      ['student_id', 'firstname lastname email'],
+      ['program_id', 'school program_name degree semester']
+    ]
+  );
 
   res.status(200).send({ success: true, data: interviewSurvey });
   // Inform Trainer
-  const interview = await req.db
-    .model('Interview')
-    .findById(interview_id)
-    .populate(
-      'student_id trainer_id',
-      'firstname lastname email archiv pictureUrl'
-    )
-    .populate('program_id', 'school program_name degree semester')
-    .lean();
+  const interview = await InterviewService.findInterviewByIdPopulated(
+    interview_id,
+    [
+      ['student_id trainer_id', 'firstname lastname email archiv pictureUrl'],
+      ['program_id', 'school program_name degree semester']
+    ]
+  );
   if (payload.isFinal) {
     if (isNotArchiv(interview.student_id)) {
       InterviewSurveyFinishedEmail(
@@ -716,13 +655,10 @@ const updateInterviewSurvey = asyncHandler(async (req, res) => {
     }
 
     //  close interview
-    await req.db
-      .model('Interview')
-      .findByIdAndUpdate(
-        interview_id,
-        { isClosed: true, status: 'Closed' },
-        {}
-      );
+    await InterviewService.updateInterviewByIdRaw(interview_id, {
+      isClosed: true,
+      status: 'Closed'
+    });
   }
 });
 
@@ -731,27 +667,25 @@ const createInterview = asyncHandler(async (req, res) => {
     params: { program_id, studentId },
     body: payload
   } = req;
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
   if (!student) {
     logger.info('createInterview: Invalid student id!');
     throw new ErrorResponse(400, 'Invalid student id');
   }
 
-  const interview_existed = await req.db
-    .model('Interview')
-    .findOne({
-      student_id: studentId,
-      program_id
-    })
-    .populate('student_id trainer_id', 'firstname lastname email pictureUrl')
-    .populate('program_id', 'school program_name degree semester')
-    .lean();
+  const interview_existed = await InterviewService.findOneInterview(
+    { student_id: studentId, program_id },
+    [
+      ['student_id trainer_id', 'firstname lastname email pictureUrl'],
+      ['program_id', 'school program_name degree semester']
+    ]
+  );
   if (interview_existed) {
     logger.info('createInterview: Interview already existed!');
     throw new ErrorResponse(409, 'Interview already existed!');
   } else {
     try {
-      const createdDocument = await req.db.model('Documentthread').create({
+      const createdDocument = await DocumentThreadService.createThread({
         student_id: studentId,
         program_id,
         file_type: 'Interview'
@@ -759,22 +693,14 @@ const createInterview = asyncHandler(async (req, res) => {
 
       payload.thread_id = createdDocument._id?.toString();
 
-      await req.db
-        .model('Interview')
-        .findOneAndUpdate(
-          {
-            student_id: studentId,
-            program_id
-          },
-          payload,
-          { upsert: true }
-        )
-        .populate(
-          'student_id trainer_id',
-          'firstname lastname email pictureUrl'
-        )
-        .populate('program_id', 'school program_name degree semester')
-        .lean();
+      await InterviewService.upsertInterviewPopulated(
+        { student_id: studentId, program_id },
+        payload,
+        [
+          ['student_id trainer_id', 'firstname lastname email pictureUrl'],
+          ['program_id', 'school program_name degree semester']
+        ]
+      );
     } catch (err) {
       logger.error(err);
       throw new ErrorResponse(404, err);
@@ -782,22 +708,17 @@ const createInterview = asyncHandler(async (req, res) => {
     res.status(201).send({ success: true });
     // inform interview assign
     // inform editor-lead
-    const permissions = await req.db
-      .model('Permission')
-      .find({
-        canAssignEditors: true
-      })
-      .populate('user_id', 'firstname lastname email archiv')
-      .lean();
-    const newlyCreatedInterview = await req.db
-      .model('Interview')
-      .findOne({
-        student_id: studentId,
-        program_id
-      })
-      .populate('student_id', 'firstname lastname email')
-      .populate('program_id', 'school program_name degree semester')
-      .lean();
+    const permissions = await PermissionService.findPermissionsWithUser(
+      { canAssignEditors: true },
+      'firstname lastname email archiv'
+    );
+    const newlyCreatedInterview = await InterviewService.findOneInterview(
+      { student_id: studentId, program_id },
+      [
+        ['student_id', 'firstname lastname email'],
+        ['program_id', 'school program_name degree semester']
+      ]
+    );
 
     if (permissions) {
       const sendEditorLeadEmailPromises = permissions.map(
@@ -847,16 +768,13 @@ const createInterview = asyncHandler(async (req, res) => {
 });
 
 const getAllOpenInterviews = asyncHandler(async (req, res) => {
-  const now = Date.now();
-  let interviews = await req.db
-    .model('Interview')
-    .find({ isClosed: false })
-    .populate('student_id trainer_id', 'firstname lastname email')
-    .populate('program_id', 'school program_name degree semester')
-    .populate('event_id')
-    .lean();
+  let interviews = await InterviewService.findInterviews({ isClosed: false }, [
+    ['student_id trainer_id', 'firstname lastname email'],
+    ['program_id', 'school program_name degree semester'],
+    ['event_id']
+  ]);
 
-  interviews = await addInterviewStatus(req.db, interviews);
+  interviews = await addInterviewStatus(interviews);
   res.status(200).send({ success: true, data: interviews });
 });
 
@@ -869,7 +787,7 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
   }
 
   try {
-    let interviews = await req.db.model('Interview').aggregate([
+    let interviews = await InterviewService.aggregateInterviews([
       {
         $match: {
           program_id: mongoose.Types.ObjectId.createFromHexString(programId)
@@ -945,7 +863,7 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
       }
     ]);
 
-    interviews = await addInterviewStatus(req.db, interviews);
+    interviews = await addInterviewStatus(interviews);
     interviews = interviews.sort((a, b) => {
       return new Date(b.interview_date) - new Date(a.interview_date);
     });
@@ -967,15 +885,16 @@ const getInterviewsByStudentId = asyncHandler(async (req, res) => {
   }
 
   try {
-    let interviews = await req.db
-      .model('Interview')
-      .find({ student_id: studentId })
-      .populate('student_id', 'firstname lastname email')
-      .populate('trainer_id', 'firstname lastname email') // This will populate an array of trainers
-      .populate('program_id', 'school program_name degree semester')
-      .lean();
+    let interviews = await InterviewService.findInterviews(
+      { student_id: studentId },
+      [
+        ['student_id', 'firstname lastname email'],
+        ['trainer_id', 'firstname lastname email'],
+        ['program_id', 'school program_name degree semester']
+      ]
+    );
 
-    interviews = await addInterviewStatus(req.db, interviews);
+    interviews = await addInterviewStatus(interviews);
 
     res
       .status(200)

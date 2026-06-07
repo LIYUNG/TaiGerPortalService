@@ -8,6 +8,7 @@ const { ten_minutes_cache } = require('../cache/node-cache');
 const logger = require('../services/logger');
 const { ORIGIN, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
 const { getS3Object } = require('../aws/s3');
+const DocumentationService = require('../services/documentations');
 
 const valid_categories = [
   'howtostart',
@@ -25,12 +26,8 @@ const updateInternalDocumentationPage = asyncHandler(async (req, res) => {
   const fields = _.omit(req.body, '_id');
 
   fields.author = `${req.user.firstname} ${req.user.lastname}`;
-  const interna_doc_page_existed = await req.db
-    .model('Docspage')
-    .findOneAndUpdate({ category: 'internal' }, fields, {
-      upsert: true,
-      new: true
-    });
+  const interna_doc_page_existed =
+    await DocumentationService.upsertDocspageByCategory('internal', fields);
 
   return res
     .status(201)
@@ -38,21 +35,17 @@ const updateInternalDocumentationPage = asyncHandler(async (req, res) => {
 });
 
 const getInternalDocumentationsPage = asyncHandler(async (req, res) => {
-  const docspage = await req.db.model('Docspage').findOne({
-    category: 'internal'
-  });
+  const docspage = await DocumentationService.getDocspageByCategory('internal');
   return res.send({ success: true, data: !docspage ? {} : docspage });
 });
 
 const updateDocumentationPage = asyncHandler(async (req, res) => {
   const fields = _.omit(req.body, '_id');
   fields.author = `${req.user.firstname} ${req.user.lastname}`;
-  const doc_page_existed = await req.db
-    .model('Docspage')
-    .findOneAndUpdate({ category: req.params.category }, fields, {
-      upsert: true,
-      new: true
-    });
+  const doc_page_existed = await DocumentationService.upsertDocspageByCategory(
+    req.params.category,
+    fields
+  );
   const success = ten_minutes_cache.set(req.url, doc_page_existed);
   if (success) {
     logger.info('cache set update successfully');
@@ -88,9 +81,9 @@ const getCategoryDocumentationsPage = asyncHandler(async (req, res) => {
   if (value === undefined) {
     // cache miss
     logger.info('cache miss');
-    const docspage = await req.db.model('Docspage').findOne({
-      category: req.params.category
-    });
+    const docspage = await DocumentationService.getDocspageByCategory(
+      req.params.category
+    );
     const success = ten_minutes_cache.set(req.url, docspage);
     if (success) {
       logger.info('cache set successfully');
@@ -111,54 +104,45 @@ const getCategoryDocumentations = asyncHandler(async (req, res) => {
     logger.error('getCategoryDocumentations : invalid category');
     throw new ErrorResponse(400, 'invalid category');
   }
-  const documents = await req.db.model('Documentation').find(
-    {
-      category: req.params.category
-    },
-    { text: 0 } // exclude text field
+  const documents = await DocumentationService.getDocumentationsByCategory(
+    req.params.category
   );
   return res.send({ success: true, data: documents });
 });
 
 const getAllDocumentations = asyncHandler(async (req, res) => {
-  const document = await req.db
-    .model('Documentation')
-    .find()
-    .select('title category');
+  const document = await DocumentationService.getAllDocumentations();
   return res.send({ success: true, data: document });
 });
 
 const getAllInternalDocumentations = asyncHandler(async (req, res) => {
-  const document = await req.db
-    .model('Internaldoc')
-    .find()
-    .select('title internal category');
+  const document = await DocumentationService.getAllInternalDocumentations();
   return res.send({ success: true, data: document });
 });
 
 const getDocumentation = asyncHandler(async (req, res) => {
-  const document = await req.db
-    .model('Documentation')
-    .findById(req.params.doc_id);
+  const document = await DocumentationService.getDocumentationById(
+    req.params.doc_id
+  );
   return res.send({ success: true, data: document });
 });
 
 const getInternalDocumentation = asyncHandler(async (req, res) => {
-  const document = await req.db
-    .model('Internaldoc')
-    .findById(req.params.doc_id);
+  const document = await DocumentationService.getInternalDocumentationById(
+    req.params.doc_id
+  );
   return res.send({ success: true, data: document });
 });
 
 const createDocumentation = asyncHandler(async (req, res) => {
   const fields = _.omit(req.body, '_id');
-  const newDoc = await req.db.model('Documentation').create(fields);
+  const newDoc = await DocumentationService.createDocumentation(fields);
   return res.send({ success: true, data: newDoc });
 });
 
 const createInternalDocumentation = asyncHandler(async (req, res) => {
   const fields = _.omit(req.body, '_id');
-  const newDoc = await req.db.model('Internaldoc').create(fields);
+  const newDoc = await DocumentationService.createInternalDocumentation(fields);
   return res.send({ success: true, data: newDoc });
 });
 
@@ -227,29 +211,32 @@ const uploadDocDocs = asyncHandler(async (req, res) => {
 const updateDocumentation = asyncHandler(async (req, res) => {
   const fields = req.body;
   fields.author = `${req.user.firstname} ${req.user.lastname}`;
-  const updated_doc = await req.db
-    .model('Documentation')
-    .findByIdAndUpdate(req.params.id, fields, { new: true });
+  const updated_doc = await DocumentationService.updateDocumentationById(
+    req.params.id,
+    fields
+  );
   return res.status(201).send({ success: true, data: updated_doc });
 });
 
 const updateInternalDocumentation = asyncHandler(async (req, res) => {
   const fields = req.body;
   fields.author = `${req.user.firstname} ${req.user.lastname}`;
-  const updated_doc = await req.db
-    .model('Internaldoc')
-    .findByIdAndUpdate(req.params.id, fields, { new: true });
+  const updated_doc =
+    await DocumentationService.updateInternalDocumentationById(
+      req.params.id,
+      fields
+    );
   return res.status(201).send({ success: true, data: updated_doc });
 });
 
 const deleteDocumentation = asyncHandler(async (req, res) => {
-  await req.db.model('Documentation').findByIdAndDelete(req.params.id);
+  await DocumentationService.deleteDocumentationById(req.params.id);
   // TODO: delete documents images
   return res.send({ success: true });
 });
 
 const deleteInternalDocumentation = asyncHandler(async (req, res) => {
-  await req.db.model('Internaldoc').findByIdAndDelete(req.params.id);
+  await DocumentationService.deleteInternalDocumentationById(req.params.id);
   // TODO: delete documents images
   return res.send({ success: true });
 });

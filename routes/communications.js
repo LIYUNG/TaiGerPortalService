@@ -26,7 +26,6 @@ const {
 const {
   chatMultitenantFilter
 } = require('../middlewares/chatMultitenantFilter');
-const { logAccess } = require('../utils/log/log');
 const { MessagesChatUpload } = require('../middlewares/file-upload');
 const { validateStudentId } = require('../common/validation');
 
@@ -38,8 +37,7 @@ router
   .get(
     GeneralGETSearchRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getSearchUserMessages,
-    logAccess
+    getSearchUserMessages
   );
 
 router
@@ -55,8 +53,7 @@ router
   .get(
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getMyMessages,
-    logAccess
+    getMyMessages
   );
 
 router
@@ -68,8 +65,7 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     multitenant_filter,
     chatMultitenantFilter,
-    IgnoreMessage,
-    logAccess
+    IgnoreMessage
   );
 
 router
@@ -81,8 +77,7 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,
     chatMultitenantFilter,
-    updateAMessageInThread,
-    logAccess
+    updateAMessageInThread
   )
   .delete(
     validateStudentId,
@@ -91,8 +86,7 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,
     chatMultitenantFilter,
-    deleteAMessageInCommunicationThread,
-    logAccess
+    deleteAMessageInCommunicationThread
   );
 
 router
@@ -105,8 +99,7 @@ router
     multitenant_filter,
     chatMultitenantFilter,
     MessagesChatUpload,
-    postMessages,
-    logAccess
+    postMessages
   )
   .get(
     validateStudentId,
@@ -114,8 +107,7 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,
     chatMultitenantFilter,
-    getMessages,
-    logAccess
+    getMessages
   );
 
 router
@@ -126,8 +118,7 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,
     chatMultitenantFilter,
-    getChatFile,
-    logAccess
+    getChatFile
   );
 
 router
@@ -138,8 +129,7 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,
     chatMultitenantFilter,
-    loadMessages,
-    logAccess
+    loadMessages
   );
 
 module.exports = router;

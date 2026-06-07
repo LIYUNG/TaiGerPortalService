@@ -8,7 +8,7 @@ const getAuditLogs = asyncHandler(async (req, res) => {
     .withPagination(page, limit)
     .withSort(sortBy, sortOrder)
     .build();
-  const auditLogs = await AuditService.getAuditLogs(req, filter, options);
+  const auditLogs = await AuditService.getAuditLogs(filter, options);
   res.status(200).send({ success: true, data: auditLogs });
 });
 

@@ -15,14 +15,24 @@ class UserQueryBuilder extends BaseQueryBuilder {
   }
 
   withEditors(editors) {
-    if (editors) {
+    if (editors === 'none') {
+      // Match students with no editor assigned (empty/missing array). Using
+      // `editors.0` keeps this a single field condition so it does not collide
+      // with the $or set by withArchiv, and it works in both find() and
+      // aggregation $match.
+      this.query['editors.0'] = { $exists: false };
+    } else if (editors) {
       this.query.editors = editors;
     }
     return this;
   }
 
   withAgents(agents) {
-    if (agents) {
+    if (agents === 'none') {
+      // Match students with no agent assigned (empty/missing array). See
+      // withEditors for why `agents.0` is used instead of an $or.
+      this.query['agents.0'] = { $exists: false };
+    } else if (agents) {
       this.query.agents = agents;
     }
     return this;

@@ -18,6 +18,13 @@ const { TENANT_SHORT_NAME } = require('../constants/common');
 const EventQueryBuilder = require('../builders/EventQueryBuilder');
 
 const { scheduleInviteTA } = require('../utils/meeting-assistant.service');
+const EventService = require('../services/events');
+const UserService = require('../services/users');
+
+const AGENT_OH_SELECT =
+  'firstname lastname email selfIntroduction officehours timezone pictureUrl';
+const AGENT_OH_SELECT_NO_PIC =
+  'firstname lastname email selfIntroduction officehours timezone';
 
 const handleTAScheduling = async (
   taigerRep,
@@ -159,22 +166,22 @@ const getBookedEvents = asyncHandler(async (req, res, next) => {
   const agentsIds = user.agents;
 
   // Fetch booked events for student's agents
-  const bookedEvents = await req.db
-    .model('Event')
-    .find({
+  const bookedEvents = await EventService.findEvents(
+    {
       receiver_id: { $in: agentsIds },
       requester_id: { $ne: user._id },
       ...startTimeEventQuery
-    })
-    .populate('receiver_id', 'firstname lastname email')
-    .select('start')
-    .lean();
+    },
+    {
+      populate: { path: 'receiver_id', select: 'firstname lastname email' },
+      select: 'start'
+    }
+  );
 
   res.status(200).send({
     success: true,
     data: bookedEvents
   });
-  return next();
 });
 
 const getEvents = asyncHandler(async (req, res, next) => {
@@ -208,33 +215,23 @@ const getEvents = asyncHandler(async (req, res, next) => {
 
   // Fetch student's agents
   const [agents, editors] = await Promise.all([
-    req.db
-      .model('Agent')
-      .find({ _id: { $in: agentsIds } })
-      .select(
-        'firstname lastname email selfIntroduction officehours timezone pictureUrl'
-      ),
-    req.db
-      .model('Editor')
-      .find({ _id: { $in: editorsIds } })
-      .select(
-        'firstname lastname email selfIntroduction officehours timezone pictureUrl'
-      )
+    UserService.findAgents({ _id: { $in: agentsIds } }, AGENT_OH_SELECT),
+    UserService.findEditors({ _id: { $in: editorsIds } }, AGENT_OH_SELECT)
   ]);
 
   response.agents = agents;
   response.editors = editors;
-  const events = await req.db
-    .model('Event')
-    .find(endTimeEventQuery)
-    .populate('receiver_id requester_id', 'firstname lastname email pictureUrl')
-    .lean();
+  const events = await EventService.findEvents(endTimeEventQuery, {
+    populate: {
+      path: 'receiver_id requester_id',
+      select: 'firstname lastname email pictureUrl'
+    }
+  });
 
   response.data = events;
   response.hasEvents = events.length > 0;
 
   res.status(200).send(response);
-  return next();
 });
 
 const getActiveEventsNumber = asyncHandler(async (req, res) => {
@@ -245,19 +242,18 @@ const getActiveEventsNumber = asyncHandler(async (req, res) => {
     .withConfirmedRequester(true)
     .withStartTimeStart(new Date())
     .build();
-  const futureEvents = await req.db.model('Event').find(eventQuery).lean();
+  const futureEvents = await EventService.findEvents(eventQuery);
   res.status(200).send({ success: true, data: futureEvents.length });
 });
 
-const showEvent = asyncHandler(async (req, res, next) => {
+const showEvent = asyncHandler(async (req, res) => {
   const { event_id } = req.params;
-  const event = await req.db.model('Event').findById(event_id);
+  const event = await EventService.getEventById(event_id);
 
   res.status(200).json(event);
-  next();
 });
 
-const postEvent = asyncHandler(async (req, res, next) => {
+const postEvent = asyncHandler(async (req, res) => {
   const { user } = req;
   const newEvent = req.body;
   let events;
@@ -270,9 +266,8 @@ const postEvent = asyncHandler(async (req, res, next) => {
     // Check if there is already future timeslot, same student?
     const currentDate = new Date();
     try {
-      events = await req.db
-        .model('Event')
-        .find({
+      events = await EventService.findEvents(
+        {
           $or: [
             {
               start: newEvent.start,
@@ -290,12 +285,14 @@ const postEvent = asyncHandler(async (req, res, next) => {
               }
             }
           ]
-        })
-        .populate(
-          'requester_id receiver_id',
-          'firstname lastname email pictureUrl'
-        )
-        .lean();
+        },
+        {
+          populate: {
+            path: 'requester_id receiver_id',
+            select: 'firstname lastname email pictureUrl'
+          }
+        }
+      );
     } catch (e) {
       logger.error(e);
     }
@@ -303,8 +300,7 @@ const postEvent = asyncHandler(async (req, res, next) => {
     // Check if there is already booked upcoming events
     if (events.length === 0) {
       // TODO: additional check if the timeslot is in agent office hour?
-      write_NewEvent = await req.db.model('Event').create(newEvent);
-      await write_NewEvent.save();
+      write_NewEvent = await EventService.createEvent(newEvent);
     } else {
       logger.error('Student book a conflicting event in this time slot.');
       throw new ErrorResponse(
@@ -312,25 +308,24 @@ const postEvent = asyncHandler(async (req, res, next) => {
         'You are not allowed to book further timeslot, if you have already an upcoming timeslot of the agent or editor.'
       );
     }
-    events = await req.db
-      .model('Event')
-      .find({
+    events = await EventService.findEvents(
+      {
         requester_id: {
           $in: [new Types.ObjectId(newEvent.requester_id)]
         }
-      })
-      .populate(
-        'requester_id receiver_id',
-        'firstname lastname email pictureUrl'
-      )
-      .lean();
+      },
+      {
+        populate: {
+          path: 'requester_id receiver_id',
+          select: 'firstname lastname email pictureUrl'
+        }
+      }
+    );
     const agents_ids = user.agents;
-    const agents = await req.db
-      .model('Agent')
-      .find({ _id: agents_ids })
-      .select(
-        'firstname lastname email selfIntroduction officehours timezone pictureUrl'
-      );
+    const agents = await UserService.findAgents(
+      { _id: agents_ids },
+      AGENT_OH_SELECT
+    );
     res.status(201).send({
       success: true,
       agents,
@@ -339,11 +334,10 @@ const postEvent = asyncHandler(async (req, res, next) => {
     });
 
     // TODO Sent email to receiver
-    const updatedEvent = await req.db
-      .model('Event')
-      .findById(write_NewEvent._id)
-      .populate('requester_id receiver_id', 'firstname lastname email')
-      .lean();
+    const updatedEvent = await EventService.getEventByIdPopulated(
+      write_NewEvent._id,
+      'firstname lastname email'
+    );
 
     updatedEvent.receiver_id.forEach((receiver) => {
       meetingConfirmationReminder(receiver, user, updatedEvent.start);
@@ -353,9 +347,8 @@ const postEvent = asyncHandler(async (req, res, next) => {
       let write_NewEvent;
       delete newEvent.id;
       newEvent.isConfirmedReceiver = true;
-      events = await req.db
-        .model('Event')
-        .find({
+      events = await EventService.findEvents(
+        {
           start: newEvent.start,
           $or: [
             {
@@ -365,13 +358,17 @@ const postEvent = asyncHandler(async (req, res, next) => {
               receiver_id: { $in: [new Types.ObjectId(newEvent.requester_id)] }
             }
           ]
-        })
-        .populate('receiver_id', 'firstname lastname email pictureUrl')
-        .lean();
+        },
+        {
+          populate: {
+            path: 'receiver_id',
+            select: 'firstname lastname email pictureUrl'
+          }
+        }
+      );
       // Check if there is any already booked upcoming events
       if (events.length === 0) {
-        write_NewEvent = await req.db.model('Event').create(newEvent);
-        await write_NewEvent.save();
+        write_NewEvent = await EventService.createEvent(newEvent);
       } else {
         logger.error(
           `${TENANT_SHORT_NAME} user books a conflicting event in this time slot.`
@@ -381,37 +378,32 @@ const postEvent = asyncHandler(async (req, res, next) => {
           'You are not allowed to book further timeslot, if you have already an upcoming timeslot.'
         );
       }
-      events = await req.db
-        .model('Event')
-        .find({
+      events = await EventService.findEvents(
+        {
           $or: [{ requester_id: user._id }, { receiver_id: user._id }]
-        })
-        .populate(
-          'receiver_id requester_id',
-          'firstname lastname email pictureUrl'
-        )
-        .lean();
+        },
+        {
+          populate: {
+            path: 'receiver_id requester_id',
+            select: 'firstname lastname email pictureUrl'
+          }
+        }
+      );
       const agents_ids = user.agents;
-      const agents = await req.db
-        .model('Agent')
-        .find({ _id: agents_ids })
-        .select(
-          'firstname lastname email selfIntroduction officehours timezone pictureUrl'
-        );
+      const agents = await UserService.findAgents(
+        { _id: agents_ids },
+        AGENT_OH_SELECT
+      );
       res.status(201).send({
         success: true,
         agents,
         data: events,
         hasEvents: events.length !== 0
       });
-      const updatedEvent = await req.db
-        .model('Event')
-        .findById(write_NewEvent._id)
-        .populate(
-          'requester_id receiver_id',
-          'firstname lastname email pictureUrl'
-        )
-        .lean();
+      const updatedEvent = await EventService.getEventByIdPopulated(
+        write_NewEvent._id,
+        'firstname lastname email pictureUrl'
+      );
       updatedEvent.requester_id.forEach((requester) => {
         meetingConfirmationReminder(requester, user, updatedEvent.start);
       });
@@ -420,10 +412,9 @@ const postEvent = asyncHandler(async (req, res, next) => {
       throw new ErrorResponse(500, err.message);
     }
   }
-  next();
 });
 
-const confirmEvent = asyncHandler(async (req, res, next) => {
+const confirmEvent = asyncHandler(async (req, res) => {
   const { event_id } = req.params;
   const { user } = req;
   const updated_event = req.body;
@@ -444,14 +435,10 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
         .replace(/\./g, '_')}_${user._id.toString()}`.replace(/ /g, '_');
     }
     if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
-      const event_temp = await req.db
-        .model('Event')
-        .findById(event_id)
-        .populate(
-          'receiver_id requester_id',
-          'firstname lastname email pictureUrl'
-        )
-        .lean();
+      const event_temp = await EventService.getEventByIdPopulated(
+        event_id,
+        'firstname lastname email pictureUrl'
+      );
       let concat_name = '';
       let concat_id = '';
       // eslint-disable-next-line no-restricted-syntax
@@ -471,17 +458,11 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
       }
     }
     updated_event.end = new Date(date.getTime() + 60000 * 30);
-    const event = await req.db
-      .model('Event')
-      .findByIdAndUpdate(event_id, updated_event, {
-        upsert: false,
-        new: true
-      })
-      .populate(
-        'receiver_id requester_id',
-        'firstname lastname email pictureUrl'
-      )
-      .lean();
+    const event = await EventService.updateEventById(
+      event_id,
+      updated_event,
+      'firstname lastname email pictureUrl'
+    );
     if (event) {
       res.status(200).send({ success: true, data: event });
     }
@@ -514,10 +495,9 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
   if (addMeetingAssistant) {
     handleTAScheduling(taigerRep, student, user, updated_event, event_id);
   }
-  next();
 });
 
-const updateEvent = asyncHandler(async (req, res, next) => {
+const updateEvent = asyncHandler(async (req, res) => {
   const { event_id } = req.params;
   const { user } = req;
   const updated_event = req.body;
@@ -538,14 +518,11 @@ const updateEvent = asyncHandler(async (req, res, next) => {
     }
 
     updated_event.end = new Date(date.getTime() + 60000 * 30);
-    const event = await req.db
-      .model('Event')
-      .findByIdAndUpdate(event_id, updated_event, {
-        upsert: false,
-        new: true
-      })
-      .populate('receiver_id requester_id', 'firstname lastname email')
-      .lean();
+    const event = await EventService.updateEventById(
+      event_id,
+      updated_event,
+      'firstname lastname email'
+    );
     if (event) {
       res.status(200).send({ success: true, data: event });
     }
@@ -568,7 +545,6 @@ const updateEvent = asyncHandler(async (req, res, next) => {
         MeetingAdjustReminder(requester, user, event);
       });
     }
-    next();
   } catch (err) {
     logger.error(err);
     throw new ErrorResponse(400, err);
@@ -582,30 +558,31 @@ const updateEvent = asyncHandler(async (req, res, next) => {
   }
 });
 
-const deleteEvent = asyncHandler(async (req, res, next) => {
+const deleteEvent = asyncHandler(async (req, res) => {
   const { event_id } = req.params;
   const { user } = req;
   try {
-    const toBeDeletedEvent = await req.db
-      .model('Event')
-      .findById(event_id)
-      .populate('receiver_id requester_id', 'firstname lastname email')
-      .lean();
-    await req.db.model('Event').findByIdAndDelete(event_id);
+    const toBeDeletedEvent = await EventService.getEventByIdPopulated(
+      event_id,
+      'firstname lastname email'
+    );
+    await EventService.deleteEventById(event_id);
     let events;
     if (is_TaiGer_Student(user)) {
-      events = await req.db
-        .model('Event')
-        .find({ requester_id: user._id })
-        .populate('receiver_id requester_id', 'firstname lastname email')
-        .lean();
+      events = await EventService.findEvents(
+        { requester_id: user._id },
+        {
+          populate: {
+            path: 'receiver_id requester_id',
+            select: 'firstname lastname email'
+          }
+        }
+      );
       const agents_ids = user.agents;
-      const agents = await req.db
-        .model('Agent')
-        .find({ _id: agents_ids })
-        .select(
-          'firstname lastname email selfIntroduction officehours timezone'
-        );
+      const agents = await UserService.findAgents(
+        { _id: agents_ids },
+        AGENT_OH_SELECT_NO_PIC
+      );
       res.status(200).send({
         success: true,
         agents,
@@ -614,22 +591,24 @@ const deleteEvent = asyncHandler(async (req, res, next) => {
       });
       MeetingCancelledReminder(user, toBeDeletedEvent);
     } else if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
-      events = await req.db
-        .model('Event')
-        .find({
+      events = await EventService.findEvents(
+        {
           $or: [
             { requester_id: user._id.toString() },
             { receiver_id: user._id.toString() }
           ]
-        })
-        .populate('receiver_id requester_id', 'firstname lastname email')
-        .lean();
-      const agents = await req.db
-        .model('Agent')
-        .find({ _id: user._id.toString() })
-        .select(
-          'firstname lastname email selfIntroduction officehours timezone'
-        );
+        },
+        {
+          populate: {
+            path: 'receiver_id requester_id',
+            select: 'firstname lastname email'
+          }
+        }
+      );
+      const agents = await UserService.findAgents(
+        { _id: user._id.toString() },
+        AGENT_OH_SELECT_NO_PIC
+      );
       res.status(200).send({
         success: true,
         agents,
@@ -641,7 +620,6 @@ const deleteEvent = asyncHandler(async (req, res, next) => {
       res.status(200).send({ success: true, hasEvents: false });
     }
     // TODO: remind receiver or reqester
-    next();
   } catch (err) {
     throw new ErrorResponse(400, err);
   }

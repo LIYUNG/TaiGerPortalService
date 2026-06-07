@@ -18,6 +18,8 @@ const { ErrorResponse } = require('../common/errors');
 const ApplicationService = require('../services/applications');
 const UserService = require('../services/users');
 const StudentService = require('../services/students');
+const ProgramService = require('../services/programs');
+const DocumentThreadService = require('../services/documentthreads');
 const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
 const UserQueryBuilder = require('../builders/UserQueryBuilder');
 
@@ -49,7 +51,6 @@ const getApplications = asyncHandler(async (req, res) => {
   ];
 
   const applications = await ApplicationService.getApplications(
-    req,
     applicationQuery,
     selectFields,
     populateFields
@@ -81,13 +82,13 @@ const getActiveStudentsApplicationsPaginated = asyncHandler(
       }
     }
 
-    const students = await StudentService.getStudents(req, {
+    const students = await StudentService.getStudents({
       filter,
       options: {}
     });
 
     const result =
-      await ApplicationService.getActiveStudentsApplicationsPaginated(req, {
+      await ApplicationService.getActiveStudentsApplicationsPaginated({
         studentIds: students.map((student) => student._id.toString()),
         query: req.query
       });
@@ -120,18 +121,15 @@ const getApplicationsDeadlineDistribution = asyncHandler(async (req, res) => {
     }
   }
 
-  const students = await StudentService.getStudents(req, {
+  const students = await StudentService.getStudents({
     filter,
     options: {}
   });
 
   const data =
-    await ApplicationService.getActiveStudentsApplicationsDeadlineDistribution(
-      req,
-      {
-        studentIds: students.map((student) => student._id.toString())
-      }
-    );
+    await ApplicationService.getActiveStudentsApplicationsDeadlineDistribution({
+      studentIds: students.map((student) => student._id.toString())
+    });
 
   res.status(200).send({ success: true, data });
 });
@@ -158,18 +156,15 @@ const getApplicationProgramsUpdateStatus = asyncHandler(async (req, res) => {
     }
   }
 
-  const students = await StudentService.getStudents(req, {
+  const students = await StudentService.getStudents({
     filter,
     options: {}
   });
 
-  const data = await ApplicationService.getApplicationProgramsUpdateStatus(
-    req,
-    {
-      studentIds: students.map((student) => student._id.toString()),
-      decided
-    }
-  );
+  const data = await ApplicationService.getApplicationProgramsUpdateStatus({
+    studentIds: students.map((student) => student._id.toString()),
+    decided
+  });
 
   res.status(200).send({ success: true, data });
 });
@@ -193,15 +188,15 @@ const getMyStudentsApplicationsStats = asyncHandler(async (req, res) => {
     Object.assign(filter, supervisionOr);
   }
 
-  const students = await StudentService.getStudents(req, {
+  const students = await StudentService.getStudents({
     filter,
     options: {}
   });
   const studentIds = students.map((student) => student._id.toString());
 
   const [stats, user] = await Promise.all([
-    ApplicationService.getApplicationStatusStats(req, { studentIds }),
-    UserService.getUserById(req, userId)
+    ApplicationService.getApplicationStatusStats({ studentIds }),
+    UserService.getUserById(userId)
   ]);
 
   res.status(200).send({
@@ -224,13 +219,12 @@ const getStudentApplications = asyncHandler(async (req, res) => {
   if (user.role === Role.Student) {
     const obj = user.notification; // create object
     obj['isRead_new_programs_assigned'] = true; // set value
-    await StudentService.updateStudentById(req, user._id.toString(), {
+    await StudentService.updateStudentById(user._id.toString(), {
       notification: obj
     });
   }
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
   const applications = await ApplicationService.getApplicationsByStudentId(
-    req,
     studentId
   );
   student.applications = applications;
@@ -241,14 +235,14 @@ const getStudentApplications = asyncHandler(async (req, res) => {
 });
 
 // TODO: application query updated not working, to be tested
-const updateStudentApplications = asyncHandler(async (req, res, next) => {
+const updateStudentApplications = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId },
     body: { applications, applying_program_count }
   } = req;
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
 
   if (!student) {
     logger.error('updateStudentApplications: Invalid student id');
@@ -264,17 +258,16 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
     };
     return { updateOne: { filter: { _id: app._id }, update } };
   });
-  const result = await ApplicationService.updateApplicationsBulk(req, updates);
+  const result = await ApplicationService.updateApplicationsBulk(updates);
   logger.info('updateStudentApplications: result', result);
   if (user.role === Role.Admin) {
-    await StudentService.updateStudentById(req, studentId, {
+    await StudentService.updateStudentById(studentId, {
       applying_program_count: parseInt(applying_program_count, 10)
     });
   }
 
-  const updatedStudent = await StudentService.getStudentById(req, studentId);
+  const updatedStudent = await StudentService.getStudentById(studentId);
   const newApplications = await ApplicationService.getApplicationsByStudentId(
-    req,
     studentId
   );
   updatedStudent.applications = newApplications;
@@ -379,34 +372,29 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
   //     }
   //   }
   // }
-  next();
 });
 
-const updateApplication = asyncHandler(async (req, res, next) => {
+const updateApplication = asyncHandler(async (req, res) => {
   const { application_id } = req.params;
   const payload = req.body;
   const application = await ApplicationService.updateApplication(
-    req,
     { _id: application_id },
     payload
   );
   res.status(200).send({ success: true, data: application });
-  next();
 });
 
-const deleteApplication = asyncHandler(async (req, res, next) => {
+const deleteApplication = asyncHandler(async (req, res) => {
   const { application_id } = req.params;
-  await ApplicationService.deleteApplication(req, application_id);
+  await ApplicationService.deleteApplication(application_id);
 
   res.status(200).send({
     success: true,
     data: { message: 'Application deleted successfully' }
   });
-
-  next();
 });
 
-const createApplicationV2 = asyncHandler(async (req, res, next) => {
+const createApplicationV2 = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId },
@@ -425,24 +413,19 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
     );
   }
 
-  const student = await req.db.model('Student').findById(studentId);
+  const student = await StudentService.getStudentDocById(studentId);
 
-  const applications = await req.db
-    .model('Application')
-    .find({ studentId })
-    .populate('programId', '_id school program_name degree semester')
-    .lean();
+  const applications = await ApplicationService.findByStudentIdPopulatedBasic(
+    studentId
+  );
 
   const programObjectIds = program_id_set.map(
     (id) => new mongoose.Types.ObjectId(id)
   );
-  const program_ids = await req.db
-    .model('Program')
-    .find({
-      _id: { $in: programObjectIds },
-      $or: [{ isArchiv: { $exists: false } }, { isArchiv: false }]
-    })
-    .lean();
+  const program_ids = await ProgramService.findPrograms({
+    _id: { $in: programObjectIds },
+    $or: [{ isArchiv: { $exists: false } }, { isArchiv: false }]
+  });
   if (program_ids.length !== programObjectIds.length) {
     logger.error('createApplication: some program_ids invalid');
     throw new ErrorResponse(
@@ -504,7 +487,7 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
         : false;
       const isLocked = !isInApprovalCountry; // true for non-approval, false for approval
 
-      const application = await req.db.model('Application').create({
+      const application = await ApplicationService.createApplicationDoc({
         studentId,
         programId: new mongoose.Types.ObjectId(new_programIds[i]),
         application_year,
@@ -524,26 +507,22 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
               `createApplication ${new_programIds[i]}: RL required is not a number`
             );
           }
-          const Documentthread = req.db.model('Documentthread');
           const isRLSpecific = program?.is_rl_specific;
           if (!isRLSpecific) {
             // check if general RL is created, if not, create ones!
             const genThreadIds = student.generaldocs_threads.map(
               (thread) => thread.doc_thread_id
             );
-            const generalRLcount = await req.db
-              .model('Documentthread')
-              .find({
-                _id: { $in: genThreadIds },
-                file_type: { $regex: /Recommendation_Letter_/ }
-              })
-              .countDocuments();
+            const generalRLcount = await DocumentThreadService.countThreads({
+              _id: { $in: genThreadIds },
+              file_type: { $regex: /Recommendation_Letter_/ }
+            });
 
             if (generalRLcount < nrRLrequired) {
               // create general RL tasks
               logger.info('Create general RL tasks!');
               for (let j = generalRLcount; j < nrRLrequired; j += 1) {
-                const newThread = new Documentthread({
+                const newThread = DocumentThreadService.newThread({
                   student_id: new mongoose.Types.ObjectId(studentId),
                   file_type: GENERAL_RLs_CONSTANT[j],
                   updatedAt: new Date()
@@ -561,7 +540,7 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
           } else {
             logger.info('Create specific RL tasks!');
             for (let j = 0; j < nrRLrequired; j += 1) {
-              const newThread = new Documentthread({
+              const newThread = DocumentThreadService.newThread({
                 student_id: new mongoose.Types.ObjectId(studentId),
                 file_type: RLs_CONSTANT[j],
                 application_id: application._id,
@@ -590,11 +569,9 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
 
       // Create supplementary form task
       try {
-        const Documentthread = req.db.model('Documentthread');
-
         for (const doc of PROGRAM_SPECIFIC_FILETYPE) {
           if (program[doc.required] === 'yes') {
-            const new_doc_thread = new Documentthread({
+            const new_doc_thread = DocumentThreadService.newThread({
               student_id: new mongoose.Types.ObjectId(studentId),
               file_type: doc.fileType,
               application_id: application._id,
@@ -630,12 +607,8 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
   }
   await student.save();
 
-  const applications_updated = await req.db
-    .model('Application')
-    .find({ studentId })
-    .populate('programId', 'school program_name degree semester')
-    .populate('doc_modification_thread.doc_thread_id', '-messages')
-    .lean();
+  const applications_updated =
+    await ApplicationService.findByStudentIdPopulatedFull(studentId);
 
   res.status(201).send({ success: true, data: applications_updated });
 
@@ -653,17 +626,15 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
       }
     );
   }
-  next();
 });
 
 const refreshApplication = asyncHandler(async (req, res) => {
   const { applicationId } = req.params;
 
   // Unlock the application by setting isLocked to false
-  const updatedApplication = await req.db
-    .model('Application')
-    .findByIdAndUpdate(applicationId, { isLocked: false }, { new: true })
-    .lean();
+  const updatedApplication = await ApplicationService.unlockApplication(
+    applicationId
+  );
 
   if (!updatedApplication) {
     console.error(

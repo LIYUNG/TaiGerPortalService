@@ -30,31 +30,26 @@ jest.mock('../../services/email', () => ({
   NewMLRLEssayTasksEmailFromTaiGer: jest.fn().mockResolvedValue(undefined)
 }));
 
+jest.mock('../../services/students');
+jest.mock('../../services/applications');
+jest.mock('../../services/programs');
+jest.mock('../../services/documentthreads');
+
 const { createApplicationV2 } = require('../../controllers/applications');
 const { MessagesThreadUpload } = require('../../middlewares/file-upload');
 const { errorHandler } = require('../../middlewares/error-handler');
 const { s3Client } = require('../../aws');
+const StudentService = require('../../services/students');
+const ApplicationService = require('../../services/applications');
+const ProgramService = require('../../services/programs');
+const DocumentThreadService = require('../../services/documentthreads');
 
 // ---------------------------------------------------------------------------
-// Tiny Mongoose-ish test doubles
+// Tiny Mongoose-ish test doubles wired into the mocked service layer.
 // ---------------------------------------------------------------------------
 
-// A chainable, awaitable query stub: `.find().populate().lean()` etc. all
-// resolve to `value`.
-const makeQuery = (value) => {
-  const query = {
-    populate: () => query,
-    select: () => query,
-    sort: () => query,
-    lean: () => Promise.resolve(value),
-    countDocuments: () =>
-      Promise.resolve(Array.isArray(value) ? value.length : value),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
-  };
-  return query;
-};
-
-// Builds a fake `req.db` plus handles to inspect what the controller created.
+// Builds the service-layer doubles plus handles to inspect what the controller
+// created.
 const buildMockDb = ({ studentId, programId }) => {
   const createdThreads = [];
 
@@ -92,27 +87,25 @@ const buildMockDb = ({ studentId, programId }) => {
     save: jest.fn().mockResolvedValue(true)
   };
 
-  // Documentthread used as a constructor: `new Documentthread({...})`.
+  // Documentthread constructor double (DocumentThreadService.newThread).
   function Documentthread(doc) {
     Object.assign(this, doc);
     this._id = new mongoose.Types.ObjectId();
     this.save = jest.fn().mockResolvedValue(this);
     createdThreads.push(this);
   }
-  Documentthread.find = () => makeQuery([]);
 
-  const models = {
-    Student: { findById: jest.fn().mockResolvedValue(studentDoc) },
-    Program: { find: jest.fn(() => makeQuery([programDoc])) },
-    Application: {
-      find: jest.fn(() => makeQuery([])),
-      create: jest.fn().mockResolvedValue(applicationDoc)
-    },
-    Documentthread
-  };
+  StudentService.getStudentDocById.mockResolvedValue(studentDoc);
+  ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([]);
+  ApplicationService.createApplicationDoc.mockResolvedValue(applicationDoc);
+  ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue([]);
+  ProgramService.findPrograms.mockResolvedValue([programDoc]);
+  DocumentThreadService.newThread.mockImplementation(
+    (doc) => new Documentthread(doc)
+  );
+  DocumentThreadService.countThreads.mockResolvedValue(0);
 
   return {
-    db: { model: (name) => models[name] },
     studentDoc,
     applicationDoc,
     createdThreads
@@ -196,30 +189,21 @@ describe('createApplicationV2 (ORM mocked)', () => {
 describe('Document thread file upload validation (multer, S3 mocked, no DB)', () => {
   const s3ClientMock = mockClient(s3Client);
 
-  // The thread storage's `key`/`metadata` callbacks read req.params and query
-  // req.db to derive the S3 object name — inject a fake thread so the upload
-  // can complete without a real connection.
-  const injectFakeDb = (req, res, next) => {
-    const threadDoc = {
-      _id: 'thread1',
-      file_type: 'ML',
-      program_id: undefined,
-      student_id: { firstname: 'Test', lastname: 'Student' },
-      messages: []
-    };
-    req.db = {
-      model: () => ({
-        findById: () => ({ populate: () => Promise.resolve(threadDoc) })
-      })
-    };
-    next();
+  // The thread storage's `key` callback derives the S3 object name from the
+  // thread via DocumentThreadService (default-connection DAO layer). Stub it so
+  // the upload can complete without a real connection.
+  const threadDoc = {
+    _id: 'thread1',
+    file_type: 'ML',
+    program_id: undefined,
+    student_id: { firstname: 'Test', lastname: 'Student' },
+    messages: []
   };
 
   // Minimal app exercising only the real upload middleware + error handler.
   const uploadApp = express();
   uploadApp.post(
     '/upload/:messagesThreadId/:studentId',
-    injectFakeDb,
     MessagesThreadUpload,
     (req, res) => {
       res.status(200).send({ success: true });
@@ -231,6 +215,9 @@ describe('Document thread file upload validation (multer, S3 mocked, no DB)', ()
   const uploadUrl = '/upload/653d1e116f4c8c637dd1c971/653d1e116f4c8c637dd1c000';
 
   beforeEach(() => {
+    DocumentThreadService.getThreadDocByIdPopulated.mockResolvedValue(
+      threadDoc
+    );
     s3ClientMock.reset();
     s3ClientMock.on(PutObjectCommand).callsFake(async (input, getClient) => {
       // eslint-disable-next-line no-param-reassign

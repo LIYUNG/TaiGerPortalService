@@ -24,9 +24,13 @@ const logger = require('../services/logger');
 const { deleteS3Object } = require('../aws/s3');
 const { getS3Object } = require('../aws/s3');
 const ApplicationService = require('../services/applications');
+const TemplateService = require('../services/templates');
+const StudentService = require('../services/students');
+const UserService = require('../services/users');
+const BasedocumentationslinkService = require('../services/basedocumentationslinks');
 
 const getTemplates = asyncHandler(async (req, res, next) => {
-  const templates = await req.db.model('Template').find({});
+  const templates = await TemplateService.getTemplates();
 
   res.status(201).send({ success: true, data: templates });
   next();
@@ -37,7 +41,7 @@ const deleteTemplate = asyncHandler(async (req, res, next) => {
   const { user } = req;
   const { category_name } = req.params;
 
-  const template = await req.db.model('Template').findOne({ category_name });
+  const template = await TemplateService.getTemplateByCategory(category_name);
 
   let document_split = template.path.replace(/\\/g, '/');
   document_split = document_split.split('/');
@@ -53,8 +57,8 @@ const deleteTemplate = asyncHandler(async (req, res, next) => {
       throw new ErrorResponse(500, 'Error occurs while deleting');
     }
   }
-  await req.db.model('Template').findOneAndDelete({ category_name });
-  const templates = await req.db.model('Template').find({});
+  await TemplateService.deleteTemplateByCategory(category_name);
+  const templates = await TemplateService.getTemplates();
   res.status(200).send({ success: true, data: templates });
   await deleteTemplateSuccessEmail(
     {
@@ -74,15 +78,14 @@ const deleteTemplate = asyncHandler(async (req, res, next) => {
 const uploadTemplate = asyncHandler(async (req, res, next) => {
   const { category_name } = req.params;
 
-  const updated_templates = await req.db.model('Template').findOneAndUpdate(
-    { category_name },
+  const updated_templates = await TemplateService.upsertTemplate(
+    category_name,
     {
       name: req.file.key,
       category_name,
       path: req.file.key,
       updatedAt: new Date()
-    },
-    { upsert: true, new: true }
+    }
   );
   res.status(201).send({ success: true, data: updated_templates });
   next();
@@ -93,7 +96,7 @@ const downloadTemplateFile = asyncHandler(async (req, res, next) => {
     params: { category_name }
   } = req;
 
-  const template = await req.db.model('Template').findOne({ category_name });
+  const template = await TemplateService.getTemplateByCategory(category_name);
   // AWS S3
   // download the file via aws s3 here
   let document_split = template.path.replace(/\\/g, '/');
@@ -128,10 +131,9 @@ const saveProfileFilePath = asyncHandler(async (req, res, next) => {
     params: { studentId, category }
   } = req;
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('agents editors', 'firstname lastname email archiv');
+  const student = await StudentService.getStudentDocByIdPopulated(studentId, [
+    ['agents editors', 'firstname lastname email archiv']
+  ]);
   if (!student) {
     logger.error(`saveProfileFilePath: Invalid student id ${studentId}`);
     throw new ErrorResponse(404, 'student id not found');
@@ -149,9 +151,9 @@ const saveProfileFilePath = asyncHandler(async (req, res, next) => {
     if (is_TaiGer_Student(user)) {
       // TODO: add notification for agents
       for (let i = 0; i < student.agents.length; i += 1) {
-        const agent = await req.db
-          .model('Agent')
-          .findById(student.agents[i]._id.toString());
+        const agent = await UserService.getAgentDocById(
+          student.agents[i]._id.toString()
+        );
         if (agent.agent_notification) {
           const temp_student =
             agent.agent_notification.isRead_new_base_docs_uploaded.find(
@@ -215,9 +217,9 @@ const saveProfileFilePath = asyncHandler(async (req, res, next) => {
     if (is_TaiGer_Student(user)) {
       // TODO: notify agents
       for (let i = 0; i < student.agents.length; i += 1) {
-        const agent = await req.db
-          .model('Agent')
-          .findById(student.agents[i]._id.toString());
+        const agent = await UserService.getAgentDocById(
+          student.agents[i]._id.toString()
+        );
         if (agent.agent_notification) {
           const temp_student =
             agent.agent_notification.isRead_new_base_docs_uploaded.find(
@@ -272,7 +274,6 @@ const saveProfileFilePath = asyncHandler(async (req, res, next) => {
       );
     }
   }
-  next();
 });
 
 const updateVPDPayment = asyncHandler(async (req, res, next) => {
@@ -281,20 +282,18 @@ const updateVPDPayment = asyncHandler(async (req, res, next) => {
     body: { isPaid }
   } = req;
 
-  const app = await ApplicationService.getApplicationById(req, applicationId);
+  const app = await ApplicationService.getApplicationById(applicationId);
   if (!app) {
     logger.error('updateVPDPayment: Invalid program id!');
     throw new ErrorResponse(404, 'Application not found');
   }
 
   const updatedApp = await ApplicationService.updateApplication(
-    req,
     { _id: applicationId },
     { uni_assist: { ...app.uni_assist, isPaid, updatedAt: new Date() } }
   );
 
   res.status(201).send({ success: true, data: updatedApp });
-  next();
 });
 // () email:
 
@@ -303,7 +302,7 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
     params: { applicationId }
   } = req;
 
-  const app = await ApplicationService.getApplicationById(req, applicationId);
+  const app = await ApplicationService.getApplicationById(applicationId);
 
   if (!app) {
     logger.error('updateVPDFileNecessity: Invalid program id!');
@@ -316,7 +315,6 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
   }
 
   const updatedApp = await ApplicationService.updateApplication(
-    req,
     { _id: applicationId },
     {
       uni_assist: {
@@ -328,7 +326,6 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
   );
 
   res.status(201).send({ success: true, data: updatedApp });
-  next();
 });
 
 // (O) email : student notification
@@ -339,10 +336,9 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
     params: { studentId, applicationId, fileType }
   } = req;
 
-  const app = await req.db
-    .model('Application')
-    .findById(applicationId)
-    .populate('programId');
+  const app = await ApplicationService.getApplicationDocByIdWithProgram(
+    applicationId
+  );
 
   if (!app) {
     logger.error('saveVPDFilePath: Invalid application id!');
@@ -364,10 +360,10 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
   res.status(201).send({ success: true, data: app });
 
-  const student_updated = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('agents', 'firstname lastname email archiv');
+  const student_updated = await StudentService.getStudentByIdPopulated(
+    studentId,
+    [['agents', 'firstname lastname email archiv']]
+  );
 
   if (is_TaiGer_Student(user)) {
     // Reminder for Agent:
@@ -406,7 +402,6 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
       }
     );
   }
-  next();
 });
 
 const downloadVPDFile = asyncHandler(async (req, res, next) => {
@@ -417,10 +412,9 @@ const downloadVPDFile = asyncHandler(async (req, res, next) => {
 
   // AWS S3
   // download the file via aws s3 here
-  const app = await req.db
-    .model('Application')
-    .findById(applicationId)
-    .populate('programId');
+  const app = await ApplicationService.getApplicationDocByIdWithProgram(
+    applicationId
+  );
 
   if (!app) {
     logger.error('downloadVPDFile: Invalid app name!');
@@ -464,7 +458,6 @@ const downloadVPDFile = asyncHandler(async (req, res, next) => {
     `attachment; filename*=UTF-8''${encodedFileName}`
   );
   res.end(response);
-  next();
 });
 
 const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
@@ -474,7 +467,7 @@ const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
 
   // AWS S3
   // download the file via aws s3 here
-  const student = await req.db.model('Student').findById(studentId);
+  const student = await StudentService.getStudentDocById(studentId);
 
   if (!student) {
     logger.error('downloadProfileFileURL: Invalid student id!');
@@ -503,7 +496,6 @@ const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
 
   res.attachment(fileKey);
   res.end(response);
-  next();
 });
 
 // (O) email : student notification
@@ -516,12 +508,9 @@ const updateProfileDocumentStatus = asyncHandler(async (req, res, next) => {
     throw new ErrorResponse(403, 'Invalid document status');
   }
 
-  const student = await req.db
-    .model('Student')
-    .findOne({
-      _id: studentId
-    })
-    .populate('agents editors', 'firstname lastname email');
+  const student = await StudentService.getStudentDocByIdPopulated(studentId, [
+    ['agents editors', 'firstname lastname email']
+  ]);
   if (!student) {
     logger.error(
       `updateProfileDocumentStatus: Invalid student Id ${studentId}`
@@ -576,7 +565,6 @@ const updateProfileDocumentStatus = asyncHandler(async (req, res, next) => {
         }
       }
     }
-    next();
   } catch (err) {
     logger.error('updateProfileDocumentStatus: ', err);
   }
@@ -589,11 +577,10 @@ const updateStudentApplicationResultV2 = asyncHandler(
     const { user } = req;
     const { admission, closed } = req.body;
 
-    const student = await req.db
-      .model('Student')
-      .findById(studentId)
-      .populate('agents editors', 'firstname lastname email')
-      .populate('applications.programId');
+    const student = await StudentService.getStudentDocByIdPopulated(studentId, [
+      ['agents editors', 'firstname lastname email'],
+      ['applications.programId']
+    ]);
     if (!student) {
       logger.error('updateStudentApplicationResultV2: Invalid student Id');
       throw new ErrorResponse(404, 'Invalid student Id');
@@ -601,12 +588,11 @@ const updateStudentApplicationResultV2 = asyncHandler(
 
     let updatedStudent;
     if (closed) {
-      updatedStudent = await req.db.model('Student').findOneAndUpdate(
+      updatedStudent = await StudentService.updateStudentByFilter(
         { _id: studentId, 'applications.programId': programId },
         {
           'applications.$.closed': closed
-        },
-        { new: true }
+        }
       );
     }
     if (admission) {
@@ -618,13 +604,12 @@ const updateStudentApplicationResultV2 = asyncHandler(
           updatedAt: new Date()
         };
 
-        updatedStudent = await req.db.model('Student').findOneAndUpdate(
+        updatedStudent = await StudentService.updateStudentByFilter(
           { _id: studentId, 'applications.programId': programId },
           {
             'applications.$.admission': admission,
             'applications.$.admission_letter': admission_letter_temp
-          },
-          { new: true }
+          }
         );
       } else if (admission === '-') {
         const app = student.applications.find(
@@ -652,21 +637,19 @@ const updateStudentApplicationResultV2 = asyncHandler(
           comments: '',
           updatedAt: new Date()
         };
-        updatedStudent = await req.db.model('Student').findOneAndUpdate(
+        updatedStudent = await StudentService.updateStudentByFilter(
           { _id: studentId, 'applications.programId': programId },
           {
             'applications.$.admission': admission,
             'applications.$.admission_letter': admission_letter_temp
-          },
-          { new: true }
+          }
         );
       } else {
-        updatedStudent = await req.db.model('Student').findOneAndUpdate(
+        updatedStudent = await StudentService.updateStudentByFilter(
           { _id: studentId, 'applications.programId': programId },
           {
             'applications.$.admission': admission
-          },
-          { new: true }
+          }
         );
       }
     }
@@ -722,7 +705,6 @@ const updateStudentApplicationResultV2 = asyncHandler(
         }
       }
     }
-    next();
   }
 );
 
@@ -740,7 +722,6 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
     };
 
     updatedStudent = await ApplicationService.updateApplication(
-      req,
       {
         _id: applicationId
       },
@@ -750,7 +731,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       }
     );
   } else if (result === '-') {
-    const app = await ApplicationService.getApplicationById(req, applicationId);
+    const app = await ApplicationService.getApplicationById(applicationId);
     const file_path = app.admission_letter?.admission_file_path;
     if (file_path && file_path !== '') {
       const fileKey = file_path.replace(/\\/g, '/');
@@ -774,7 +755,6 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       updatedAt: new Date()
     };
     updatedStudent = await ApplicationService.updateApplication(
-      req,
       {
         _id: applicationId
       },
@@ -785,7 +765,6 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
     );
   } else {
     updatedStudent = await ApplicationService.updateApplication(
-      req,
       {
         _id: applicationId
       },
@@ -796,18 +775,16 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   }
 
   const udpatedApplication = await ApplicationService.getApplicationById(
-    req,
     applicationId
   );
   const udpatedApplicationForEmail =
-    await ApplicationService.getApplicationById(req, applicationId);
+    await ApplicationService.getApplicationById(applicationId);
 
   res.status(200).send({ success: true, data: udpatedApplication });
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('agents editors', 'firstname lastname email slackId archiv');
+  const student = await StudentService.getStudentByIdPopulated(studentId, [
+    ['agents editors', 'firstname lastname email slackId archiv']
+  ]);
   if (!student) {
     logger.error('updateStudentApplicationResult: Invalid student Id');
     throw new ErrorResponse(404, 'Invalid student Id');
@@ -849,9 +826,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
 const deleteProfileFile = asyncHandler(async (req, res, next) => {
   const { studentId, category } = req.params;
 
-  const student = await req.db.model('Student').findOne({
-    _id: studentId
-  });
+  const student = await StudentService.getStudentDocById(studentId);
 
   if (!student) {
     logger.error(`deleteProfileFile: Student Id not found ${studentId}`);
@@ -881,7 +856,6 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
     student.save();
 
     res.status(200).send({ success: true, data: document });
-    next();
   } catch (err) {
     if (err) {
       logger.error('deleteProfileFile: ', err);
@@ -893,10 +867,9 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
 const deleteVPDFile = asyncHandler(async (req, res, next) => {
   const { applicationId, fileType } = req.params;
 
-  const app = await req.db
-    .model('Application')
-    .findById(applicationId)
-    .populate('programId');
+  const app = await ApplicationService.getApplicationDocByIdWithProgram(
+    applicationId
+  );
 
   if (!app) {
     logger.error('deleteVPDFile: Invalid application name');
@@ -945,25 +918,21 @@ const deleteVPDFile = asyncHandler(async (req, res, next) => {
     payload.uni_assist.vpd_paid_confirmation_file_path = '';
   }
   const updatedApp = await ApplicationService.updateApplication(
-    req,
     { _id: applicationId },
     payload
   );
 
   res.status(200).send({ success: true, data: updatedApp });
-  next();
 });
 
 const removeNotification = asyncHandler(async (req, res, next) => {
   const { user } = req;
   const { notification_key } = req.body;
   // eslint-disable-next-line no-underscore-dangle
-  const me = await req.db.model('User').findById(user._id.toString());
+  const me = await UserService.getUserDocById(user._id.toString());
   const obj = me.notification; // create object
   obj[`${notification_key}`] = true; // set value
-  await req.db
-    .model('User')
-    .findByIdAndUpdate(user._id.toString(), { notification: obj }, {});
+  await UserService.updateUser(user._id.toString(), { notification: obj });
   res.status(200).send({
     success: true
   });
@@ -974,7 +943,7 @@ const removeAgentNotification = asyncHandler(async (req, res, next) => {
   const { user } = req;
   const { notification_key, student_id } = req.body;
   // eslint-disable-next-line no-underscore-dangle
-  const me = await req.db.model('Agent').findById(user._id.toString());
+  const me = await UserService.getAgentDocById(user._id.toString());
   const idx = me.agent_notification[`${notification_key}`].findIndex(
     (student_obj) => student_obj.student_id === student_id
   );
@@ -993,13 +962,13 @@ const removeAgentNotification = asyncHandler(async (req, res, next) => {
 const getMyAcademicBackground = asyncHandler(async (req, res, next) => {
   const { user: student } = req;
   const { _id } = student;
-  const me = await req.db.model('User').findById(_id);
+  const me = await UserService.getUserDocById(_id);
   if (me.academic_background === undefined) me.academic_background = {};
   await me.save();
   // TODO: mix with base-docuement link??
-  const survey_docs_link = await req.db.model('Basedocumentationslink').find({
-    category: 'survey'
-  });
+  const survey_docs_link = await BasedocumentationslinkService.findByCategory(
+    'survey'
+  );
 
   res.status(200).send({
     success: true,

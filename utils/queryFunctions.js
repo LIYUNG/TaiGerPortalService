@@ -1,6 +1,8 @@
 const { ten_minutes_cache } = require('../cache/node-cache');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
+const PermissionService = require('../services/permissions');
+const StudentService = require('../services/students');
 
 // These function will cache frequently query result but not change frequently.
 
@@ -9,12 +11,7 @@ const getPermission = asyncHandler(async (req, user) => {
     `/permission/${user._id.toString()}`
   );
   if (cachedPermission === undefined) {
-    const permissions = await req.db
-      .model('Permission')
-      .findOne({
-        user_id: user._id
-      })
-      .lean();
+    const permissions = await PermissionService.getPermissionByUserId(user._id);
 
     const success = ten_minutes_cache.set(
       `/permission/${user._id.toString()}`,
@@ -33,11 +30,10 @@ const getPermission = asyncHandler(async (req, user) => {
 const getCachedStudentPermission = async (req, studentId) => {
   let cachedStudent = ten_minutes_cache.get(`/filter/studentId/${studentId}`);
   if (cachedStudent === undefined) {
-    const student = await req.db
-      .model('Student')
-      .findById(studentId)
-      .select('agents editors')
-      .lean();
+    const student = await StudentService.getStudentByIdSelect(
+      studentId,
+      'agents editors'
+    );
 
     const success = ten_minutes_cache.set(
       `/filter/studentId/${studentId}`,

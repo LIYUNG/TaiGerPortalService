@@ -27,7 +27,6 @@ const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
 const {
   InnerTaigerMultitenantFilter
 } = require('../middlewares/InnerTaigerMultitenantFilter');
-const { logAccess } = require('../utils/log/log');
 const { validateStudentId } = require('../common/validation');
 
 const router = Router();
@@ -40,8 +39,7 @@ router
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getApplications,
-    logAccess
+    getApplications
   );
 
 router.route('/application/:application_id').delete(
@@ -115,8 +113,7 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Student),
     multitenant_filter,
     InnerTaigerMultitenantFilter,
-    updateStudentApplications,
-    logAccess
+    updateStudentApplications
   )
   .post(
     validateStudentId,

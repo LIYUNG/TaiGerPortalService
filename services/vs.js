@@ -1,6 +1,15 @@
+const VCDAO = require('../dao/vc.dao');
+
+/**
+ * VCService — business layer; delegates data access to the DAO.
+ */
 const VCService = {
-  async getVC(req, filter) {
-    return req.db.model('VC').findOne(filter).lean();
+  getVC(filter) {
+    return VCDAO.getVC(filter);
+  },
+
+  pushChange(filter, change) {
+    return VCDAO.pushChange(filter, change);
   }
 };
 

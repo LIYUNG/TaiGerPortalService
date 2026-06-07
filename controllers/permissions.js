@@ -1,11 +1,9 @@
-const _ = require('lodash');
-const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const { updatePermissionNotificationEmail } = require('../services/email');
-const logger = require('../services/logger');
+const PermissionService = require('../services/permissions');
 
 const getUserPermission = asyncHandler(async (req, res) => {
-  const users = await req.db.model('Permission').find({}).lean();
+  const users = await PermissionService.getPermissions({});
   res.status(200).send({ success: true, data: users });
 });
 
@@ -15,14 +13,10 @@ const updateUserPermission = asyncHandler(async (req, res) => {
     params: { user_id }
   } = req;
 
-  const permissions = await req.db
-    .model('Permission')
-    .findOneAndUpdate({ user_id }, req.body, {
-      upsert: true,
-      new: true
-    })
-    .populate('user_id', 'firstname lastname email')
-    .lean();
+  const permissions = await PermissionService.upsertPermissionByUserId(
+    user_id,
+    req.body
+  );
   // TODO: delete permission cache!
 
   res.status(200).send({ success: true, data: permissions });

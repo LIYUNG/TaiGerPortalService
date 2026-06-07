@@ -3,6 +3,8 @@ const { is_TaiGer_Editor, is_TaiGer_Agent } = require('@taiger-common/core');
 const { ErrorResponse } = require('../common/errors');
 const { getPermission } = require('../utils/queryFunctions');
 const { asyncHandler } = require('./error-handler');
+const DocumentThreadService = require('../services/documentthreads');
+const StudentService = require('../services/students');
 
 // Editor Lead, student's agents and agent lead
 // TODO: test case
@@ -15,11 +17,10 @@ const AssignOutsourcerFilter = asyncHandler(async (req, res, next) => {
     const permissions = await getPermission(req, user);
     let outsourcer_allowed_modify = false;
     let studentId_temp = '';
-    const document_thread = await req.db
-      .model('Documentthread')
-      .findById(messagesThreadId)
-      .populate('student_id')
-      .lean();
+    const document_thread = await DocumentThreadService.findThreadByIdPopulated(
+      messagesThreadId,
+      [['student_id']]
+    );
     studentId_temp = document_thread.student_id._id.toString();
     outsourcer_allowed_modify =
       document_thread.outsourced_user_id?.some(
@@ -30,10 +31,10 @@ const AssignOutsourcerFilter = asyncHandler(async (req, res, next) => {
           (agent) => agent?.toString() === user._id.toString()
         ));
 
-    const student = await req.db
-      .model('Student')
-      .findById(studentId_temp)
-      .select('agents editors');
+    const student = await StudentService.getStudentByIdSelect(
+      studentId_temp,
+      'agents editors'
+    );
     if (!student) {
       throw new ErrorResponse(
         403,

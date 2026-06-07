@@ -302,19 +302,6 @@ const InterviewPUTRateLimiter = rateLimit({
   legacyHeaders: false // Disable the `X-RateLimit-*` headers
 });
 
-const GetUserlogListRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 * 1 minutes
-  max: 50, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false // Disable the `X-RateLimit-*` headers
-});
-const GetUserlogRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 * 1 minutes
-  max: 50, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false // Disable the `X-RateLimit-*` headers
-});
-
 module.exports = {
   DownloadTemplateRateLimiter,
   GeneralGETRequestRateLimiter,
@@ -358,7 +345,5 @@ module.exports = {
   DeleteComplaintRateLimiter,
   DocumentationGETRateLimiter,
   InterviewGETRateLimiter,
-  InterviewPUTRateLimiter,
-  GetUserlogListRateLimiter,
-  GetUserlogRateLimiter
+  InterviewPUTRateLimiter
 };

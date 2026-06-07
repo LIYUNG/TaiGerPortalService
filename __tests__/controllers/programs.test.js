@@ -3,6 +3,7 @@ const request = require('supertest');
 const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
 const { programSchema } = require('../../models/Program');
+const { versionControlSchema } = require('../../models/VersionControl');
 const { generateProgram } = require('../fixtures/faker');
 const { protect } = require('../../middlewares/auth');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
@@ -173,6 +174,26 @@ describe('PUT /api/programs/:id', () => {
 
     expect(resp.status).toBe(200);
     expect(success).toBe(true);
+  });
+
+  it('records a version-control entry when a program is updated', async () => {
+    const db = connectToDatabase(TENANT_ID, dbUri);
+    const VCModel = db.model('VC', versionControlSchema);
+    await VCModel.deleteMany();
+
+    const { _id } = programs[0];
+    const resp = await requestWithSupertest
+      .put(`/api/programs/${_id}`)
+      .send({
+        program_name: 'VC Characterization Program',
+        ml_required: 'yes'
+      });
+    expect(resp.status).toBe(200);
+
+    const vcs = await VCModel.find({ collectionName: 'Program' }).lean();
+    const vc = vcs.find((v) => v.docId?.toString() === _id.toString());
+    expect(vc).toBeTruthy();
+    expect(vc.changes.length).toBeGreaterThan(0);
   });
 });
 

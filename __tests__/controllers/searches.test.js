@@ -1,112 +1,108 @@
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+// DB-free controller test: the search DAO is mocked, so no MongoDB is touched.
+// The real SearchService runs and delegates to the mocked DAO. Query behaviour
+// is covered in __tests__/dao/search.dao.test.js.
+const passthrough = async (req, res, next) => next();
+
+jest.mock('../../middlewares/tenantMiddleware', () => ({
+  ...jest.requireActual('../../middlewares/tenantMiddleware'),
+  checkTenantDBMiddleware: jest.fn(async (req, res, next) => {
     req.tenantId = 'test';
     next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
+  })
+}));
+
+jest.mock('../../middlewares/decryptCookieMiddleware', () => ({
+  ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
+  decryptCookieMiddleware: jest.fn(passthrough)
+}));
+
+jest.mock('../../middlewares/auth', () => ({
+  ...jest.requireActual('../../middlewares/auth'),
+  protect: jest.fn(passthrough),
+  permit: jest.fn(() => passthrough)
+}));
+
+jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => ({
+  ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
+  InnerTaigerMultitenantFilter: jest.fn(passthrough)
+}));
+
+jest.mock('../../middlewares/permission-filter', () => ({
+  ...jest.requireActual('../../middlewares/permission-filter'),
+  permission_canAccessStudentDatabase_filter: jest.fn(passthrough)
+}));
+
+jest.mock('../../middlewares/multitenant-filter', () => ({
+  ...jest.requireActual('../../middlewares/multitenant-filter'),
+  multitenant_filter: jest.fn(passthrough)
+}));
+
+jest.mock('../../middlewares/limit_archiv_user', () => ({
+  ...jest.requireActual('../../middlewares/limit_archiv_user'),
+  filter_archiv_user: jest.fn(passthrough)
+}));
+
+jest.mock('../../dao/search.dao', () => ({
+  searchPublicDocumentations: jest.fn().mockResolvedValue([]),
+  searchUsers: jest.fn().mockResolvedValue([]),
+  searchDocumentations: jest.fn().mockResolvedValue([]),
+  searchInternaldocs: jest.fn().mockResolvedValue([]),
+  searchPrograms: jest.fn().mockResolvedValue([]),
+  searchStudentsByName: jest.fn().mockResolvedValue([])
+}));
 
 const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
 const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
+const SearchDAO = require('../../dao/search.dao');
 
 const requestWithSupertest = request(app);
-let dbUri;
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
+    req.user = { role: 'Admin', _id: 'u1' };
     next();
   });
 });
 
 describe('GET /api/search/', () => {
-  it('should respond without crash', async () => {
+  it('combines + sorts the DAO results by text score', async () => {
+    SearchDAO.searchUsers.mockResolvedValueOnce([
+      { firstname: 'Mid', score: 2 }
+    ]);
+    SearchDAO.searchDocumentations.mockResolvedValueOnce([
+      { title: 'Top', score: 5 }
+    ]);
+    SearchDAO.searchPrograms.mockResolvedValueOnce([
+      { program_name: 'Low', score: 1 }
+    ]);
+
     const resp = await requestWithSupertest
       .get('/api/search/')
       .query({ q: 'test' })
-      .set('tenantId', TENANT_ID);
+      .set('tenantId', 'test');
 
-    expect(resp.status).toEqual(200);
+    expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
+    expect(resp.body.data.map((d) => d.score)).toEqual([5, 2, 1]);
+    expect(SearchDAO.searchUsers).toHaveBeenCalledWith('test');
   });
 });
 
 describe('GET /api/search/students', () => {
-  it('should respond without crash', async () => {
+  it('returns the student DAO results', async () => {
+    SearchDAO.searchStudentsByName.mockResolvedValueOnce([
+      { firstname: 'Jane', role: 'Student' }
+    ]);
+
     const resp = await requestWithSupertest
       .get('/api/search/students')
-      .query({ q: 'test' })
-      .set('tenantId', TENANT_ID);
+      .query({ q: 'jane' })
+      .set('tenantId', 'test');
 
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
+    expect(resp.status).toBe(200);
+    expect(resp.body.data).toHaveLength(1);
+    expect(SearchDAO.searchStudentsByName).toHaveBeenCalledWith('jane');
   });
 });

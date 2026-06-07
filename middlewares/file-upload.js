@@ -7,6 +7,10 @@ const { ErrorResponse } = require('../common/errors');
 const { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
 const { s3Client } = require('../aws');
 const StudentService = require('../services/students');
+const ApplicationService = require('../services/applications');
+const ComplaintService = require('../services/complaints');
+const DocumentThreadService = require('../services/documentthreads');
+const ProgramService = require('../services/programs');
 
 const MAX_FILE_SIZE_MB = 2 * 1024 * 1024; // 2 MB
 const MAX_DOC_FILE_SIZE_MB = 1 * 1024 * 1024; // 1 MB
@@ -154,12 +158,8 @@ const storage_vpd_s3 = multerS3({
   key: (req, file, cb) => {
     const { applicationId, fileType } = req.params;
 
-    req.db
-      .model('Application')
-      .findById(applicationId)
-      .populate('studentId')
-      .populate('programId')
-      .then((application) => {
+    ApplicationService.getApplicationByIdWithStudentProgram(applicationId).then(
+      (application) => {
         const program_name = `${application?.programId?.school} ${application?.programId?.program_name}`;
         let temp_name = `${application?.studentId?.lastname}_${
           application?.studentId?.firstname
@@ -167,7 +167,8 @@ const storage_vpd_s3 = multerS3({
         temp_name = temp_name.replace(/ /g, '_');
         temp_name = temp_name.replace(/\//g, '_');
         cb(null, `${application?.studentId?._id?.toString()}/${temp_name}`);
-      });
+      }
+    );
   }
 });
 
@@ -191,7 +192,7 @@ const storage_profile_s3 = multerS3({
       const { studentId } = req.params;
       if (!studentId) return cb(new Error('Missing studentId'));
 
-      const student = await StudentService.getStudentById(req, studentId);
+      const student = await StudentService.getStudentById(studentId);
 
       if (!student) return cb(new Error('Student not found'));
 
@@ -253,27 +254,21 @@ const admission_letter_s3 = multerS3({
     const { studentId, programId, result } = req.params;
     const admission_status = result === 'O' ? 'Admission' : 'Rejection';
 
-    req.db
-      .model('Student')
-      .findById(studentId)
-      .then((student) => {
-        if (student) {
-          req.db
-            .model('Program')
-            .findById(programId)
-            .then((program) => {
-              const program_name = `${program?.school} ${program?.program_name} ${program?.degree} ${program?.semester}`;
-              let temp_name = `${student.lastname}_${
-                student.firstname
-              }_${program_name}_${admission_status}${path.extname(
-                file.originalname
-              )}`;
-              temp_name = temp_name.replace(/ /g, '_');
-              temp_name = temp_name.replace(/\//g, '_');
-              cb(null, `${studentId}/admission/${temp_name}`);
-            });
-        }
-      });
+    StudentService.getStudentByIdLean(studentId).then((student) => {
+      if (student) {
+        ProgramService.getProgramByIdLean(programId).then((program) => {
+          const program_name = `${program?.school} ${program?.program_name} ${program?.degree} ${program?.semester}`;
+          let temp_name = `${student.lastname}_${
+            student.firstname
+          }_${program_name}_${admission_status}${path.extname(
+            file.originalname
+          )}`;
+          temp_name = temp_name.replace(/ /g, '_');
+          temp_name = temp_name.replace(/\//g, '_');
+          cb(null, `${studentId}/admission/${temp_name}`);
+        });
+      }
+    });
   }
 });
 
@@ -342,11 +337,8 @@ const storage_messagesticket_file_s3 = multerS3({
   },
   key: (req, file, cb) => {
     const { studentId, ticketId } = req.params;
-    req.db
-      .model('Complaint')
-      .findById(ticketId)
-      .populate('requester_id')
-      .then((ticket) => {
+    ComplaintService.getComplaintDocByIdWithRequester(ticketId).then(
+      (ticket) => {
         if (!ticket) {
           throw new ErrorResponse(404, 'Thread not found');
         }
@@ -357,7 +349,8 @@ const storage_messagesticket_file_s3 = multerS3({
         }_Ticket_Attachment_${formattedDate}${path.extname(file.originalname)}`;
 
         cb(null, `${studentId}/${ticketId}/${temp_name}`);
-      });
+      }
+    );
   }
 });
 
@@ -376,55 +369,23 @@ const storage_messagesthread_file_s3 = multerS3({
   },
   key: (req, file, cb) => {
     const { studentId, messagesThreadId } = req.params;
-    req.db
-      .model('Documentthread')
-      .findById(messagesThreadId)
-      .populate('student_id')
-      .then((thread) => {
-        if (!thread) {
-          throw new ErrorResponse(404, 'Thread not found');
-        }
-        let program_name = '';
-        if (thread.program_id) {
-          req.db
-            .model('Program')
-            .findById(thread.program_id)
-            .then((program) => {
-              program_name = `${program?.school}_${program?.program_name}`;
-              let version_number_max = 0;
-
-              thread.messages.forEach((message) => {
-                message.file.forEach((file_data) => {
-                  let fileversion = 0;
-                  const lastPart = _.last(file_data.name.split('_'));
-                  fileversion = parseInt(lastPart.replace(/[^\d]/g, ''), 10);
-
-                  if (fileversion > version_number_max) {
-                    version_number_max = fileversion; // get the max version number
-                  }
-                });
-              });
-
-              const version_number = parseInt(version_number_max, 10) + 1;
-              let temp_name = `${thread.student_id?.lastname}_${
-                thread.student_id?.firstname
-              }_${program_name}_${
-                thread.file_type
-              }_v${version_number.toString()}${path
-                .extname(file.originalname)
-                .toLowerCase()}`;
-              temp_name = temp_name.replace(/ /g, '_');
-              temp_name = temp_name.replace(/\//g, '_');
-
-              cb(null, `${studentId}/${messagesThreadId}/${temp_name}`);
-            });
-        } else {
+    DocumentThreadService.getThreadDocByIdPopulated(messagesThreadId, [
+      ['student_id']
+    ]).then((thread) => {
+      if (!thread) {
+        throw new ErrorResponse(404, 'Thread not found');
+      }
+      let program_name = '';
+      if (thread.program_id) {
+        ProgramService.getProgramByIdLean(thread.program_id).then((program) => {
+          program_name = `${program?.school}_${program?.program_name}`;
           let version_number_max = 0;
 
           thread.messages.forEach((message) => {
             message.file.forEach((file_data) => {
               let fileversion = 0;
-              fileversion = parseInt(file_data.name.replace(/[^\d]/g, ''), 10);
+              const lastPart = _.last(file_data.name.split('_'));
+              fileversion = parseInt(lastPart.replace(/[^\d]/g, ''), 10);
 
               if (fileversion > version_number_max) {
                 version_number_max = fileversion; // get the max version number
@@ -435,14 +396,41 @@ const storage_messagesthread_file_s3 = multerS3({
           const version_number = parseInt(version_number_max, 10) + 1;
           let temp_name = `${thread.student_id?.lastname}_${
             thread.student_id?.firstname
-          }_${thread.file_type}_v${version_number.toString()}${path.extname(
-            file.originalname
-          )}`;
+          }_${program_name}_${
+            thread.file_type
+          }_v${version_number.toString()}${path
+            .extname(file.originalname)
+            .toLowerCase()}`;
           temp_name = temp_name.replace(/ /g, '_');
           temp_name = temp_name.replace(/\//g, '_');
+
           cb(null, `${studentId}/${messagesThreadId}/${temp_name}`);
-        }
-      });
+        });
+      } else {
+        let version_number_max = 0;
+
+        thread.messages.forEach((message) => {
+          message.file.forEach((file_data) => {
+            let fileversion = 0;
+            fileversion = parseInt(file_data.name.replace(/[^\d]/g, ''), 10);
+
+            if (fileversion > version_number_max) {
+              version_number_max = fileversion; // get the max version number
+            }
+          });
+        });
+
+        const version_number = parseInt(version_number_max, 10) + 1;
+        let temp_name = `${thread.student_id?.lastname}_${
+          thread.student_id?.firstname
+        }_${thread.file_type}_v${version_number.toString()}${path.extname(
+          file.originalname
+        )}`;
+        temp_name = temp_name.replace(/ /g, '_');
+        temp_name = temp_name.replace(/\//g, '_');
+        cb(null, `${studentId}/${messagesThreadId}/${temp_name}`);
+      }
+    });
   }
 });
 
@@ -463,17 +451,14 @@ const storage_messagesChat_file_s3 = multerS3({
 
     const date = new Date();
     const formattedDate = formatDate(date);
-    req.db
-      .model('Student')
-      .findById(studentId)
-      .then((student) => {
-        let temp_name = `${student.lastname}_${
-          student.firstname
-        }_Attachment_${formattedDate}${path.extname(file.originalname)}`;
-        temp_name = temp_name.replace(/ /g, '_');
-        temp_name = temp_name.replace(/\//g, '_');
-        cb(null, `${studentId}/chat/${temp_name}`);
-      });
+    StudentService.getStudentByIdLean(studentId).then((student) => {
+      let temp_name = `${student.lastname}_${
+        student.firstname
+      }_Attachment_${formattedDate}${path.extname(file.originalname)}`;
+      temp_name = temp_name.replace(/ /g, '_');
+      temp_name = temp_name.replace(/\//g, '_');
+      cb(null, `${studentId}/chat/${temp_name}`);
+    });
   }
 });
 

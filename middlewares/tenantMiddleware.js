@@ -1,70 +1,22 @@
-const mongoose = require('mongoose');
-const {
-  mongoDb,
-  tenantDb,
-  connections,
-  connectToDatabase
-} = require('../database');
-
-const { tenantsSchema } = require('../models/Tenant');
-const logger = require('../services/logger');
+const { connectToDatabase } = require('../database');
+const { TENANT_ID } = require('../config');
 const { asyncHandler } = require('./error-handler');
 
-const getTenantFromRequest = (req) => {
-  const { tenantid } = req.headers; // Get the host from the request headers
-  return tenantid;
-};
-
+// The service is single-tenant: there is one application database, so we no
+// longer resolve a tenant from a registry (by header / decrypted token /
+// domain) on every request. checkTenantDBMiddleware simply stamps the
+// configured tenant id — kept because downstream code still reads req.tenantId
+// (e.g. JWT issuing in controllers/auth.js). The whole request path now runs on
+// the single default Mongoose connection via the service/DAO layer, so there is
+// no longer a per-request connection attached to the request object.
 const checkTenantDBMiddleware = asyncHandler(async (req, res, next) => {
-  const tenentIdHeader = getTenantFromRequest(req);
-  const { tenantId } = req.decryptedToken;
-  const dbUri = `${mongoDb(tenantDb)}`;
-  if (!connections[tenantDb]) {
-    const connection = mongoose.createConnection(dbUri, {});
-    connection.model(tenantDb, tenantsSchema);
-    connections[tenantDb] = connection;
-  }
-
-  // 0.
-  const tenentid = tenentIdHeader || tenantId;
-
-  let tenantExisted;
-  tenantExisted = await connections[tenantDb]
-    .model(tenantDb)
-    .findOne({ tenantId: tenentid });
-  if (!tenantExisted) {
-    const { origin } = req.headers;
-    if (origin) {
-      const url = new URL(origin);
-      const { hostname } = url;
-      logger.info(`hostname: ${hostname}`); // prod:
-      tenantExisted = await connections[tenantDb]
-        .model(tenantDb)
-        .findOne({ domainName: hostname });
-    }
-  }
-
-  if (!tenantExisted) {
-    logger.error(
-      `tenantMiddleware : Tenant not identified, req.decryptedToken: ${JSON.stringify(
-        req.decryptedToken
-      )}`
-    );
-    return res.status(400).send('Tenant not identified');
-  }
-
-  req.tenantId = tenantExisted.tenantId;
+  req.tenantId = TENANT_ID;
   next();
 });
 
-const tenantMiddleware = asyncHandler(async (req, res, next) => {
-  req.db = connectToDatabase(req.tenantId);
-  req.VCModel = req.db.model('VC');
-  next();
-});
-
+// connectToDatabase is still re-exported for the test fixtures and any tooling
+// that needs to open the shared connection directly.
 module.exports = {
-  tenantMiddleware,
   checkTenantDBMiddleware,
   connectToDatabase
 };

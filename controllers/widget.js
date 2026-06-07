@@ -14,6 +14,7 @@ const {
   apiGatewayUrl
 } = require('../aws/constants');
 const { callApiGateway, getTemporaryCredentials } = require('../aws');
+const CommunicationService = require('../services/communications');
 
 const student_name = 'PreCustomer';
 
@@ -91,16 +92,8 @@ const WidgetExportMessagePDF = asyncHandler(async (req, res, next) => {
     params: { studentId }
   } = req;
   const doc = new jsPDF('p', 'pt', 'a4', true);
-  const communication_thread = await req.db
-    .model('Communication')
-    .find({
-      student_id: studentId
-    })
-    .populate(
-      'student_id user_id',
-      'firstname lastname firstname_chinese lastname_chinese role agents editors'
-    )
-    .lean();
+  const communication_thread =
+    await CommunicationService.getByStudentIdForExport(studentId);
 
   let currentY = 40; // Initial y position, leaving space for headers
   const lineHeight = 14; // Line height for spacing between lines

@@ -8,12 +8,12 @@ const logger = require('../services/logger');
 const UserService = require('../services/users');
 
 // (O) email : self notification
-const updateCredentials = asyncHandler(async (req, res, next) => {
+const updateCredentials = asyncHandler(async (req, res) => {
   const {
     user,
     body: { credentials }
   } = req;
-  const userExisted = await UserService.updateUser(req, user._id.toString(), {
+  const userExisted = await UserService.updateUser(user._id.toString(), {
     password: credentials.new_password
   });
   if (!userExisted) {
@@ -32,23 +32,20 @@ const updateCredentials = asyncHandler(async (req, res, next) => {
     },
     {}
   );
-  next();
 });
 
-const updateOfficehours = asyncHandler(async (req, res, next) => {
+const updateOfficehours = asyncHandler(async (req, res) => {
   const {
     user,
     body: { officehours, timezone }
   } = req;
   console.log(JSON.stringify(officehours));
-  await req.db
-    .model(user.role) // Agent or Editor
-    .findByIdAndUpdate(user._id.toString(), { officehours, timezone }, {});
+  // Agent or Editor — the base User model updates the discriminator document.
+  await UserService.updateUser(user._id.toString(), { officehours, timezone });
 
   res.status(200).send({
     success: true
   });
-  next();
 });
 
 // Helper function to normalize university name
@@ -58,7 +55,7 @@ const normalizeName = (name) => {
 };
 
 // (O)  email : self notification
-const updateAcademicBackground = asyncHandler(async (req, res, next) => {
+const updateAcademicBackground = asyncHandler(async (req, res) => {
   const {
     body: { university }
   } = req;
@@ -83,7 +80,7 @@ const updateAcademicBackground = asyncHandler(async (req, res, next) => {
     }
 
     university.updatedAt = new Date();
-    const updatedStudent = await req.db.model('User').findByIdAndUpdate(
+    const updatedStudent = await UserService.updateUserDoc(
       studentId,
       {
         'academic_background.university': university
@@ -218,7 +215,6 @@ const updateAcademicBackground = asyncHandler(async (req, res, next) => {
       data: university,
       profile: updatedStudent.profile
     });
-    next();
   } catch (err) {
     logger.error(err);
     throw new ErrorResponse(400, JSON.stringify(err));
@@ -226,7 +222,7 @@ const updateAcademicBackground = asyncHandler(async (req, res, next) => {
 });
 
 // (O) email : self notification
-const updateLanguageSkill = asyncHandler(async (req, res, next) => {
+const updateLanguageSkill = asyncHandler(async (req, res) => {
   const {
     body: { language }
   } = req;
@@ -234,7 +230,7 @@ const updateLanguageSkill = asyncHandler(async (req, res, next) => {
 
   language.updatedAt = new Date();
 
-  const updatedStudent = await req.db.model('User').findByIdAndUpdate(
+  const updatedStudent = await UserService.updateUserDoc(
     studentId,
     {
       'academic_background.language': language
@@ -309,42 +305,34 @@ const updateLanguageSkill = asyncHandler(async (req, res, next) => {
     data: updatedStudent.academic_background.language,
     profile: updatedStudent.profile
   });
-  next();
 });
 
 // (O) email : self notification
-const updateApplicationPreferenceSkill = asyncHandler(
-  async (req, res, next) => {
-    const {
-      body: { application_preference }
-    } = req;
-    const { studentId } = req.params;
+const updateApplicationPreferenceSkill = asyncHandler(async (req, res) => {
+  const {
+    body: { application_preference }
+  } = req;
+  const { studentId } = req.params;
 
-    application_preference.updatedAt = new Date();
-    const updatedStudent = await UserService.updateUser(req, studentId, {
-      application_preference
-    });
+  application_preference.updatedAt = new Date();
+  const updatedStudent = await UserService.updateUser(studentId, {
+    application_preference
+  });
 
-    res.status(200).send({
-      success: true,
-      data: updatedStudent.application_preference
-    });
-    next();
-  }
-);
+  res.status(200).send({
+    success: true,
+    data: updatedStudent.application_preference
+  });
+});
 
 // (O) email : self notification
-const updatePersonalData = asyncHandler(async (req, res, next) => {
+const updatePersonalData = asyncHandler(async (req, res) => {
   const {
     params: { user_id },
     body: { personaldata }
   } = req;
   try {
-    const updatedStudent = await UserService.updateUser(
-      req,
-      user_id,
-      personaldata
-    );
+    const updatedStudent = await UserService.updateUser(user_id, personaldata);
     if (!updatedStudent) {
       logger.error('updatePersonalData: Invalid user');
       throw new ErrorResponse(400, 'Invalid user');
@@ -372,7 +360,6 @@ const updatePersonalData = asyncHandler(async (req, res, next) => {
         slackId
       }
     });
-    next();
   } catch (err) {
     logger.error(err);
   }

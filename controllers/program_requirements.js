@@ -1,53 +1,12 @@
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
-
-// Function to get distinct school names
-const DistinctProgramsAndKeywordSets = async (req) => {
-  try {
-    const distinctProgramsPromise = req.db.model('Program').aggregate([
-      {
-        $group: {
-          _id: {
-            school: '$school',
-            program_name: '$program_name',
-            degree: '$degree'
-          }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          school: '$_id.school',
-          program_name: '$_id.program_name',
-          degree: '$_id.degree'
-        }
-      },
-      {
-        $sort: { school: 1 }
-      }
-    ]);
-
-    const keywordsetsPromise = await req.db
-      .model('KeywordSet')
-      .find({})
-      .sort({ createdAt: -1 });
-    const [distinctPrograms, keywordsets] = await Promise.all([
-      distinctProgramsPromise,
-      keywordsetsPromise
-    ]);
-
-    return { distinctPrograms, keywordsets };
-  } catch (error) {
-    logger.error('Error fetching distinct programs and keyword sets:', error);
-    throw error;
-  }
-};
+const ProgramRequirementService = require('../services/programRequirements');
 
 const getDistinctProgramsAndKeywordSets = async (req, res) => {
   try {
     const { distinctPrograms, keywordsets } =
-      await DistinctProgramsAndKeywordSets(req);
+      await ProgramRequirementService.getDistinctProgramsAndKeywordSets();
     res.send({ success: true, data: { distinctPrograms, keywordsets } });
   } catch (error) {
     logger.error('Error fetching distinct schools:', error);
@@ -56,24 +15,18 @@ const getDistinctProgramsAndKeywordSets = async (req, res) => {
 };
 
 const getProgramRequirements = asyncHandler(async (req, res) => {
-  const programRequirements = await req.db
-    .model('ProgramRequirement')
-    .find({})
-    .populate('programId program_categories.keywordSets')
-    .sort({ createdAt: -1 });
+  const programRequirements =
+    await ProgramRequirementService.getProgramRequirements();
   res.send({ success: true, data: programRequirements });
 });
 
 const getProgramRequirement = asyncHandler(async (req, res) => {
   const { requirementId } = req.params;
   const { distinctPrograms, keywordsets } =
-    await DistinctProgramsAndKeywordSets(req);
-  const requirement = await req.db
-    .model('ProgramRequirement')
-    .findById(requirementId)
-    .populate('programId', 'school program_name degree')
-    .populate('program_categories.keywordSets')
-    .lean();
+    await ProgramRequirementService.getDistinctProgramsAndKeywordSets();
+  const requirement = await ProgramRequirementService.getProgramRequirementById(
+    requirementId
+  );
   if (!requirement) {
     logger.error('getProgramRequirement: Invalid program id');
     throw new ErrorResponse(404, 'ProgramRequirement not found');
@@ -95,21 +48,19 @@ const createProgramRequirement = asyncHandler(async (req, res) => {
       )
     })
   );
-  const matchedPrograms = await req.db
-    .model('Program')
-    .find({
+  const matchedPrograms =
+    await ProgramRequirementService.findProgramsBySchoolNameDegree({
       school: program.school,
       program_name: program.program_name,
       degree: program.degree
-    })
-    .lean();
+    });
   const matchedProgramIds = matchedPrograms.map(
     (matchedProgram) => matchedProgram._id
   );
-  const existedProgramRequirement = await req.db
-    .model('ProgramRequirement')
-    .find({ programId: matchedProgramIds })
-    .lean();
+  const existedProgramRequirement =
+    await ProgramRequirementService.getProgramRequirementsByProgramIds(
+      matchedProgramIds
+    );
   if (existedProgramRequirement?.length > 0) {
     logger.error(
       'createProgramRequirement: program analysis is already existed!'
@@ -125,9 +76,8 @@ const createProgramRequirement = asyncHandler(async (req, res) => {
     program_categories
   };
   logger.info(JSON.stringify(payload));
-  const newProgramRequirement = await req.db
-    .model('ProgramRequirement')
-    .create(payload);
+  const newProgramRequirement =
+    await ProgramRequirementService.createProgramRequirement(payload);
 
   res.status(201).send({
     success: true,
@@ -149,13 +99,11 @@ const updateProgramRequirement = asyncHandler(async (req, res) => {
       ?.reduce((sum, current) => sum + parseFloat(current), 0);
   }
 
-  const updatedProgramRequirement = await req.db
-    .model('ProgramRequirement')
-    .findByIdAndUpdate(requirementId, fields, {
-      upsert: false,
-      new: true
-    })
-    .lean();
+  const updatedProgramRequirement =
+    await ProgramRequirementService.updateProgramRequirementById(
+      requirementId,
+      fields
+    );
 
   if (!updatedProgramRequirement) {
     logger.error('updateProgramRequirement: requirementId');
@@ -167,7 +115,7 @@ const updateProgramRequirement = asyncHandler(async (req, res) => {
 
 const deleteProgramRequirement = asyncHandler(async (req, res) => {
   const { requirementId } = req.params;
-  await req.db.model('ProgramRequirement').findByIdAndDelete(requirementId);
+  await ProgramRequirementService.deleteProgramRequirementById(requirementId);
 
   res.status(200).send({ success: true });
 });

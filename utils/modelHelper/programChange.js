@@ -85,14 +85,16 @@ const findStudentDeltaGet = asyncHandler(
       remove: []
     };
 
-    const studentProgramThreads = await req.db
-      .model('Documentthread')
-      .find({
+    // Lazy require to avoid a load-time cycle:
+    // versionControl -> programChange -> documentthreads -> versionControl.
+    const DocumentThreadService = require('../../services/documentthreads');
+    const studentProgramThreads = await DocumentThreadService.findThreads(
+      {
         student_id: studentId,
         program_id: program._id
-      })
-      .select('file_type messages isFinalVersion')
-      .lean();
+      },
+      'file_type messages isFinalVersion'
+    );
 
     studentProgramThreads.map((thread) => {
       thread.messageSize = thread.messages.length;

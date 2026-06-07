@@ -1,5 +1,6 @@
 const { asyncHandler } = require('../../middlewares/error-handler');
 const logger = require('../../services/logger');
+const AuditService = require('../../services/audit');
 
 const auditLog = asyncHandler(async (req) => {
   try {
@@ -20,7 +21,7 @@ const auditLog = asyncHandler(async (req) => {
       }
     };
 
-    await req.db.model('Audit').create(newAuditLog);
+    await AuditService.createAuditLog(newAuditLog);
   } catch (e) {
     logger.error(e);
   }

@@ -174,39 +174,78 @@ const buildProgramsFilter = ({ search, filters = {} }) => {
   return filter;
 };
 
+const ProgramDAO = require('../dao/program.dao');
+
 const ProgramService = {
   parseProgramsQuery,
 
-  async getPrograms(req, filter) {
-    return req.db.model('Program').find(filter).lean();
+  getPrograms(filter = {}) {
+    return ProgramDAO.findPrograms(filter);
   },
 
-  async getProgramsPaginated(req, query = {}) {
+  getProgramByIdLean(programId) {
+    return ProgramDAO.getProgramByIdLean(programId);
+  },
+
+  getProgramByIdSelect(programId, select) {
+    return ProgramDAO.getProgramByIdSelect(programId, select);
+  },
+
+  findPrograms(filter = {}) {
+    return ProgramDAO.findPrograms(filter);
+  },
+
+  aggregatePrograms(pipeline) {
+    return ProgramDAO.aggregatePrograms(pipeline);
+  },
+
+  countPrograms(filter = {}) {
+    return ProgramDAO.countPrograms(filter);
+  },
+
+  findProgramsQuery(filter = {}, options) {
+    return ProgramDAO.findProgramsQuery(filter, options);
+  },
+
+  async getProgramsPaginated(query = {}) {
     const { page, limit, skip, search, filters, sort } =
       parseProgramsQuery(query);
     const filter = buildProgramsFilter({ search, filters });
-    const Program = req.db.model('Program');
 
-    const [programs, total] = await Promise.all([
-      Program.find(filter)
-        .select(PROGRAM_LIST_FIELDS)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      Program.countDocuments(filter)
-    ]);
-
-    return {
-      programs,
-      total,
-      page,
+    const [programs, total] = await ProgramDAO.findProgramsPaginated({
+      filter,
+      select: PROGRAM_LIST_FIELDS,
+      sort,
+      skip,
       limit
-    };
+    });
+
+    return { programs, total, page, limit };
   },
 
-  async getProgramById(req, programId) {
-    return req.db.model('Program').findById(programId).lean();
+  getProgramById(programId) {
+    return ProgramDAO.getProgramByIdLean(programId);
+  },
+
+  // ── Writes (default-connection Program; VC/program-change plugins fire) ─────
+  createProgram(payload) {
+    return ProgramDAO.createProgram(payload);
+  },
+
+  updateProgramOne(filter, fields) {
+    return ProgramDAO.updateProgramOne(filter, fields);
+  },
+
+  updateProgramById(programId, fields) {
+    return ProgramDAO.updateProgramById(programId, fields);
+  },
+
+  updateManyPrograms(filter, update, options) {
+    return ProgramDAO.updateManyPrograms(filter, update, options);
+  },
+
+  archiveProgramById(programId) {
+    return ProgramDAO.archiveProgramById(programId);
   }
 };
 

@@ -3,18 +3,14 @@ const { Strategy: LocalStrategy } = require('passport-local');
 const { Strategy: JwtStrategy } = require('passport-jwt');
 
 const { JWT_SECRET } = require('../config');
-const { UserSchema } = require('../models/User');
-
-const getUserModel = (db) => db.models.User || db.model('User', UserSchema);
+const UserService = require('../services/users');
 
 passport.use(
   new LocalStrategy(
     { usernameField: 'email', passReqToCallback: true },
     async (req, email, password, done) => {
       try {
-        const User = getUserModel(req.db);
-
-        const user = await User.findOne({ email }).select('+password');
+        const user = await UserService.getUserDocWithPasswordByEmail(email);
 
         if (!user) return done(null, false);
 
@@ -25,11 +21,7 @@ passport.use(
           return done(null, 'inactivated');
         }
         // Log: login success
-        await User.findOneAndUpdate(
-          { email },
-          { lastLoginAt: new Date() },
-          { upsert: false }
-        );
+        await UserService.touchLastLoginByEmail(email);
         return done(null, user);
       } catch (err) {
         return done(err);
@@ -47,16 +39,11 @@ passport.use(
     },
     async (req, payload, done) => {
       try {
-        const User = getUserModel(req.db);
-        const user = await User.findById(payload.id);
+        const user = await UserService.getUserDocById(payload.id);
 
         if (!user) return done(null, false);
         // Log: login success
-        await User.findByIdAndUpdate(
-          payload.id,
-          { lastLoginAt: new Date() },
-          { upsert: true }
-        );
+        await UserService.touchLastLoginById(payload.id);
         return done(null, user);
       } catch (err) {
         return done(err);

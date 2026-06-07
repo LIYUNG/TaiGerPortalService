@@ -1,143 +1,117 @@
-const DEFAULT_PAGE = 1;
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 100;
+const UserDAO = require('../dao/user.dao');
 
-const USER_LIST_FIELDS = [
-  '_id',
-  'firstname',
-  'lastname',
-  'firstname_chinese',
-  'lastname_chinese',
-  'email',
-  'pictureUrl',
-  'role',
-  'lastLoginAt',
-  'createdAt',
-  'isAccountActivated',
-  'archiv'
-].join(' ');
-
-const ALLOWED_SORT_FIELDS = new Set([
-  'firstname',
-  'lastname',
-  'email',
-  'role',
-  'lastLoginAt',
-  'createdAt'
-]);
-
-const GLOBAL_SEARCH_FIELDS = [
-  'firstname',
-  'lastname',
-  'firstname_chinese',
-  'lastname_chinese',
-  'email'
-];
-
-const escapeRegex = (value) =>
-  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const parseUsersPaginationQuery = ({
-  page,
-  limit,
-  search,
-  sortBy,
-  sortOrder
-} = {}) => {
-  const parsedPage = parseInt(page, 10);
-  const parsedLimit = parseInt(limit, 10);
-  const safePage = parsedPage > 0 ? parsedPage : DEFAULT_PAGE;
-  const safeLimit =
-    parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT;
-  const normalizedSortBy = ALLOWED_SORT_FIELDS.has(sortBy)
-    ? sortBy
-    : 'lastname';
-  const normalizedSortOrder =
-    String(sortOrder || 'asc').toLowerCase() === 'desc' ? -1 : 1;
-
-  return {
-    page: safePage,
-    limit: safeLimit,
-    skip: (safePage - 1) * safeLimit,
-    search: typeof search === 'string' ? search.trim() : '',
-    sort: {
-      [normalizedSortBy]: normalizedSortOrder,
-      ...(normalizedSortBy !== 'firstname' ? { firstname: 1 } : {})
-    }
-  };
-};
-
-const appendSearchFilter = (filter, search) => {
-  if (!search) {
-    return filter;
-  }
-
-  const pattern = escapeRegex(search);
-  const searchCondition = {
-    $or: GLOBAL_SEARCH_FIELDS.map((field) => ({
-      [field]: { $regex: pattern, $options: 'i' }
-    }))
-  };
-
-  if (filter.$and) {
-    return {
-      ...filter,
-      $and: [...filter.$and, searchCondition]
-    };
-  }
-
-  return {
-    ...filter,
-    $and: [searchCondition]
-  };
-};
-
+/**
+ * UserService — business layer for users. Delegates data access to the DAO
+ * (controller -> service -> dao). `parseUsersPaginationQuery` is a pure helper
+ * exposed for controllers that build the pagination args.
+ */
 const UserService = {
-  parseUsersPaginationQuery,
-
-  async getUserById(req, userId) {
-    const user = await req.db.model('User').findById(userId).lean();
-    return user;
+  parseUsersPaginationQuery(query) {
+    return UserDAO.parseUsersPaginationQuery(query);
   },
 
-  async getUsers(req, query) {
-    const users = await req.db.model('User').find(query).lean();
-    return users;
+  getUserById(userId) {
+    return UserDAO.getUserById(userId);
   },
 
-  async getUsersPaginated(req, { filter, page, limit, skip, search, sort }) {
-    const queryFilter = appendSearchFilter(filter, search);
-    const User = req.db.model('User');
-
-    const [users, total] = await Promise.all([
-      User.find(queryFilter)
-        .select(USER_LIST_FIELDS)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      User.countDocuments(queryFilter)
-    ]);
-
-    return {
-      users,
-      total,
-      page,
-      limit
-    };
+  getUsers(query) {
+    return UserDAO.getUsers(query);
   },
 
-  async updateUser(req, userId, payload) {
-    const user = await req.db
-      .model('User')
-      .findByIdAndUpdate(userId, payload, { new: true })
-      .lean();
-    return user;
+  getUsersPaginated(args) {
+    return UserDAO.getUsersPaginated(args);
   },
 
-  async getUserByEmail(req, email) {
-    const user = await req.db.model('User').findOne({ email }).lean();
-    return user;
+  updateUser(userId, payload) {
+    return UserDAO.updateUser(userId, payload);
+  },
+
+  updateUserDoc(userId, payload, options = { new: true }) {
+    return UserDAO.updateUserDoc(userId, payload, options);
+  },
+
+  getUserByEmail(email) {
+    return UserDAO.getUserByEmail(email);
+  },
+
+  getUserByFilter(filter) {
+    return UserDAO.getUserByFilter(filter);
+  },
+
+  getUserDocByFilter(filter) {
+    return UserDAO.getUserDocByFilter(filter);
+  },
+
+  createGuest(payload) {
+    return UserDAO.createGuest(payload);
+  },
+
+  getUserByIdSelect(userId, select) {
+    return UserDAO.getUserByIdSelect(userId, select);
+  },
+
+  getUserDocWithPasswordByEmail(email) {
+    return UserDAO.getUserDocWithPasswordByEmail(email);
+  },
+
+  touchLastLoginByEmail(email) {
+    return UserDAO.touchLastLoginByEmail(email);
+  },
+
+  touchLastLoginById(userId) {
+    return UserDAO.touchLastLoginById(userId);
+  },
+
+  findAgents(filter, select) {
+    return UserDAO.findAgents(filter, select);
+  },
+
+  findEditors(filter, select) {
+    return UserDAO.findEditors(filter, select);
+  },
+
+  findAgentById(agentId, select) {
+    return UserDAO.findAgentById(agentId, select);
+  },
+
+  getUserDocById(userId) {
+    return UserDAO.getUserDocById(userId);
+  },
+
+  getAgentDocById(agentId) {
+    return UserDAO.getAgentDocById(agentId);
+  },
+
+  createUser(role, payload) {
+    return UserDAO.createUser(role, payload);
+  },
+
+  updateUserWithOptions(userId, fields, options) {
+    return UserDAO.updateUserWithOptions(userId, fields, options);
+  },
+
+  updateUserArchiv(userId, isArchived) {
+    return UserDAO.updateUserArchiv(userId, isArchived);
+  },
+
+  deleteUserById(userId) {
+    return UserDAO.deleteUserById(userId);
+  },
+
+  pullStaffFromStudents(userId) {
+    return UserDAO.pullStaffFromStudents(userId);
+  },
+
+  deleteStudentCascade(userId) {
+    return UserDAO.deleteStudentCascade(userId);
+  },
+
+  getUserRoleCounts() {
+    return UserDAO.getUserRoleCounts();
+  },
+
+  getUsersOverview() {
+    return UserDAO.getUsersOverview();
   }
 };
 

@@ -27,10 +27,6 @@ const { tokenSchema } = require('./models/Token');
 const { templatesSchema } = require('./models/Template');
 const { documentationsSchema } = require('./models/Documentation');
 const { internaldocsSchema } = require('./models/Internaldoc');
-const {
-  enableVersionControl,
-  handleProgramChanges
-} = require('./utils/modelHelper/versionControl');
 const { docspagesSchema } = require('./models/Docspage');
 const { expensesSchema } = require('./models/Expense');
 const { incomesSchema } = require('./models/Income');
@@ -59,23 +55,11 @@ const tenantDb = 'Tenant';
 const mongoDb = (dbName) =>
   `${MONGODB_URI}/${dbName}?retryWrites=true&w=majority`;
 
-const applyProgramSchema = (
-  db,
-  VCModel,
-  StudentModel,
-  ApplicationModel,
-  DocumentthreadModel,
-  surveyInputModel
-) => {
-  programSchema.plugin(handleProgramChanges, {
-    StudentModel,
-    ApplicationModel,
-    DocumentthreadModel,
-    surveyInputModel
-  });
-  programSchema.plugin(enableVersionControl, { VCModel });
-  return db.model('Program', programSchema);
-};
+// The version-control + program-change plugins are applied ONCE on the shared
+// programSchema in models/Program.js (they resolve sibling models from the
+// model's own connection), so here we only need to compile the per-request
+// Program model from that already-plugged schema.
+const applyProgramSchema = (db) => db.model('Program', programSchema);
 
 // Returns the single shared application database connection, creating it on
 // first use. `tenant` is accepted for backward compatibility with existing
@@ -130,14 +114,7 @@ const connectToDatabase = (tenant, uri = null) => {
 
     connection.model('ProgramChangeRequest', programChangeRequestSchema);
     connection.model('VC', versionControlSchema);
-    applyProgramSchema(
-      connection,
-      connection.model('VC'),
-      connection.model('Student'),
-      connection.model('Application'),
-      connection.model('Documentthread'),
-      connection.model('surveyInput')
-    );
+    applyProgramSchema(connection);
     connection.model('Userlog', userlogSchema);
   }
   return appConnection;

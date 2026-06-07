@@ -77,6 +77,31 @@ const StudentService = {
     return StudentDAO.getStudentByIdSelect(id, select);
   },
 
+  getStudentByIdSelectPopulated(id, select, populate, populateSelect) {
+    return StudentDAO.getStudentByIdSelectPopulated(
+      id,
+      select,
+      populate,
+      populateSelect
+    );
+  },
+
+  searchStudentsByText(filter, select, limit) {
+    return StudentDAO.searchStudentsByText(filter, select, limit);
+  },
+
+  getStudentsWithLatestCommunication() {
+    return StudentDAO.getStudentsWithLatestCommunication();
+  },
+
+  getUnreadCommunicationStudents(studentIds, userId) {
+    return StudentDAO.getUnreadCommunicationStudents(studentIds, userId);
+  },
+
+  getStudentsWithLatestCommunicationSorted(studentIds) {
+    return StudentDAO.getStudentsWithLatestCommunicationSorted(studentIds);
+  },
+
   getStudentsWithCourses() {
     return StudentDAO.getStudentsWithCourses();
   },

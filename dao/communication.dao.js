@@ -26,6 +26,16 @@ const CommunicationDAO = {
       .lean();
   },
 
+  // Communications matching `filter`, author populated, newest-first, capped —
+  // for the AI-assist conversation context.
+  async findPopulatedSorted(filter, { sort = { createdAt: -1 }, limit } = {}) {
+    return Communication.find(filter)
+      .populate('user_id', 'firstname lastname role')
+      .sort(sort)
+      .limit(limit)
+      .lean();
+  },
+
   // All communications with student + author lightly populated — for the
   // response-interval grouping job.
   async getAllForIntervalGrouping() {
@@ -53,6 +63,40 @@ const CommunicationDAO = {
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
+  },
+
+  async createCommunication(payload) {
+    return Communication.create(payload);
+  },
+
+  async deleteById(communicationId) {
+    return Communication.findByIdAndDelete(communicationId);
+  },
+
+  // Newest message for a student (lean) — unread badge for students.
+  async getLatestByStudentId(studentId) {
+    return Communication.findOne({ student_id: studentId })
+      .sort({ createdAt: -1 })
+      .lean();
+  },
+
+  // A student's chat thread, newest-first, with the given populate spec.
+  // Returns live documents unless `lean` is set (callers that mark-as-read
+  // mutate + .save() the returned docs).
+  async findThreadPopulated(
+    studentId,
+    { populate, select, skip = 0, limit, lean = false } = {}
+  ) {
+    let query = Communication.find({ student_id: studentId })
+      .populate(populate, select)
+      .sort({ createdAt: -1 });
+    if (skip) {
+      query = query.skip(skip);
+    }
+    if (limit) {
+      query = query.limit(limit);
+    }
+    return lean ? query.lean() : query;
   },
 
   async updateCommunication(communicationId, payload) {

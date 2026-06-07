@@ -750,6 +750,15 @@ const ApplicationDAO = {
     return Application.aggregate(pipeline);
   },
 
+  // Generic select + optional single-populate lean read.
+  async findApplicationsSelectPopulate(filter, select, populate) {
+    let query = Application.find(filter).select(select);
+    if (populate) {
+      query = query.populate(populate.path, populate.select);
+    }
+    return query.lean();
+  },
+
   async findByStudentIdLean(studentId) {
     return Application.find({ studentId }).lean();
   },

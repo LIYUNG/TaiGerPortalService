@@ -331,7 +331,7 @@ const getTasksOverview = asyncHandler(async (req, res, next) => {
     StudentService.fetchStudents(noAgentsfilter),
     StudentService.fetchStudents(noEditorsfilter),
     InterviewService.getInterviews(noTrainerInInterviewsfilter),
-    DocumentThreadService.getAllStudentsThreads(req, {
+    DocumentThreadService.getAllStudentsThreads({
       isFinalVersion: false,
       file_type: 'Essay',
       outsourced_user_id: { $exists: true, $size: 0 },

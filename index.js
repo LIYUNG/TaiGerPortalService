@@ -57,9 +57,8 @@ const launch = async () => {
 
   // Open the single default Mongoose connection used by the DAO layer
   // (Model.find() etc.). Without this, default-connection queries buffer and
-  // time out. The per-request `connectToDatabase` connection still exists for
-  // not-yet-migrated `req.db.model(...)` paths (and keeps the Program
-  // version-control plugin wiring); both point at the same database.
+  // time out. The whole request path now runs on this connection through the
+  // service/DAO layer.
   try {
     await mongoose.connect(mongoDb(TENANT_ID));
     logger.info('MongoDB default connection established');

@@ -43,6 +43,9 @@ const {
   searchStudents
 } = require('../../controllers/ai_assist');
 const StudentService = require('../../services/students');
+const ApplicationService = require('../../services/applications');
+const CommunicationService = require('../../services/communications');
+const ComplaintService = require('../../services/complaints');
 const {
   aiAssistConversations,
   aiAssistMessages,
@@ -248,30 +251,12 @@ const createStudentQuickStartReq = ({
   students = [],
   user = { _id: 'agent_1', role: Role.Agent }
 } = {}) => {
-  const lean = jest.fn().mockResolvedValue(students);
-  const limit = jest.fn(() => ({ lean }));
-  const select = jest.fn(() => ({ limit }));
-  const find = jest.fn(() => ({ select }));
-
-  // listRecentStudents / listMyStudents read students through the service layer
-  // now (controller -> StudentService.findStudentsSelect); searchStudents still
-  // goes through the legacy req.db.model('Student') seam below.
-  const findStudentsSelect = jest
-    .spyOn(StudentService, 'findStudentsSelect')
-    .mockResolvedValue(students);
+  // listRecentStudents / listMyStudents / searchStudents read students through
+  // StudentService.findStudentsSelect (default connection).
+  jest.spyOn(StudentService, 'findStudentsSelect').mockResolvedValue(students);
 
   return {
-    req: {
-      user,
-      query: {},
-      db: {
-        model: jest.fn(() => ({ find }))
-      }
-    },
-    models: {
-      Student: { find, select, limit, lean },
-      findStudentsSelect
-    }
+    req: { user, query: {} }
   };
 };
 
@@ -279,44 +264,30 @@ const createStudentAccessReq = ({
   students = [],
   user = { _id: 'agent_1', role: Role.Agent }
 } = {}) => {
-  const studentModel = {
-    find: jest.fn((filter = {}) => {
-      const requestedIds = filter._id
-        ? Array.isArray(filter._id.$in)
-          ? filter._id.$in
-          : [filter._id]
-        : null;
-      const rows = requestedIds
-        ? students.filter((student) => requestedIds.includes(student._id))
-        : students;
-
-      return {
-        select: jest.fn(() => ({
-          limit: jest.fn(() => ({
-            lean: jest.fn().mockResolvedValue(rows)
-          }))
-        }))
-      };
-    })
+  // The ai-assist tools read students through the service/DAO layer; mirror the
+  // id-filtering the legacy req.db.model('Student') mock did.
+  const filterStudents = (filter = {}) => {
+    const requestedIds = filter._id
+      ? Array.isArray(filter._id.$in)
+        ? filter._id.$in
+        : [filter._id]
+      : null;
+    return requestedIds
+      ? students.filter((student) => requestedIds.includes(student._id))
+      : students;
   };
 
-  return {
-    req: {
-      user,
-      query: {},
-      db: {
-        model: jest.fn((name) => {
-          if (name !== 'Student') {
-            throw new Error(`Unexpected model: ${name}`);
-          }
+  jest
+    .spyOn(StudentService, 'findStudentsSelect')
+    .mockImplementation((filter) => Promise.resolve(filterStudents(filter)));
+  jest
+    .spyOn(StudentService, 'getStudentByIdSelect')
+    .mockImplementation((id) =>
+      Promise.resolve(students.find((s) => s._id === id) || null)
+    );
 
-          return studentModel;
-        })
-      }
-    },
-    models: {
-      Student: studentModel
-    }
+  return {
+    req: { user, query: {} }
   };
 };
 
@@ -358,72 +329,38 @@ const createAiAssistReq = () => {
     },
     files: []
   };
-  const studentModel = {
-    find: jest.fn(() => ({
-      select: jest.fn(() => ({
-        limit: jest.fn(() => ({
-          lean: jest.fn().mockResolvedValue([student])
-        }))
-      }))
-    })),
-    findById: jest.fn(() => ({
-      select: jest.fn(() => ({
-        populate: jest.fn(() => ({
-          lean: jest.fn().mockResolvedValue(student)
-        }))
-      }))
-    }))
-  };
-  const applicationModel = {
-    find: jest.fn(() => ({
-      select: jest.fn(() => ({
-        populate: jest.fn(() => ({
-          lean: jest.fn().mockResolvedValue([application])
-        }))
-      }))
-    }))
-  };
-  const communicationModel = {
-    find: jest.fn(() => ({
-      populate: jest.fn(() => ({
-        sort: jest.fn(() => ({
-          limit: jest.fn(() => ({
-            lean: jest.fn().mockResolvedValue([communication])
-          }))
-        }))
-      }))
-    }))
-  };
+
+  // ai-assist tools read through the service/DAO layer (default connection); the
+  // request object only carries the authenticated user.
+  jest.spyOn(StudentService, 'findStudentsSelect').mockResolvedValue([student]);
+  jest.spyOn(StudentService, 'getStudentByIdSelect').mockResolvedValue(student);
+  jest
+    .spyOn(ApplicationService, 'findApplicationsSelectPopulate')
+    .mockResolvedValue([application]);
+  jest
+    .spyOn(CommunicationService, 'findPopulatedSorted')
+    .mockResolvedValue([communication]);
+  jest.spyOn(ComplaintService, 'findComplaintsSelect').mockResolvedValue([]);
 
   return {
-    models: {
-      Student: studentModel,
-      Application: applicationModel,
-      Communication: communicationModel
-    },
     req: {
-      user: { _id: 'agent_1', role: Role.Agent },
-      db: {
-        model: jest.fn((name) => {
-          const model = {
-            Student: studentModel,
-            Application: applicationModel,
-            Communication: communicationModel
-          }[name];
-
-          if (!model) {
-            throw new Error(`Unexpected model: ${name}`);
-          }
-
-          return model;
-        })
-      }
+      user: { _id: 'agent_1', role: Role.Agent }
     }
   };
 };
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // The ai-assist tools read through the service/DAO layer (default connection).
+  // Default every reader to empty so a tool never reaches the real model; each
+  // test/helper overrides the relevant spy with its own fixtures.
+  jest.spyOn(StudentService, 'findStudentsSelect').mockResolvedValue([]);
+  jest.spyOn(StudentService, 'getStudentByIdSelect').mockResolvedValue(null);
+  jest
+    .spyOn(ApplicationService, 'findApplicationsSelectPopulate')
+    .mockResolvedValue([]);
+  jest.spyOn(CommunicationService, 'findPopulatedSorted').mockResolvedValue([]);
+  jest.spyOn(ComplaintService, 'findComplaintsSelect').mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -1444,12 +1381,15 @@ describe('AI Assist Postgres persistence', () => {
         })
       ]
     });
-    const studentFind = req.db.model.mock.results[0].value.find;
-    expect(studentFind).toHaveBeenCalledWith({
-      $or: [{ archiv: { $exists: false } }, { archiv: false }],
-      agents: 'agent_1',
-      $text: { $search: 'Abby' }
-    });
+    expect(StudentService.findStudentsSelect).toHaveBeenCalledWith(
+      {
+        $or: [{ archiv: { $exists: false } }, { archiv: false }],
+        agents: 'agent_1',
+        $text: { $search: 'Abby' }
+      },
+      expect.any(String),
+      expect.anything()
+    );
   });
 
   it('rejects sendMessage when the guarded write updates no rows after the pre-check passes', async () => {
@@ -1699,6 +1639,19 @@ describe('AI Assist Postgres persistence', () => {
     const limit = jest.fn(() => ({ lean }));
     const select = jest.fn(() => ({ limit }));
     const find = jest.fn(() => ({ select }));
+    StudentService.findStudentsSelect.mockResolvedValue([
+      {
+        _id: 'student_1',
+        firstname: 'abby',
+        lastname: 'Student',
+        firstname_chinese: '艾比',
+        lastname_chinese: '學生',
+        email: 'ada@example.com',
+        role: Role.Student,
+        agents: ['agent_1'],
+        editors: []
+      }
+    ]);
 
     const req = {
       params: { conversationId: 'conv_1' },
@@ -1739,7 +1692,7 @@ describe('AI Assist Postgres persistence', () => {
     );
     expect(updateWhere).toHaveBeenCalled();
     expect(updateReturning).toHaveBeenCalled();
-    expect(find).toHaveBeenCalled();
+    expect(StudentService.findStudentsSelect).toHaveBeenCalled();
   });
 
   it('stores skillTrace on the assistant message record', async () => {
@@ -1816,6 +1769,8 @@ describe('AI Assist Postgres persistence', () => {
     const postgres = createLifecyclePostgres(conversation);
     getPostgresDb.mockReturnValue(postgres);
     const res = createResponse();
+    // Set up the student/application/communication service spies the tools read.
+    createAiAssistReq();
 
     await sendMessage(
       {
@@ -1831,8 +1786,7 @@ describe('AI Assist Postgres persistence', () => {
             requestedSkill: 'identify_risk',
             unknownSkillText: null
           }
-        },
-        db: createAiAssistReq().req.db
+        }
       },
       res
     );
@@ -2172,7 +2126,7 @@ describe('AI Assist Responses function tool loop', () => {
         output: []
       });
     const { postgres, insertedValues } = createAiAssistPostgres();
-    const { models, req } = createAiAssistReq();
+    const { req } = createAiAssistReq();
 
     await runAiAssist(postgres, {
       conversationId: 'conv_1',
@@ -2180,10 +2134,14 @@ describe('AI Assist Responses function tool loop', () => {
       req
     });
 
-    expect(models.Student.find).toHaveBeenCalled();
-    expect(models.Application.find).toHaveBeenCalledWith({
-      studentId: 'student_abby'
-    });
+    expect(StudentService.findStudentsSelect).toHaveBeenCalled();
+    expect(
+      ApplicationService.findApplicationsSelectPopulate
+    ).toHaveBeenCalledWith(
+      { studentId: 'student_abby' },
+      expect.any(String),
+      expect.anything()
+    );
     expect(
       insertedValues
         .filter((value) => value.toolName)
@@ -2207,7 +2165,7 @@ describe('AI Assist Responses function tool loop', () => {
         output: []
       });
     const { postgres, insertedValues } = createAiAssistPostgres();
-    const { models, req } = createAiAssistReq();
+    const { req } = createAiAssistReq();
 
     await runAiAssist(postgres, {
       conversationId: 'conv_1',
@@ -2260,7 +2218,7 @@ describe('AI Assist student access filters', () => {
 describe('AI Assist read-only tools', () => {
   it('search_accessible_students queries students with the current Agent filter', async () => {
     getPermission.mockResolvedValue({});
-    const lean = jest.fn().mockResolvedValue([
+    StudentService.findStudentsSelect.mockResolvedValue([
       {
         _id: 'student_1',
         firstname: 'Ada',
@@ -2272,14 +2230,8 @@ describe('AI Assist read-only tools', () => {
         applying_program_count: 2
       }
     ]);
-    const limit = jest.fn(() => ({ lean }));
-    const select = jest.fn(() => ({ limit }));
-    const find = jest.fn(() => ({ select }));
     const req = {
-      user: { role: Role.Agent, _id: 'agent_1' },
-      db: {
-        model: jest.fn(() => ({ find }))
-      }
+      user: { role: Role.Agent, _id: 'agent_1' }
     };
 
     const result = await runTool(req, 'search_accessible_students', {
@@ -2287,12 +2239,15 @@ describe('AI Assist read-only tools', () => {
       limit: 5
     });
 
-    expect(find).toHaveBeenCalledWith({
-      $or: [{ archiv: { $exists: false } }, { archiv: false }],
-      agents: 'agent_1',
-      $text: { $search: 'Ada' }
-    });
-    expect(limit).toHaveBeenCalledWith(5);
+    expect(StudentService.findStudentsSelect).toHaveBeenCalledWith(
+      {
+        $or: [{ archiv: { $exists: false } }, { archiv: false }],
+        agents: 'agent_1',
+        $text: { $search: 'Ada' }
+      },
+      expect.any(String),
+      5
+    );
     expect(result.data[0]).toMatchObject({
       id: 'student_1',
       name: 'Ada Lovelace',
@@ -2408,7 +2363,8 @@ describe('AI Assist read-only tools', () => {
       profile: [],
       applying_program_count: 2
     };
-    const lean = jest.fn().mockResolvedValue([
+    StudentService.findStudentsSelect.mockResolvedValue([student]);
+    ApplicationService.findApplicationsSelectPopulate.mockResolvedValue([
       {
         _id: 'application_1',
         admission: 'pending',
@@ -2425,32 +2381,21 @@ describe('AI Assist read-only tools', () => {
         }
       }
     ]);
-    const studentLimit = jest.fn(() => ({
-      lean: jest.fn().mockResolvedValue([student])
-    }));
-    const studentSelect = jest.fn(() => ({ limit: studentLimit }));
-    const studentFind = jest.fn(() => ({ select: studentSelect }));
-    const populate = jest.fn(() => ({ lean }));
-    const select = jest.fn(() => ({ populate }));
-    const find = jest.fn(() => ({ select }));
     const req = {
-      user: { role: Role.Admin, _id: 'admin_1' },
-      db: {
-        model: jest.fn((name) => {
-          if (name === 'Student') {
-            return { find: studentFind };
-          }
-
-          return { find };
-        })
-      }
+      user: { role: Role.Admin, _id: 'admin_1' }
     };
 
     const result = await runTool(req, 'get_student_applications', {
       studentId: 'student_1'
     });
 
-    expect(find).toHaveBeenCalledWith({ studentId: 'student_1' });
+    expect(
+      ApplicationService.findApplicationsSelectPopulate
+    ).toHaveBeenCalledWith(
+      { studentId: 'student_1' },
+      expect.any(String),
+      expect.anything()
+    );
     expect(result.data[0]).toMatchObject({
       id: 'application_1',
       admission: 'pending',
@@ -2474,38 +2419,10 @@ describe('AI Assist read-only tools', () => {
       profile: [],
       applying_program_count: 2
     };
-    const communicationFind = jest.fn(() => ({
-      populate: jest.fn(() => ({
-        sort: jest.fn(() => ({
-          limit: jest.fn(() => ({
-            lean: jest.fn().mockResolvedValue([])
-          }))
-        }))
-      }))
-    }));
+    StudentService.findStudentsSelect.mockResolvedValue([student]);
+    CommunicationService.findPopulatedSorted.mockResolvedValue([]);
     const req = {
-      user: { role: Role.Admin, _id: 'admin_1' },
-      db: {
-        model: jest.fn((name) => {
-          if (name === 'Student') {
-            return {
-              find: jest.fn(() => ({
-                select: jest.fn(() => ({
-                  limit: jest.fn(() => ({
-                    lean: jest.fn().mockResolvedValue([student])
-                  }))
-                }))
-              }))
-            };
-          }
-
-          if (name === 'Communication') {
-            return { find: communicationFind };
-          }
-
-          throw new Error(`Unexpected model: ${name}`);
-        })
-      }
+      user: { role: Role.Admin, _id: 'admin_1' }
     };
 
     await runTool(req, 'get_recent_communication_context', {
@@ -2513,7 +2430,8 @@ describe('AI Assist read-only tools', () => {
       days: 30
     });
 
-    const calledQuery = communicationFind.mock.calls[0][0];
+    const calledQuery =
+      CommunicationService.findPopulatedSorted.mock.calls[0][0];
     expect(calledQuery.student_id).toBe('student_1');
     expect(calledQuery.createdAt).toBeDefined();
     expect(calledQuery.createdAt.$gte instanceof Date).toBe(true);
@@ -2531,39 +2449,10 @@ describe('AI Assist read-only tools', () => {
       profile: [],
       applying_program_count: 2
     };
-    const communicationLimit = jest.fn(() => ({
-      lean: jest.fn().mockResolvedValue([])
-    }));
-    const communicationFind = jest.fn(() => ({
-      populate: jest.fn(() => ({
-        sort: jest.fn(() => ({
-          limit: communicationLimit
-        }))
-      }))
-    }));
+    StudentService.findStudentsSelect.mockResolvedValue([student]);
+    CommunicationService.findPopulatedSorted.mockResolvedValue([]);
     const req = {
-      user: { role: Role.Admin, _id: 'admin_1' },
-      db: {
-        model: jest.fn((name) => {
-          if (name === 'Student') {
-            return {
-              find: jest.fn(() => ({
-                select: jest.fn(() => ({
-                  limit: jest.fn(() => ({
-                    lean: jest.fn().mockResolvedValue([student])
-                  }))
-                }))
-              }))
-            };
-          }
-
-          if (name === 'Communication') {
-            return { find: communicationFind };
-          }
-
-          throw new Error(`Unexpected model: ${name}`);
-        })
-      }
+      user: { role: Role.Admin, _id: 'admin_1' }
     };
 
     await runTool(req, 'get_all_communication_context', {
@@ -2571,9 +2460,10 @@ describe('AI Assist read-only tools', () => {
       limit: 999
     });
 
-    const calledQuery = communicationFind.mock.calls[0][0];
+    const [calledQuery, calledOptions] =
+      CommunicationService.findPopulatedSorted.mock.calls[0];
     expect(calledQuery).toEqual({ student_id: 'student_1' });
-    expect(communicationLimit).toHaveBeenCalledWith(200);
+    expect(calledOptions.limit).toBe(200);
   });
 });
 
@@ -2590,30 +2480,14 @@ describe('AI Assist CRM lead meeting access', () => {
     applying_program_count: 2
   };
 
-  const buildReq = (role, userId) => ({
-    user: { role, _id: userId },
-    db: {
-      model: jest.fn((name) => {
-        if (name === 'Student') {
-          return {
-            find: jest.fn(() => ({
-              select: jest.fn(() => ({
-                limit: jest.fn(() => ({
-                  lean: jest.fn().mockResolvedValue([baseStudent])
-                }))
-              }))
-            })),
-            findById: jest.fn(() => ({
-              select: jest.fn(() => ({
-                lean: jest.fn().mockResolvedValue(baseStudent)
-              }))
-            }))
-          };
-        }
-        throw new Error(`Unexpected model: ${name}`);
-      })
-    }
-  });
+  const buildReq = (role, userId) => {
+    // CRM lead access reads the student through the service/DAO layer now.
+    StudentService.findStudentsSelect.mockResolvedValue([baseStudent]);
+    StudentService.getStudentByIdSelect.mockResolvedValue(baseStudent);
+    return {
+      user: { role, _id: userId }
+    };
+  };
 
   it('allows Admin to read student lead meetings', async () => {
     const leadLimit = jest.fn().mockResolvedValue([

@@ -75,6 +75,14 @@ const ApplicationService = {
     return ApplicationDAO.aggregateApplications(pipeline);
   },
 
+  findApplicationsSelectPopulate(filter, select, populate) {
+    return ApplicationDAO.findApplicationsSelectPopulate(
+      filter,
+      select,
+      populate
+    );
+  },
+
   findByStudentIdLean(studentId) {
     return ApplicationDAO.findByStudentIdLean(studentId);
   },

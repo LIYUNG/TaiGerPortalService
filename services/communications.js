@@ -21,6 +21,10 @@ const CommunicationService = {
     return CommunicationDAO.getAllForIntervalGrouping();
   },
 
+  findPopulatedSorted(filter, options) {
+    return CommunicationDAO.findPopulatedSorted(filter, options);
+  },
+
   getByStudentIdForExport(studentId) {
     return CommunicationDAO.getByStudentIdForExport(studentId);
   },
@@ -31,6 +35,22 @@ const CommunicationService = {
 
   updateCommunication(communicationId, payload) {
     return CommunicationDAO.updateCommunication(communicationId, payload);
+  },
+
+  createCommunication(payload) {
+    return CommunicationDAO.createCommunication(payload);
+  },
+
+  deleteById(communicationId) {
+    return CommunicationDAO.deleteById(communicationId);
+  },
+
+  getLatestByStudentId(studentId) {
+    return CommunicationDAO.getLatestByStudentId(studentId);
+  },
+
+  findThreadPopulated(studentId, options) {
+    return CommunicationDAO.findThreadPopulated(studentId, options);
   }
 };
 

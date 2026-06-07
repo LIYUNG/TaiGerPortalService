@@ -6,21 +6,17 @@ const { asyncHandler } = require('./error-handler');
 // longer resolve a tenant from a registry (by header / decrypted token /
 // domain) on every request. checkTenantDBMiddleware simply stamps the
 // configured tenant id — kept because downstream code still reads req.tenantId
-// (e.g. JWT issuing in controllers/auth.js) — and tenantMiddleware attaches the
-// single shared connection.
+// (e.g. JWT issuing in controllers/auth.js). The whole request path now runs on
+// the single default Mongoose connection via the service/DAO layer, so there is
+// no longer a per-request connection attached to the request object.
 const checkTenantDBMiddleware = asyncHandler(async (req, res, next) => {
   req.tenantId = TENANT_ID;
   next();
 });
 
-const tenantMiddleware = asyncHandler(async (req, res, next) => {
-  req.db = connectToDatabase(req.tenantId);
-  req.VCModel = req.db.model('VC');
-  next();
-});
-
+// connectToDatabase is still re-exported for the test fixtures and any tooling
+// that needs to open the shared connection directly.
 module.exports = {
-  tenantMiddleware,
   checkTenantDBMiddleware,
   connectToDatabase
 };

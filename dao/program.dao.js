@@ -1,17 +1,40 @@
 const { Program } = require('../models');
 
 /**
- * ProgramDAO — READ-ONLY data access for the Program model (default-connection
- * model from models/index.js). Plain params, no req.
+ * ProgramDAO — data access for the Program model (default-connection model from
+ * models/index.js). Plain params, no req.
  *
- * NOTE: only reads live here. Program *writes* still go through the per-request
- * `req.db` connection because the default-connection Program model does not yet
- * have the version-control / handleProgramChanges plugins wired up
- * (see models/index.js). Reads are unaffected by that wiring.
+ * The version-control + program-change plugins are applied to the shared Program
+ * schema (models/Program.js) and resolve sibling models from the model's own
+ * connection, so writes here fire the same hooks as the per-request model.
  */
 const ProgramDAO = {
   async getProgramByIdLean(programId) {
     return Program.findById(programId).lean();
+  },
+
+  async getProgramByIdSelect(programId, select) {
+    return Program.findById(programId).select(select).lean();
+  },
+
+  async createProgram(payload) {
+    return Program.create(payload);
+  },
+
+  async updateProgramOne(filter, fields) {
+    return Program.findOneAndUpdate(filter, fields, { new: true }).lean();
+  },
+
+  async updateProgramById(programId, fields) {
+    return Program.findByIdAndUpdate(programId, fields, { new: true }).lean();
+  },
+
+  async updateManyPrograms(filter, update, options = {}) {
+    return Program.updateMany(filter, update, options);
+  },
+
+  async archiveProgramById(programId) {
+    return Program.findByIdAndUpdate(programId, { isArchiv: true });
   },
 
   async findPrograms(filter = {}) {
@@ -69,6 +92,19 @@ const ProgramDAO = {
       query = query.limit(limit);
     }
     return query.lean();
+  },
+
+  // Returns [programs, total] for a server-side paginated list.
+  async findProgramsPaginated({ filter, select, sort, skip, limit }) {
+    return Promise.all([
+      Program.find(filter)
+        .select(select)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Program.countDocuments(filter)
+    ]);
   }
 };
 

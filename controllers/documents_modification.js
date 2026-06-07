@@ -83,10 +83,7 @@ const getActiveThreads = asyncHandler(async (req, res) => {
     .withOutsourcedUserId(outsourcedUserId)
     .build();
 
-  const threads = await DocumentThreadService.getAllStudentsThreads(
-    req,
-    filter
-  );
+  const threads = await DocumentThreadService.getAllStudentsThreads(filter);
 
   res.status(200).send({ success: true, data: threads });
 });
@@ -96,7 +93,7 @@ const getActiveThreadsPaginated = asyncHandler(async (req, res) => {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   });
 
-  const result = await DocumentThreadService.getActiveThreadsPaginated(req, {
+  const result = await DocumentThreadService.getActiveThreadsPaginated({
     studentIds: activeStudents.map((student) => student._id.toString()),
     query: req.query
   });
@@ -109,7 +106,7 @@ const getActiveThreadsCounts = asyncHandler(async (req, res) => {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   });
 
-  const data = await DocumentThreadService.getActiveThreadsCounts(req, {
+  const data = await DocumentThreadService.getActiveThreadsCounts({
     studentIds: activeStudents.map((student) => student._id.toString()),
     query: req.query
   });
@@ -133,7 +130,7 @@ const getMyStudentsThreadsPaginated = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const studentIds = await supervisedActiveStudentIds(req, userId);
 
-  const result = await DocumentThreadService.getActiveThreadsPaginated(req, {
+  const result = await DocumentThreadService.getActiveThreadsPaginated({
     studentIds,
     outsourcedUserId: userId,
     query: { ...req.query, viewerId: req.query.viewerId || userId }
@@ -146,7 +143,7 @@ const getMyStudentsThreadsCounts = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const studentIds = await supervisedActiveStudentIds(req, userId);
 
-  const data = await DocumentThreadService.getActiveThreadsCounts(req, {
+  const data = await DocumentThreadService.getActiveThreadsCounts({
     studentIds,
     outsourcedUserId: userId,
     query: { ...req.query, viewerId: req.query.viewerId || userId }
@@ -163,7 +160,6 @@ const getMyStudentsThreads = asyncHandler(async (req, res) => {
     .withFileType(fileType)
     .build();
   const threads = await DocumentThreadService.getStudentsThreadsByTaiGerUserId(
-    req,
     userId,
     documentThreadFilter
   );
@@ -191,7 +187,6 @@ const getSurveyInputs = asyncHandler(async (req, res, next) => {
     params: { messagesThreadId }
   } = req;
   const threadDocument = await DocumentThreadService.getThreadById(
-    req,
     messagesThreadId
   );
 
@@ -482,10 +477,7 @@ const putThreadFavorite = asyncHandler(async (req, res, next) => {
     user,
     params: { messagesThreadId }
   } = req;
-  const thread = await DocumentThreadService.getThreadById(
-    req,
-    messagesThreadId
-  );
+  const thread = await DocumentThreadService.getThreadById(messagesThreadId);
   if (!thread) {
     logger.error('putThreadFavorite: Invalid message thread id!');
     throw new ErrorResponse(404, 'Thread not found');
@@ -503,12 +495,12 @@ const putThreadFavorite = asyncHandler(async (req, res, next) => {
   try {
     if (isFlagged) {
       // Remove user from favorites
-      await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+      await DocumentThreadService.updateThreadById(messagesThreadId, {
         $pull: { flag_by_user_id: user._id }
       });
     } else {
       // Add user to favorites
-      await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+      await DocumentThreadService.updateThreadById(messagesThreadId, {
         $addToSet: { flag_by_user_id: user._id }
       });
     }
@@ -606,7 +598,6 @@ const getMessages = asyncHandler(async (req, res) => {
     params: { messagesThreadId }
   } = req;
   const document_thread = await DocumentThreadService.getThreadById(
-    req,
     messagesThreadId
   );
   if (!document_thread) {
@@ -615,7 +606,7 @@ const getMessages = asyncHandler(async (req, res) => {
   }
 
   const similarThreads = document_thread?.program_id
-    ? await DocumentThreadService.getThreads(req, {
+    ? await DocumentThreadService.getThreads({
         _id: { $ne: messagesThreadId },
         program_id: document_thread.program_id,
         isFinalVersion: true,
@@ -1382,7 +1373,6 @@ const putOriginAuthorConfirmedByStudent = asyncHandler(async (req, res) => {
   } = req;
 
   const document_thread = await DocumentThreadService.updateThreadById(
-    req,
     messagesThreadId,
     {
       isOriginAuthorDeclarationConfirmedByStudent: checked,
@@ -1789,7 +1779,7 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
     }
   }
   // Don't need so delete in S3 , will delete by garbage collector
-  await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+  await DocumentThreadService.updateThreadById(messagesThreadId, {
     $pull: {
       messages: { _id: messageId }
     }
@@ -1850,7 +1840,6 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
   }
 
   const essayDocumentThreads = await DocumentThreadService.getThreadById(
-    req,
     messagesThreadId
   );
 
@@ -1879,7 +1868,7 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
       added: addedEditors,
       removed: removedEditors
     });
-    await DocumentThreadService.updateThreadById(req, messagesThreadId, {
+    await DocumentThreadService.updateThreadById(messagesThreadId, {
       outsourced_user_id: updatedEditorIds.map(
         (id) => new mongoose.Types.ObjectId(id)
       )
@@ -1890,7 +1879,7 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
   const student_upated = await StudentService.getStudentById(studentId);
 
   const essayDocumentThreads_Updated =
-    await DocumentThreadService.getThreadById(req, messagesThreadId);
+    await DocumentThreadService.getThreadById(messagesThreadId);
 
   res.status(200).send({ success: true, data: essayDocumentThreads_Updated });
 
@@ -2014,7 +2003,6 @@ const getThreadsByStudent = asyncHandler(async (req, res, next) => {
   const { studentId } = req.params;
 
   const threads = await DocumentThreadService.getStudentThreadsByStudentId(
-    req,
     studentId
   );
   res.status(200).send({

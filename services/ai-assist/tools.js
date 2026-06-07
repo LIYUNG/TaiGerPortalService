@@ -13,6 +13,21 @@ const {
   normalizeProfileDocument,
   normalizeUser
 } = require('./normalizers');
+const StudentService = require('../students');
+const ApplicationService = require('../applications');
+const CommunicationService = require('../communications');
+const ComplaintService = require('../complaints');
+const DocumentThreadService = require('../documentthreads');
+const ProgramService = require('../programs');
+
+const AI_STUDENT_PICKER_FIELDS =
+  'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count';
+const AI_APPLICATION_FIELDS =
+  'programId admission decided closed reject_reason admission_letter finalEnrolment application_year uni_assist';
+const AI_APPLICATION_PROGRAM_POPULATE = {
+  path: 'programId',
+  select: 'school program_name degree semester application_deadline country'
+};
 
 const clampLimit = (value, fallback, max) =>
   Math.min(Math.max(Number(value) || fallback, 1), max);
@@ -259,11 +274,7 @@ const assertLeadAccessForStudent = async (req, studentId, studentParam) => {
 
   const student =
     studentParam ||
-    (await req.db
-      .model('Student')
-      .findById(studentId)
-      .select('agents editors')
-      .lean());
+    (await StudentService.getStudentByIdSelect(studentId, 'agents editors'));
 
   if (!student) {
     throw new ErrorResponse(404, 'Student not found');
@@ -281,15 +292,11 @@ const assertLeadAccessForStudent = async (req, studentId, studentParam) => {
 
 const requireAccessibleStudent = async (req, studentId) => {
   const filter = await getAccessibleStudentFilter(req);
-  const students = await req.db
-    .model('Student')
-    .find({
-      ...filter,
-      _id: studentId
-    })
-    .select(ACCESSIBLE_STUDENT_FIELDS)
-    .limit(1)
-    .lean();
+  const students = await StudentService.findStudentsSelect(
+    { ...filter, _id: studentId },
+    ACCESSIBLE_STUDENT_FIELDS,
+    1
+  );
 
   if (!students.length) {
     throw new ErrorResponse(404, 'Student not found');
@@ -304,31 +311,22 @@ const searchAccessibleStudents = async (req, args = {}) => {
   const limit = clampLimit(args.limit, 10, 25);
 
   if (!query) {
-    const students = await req.db
-      .model('Student')
-      .find(filter)
-      .select(
-        'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count'
-      )
-      .limit(limit)
-      .lean();
+    const students = await StudentService.findStudentsSelect(
+      filter,
+      AI_STUDENT_PICKER_FIELDS,
+      limit
+    );
 
     return {
       data: students.map(normalizeStudentPickerRow)
     };
   }
 
-  const textCandidates = await req.db
-    .model('Student')
-    .find({
-      ...filter,
-      $text: { $search: query }
-    })
-    .select(
-      'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count'
-    )
-    .limit(limit)
-    .lean();
+  const textCandidates = await StudentService.findStudentsSelect(
+    { ...filter, $text: { $search: query } },
+    AI_STUDENT_PICKER_FIELDS,
+    limit
+  );
 
   if (textCandidates.length > 0) {
     return {
@@ -341,9 +339,8 @@ const searchAccessibleStudents = async (req, args = {}) => {
   const fallbackRegex = new RegExp(escapedQuery, 'i');
   const fallbackNoSpaceRegex = new RegExp(escapedQueryNoSpace, 'i');
 
-  const fallbackCandidates = await req.db
-    .model('Student')
-    .find({
+  const fallbackCandidates = await StudentService.findStudentsSelect(
+    {
       ...filter,
       $or: [
         { firstname: fallbackRegex },
@@ -396,12 +393,10 @@ const searchAccessibleStudents = async (req, args = {}) => {
           }
         }
       ]
-    })
-    .select(
-      'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count'
-    )
-    .limit(limit)
-    .lean();
+    },
+    AI_STUDENT_PICKER_FIELDS,
+    limit
+  );
 
   return {
     data: fallbackCandidates.map(normalizeStudentPickerRow)
@@ -413,14 +408,11 @@ const searchStudents = async (req, args = {}) =>
 
 const listAccessibleStudents = async (req, args = {}) => {
   const filter = await getAccessibleStudentFilter(req);
-  const students = await req.db
-    .model('Student')
-    .find(filter)
-    .select(
-      'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count'
-    )
-    .limit(clampLimit(args.limit, 25, 50))
-    .lean();
+  const students = await StudentService.findStudentsSelect(
+    filter,
+    AI_STUDENT_PICKER_FIELDS,
+    clampLimit(args.limit, 25, 50)
+  );
 
   return {
     data: students.map(normalizeStudentPickerRow)
@@ -449,17 +441,11 @@ const getStudentSummary = async (req, args = {}) => {
 
 const getStudentApplications = async (req, args = {}) => {
   await requireAccessibleStudent(req, args.studentId);
-  const applications = await req.db
-    .model('Application')
-    .find({ studentId: args.studentId })
-    .select(
-      'programId admission decided closed reject_reason admission_letter finalEnrolment application_year uni_assist'
-    )
-    .populate(
-      'programId',
-      'school program_name degree semester application_deadline country'
-    )
-    .lean();
+  const applications = await ApplicationService.findApplicationsSelectPopulate(
+    { studentId: args.studentId },
+    AI_APPLICATION_FIELDS,
+    AI_APPLICATION_PROGRAM_POPULATE
+  );
 
   return {
     data: applications.map((application) => ({
@@ -500,13 +486,9 @@ const getLatestCommunications = async (req, args = {}) => {
     query.createdAt = { $gte: sinceDate };
   }
 
-  const messages = await req.db
-    .model('Communication')
-    .find(query)
-    .populate('user_id', 'firstname lastname role')
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
+  const messages = await CommunicationService.findPopulatedSorted(query, {
+    limit
+  });
 
   return {
     data: messages.reverse().map(normalizeMessage)
@@ -534,12 +516,11 @@ const getSupportTickets = async (req, args = {}) => {
   if (args.studentId) {
     await requireAccessibleStudent(req, args.studentId);
   }
-  const tickets = await req.db
-    .model('Complaint')
-    .find(args.studentId ? { requester_id: args.studentId } : {})
-    .select('requester_id title description status category updatedAt messages')
-    .limit(clampLimit(args.limit, 10, 25))
-    .lean();
+  const tickets = await ComplaintService.findComplaintsSelect(
+    args.studentId ? { requester_id: args.studentId } : {},
+    'requester_id title description status category updatedAt messages',
+    clampLimit(args.limit, 10, 25)
+  );
 
   return { data: tickets };
 };
@@ -566,17 +547,11 @@ const getStudentContext = async (req, args = {}) => {
 
 const getApplicationContext = async (req, args = {}) => {
   const student = await requireAccessibleStudent(req, args.studentId);
-  const applications = await req.db
-    .model('Application')
-    .find({ studentId: args.studentId })
-    .select(
-      'programId admission decided closed reject_reason admission_letter finalEnrolment application_year uni_assist'
-    )
-    .populate(
-      'programId',
-      'school program_name degree semester application_deadline country'
-    )
-    .lean();
+  const applications = await ApplicationService.findApplicationsSelectPopulate(
+    { studentId: args.studentId },
+    AI_APPLICATION_FIELDS,
+    AI_APPLICATION_PROGRAM_POPULATE
+  );
 
   return {
     data: {
@@ -618,15 +593,10 @@ const getRecentCommunicationContext = async (req, args = {}) => {
 const getAllCommunicationContext = async (req, args = {}) => {
   const student = await requireAccessibleStudent(req, args.studentId);
   const limit = clampLimit(args.limit, 120, ALL_COMMUNICATION_MAX_LIMIT);
-  const messages = await req.db
-    .model('Communication')
-    .find({
-      student_id: args.studentId
-    })
-    .populate('user_id', 'firstname lastname role')
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
+  const messages = await CommunicationService.findPopulatedSorted(
+    { student_id: args.studentId },
+    { limit }
+  );
 
   return {
     data: {
@@ -691,20 +661,16 @@ const getDocumentThreadContext = async (req, args = {}) => {
   const studentId = toObjectIdString(student._id || student.id);
 
   const [threads, applications] = await Promise.all([
-    req.db
-      .model('Documentthread')
-      .find({ student_id: args.studentId })
-      .select(
-        'file_type student_id application_id isFinalVersion latest_message_left_by_id updatedAt messages'
-      )
-      .sort({ updatedAt: -1 })
-      .lean(),
-    req.db
-      .model('Application')
-      .find({ studentId: args.studentId })
-      .select('programId')
-      .populate('programId', 'school program_name')
-      .lean()
+    DocumentThreadService.findThreadsSelectSorted(
+      { student_id: args.studentId },
+      'file_type student_id application_id isFinalVersion latest_message_left_by_id updatedAt messages',
+      { updatedAt: -1 }
+    ),
+    ApplicationService.findApplicationsSelectPopulate(
+      { studentId: args.studentId },
+      'programId',
+      { path: 'programId', select: 'school program_name' }
+    )
   ]);
 
   const programByApplicationId = new Map(
@@ -850,11 +816,10 @@ const getCrmLeadMeetingContext = async (req, args = {}) => {
 };
 
 const getProgramBrief = async (req, args = {}) => {
-  const program = await req.db
-    .model('Program')
-    .findById(args.programId)
-    .select('school program_name degree semester application_deadline country')
-    .lean();
+  const program = await ProgramService.getProgramByIdSelect(
+    args.programId,
+    'school program_name degree semester application_deadline country'
+  );
 
   return { data: normalizeProgram(program) };
 };

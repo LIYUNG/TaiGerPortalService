@@ -13,6 +13,10 @@ const ComplaintService = {
     return ComplaintDAO.getComplaints(query);
   },
 
+  findComplaintsSelect(filter, select, limit) {
+    return ComplaintDAO.findComplaintsSelect(filter, select, limit);
+  },
+
   getComplaintByIdPopulated(ticketId) {
     return ComplaintDAO.getComplaintByIdPopulated(ticketId);
   },

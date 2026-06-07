@@ -8,11 +8,6 @@ jest.mock('../../middlewares/tenantMiddleware', () => ({
   checkTenantDBMiddleware: jest.fn(async (req, res, next) => {
     req.tenantId = 'test';
     next();
-  }),
-  // No real DB: stub req.db so nothing tries to open a connection.
-  tenantMiddleware: jest.fn(async (req, res, next) => {
-    req.db = { model: () => ({}) };
-    next();
   })
 }));
 

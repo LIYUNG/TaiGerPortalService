@@ -22,6 +22,11 @@ const ComplaintDAO = {
       .sort({ createdAt: -1 });
   },
 
+  // Slim select + cap lean read (AI-assist support-ticket context).
+  async findComplaintsSelect(filter, select, limit) {
+    return Complaint.find(filter).select(select).limit(limit).lean();
+  },
+
   async getComplaintByIdPopulated(ticketId) {
     return Complaint.findById(ticketId)
       .populate('messages.user_id', 'firstname lastname email pictureUrl')

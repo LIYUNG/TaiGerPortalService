@@ -1,17 +1,15 @@
 // Central model registry.
 //
-// As part of moving off the per-request `req.db.model('X')` (multi-tenant)
-// access pattern, all models are compiled ONCE on the default Mongoose
-// connection here and imported directly by the DAO layer (controller -> service
-// -> dao). `User` (+ discriminators) and `Program` are already compiled on the
-// default connection at require-time in their own files; the remaining
-// schema-only models are compiled here.
+// All models are compiled ONCE on the default Mongoose connection here and
+// imported directly by the DAO layer (controller -> service -> dao). `User`
+// (+ discriminators) and `Program` are already compiled on the default
+// connection at require-time in their own files; the remaining schema-only
+// models are compiled here.
 //
-// NOTE (version control): the per-connection `Program` model wired up in
-// database.js#applyProgramSchema applies the handleProgramChanges +
-// enableVersionControl plugins. The default-connection `Program` re-exported
-// here does NOT yet have that wiring, so DAOs must not move Program *writes*
-// off req.db until that plugin is applied centrally. Reads are fine.
+// The `Program` schema (models/Program.js) carries the handleProgramChanges +
+// enableVersionControl plugins, which resolve their sibling models from the
+// firing model's own connection — so Program reads AND writes run safely on the
+// default-connection model here.
 const mongoose = require('mongoose');
 
 // Already compiled on the default connection.

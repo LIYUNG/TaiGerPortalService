@@ -61,7 +61,7 @@ const updateBatchSchoolAttributes = async (req, res) => {
   const fields = req.body;
   logger.info('Distinct schools:', fields);
   try {
-    const schools = await req.db.model('Program').updateMany(
+    const schools = await ProgramService.updateManyPrograms(
       {
         school: fields.school,
         $or: [
@@ -447,7 +447,7 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
 
 const getPrograms = asyncHandler(async (req, res) => {
   const { programs, total, page, limit } =
-    await ProgramService.getProgramsPaginated(req, req.query);
+    await ProgramService.getProgramsPaginated(req.query);
 
   res.send({
     success: true,
@@ -485,10 +485,7 @@ const getSameProgramStudents = asyncHandler(async (req, res) => {
 
 const getProgram = asyncHandler(async (req, res) => {
   const { user } = req;
-  const program = await ProgramService.getProgramById(
-    req,
-    req.params.programId
-  );
+  const program = await ProgramService.getProgramById(req.params.programId);
   if (!program) {
     logger.error('getProgram: Invalid program id');
     throw new ErrorResponse(404, 'Program not found');
@@ -519,7 +516,7 @@ const createProgram = asyncHandler(async (req, res) => {
   new_program.program_name = new_program.program_name.trim();
   new_program.updatedAt = new Date();
   new_program.whoupdated = `${user.firstname} ${user.lastname}`;
-  const programs = await ProgramService.getPrograms(req, {
+  const programs = await ProgramService.getPrograms({
     school: new_program.school,
     program_name: new_program.program_name,
     degree: new_program.degree,
@@ -533,7 +530,7 @@ const createProgram = asyncHandler(async (req, res) => {
       'This program is already existed! Considering update the existing one.'
     );
   }
-  const program = await req.db.model('Program').create(new_program);
+  const program = await ProgramService.createProgram(new_program);
 
   return res.status(201).send({ success: true, data: program });
 });
@@ -550,15 +547,13 @@ const updateProgram = asyncHandler(async (req, res) => {
   delete fields_root.application_start;
   delete fields_root.application_deadline;
 
-  const program = await req.db
-    .model('Program')
-    .findOneAndUpdate({ _id: req.params.programId }, fields, {
-      new: true
-    })
-    .lean();
+  const program = await ProgramService.updateProgramOne(
+    { _id: req.params.programId },
+    fields
+  );
 
   // Update same program but other semester common data
-  await req.db.model('Program').updateMany(
+  await ProgramService.updateManyPrograms(
     {
       _id: { $ne: req.params.programId },
       school: program.school,
@@ -586,11 +581,7 @@ const deleteProgram = asyncHandler(async (req, res) => {
   if (applications.length === 0) {
     logger.info('it can be safely deleted!');
 
-    // Program write stays on req.db (version-control plugins live on the
-    // per-request Program model; see models/index.js).
-    await req.db
-      .model('Program')
-      .findByIdAndUpdate(req.params.programId, { isArchiv: true });
+    await ProgramService.archiveProgramById(req.params.programId);
     logger.info('The program deleted!');
 
     await ProgramRequirementService.deleteOneByProgramIds([
@@ -619,17 +610,10 @@ const refreshProgram = asyncHandler(async (req, res) => {
 
   // Update program's updatedAt and whoupdated
   const now = new Date();
-  const program = await req.db
-    .model('Program')
-    .findByIdAndUpdate(
-      programId,
-      {
-        updatedAt: now,
-        whoupdated: `${user.firstname} ${user.lastname}`
-      },
-      { new: true }
-    )
-    .lean();
+  const program = await ProgramService.updateProgramById(programId, {
+    updatedAt: now,
+    whoupdated: `${user.firstname} ${user.lastname}`
+  });
 
   if (!program) {
     throw new ErrorResponse(404, 'Program not found');

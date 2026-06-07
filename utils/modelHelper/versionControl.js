@@ -329,10 +329,11 @@ const handleThreadDelta = asyncHandler(
   }
 );
 
-const handleProgramChanges = (
-  schema,
-  { StudentModel, ApplicationModel, DocumentthreadModel, surveyInputModel }
-) => {
+// The sibling models (Student/Application/Documentthread/surveyInput) are
+// resolved from the connection of the Program model that fired the hook
+// (`this.model.db`), so the same plugin works on every connection the Program
+// schema is compiled on (default + per-request).
+const handleProgramChanges = (schema) => {
   schema.pre(
     ['findOneAndUpdate', 'updateOne', 'updateMany', 'update'],
     async function (doc) {
@@ -355,6 +356,12 @@ const handleProgramChanges = (
         if (!isCrucialChanges(changes) || docs?.length === 0) {
           return;
         }
+
+        const db = this.model.db;
+        const StudentModel = db.model('Student');
+        const ApplicationModel = db.model('Application');
+        const DocumentthreadModel = db.model('Documentthread');
+        const surveyInputModel = db.model('surveyInput');
 
         for (const doc of docs) {
           const updatedDoc = { ...doc, ...changes };
@@ -388,7 +395,10 @@ const handleProgramChanges = (
   );
 };
 
-const enableVersionControl = (schema, { VCModel }) => {
+// VCModel is resolved from the connection of the model that fired the hook
+// (`this.model.db`), so version control works on every connection the schema is
+// compiled on (default + per-request).
+const enableVersionControl = (schema) => {
   schema.pre(
     ['findOneAndUpdate', 'updateOne', 'updateMany', 'update'],
     async function () {
@@ -407,6 +417,7 @@ const enableVersionControl = (schema, { VCModel }) => {
     ['findOneAndUpdate', 'updateOne', 'updateMany', 'update'],
     async function () {
       const collectionName = this.model.modelName;
+      const VCModel = this.model.db.model('VC');
 
       const docs = this._oldVersion;
       const changeRequestId = this._changeRequestId;

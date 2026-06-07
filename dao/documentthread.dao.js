@@ -43,6 +43,10 @@ const DocumentthreadDAO = {
     return Documentthread.find(filter).select(select).lean();
   },
 
+  async findThreadsSelectSorted(filter, select, sort) {
+    return Documentthread.find(filter).select(select).sort(sort).lean();
+  },
+
   // Live (non-lean) document — caller mutates messages/fields and calls .save().
   async getThreadDocById(id) {
     return Documentthread.findById(id);

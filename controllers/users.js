@@ -43,7 +43,7 @@ const hashToken = (token) =>
 //       const Obj = listedObjectsPublic.CommonPrefixes[i];
 //       const student_id = Obj.Prefix.replace('/', '');
 //       try {
-//         const student = await req.db.model('User').findById(student_id);
+//         const student = await UserModel('User').findById(student_id);
 //         if (!student) {
 //           // Obj.Prefix = folder_name/
 //           emptyS3Directory(AWS_S3_BUCKET_NAME, `${Obj.Prefix}`);
@@ -221,7 +221,7 @@ const updateUser = asyncHandler(async (req, res) => {
     );
   }
   // TODO: if Agent or editor change role, remove their belong students!
-  // const students = await req.db.model('Student').updateMany(
+  // const students = await StudentModel.updateMany(
   //   {
   //     agents: { $in: user_id }
   //   },

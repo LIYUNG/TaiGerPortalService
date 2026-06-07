@@ -8,10 +8,6 @@ jest.mock('../../middlewares/tenantMiddleware', () => ({
   checkTenantDBMiddleware: jest.fn(async (req, res, next) => {
     req.tenantId = 'test';
     next();
-  }),
-  tenantMiddleware: jest.fn(async (req, res, next) => {
-    req.db = { model: () => ({}) };
-    next();
   })
 }));
 

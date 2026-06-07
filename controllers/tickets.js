@@ -40,10 +40,7 @@ const createTicket = asyncHandler(async (req, res) => {
 
   res.status(201).send({ success: true, data: ticket });
 
-  const programPromise = ProgramService.getProgramById(
-    req,
-    new_ticket.program_id
-  );
+  const programPromise = ProgramService.getProgramById(new_ticket.program_id);
   const studentPromise = StudentService.getStudentById(user._id.toString());
 
   const [program, student] = await Promise.all([

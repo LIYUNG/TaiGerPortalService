@@ -88,13 +88,6 @@ jest.mock('../../database', () => {
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // connectToDatabase — returns a real Mongoose tenant connection with all
-  // models registered, so req.db.model('VC') etc. work in the app layer.
-  // We cannot use jest.requireActual('../../database') because database.js
-  // instantiates a real Drizzle/Neon connection at module load time, which
-  // fails without a valid Postgres URI.
-  // ---------------------------------------------------------------------------
   const connections = {};
   const connectToDatabase = jest.fn().mockImplementation((tenantId) => {
     if (connections[tenantId]) return connections[tenantId];
@@ -312,9 +305,6 @@ const { ObjectId } = require('mongoose').Types;
 const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
 const { UserSchema } = require('../../models/User');
-// Default-connection User model — the refactored CRM controller reads the
-// student through the service/DAO layer (default connection), so the fixtures
-// must be seeded there too (the mocked req.db uses a separate useDb database).
 const { User: DefaultUserModel } = require('../../models');
 const { protect } = require('../../middlewares/auth');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');

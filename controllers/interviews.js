@@ -433,12 +433,6 @@ const addInterviewTrainingDateTime = asyncHandler(async (req, res, next) => {
 
     await Promise.all(emailRequestsRequesters);
 
-    // const updatedEvent = await req.db.model('Event').findById(write_NewEvent._id)
-    //   .populate('requester_id receiver_id', 'firstname lastname email')
-    //   .lean();
-    // updatedEvent.requester_id.forEach((requester) => {
-    //   meetingConfirmationReminder(requester, user, updatedEvent.start);
-    // });
     next();
   } catch (err) {
     logger.error(`postEvent: ${err.message}`);

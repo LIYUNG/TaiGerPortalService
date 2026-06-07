@@ -361,6 +361,117 @@ const StudentDAO = {
     return Student.findById(id).select(select).lean();
   },
 
+  // Student by id with selected fields + a populate spec (live doc) — the chat
+  // header in the communications controller.
+  async getStudentByIdSelectPopulated(id, select, populate, populateSelect) {
+    return Student.findById(id)
+      .select(select)
+      .populate(populate, populateSelect);
+  },
+
+  // Full-text student search ranked by textScore, capped — chat user search.
+  async searchStudentsByText(filter, select, limit = 10) {
+    return Student.find(filter, { score: { $meta: 'textScore' } })
+      .sort({ score: { $meta: 'textScore' } })
+      .limit(limit)
+      .select(select)
+      .lean();
+  },
+
+  // Every student with only their newest communication attached — chat search
+  // result enrichment.
+  async getStudentsWithLatestCommunication() {
+    return Student.aggregate([
+      {
+        $lookup: {
+          from: 'communications',
+          let: { studentId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 }
+          ],
+          as: 'communications'
+        }
+      },
+      {
+        $project: {
+          firstname: 1,
+          lastname: 1,
+          role: 1,
+          latestCommunication: { $arrayElemAt: ['$communications', 0] }
+        }
+      }
+    ]);
+  },
+
+  // Students (within `studentIds`) whose newest message is unread by `userId`.
+  async getUnreadCommunicationStudents(studentIds, userId) {
+    return Student.aggregate([
+      {
+        $lookup: {
+          from: 'communications',
+          let: { studentId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 }
+          ],
+          as: 'communications'
+        }
+      },
+      {
+        $project: {
+          firstname: 1,
+          lastname: 1,
+          firstname_chinese: 1,
+          lastname_chinese: 1,
+          role: 1,
+          latestCommunication: { $arrayElemAt: ['$communications', 0] }
+        }
+      },
+      {
+        $match: {
+          'latestCommunication.student_id': { $in: studentIds },
+          'latestCommunication.readBy': { $nin: [userId] }
+        }
+      }
+    ]);
+  },
+
+  // Students (within `studentIds`) with their newest message, newest-first —
+  // the chat inbox list.
+  async getStudentsWithLatestCommunicationSorted(studentIds) {
+    return Student.aggregate([
+      {
+        $lookup: {
+          from: 'communications',
+          let: { studentId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 }
+          ],
+          as: 'communications'
+        }
+      },
+      {
+        $project: {
+          firstname: 1,
+          lastname: 1,
+          firstname_chinese: 1,
+          lastname_chinese: 1,
+          pictureUrl: 1,
+          role: 1,
+          attributes: 1,
+          latestCommunication: { $arrayElemAt: ['$communications', 0] }
+        }
+      },
+      { $match: { 'latestCommunication.student_id': { $in: studentIds } } },
+      { $sort: { 'latestCommunication.createdAt': -1 } }
+    ]);
+  },
+
   // Active students with their courses joined — feeds the course-selection
   // reminder.
   async getStudentsWithCourses() {

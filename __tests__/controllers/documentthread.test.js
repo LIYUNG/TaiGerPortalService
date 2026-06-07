@@ -30,9 +30,6 @@ jest.mock('../../services/email', () => ({
   NewMLRLEssayTasksEmailFromTaiGer: jest.fn().mockResolvedValue(undefined)
 }));
 
-// createApplicationV2 now reads/writes exclusively through the service layer
-// (controller -> service -> dao), so the data layer is mocked at the service
-// seam instead of the legacy `req.db.model`. No Mongo connection is opened.
 jest.mock('../../services/students');
 jest.mock('../../services/applications');
 jest.mock('../../services/programs');

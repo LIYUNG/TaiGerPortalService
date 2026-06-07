@@ -31,50 +31,18 @@ const getSearchUserMessages = asyncHandler(async (req, res, next) => {
   const { user } = req;
 
   // Get only the last communication
-  const studentsWithCommunications = await req.db.model('Student').aggregate([
-    {
-      $lookup: {
-        from: 'communications',
-        let: { studentId: '$_id' },
-        pipeline: [
-          { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
-          { $sort: { createdAt: -1 } },
-          { $limit: 1 }
-        ],
-        as: 'communications'
-      }
-    },
-    {
-      $project: {
-        firstname: 1,
-        lastname: 1,
-        role: 1,
-        latestCommunication: {
-          $arrayElemAt: ['$communications', 0]
-        }
-      }
-    }
-  ]);
+  const studentsWithCommunications =
+    await StudentService.getStudentsWithLatestCommunication();
 
   const permissions = await getPermission(req, user);
   if (
     is_TaiGer_Admin(user) ||
     (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
   ) {
-    const students = await req.db
-      .model('Student')
-      .find(
-        {
-          $text: { $search: req.query.q }
-        },
-        { score: { $meta: 'textScore' } }
-      )
-      .sort({ score: { $meta: 'textScore' } })
-      .limit(10)
-      .select(
-        'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
-      )
-      .lean();
+    const students = await StudentService.searchStudentsByText(
+      { $text: { $search: req.query.q } },
+      'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+    );
     // Merge the results
     const mergedResults = students.map((student) => {
       const aggregateData = studentsWithCommunications.find(
@@ -87,21 +55,13 @@ const getSearchUserMessages = asyncHandler(async (req, res, next) => {
       .status(200)
       .send({ success: true, data: { students: mergedResults, user } });
   } else {
-    const students_search = await req.db
-      .model('Student')
-      .find(
-        {
-          $text: { $search: req.query.q },
-          agents: user._id.toString()
-        },
-        { score: { $meta: 'textScore' } }
-      )
-      .sort({ score: { $meta: 'textScore' } })
-      .limit(10)
-      .select(
-        'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
-      )
-      .lean();
+    const students_search = await StudentService.searchStudentsByText(
+      {
+        $text: { $search: req.query.q },
+        agents: user._id.toString()
+      },
+      'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+    );
 
     // Merge the results
     const mergedResults = students_search.map((student) => {
@@ -121,40 +81,13 @@ const getSearchMessageKeywords = asyncHandler(async (req, res) => {
   const { user } = req;
 
   // Get only the last communication
-  const studentsWithCommunications = await req.db.model('Student').aggregate([
-    {
-      $lookup: {
-        from: 'communications',
-        let: { studentId: '$_id' },
-        pipeline: [
-          { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
-          { $sort: { createdAt: -1 } },
-          { $limit: 1 }
-        ],
-        as: 'communications'
-      }
-    },
-    {
-      $project: {
-        firstname: 1,
-        lastname: 1,
-        role: 1,
-        latestCommunication: {
-          $arrayElemAt: ['$communications', 0]
-        }
-      }
-    }
-  ]);
+  const studentsWithCommunications =
+    await StudentService.getStudentsWithLatestCommunication();
   if (is_TaiGer_Admin(user)) {
-    const students = await req.db
-      .model('Student')
-      .find({
-        $or: [{ archiv: { $exists: false } }, { archiv: false }]
-      })
-      .select(
-        'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
-      )
-      .lean();
+    const students = await StudentService.findStudentsSelect(
+      { $or: [{ archiv: { $exists: false } }, { archiv: false }] },
+      'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+    );
     // Merge the results
     const mergedResults = students.map((student) => {
       const aggregateData = studentsWithCommunications.find(
@@ -167,21 +100,13 @@ const getSearchMessageKeywords = asyncHandler(async (req, res) => {
       .status(200)
       .send({ success: true, data: { students: mergedResults, user } });
   }
-  const students_search = await req.db
-    .model('Student')
-    .find(
-      {
-        $text: { $search: req.query.q },
-        agents: user._id.toString()
-      },
-      { score: { $meta: 'textScore' } }
-    )
-    .sort({ score: { $meta: 'textScore' } })
-    .limit(10)
-    .select(
-      'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
-    )
-    .lean();
+  const students_search = await StudentService.searchStudentsByText(
+    {
+      $text: { $search: req.query.q },
+      agents: user._id.toString()
+    },
+    'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
+  );
   // Merge the results
   const mergedResults = students_search.map((student) => {
     const aggregateData = studentsWithCommunications.find(
@@ -198,13 +123,9 @@ const getSearchMessageKeywords = asyncHandler(async (req, res) => {
 const getUnreadNumberMessages = asyncHandler(async (req, res) => {
   const { user } = req;
   if (is_TaiGer_Student(user)) {
-    const latestMessage = await req.db
-      .model('Communication')
-      .findOne({
-        student_id: user._id.toString()
-      })
-      .sort({ createdAt: -1 })
-      .lean();
+    const latestMessage = await CommunicationService.getLatestByStudentId(
+      user._id.toString()
+    );
     const readBy = latestMessage?.readBy?.map((id) => id.toString()) || [];
 
     return res.status(200).send({
@@ -234,44 +155,13 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
     filter.agents = user._id.toString();
   }
 
-  const students = await req.db
-    .model('Student')
-    .find(filter)
-    .select('firstname lastname role pictureUrl')
-    .lean();
+  const students = await StudentService.findStudentsSelect(
+    filter,
+    'firstname lastname role pictureUrl'
+  );
   const student_ids = students.map((stud) => stud._id);
-  const studentsWithCommunications = await req.db.model('Student').aggregate([
-    {
-      $lookup: {
-        from: 'communications',
-        let: { studentId: '$_id' },
-        pipeline: [
-          { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
-          { $sort: { createdAt: -1 } },
-          { $limit: 1 }
-        ],
-        as: 'communications'
-      }
-    },
-    {
-      $project: {
-        firstname: 1,
-        lastname: 1,
-        firstname_chinese: 1,
-        lastname_chinese: 1,
-        role: 1,
-        latestCommunication: {
-          $arrayElemAt: ['$communications', 0]
-        }
-      }
-    },
-    {
-      $match: {
-        'latestCommunication.student_id': { $in: student_ids },
-        'latestCommunication.readBy': { $nin: [user._id] }
-      }
-    }
-  ]);
+  const studentsWithCommunications =
+    await StudentService.getUnreadCommunicationStudents(student_ids, user._id);
 
   return res.status(200).send({
     success: true,
@@ -306,51 +196,14 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
     filter.agents = user._id.toString();
   }
 
-  const students = await req.db
-    .model('Student')
-    .find(filter)
-    .select('firstname lastname role pictureUrl')
-    .lean();
+  const students = await StudentService.findStudentsSelect(
+    filter,
+    'firstname lastname role pictureUrl'
+  );
   // Get only the last communication
   const student_ids = students.map((stud) => stud._id);
-  const studentsWithCommunications = await req.db.model('Student').aggregate([
-    {
-      $lookup: {
-        from: 'communications',
-        let: { studentId: '$_id' },
-        pipeline: [
-          { $match: { $expr: { $eq: ['$student_id', '$$studentId'] } } },
-          { $sort: { createdAt: -1 } },
-          { $limit: 1 }
-        ],
-        as: 'communications'
-      }
-    },
-    {
-      $project: {
-        firstname: 1,
-        lastname: 1,
-        firstname_chinese: 1,
-        lastname_chinese: 1,
-        pictureUrl: 1,
-        role: 1,
-        attributes: 1,
-        latestCommunication: {
-          $arrayElemAt: ['$communications', 0]
-        }
-      }
-    },
-    {
-      $match: {
-        'latestCommunication.student_id': { $in: student_ids }
-      }
-    },
-    {
-      $sort: {
-        'latestCommunication.createdAt': -1
-      }
-    }
-  ]);
+  const studentsWithCommunications =
+    await StudentService.getStudentsWithLatestCommunicationSorted(student_ids);
 
   res.status(200).send({
     success: true,
@@ -368,30 +221,27 @@ const loadMessages = asyncHandler(async (req, res, next) => {
     params: { studentId, pageNumber }
   } = req;
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .select(
-      'firstname lastname firstname_chinese lastname_chinese agents archiv pictureUrl'
-    )
-    .populate('agents', 'firstname lastname email role pictureUrl');
+  const student = await StudentService.getStudentByIdSelectPopulated(
+    studentId,
+    'firstname lastname firstname_chinese lastname_chinese agents archiv pictureUrl',
+    'agents',
+    'firstname lastname email role pictureUrl'
+  );
   if (!student) {
     logger.error('loadMessages: Invalid student id!');
     throw new ErrorResponse(404, 'Student tot found');
   }
   const skipAmount = (pageNumber - 1) * pageSize;
-  const communication_thread = await req.db
-    .model('Communication')
-    .find({
-      student_id: studentId
-    })
-    .populate(
-      'student_id user_id readBy ignoredMessageBy',
-      'firstname lastname firstname_chinese lastname_chinese role agents editors pictureUrl'
-    )
-    .sort({ createdAt: -1 })
-    .skip(skipAmount) // skip first x items.
-    .limit(pageSize); // show only first y limit items after skip.
+  const communication_thread = await CommunicationService.findThreadPopulated(
+    studentId,
+    {
+      populate: 'student_id user_id readBy ignoredMessageBy',
+      select:
+        'firstname lastname firstname_chinese lastname_chinese role agents editors pictureUrl',
+      skip: skipAmount,
+      limit: pageSize
+    }
+  );
 
   // Multitenant-filter: Check student can only access their own thread!!!!
 
@@ -409,28 +259,25 @@ const getMessages = asyncHandler(async (req, res, next) => {
     params: { studentId }
   } = req;
 
-  const student = await req.db
-    .model('Student')
-    .findById(studentId)
-    .select(
-      'firstname lastname firstname_chinese lastname_chinese agents lastLoginAt archiv pictureUrl'
-    )
-    .populate('agents editors', 'firstname lastname email role pictureUrl');
+  const student = await StudentService.getStudentByIdSelectPopulated(
+    studentId,
+    'firstname lastname firstname_chinese lastname_chinese agents lastLoginAt archiv pictureUrl',
+    'agents editors',
+    'firstname lastname email role pictureUrl'
+  );
   if (!student) {
     logger.error('getMessages: Invalid student id!');
     throw new ErrorResponse(404, 'Student not found');
   }
-  const communication_thread = await req.db
-    .model('Communication')
-    .find({
-      student_id: new mongoose.Types.ObjectId(studentId)
-    })
-    .populate(
-      'student_id user_id readBy ignoredMessageBy',
-      'firstname lastname role pictureUrl'
-    )
-    .sort({ createdAt: -1 }) // 0: latest!
-    .limit(pageSize); // show only first y limit items after skip.
+  // Live docs: the newest message is marked-as-read (.save()) below.
+  const communication_thread = await CommunicationService.findThreadPopulated(
+    studentId,
+    {
+      populate: 'student_id user_id readBy ignoredMessageBy',
+      select: 'firstname lastname role pictureUrl',
+      limit: pageSize
+    }
+  );
 
   if (communication_thread.length > 0) {
     const lastElement = communication_thread[0];
@@ -496,14 +343,14 @@ const postMessages = asyncHandler(async (req, res, next) => {
   const { message } = req.body;
   // TODO: check if consecutive post?
   if (is_TaiGer_Student(user)) {
-    const communication_thread = await req.db
-      .model('Communication')
-      .find({
-        student_id: studentId
-      })
-      .populate('student_id user_id', 'firstname lastname role pictureUrl')
-      .sort({ createdAt: -1 }) // 0: latest!
-      .limit(3); // show only first 3 limit items after skip.
+    const communication_thread = await CommunicationService.findThreadPopulated(
+      studentId,
+      {
+        populate: 'student_id user_id',
+        select: 'firstname lastname role pictureUrl',
+        limit: 3
+      }
+    );
 
     if (communication_thread.length === 3) {
       let flag = true;
@@ -555,9 +402,7 @@ const postMessages = asyncHandler(async (req, res, next) => {
       }
     }
   }
-  const Communication = req.db.model('Communication'); // Get the Communication model from the tenant-specific connection
-
-  const new_message = new Communication({
+  await CommunicationService.createCommunication({
     student_id: studentId,
     user_id: user._id,
     message,
@@ -567,15 +412,14 @@ const postMessages = asyncHandler(async (req, res, next) => {
     createdAt: new Date()
   });
 
-  await new_message.save();
-  const communication_latest = await req.db
-    .model('Communication')
-    .find({
-      student_id: studentId
-    })
-    .populate('student_id user_id readBy', 'firstname lastname pictureUrl')
-    .sort({ createdAt: -1 }) // 0: latest!
-    .limit(1);
+  const communication_latest = await CommunicationService.findThreadPopulated(
+    studentId,
+    {
+      populate: 'student_id user_id readBy',
+      select: 'firstname lastname pictureUrl',
+      limit: 1
+    }
+  );
   res.status(200).send({ success: true, data: communication_latest });
 
   const student = await StudentService.getStudentById(studentId);
@@ -675,7 +519,7 @@ const deleteAMessageInCommunicationThread = asyncHandler(
     }
 
     try {
-      await req.db.model('Communication').findByIdAndDelete(messageId);
+      await CommunicationService.deleteById(messageId);
       res.status(200).send({ success: true });
       next();
     } catch (e) {

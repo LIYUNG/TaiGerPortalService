@@ -10,9 +10,6 @@ const applyPopulates = (query, populates = []) => {
 /**
  * DocumentthreadDAO — data access for the Documentthread model
  * (default-connection model from models/index.js). Plain params, no req.
- *
- * Only the methods needed by the already-migrated callers live here; the legacy
- * read-heavy DocumentThreadService still uses req.db for its aggregations.
  */
 const DocumentthreadDAO = {
   // Construct an UNSAVED thread document so the caller can build the matching
@@ -40,6 +37,10 @@ const DocumentthreadDAO = {
 
   async getThreadByIdLean(id) {
     return Documentthread.findById(id).lean();
+  },
+
+  async findThreads(filter, select) {
+    return Documentthread.find(filter).select(select).lean();
   },
 
   // Live (non-lean) document — caller mutates messages/fields and calls .save().

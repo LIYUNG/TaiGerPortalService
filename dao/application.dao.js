@@ -738,6 +738,14 @@ const ApplicationDAO = {
     return Application.findById(applicationId).populate('programId');
   },
 
+  // Application with both student and program populated — used by the VPD
+  // upload S3-key builder.
+  async getApplicationByIdWithStudentProgram(applicationId) {
+    return Application.findById(applicationId)
+      .populate('studentId')
+      .populate('programId');
+  },
+
   async aggregateApplications(pipeline) {
     return Application.aggregate(pipeline);
   },

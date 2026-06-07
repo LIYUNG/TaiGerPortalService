@@ -9,6 +9,10 @@ const SurveyInputService = {
     return SurveyInputDAO.findSurveyInputs(filter);
   },
 
+  getSurveyInputById(id) {
+    return SurveyInputDAO.getSurveyInputById(id);
+  },
+
   createSurveyInput(payload) {
     return SurveyInputDAO.createSurveyInput(payload);
   },

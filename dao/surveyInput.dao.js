@@ -14,6 +14,10 @@ const SurveyInputDAO = {
       .lean();
   },
 
+  async getSurveyInputById(id) {
+    return surveyInput.findById(id).lean();
+  },
+
   async createSurveyInput(payload) {
     return surveyInput.create(payload);
   },

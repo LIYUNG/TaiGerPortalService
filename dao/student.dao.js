@@ -357,6 +357,116 @@ const StudentDAO = {
       .lean();
   },
 
+  async getStudentByIdSelect(id, select) {
+    return Student.findById(id).select(select).lean();
+  },
+
+  // Active students with their courses joined — feeds the course-selection
+  // reminder.
+  async getStudentsWithCourses() {
+    return Student.aggregate([
+      { $match: { archiv: { $ne: true } } },
+      {
+        $lookup: {
+          from: 'courses',
+          localField: '_id',
+          foreignField: 'student_id',
+          as: 'courses'
+        }
+      },
+      {
+        $project: {
+          firstname: 1,
+          lastname: 1,
+          email: 1,
+          role: 1,
+          archiv: 1,
+          academic_background: 1,
+          courses: 1
+        }
+      }
+    ]);
+  },
+
+  // Active students with courses + supervising agents resolved — for the agent
+  // course-selection reminder.
+  async getStudentsWithCoursesAndAgents() {
+    return Student.aggregate([
+      { $match: { archiv: { $ne: true } } },
+      {
+        $lookup: {
+          from: 'courses',
+          localField: '_id',
+          foreignField: 'student_id',
+          as: 'courses'
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'agents',
+          foreignField: '_id',
+          as: 'agentsInfo'
+        }
+      },
+      {
+        $project: {
+          firstname: 1,
+          lastname: 1,
+          email: 1,
+          role: 1,
+          archiv: 1,
+          agents: {
+            $map: {
+              input: '$agents',
+              as: 'agentId',
+              in: {
+                $let: {
+                  vars: {
+                    agentInfo: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: '$agentsInfo',
+                            cond: { $eq: ['$$this._id', '$$agentId'] }
+                          }
+                        },
+                        0
+                      ]
+                    }
+                  },
+                  in: {
+                    firstname: '$$agentInfo.firstname',
+                    lastname: '$$agentInfo.lastname',
+                    archiv: '$$agentInfo.archiv',
+                    email: '$$agentInfo.email'
+                  }
+                }
+              }
+            }
+          },
+          academic_background: 1,
+          courses: 1
+        }
+      }
+    ]);
+  },
+
+  // Students (matching `filter`) with team + general-doc threads and their
+  // messages/authors fully populated — for the document-thread interval job.
+  async getStudentsForDocumentThreadIntervals(filter) {
+    return Student.find(filter)
+      .populate('agents editors', 'firstname lastname email')
+      .populate({
+        path: 'generaldocs_threads.doc_thread_id',
+        populate: {
+          path: 'messages',
+          populate: { path: 'user_id', model: 'User' }
+        }
+      })
+      .lean();
+  },
+
   // Filtered student lookup returning only `select` fields, capped at `limit` —
   // used by the AI-assist student picker.
   async findStudentsSelect(filter = {}, select = '', limit = undefined) {

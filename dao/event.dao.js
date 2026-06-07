@@ -24,6 +24,10 @@ const EventDAO = {
     return Event.findById(eventId);
   },
 
+  async getEventByIdLean(eventId) {
+    return Event.findById(eventId).lean();
+  },
+
   async getEventByIdPopulated(eventId, populateSelect) {
     return Event.findById(eventId)
       .populate(TEAM_POPULATE_PATH, populateSelect)

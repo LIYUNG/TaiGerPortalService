@@ -17,6 +17,22 @@ const UserlogDAO = {
     return Userlog.find({ user_id: userId })
       .populate(...USER_POPULATE)
       .sort({ createdAt: -1 });
+  },
+
+  async findOneUserlog(filter) {
+    return Userlog.findOne(filter);
+  },
+
+  // Increment the per-day API-call counter for this user/path/operation,
+  // creating the row when `upsert` is set.
+  async incrementUserlogCount(filter, { upsert = false } = {}) {
+    return Userlog.findOneAndUpdate(
+      filter,
+      { $inc: { apiCallCount: 1 } },
+      {
+        upsert
+      }
+    );
   }
 };
 

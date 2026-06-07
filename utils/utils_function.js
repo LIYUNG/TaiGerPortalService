@@ -37,11 +37,19 @@ const {
   needUpdateCourseSelection
 } = require('../constants');
 const { asyncHandler } = require('../middlewares/error-handler');
-const { AWS_S3_BUCKET_NAME, TENANT_ID } = require('../config');
-const { connectToDatabase } = require('../middlewares/tenantMiddleware');
+const { AWS_S3_BUCKET_NAME } = require('../config');
 const { deleteS3Objects, listS3ObjectsV2 } = require('../aws/s3');
 const { ErrorResponse } = require('../common/errors');
 const StudentService = require('../services/students');
+const UserService = require('../services/users');
+const EventService = require('../services/events');
+const InterviewService = require('../services/interviews');
+const PermissionService = require('../services/permissions');
+const CommunicationService = require('../services/communications');
+const IntervalService = require('../services/intervals');
+const ResponseTimeService = require('../services/responseTimes');
+const DocumentThreadService = require('../services/documentthreads');
+const ComplaintService = require('../services/complaints');
 
 // Tested: redundant image is deleted
 const threadS3GarbageCollector = async (
@@ -53,7 +61,10 @@ const threadS3GarbageCollector = async (
   // This functino will be called when thread marked as finished.
   try {
     // TODO: could be bottleneck if number of thread increase.
-    const ticket = await req.db.model(collection).findById(ThreadId);
+    const ticket =
+      collection === 'Complaint'
+        ? await ComplaintService.getComplaintDocById(ThreadId)
+        : await DocumentThreadService.getThreadDocById(ThreadId);
     if (!ticket) {
       logger.error('threadS3GarbageCollector Invalid ThreadId');
       throw new ErrorResponse(404, 'Thread not found');
@@ -196,11 +207,11 @@ const threadS3GarbageCollector = async (
   }
 };
 
-const TasksReminderEmails_Editor_core = async (req) => {
+const TasksReminderEmails_Editor_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
-    const editors = await req.db.model('Editor').find();
+    const editors = await UserService.findEditors({});
 
     const studentQuery = {
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
@@ -236,7 +247,7 @@ const TasksReminderEmails_Editor_core = async (req) => {
   }
 };
 
-const TasksReminderEmails_Student_core = async (req) => {
+const TasksReminderEmails_Student_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -266,15 +277,11 @@ const TasksReminderEmails_Student_core = async (req) => {
 
 // Weekly called.
 const TasksReminderEmails = asyncHandler(async () => {
-  const tenantId = TENANT_ID;
-  const req = {};
-  req.db = connectToDatabase(tenantId);
-  req.VCModel = req.db.model('VC');
-  await TasksReminderEmails_Editor_core(req);
-  await TasksReminderEmails_Student_core(req);
+  await TasksReminderEmails_Editor_core();
+  await TasksReminderEmails_Student_core();
 });
 
-const UrgentTasksReminderEmails_Student_core = async (req) => {
+const UrgentTasksReminderEmails_Student_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -324,13 +331,13 @@ const UrgentTasksReminderEmails_Student_core = async (req) => {
   }
 };
 
-const UrgentTasksReminderEmails_Agent_core = async (req) => {
+const UrgentTasksReminderEmails_Agent_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
     const escalation_trigger_10days = 10;
     const escalation_trigger_3days = 3;
-    const agents = await req.db.model('Agent').find();
+    const agents = await UserService.findAgents({});
     const studentQuery = {
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     };
@@ -416,7 +423,7 @@ const UrgentTasksReminderEmails_Agent_core = async (req) => {
   }
 };
 
-const UrgentTasksReminderEmails_Editor_core = async (req) => {
+const UrgentTasksReminderEmails_Editor_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -425,7 +432,7 @@ const UrgentTasksReminderEmails_Editor_core = async (req) => {
     const studentQuery = {
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     };
-    const editors = await req.db.model('Editor').find();
+    const editors = await UserService.findEditors({});
 
     // TODO: it shows: "Technische Universität München (TUM) Computational Science and Engineering undefined"
     // (O): Check if editor no reply (need to response) more than 3 days (Should configurable)
@@ -496,48 +503,19 @@ const UrgentTasksReminderEmails_Editor_core = async (req) => {
 };
 
 const UrgentTasksReminderEmails = async () => {
-  const tenantId = TENANT_ID;
-  const req = {};
-  req.db = connectToDatabase(tenantId);
-  req.VCModel = req.db.model('VC');
   const UrgentTaskPromises = [
-    // UrgentTasksReminderEmails_Editor_core(req), // TODO: check if this is needed
-    // UrgentTasksReminderEmails_Student_core(req), // TODO: check if this is needed
-    // UrgentTasksReminderEmails_Agent_core(req) // TODO: check if this is needed
+    // UrgentTasksReminderEmails_Editor_core(), // TODO: check if this is needed
+    // UrgentTasksReminderEmails_Student_core(), // TODO: check if this is needed
+    // UrgentTasksReminderEmails_Agent_core() // TODO: check if this is needed
   ];
 
   await Promise.all(UrgentTaskPromises);
 };
 
-const NextSemesterCourseSelectionStudentReminderEmails = async (req) => {
+const NextSemesterCourseSelectionStudentReminderEmails = async () => {
   // Only inform active student
   try {
-    const studentsWithCourses = await req.db.model('Student').aggregate([
-      {
-        $match: {
-          archiv: { $ne: true } // Filter out students where 'archiv' is not equal to true
-        }
-      },
-      {
-        $lookup: {
-          from: 'courses',
-          localField: '_id',
-          foreignField: 'student_id',
-          as: 'courses'
-        }
-      },
-      {
-        $project: {
-          firstname: 1,
-          lastname: 1,
-          email: 1,
-          role: 1,
-          archiv: 1,
-          academic_background: 1,
-          courses: 1
-        }
-      }
-    ]);
+    const studentsWithCourses = await StudentService.getStudentsWithCourses();
 
     for (let j = 0; j < studentsWithCourses.length; j += 1) {
       if (isNotArchiv(studentsWithCourses[j])) {
@@ -565,73 +543,8 @@ const NextSemesterCourseSelectionStudentReminderEmails = async (req) => {
 const NextSemesterCourseSelectionAgentReminderEmails = async () => {
   // Only inform active student
   try {
-    const tenantId = TENANT_ID;
-    const req = {};
-    req.db = connectToDatabase(tenantId);
-    req.VCModel = req.db.model('VC');
-    const studentsWithCourses = await req.db.model('Student').aggregate([
-      {
-        $match: {
-          archiv: { $ne: true } // Filter out students where 'archiv' is not equal to true
-        }
-      },
-      {
-        $lookup: {
-          from: 'courses',
-          localField: '_id',
-          foreignField: 'student_id',
-          as: 'courses'
-        }
-      },
-      {
-        $lookup: {
-          from: 'users', // Replace 'users' with the actual name of the User collection
-          localField: 'agents',
-          foreignField: '_id',
-          as: 'agentsInfo'
-        }
-      },
-      {
-        $project: {
-          firstname: 1,
-          lastname: 1,
-          email: 1,
-          role: 1,
-          archiv: 1,
-          agents: {
-            $map: {
-              input: '$agents',
-              as: 'agentId',
-              in: {
-                $let: {
-                  vars: {
-                    agentInfo: {
-                      $arrayElemAt: [
-                        {
-                          $filter: {
-                            input: '$agentsInfo',
-                            cond: { $eq: ['$$this._id', '$$agentId'] }
-                          }
-                        },
-                        0
-                      ]
-                    }
-                  },
-                  in: {
-                    firstname: '$$agentInfo.firstname',
-                    lastname: '$$agentInfo.lastname',
-                    archiv: '$$agentInfo.archiv',
-                    email: '$$agentInfo.email'
-                  }
-                }
-              }
-            }
-          },
-          academic_background: 1,
-          courses: 1
-        }
-      }
-    ]);
+    const studentsWithCourses =
+      await StudentService.getStudentsWithCoursesAndAgents();
     for (let j = 0; j < studentsWithCourses.length; j += 1) {
       if (isNotArchiv(studentsWithCourses[j])) {
         if (needUpdateCourseSelection(studentsWithCourses[j])) {
@@ -661,12 +574,7 @@ const NextSemesterCourseSelectionAgentReminderEmails = async () => {
 };
 
 const NextSemesterCourseSelectionReminderEmails = async () => {
-  const tenantId = TENANT_ID;
-
-  const req = {};
-  req.db = connectToDatabase(tenantId);
-  req.VCModel = req.db.model('VC');
-  await NextSemesterCourseSelectionStudentReminderEmails(req);
+  await NextSemesterCourseSelectionStudentReminderEmails();
   // await NextSemesterCourseSelectionAgentReminderEmails();
 };
 
@@ -832,13 +740,9 @@ const MeetingDailyReminderChecker = async () => {
     const twentyFourHoursLater = new Date(currentDate);
     twentyFourHoursLater.setHours(currentDate.getHours() + 24);
 
-    const tenantId = TENANT_ID;
-    const req = {};
-    req.db = connectToDatabase(tenantId);
-    req.VCModel = req.db.model('VC'); // Only future meeting within 24 hours, not past
-    const upcomingEvents = await req.db
-      .model('Event')
-      .find({
+    // Only future meeting within 24 hours, not past
+    const upcomingEvents = await EventService.findEvents(
+      {
         $and: [
           {
             end: {
@@ -849,8 +753,14 @@ const MeetingDailyReminderChecker = async () => {
           { isConfirmedReceiver: true },
           { isConfirmedRequester: true }
         ]
-      })
-      .populate('requester_id receiver_id', 'firstname lastname email');
+      },
+      {
+        populate: {
+          path: 'requester_id receiver_id',
+          select: 'firstname lastname email'
+        }
+      }
+    );
     if (upcomingEvents) {
       for (let j = 0; j < upcomingEvents.length; j += 1) {
         if (upcomingEvents.event_type === 'Interview') {
@@ -912,13 +822,8 @@ const UnconfirmedMeetingDailyReminderChecker = async () => {
     const currentDate = new Date();
 
     // Only future meeting within 24 hours, not past
-    const tenantId = TENANT_ID;
-    const req = {};
-    req.db = connectToDatabase(tenantId);
-    req.VCModel = req.db.model('VC');
-    const upcomingEvents = await req.db
-      .model('Event')
-      .find({
+    const upcomingEvents = await EventService.findEvents(
+      {
         $and: [
           {
             end: {
@@ -932,8 +837,14 @@ const UnconfirmedMeetingDailyReminderChecker = async () => {
             ]
           }
         ]
-      })
-      .populate('requester_id receiver_id', 'firstname lastname role email');
+      },
+      {
+        populate: {
+          path: 'requester_id receiver_id',
+          select: 'firstname lastname role email'
+        }
+      }
+    );
     if (upcomingEvents) {
       for (let j = 0; j < upcomingEvents.length; j += 1) {
         if (!upcomingEvents[j].isConfirmedRequester) {
@@ -983,13 +894,10 @@ function CalculateInterval(message1, message2) {
   return parseFloat(intervalInDay.toFixed(4));
 }
 
-const GroupCommunicationByStudent = async (req) => {
+const GroupCommunicationByStudent = async () => {
   try {
-    const communications = await req.db
-      .model('Communication')
-      .find()
-      .populate('student_id user_id', 'firstname lastname email archiv')
-      .lean();
+    const communications =
+      await CommunicationService.getAllForIntervalGrouping();
     const groupCommunication = communications.reduce((acc, communication) => {
       const student = communication.student_id;
 
@@ -1188,10 +1096,10 @@ const ProcessThread = (thread) => {
   return bulkOps;
 };
 
-const FindIntervalInCommunicationsAndSave = async (req) => {
+const FindIntervalInCommunicationsAndSave = async () => {
   try {
     // TODO: active student's message only (should already done, please check GroupCommunicationByStudent)
-    const groupCommunication = await GroupCommunicationByStudent(req);
+    const groupCommunication = await GroupCommunicationByStudent();
     const bulkOps = [];
 
     for (const [student, messages] of Object.entries(groupCommunication)) {
@@ -1200,7 +1108,7 @@ const FindIntervalInCommunicationsAndSave = async (req) => {
     }
 
     if (bulkOps.length > 0) {
-      const result = await req.db.model('Interval').bulkWrite(bulkOps);
+      const result = await IntervalService.bulkWrite(bulkOps);
       logger.info(
         'FindIntervalInCommunicationsAndSave: Bulk operation result:',
         result
@@ -1240,27 +1148,13 @@ const CreateIntervalOperation = (thread, msg1, msg2) => {
   };
 };
 
-const FetchStudentsForDocumentThreads = async (req, filter) =>
-  req.db
-    .model('Student')
-    .find(filter)
-    .populate('agents editors', 'firstname lastname email')
-    .populate({
-      path: 'generaldocs_threads.doc_thread_id',
-      populate: {
-        path: 'messages',
-        populate: {
-          path: 'user_id',
-          model: 'User'
-        }
-      }
-    })
-    .lean();
+const FetchStudentsForDocumentThreads = async (filter) =>
+  StudentService.getStudentsForDocumentThreadIntervals(filter);
 
-const FindIntervalInDocumentThreadAndSave = async (req) => {
+const FindIntervalInDocumentThreadAndSave = async () => {
   try {
     // calculate active student only
-    const students = await FetchStudentsForDocumentThreads(req, {
+    const students = await FetchStudentsForDocumentThreads({
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     });
     const bulkOps = [];
@@ -1291,7 +1185,7 @@ const FindIntervalInDocumentThreadAndSave = async (req) => {
     }
 
     if (bulkOps.length > 0) {
-      const result = await req.db.model('Interval').bulkWrite(bulkOps);
+      const result = await IntervalService.bulkWrite(bulkOps);
       logger.info(
         'FindIntervalInDocumentThreadAndSave: Bulk operation result:',
         result
@@ -1302,13 +1196,9 @@ const FindIntervalInDocumentThreadAndSave = async (req) => {
   }
 };
 
-const GroupIntervals = async (req) => {
+const GroupIntervals = async () => {
   try {
-    const intervals = await req.db
-      .model('Interval')
-      .find()
-      .populate('thread_id student_id')
-      .lean();
+    const intervals = await IntervalService.findAllPopulated();
     const studentGroupInterval = {};
     const documentThreadGroupInterval = {};
     intervals.forEach((singleInterval) => {
@@ -1353,10 +1243,10 @@ const patternMatched = async (fileBuffer, extension, patterns) => {
   return lowerCasePatterns.some((pattern) => text.includes(pattern));
 };
 
-const CalculateAverageResponseTimeAndSave = async (req) => {
+const CalculateAverageResponseTimeAndSave = async () => {
   try {
     const [studentGroupInterval, documentThreadGroupInterval] =
-      await GroupIntervals(req);
+      await GroupIntervals();
     const calculateAndSaveAverage = async (groupInterval, idKey) => {
       try {
         const bulkOps = [];
@@ -1414,7 +1304,7 @@ const CalculateAverageResponseTimeAndSave = async (req) => {
 
         // Execute bulk operations
         if (bulkOps.length > 0) {
-          const result = await req.db.model('ResponseTime').bulkWrite(bulkOps);
+          const result = await ResponseTimeService.bulkWrite(bulkOps);
           logger.info(
             'calculateAndSaveAverage: Bulk operation result:',
             result
@@ -1436,13 +1326,9 @@ const CalculateAverageResponseTimeAndSave = async (req) => {
 };
 
 const DailyCalculateAverageResponseTime = async () => {
-  const tenantId = TENANT_ID;
-  const req = {};
-  req.db = connectToDatabase(tenantId);
-  req.VCModel = req.db.model('VC');
-  await FindIntervalInCommunicationsAndSave(req);
-  await FindIntervalInDocumentThreadAndSave(req);
-  await CalculateAverageResponseTimeAndSave(req);
+  await FindIntervalInCommunicationsAndSave();
+  await FindIntervalInDocumentThreadAndSave();
+  await CalculateAverageResponseTimeAndSave();
 };
 
 const DailyInterviewSurveyChecker = async () => {
@@ -1452,21 +1338,18 @@ const DailyInterviewSurveyChecker = async () => {
     const twentyFourHoursAgo = new Date(currentDate);
     twentyFourHoursAgo.setHours(currentDate.getHours() - 24);
     // interviews took place within last 24 hours
-    const tenantId = TENANT_ID;
-    const req = {};
-    req.db = connectToDatabase(tenantId);
-    req.VCModel = req.db.model('VC');
-    const interviewTookPlacedToday = await req.db
-      .model('Interview')
-      .find({
+    const interviewTookPlacedToday = await InterviewService.findInterviews(
+      {
         interview_date: {
           $gte: twentyFourHoursAgo.toISOString(),
           $lt: currentDate
         }
-      })
-      .populate('student_id', 'firstname lastname email')
-      .populate('program_id', 'school program_name degree semester')
-      .lean();
+      },
+      [
+        ['student_id', 'firstname lastname email'],
+        ['program_id', 'school program_name degree semester']
+      ]
+    );
 
     // send interview survey request email
     interviewTookPlacedToday?.map((interview) =>
@@ -1491,14 +1374,9 @@ const NoInterviewTrainerOrTrainingDateDailyReminderChecker = async () => {
     const currentDate = new Date();
     const currentDateString = currentDate.toISOString().split('T')[0]; // Converts to 'YYYY-MM-DD' format
 
-    const tenantId = TENANT_ID;
-    const req = {};
-    req.db = connectToDatabase(tenantId);
-    req.VCModel = req.db.model('VC');
     // Only future meeting within 24 hours, not past
-    const interviewRequests = await req.db
-      .model('Interview')
-      .find({
+    const interviewRequests = await InterviewService.findInterviews(
+      {
         $and: [
           {
             interview_date: {
@@ -1520,20 +1398,16 @@ const NoInterviewTrainerOrTrainingDateDailyReminderChecker = async () => {
             ]
           }
         ]
-      })
-      .populate('student_id', 'firstname lastname role email')
-      .populate('program_id');
+      },
+      [['student_id', 'firstname lastname role email'], ['program_id']]
+    );
 
     // TODO: reminder agent as well
 
     if (interviewRequests?.length > 0) {
-      const permissions = await req.db
-        .model('Permission')
-        .find({
-          canAssignEditors: true
-        })
-        .populate('user_id', 'firstname lastname email')
-        .lean();
+      const permissions = await PermissionService.findPermissionsWithUser({
+        canAssignEditors: true
+      });
       const sendEmailPromises = permissions.map((permission) =>
         sendNoTrainerInterviewRequestsReminderEmail(
           {
@@ -1566,11 +1440,7 @@ const userChangesHelperFunction = async (req, newUserIds, existingUsers) => {
   // Fetch editors concurrently
   const users = await Promise.all(
     updatedUserIds.map((id) =>
-      req.db
-        .model('User')
-        .findById(id)
-        .select('firstname lastname email archiv')
-        .lean()
+      UserService.getUserByIdSelect(id, 'firstname lastname email archiv')
     )
   );
 

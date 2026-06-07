@@ -67,6 +67,10 @@ const ApplicationService = {
     return ApplicationDAO.getApplicationDocByIdWithProgram(applicationId);
   },
 
+  getApplicationByIdWithStudentProgram(applicationId) {
+    return ApplicationDAO.getApplicationByIdWithStudentProgram(applicationId);
+  },
+
   aggregateApplications(pipeline) {
     return ApplicationDAO.aggregateApplications(pipeline);
   },

@@ -46,6 +46,22 @@ const UserService = {
     return UserDAO.createGuest(payload);
   },
 
+  getUserByIdSelect(userId, select) {
+    return UserDAO.getUserByIdSelect(userId, select);
+  },
+
+  getUserDocWithPasswordByEmail(email) {
+    return UserDAO.getUserDocWithPasswordByEmail(email);
+  },
+
+  touchLastLoginByEmail(email) {
+    return UserDAO.touchLastLoginByEmail(email);
+  },
+
+  touchLastLoginById(userId) {
+    return UserDAO.touchLastLoginById(userId);
+  },
+
   findAgents(filter, select) {
     return UserDAO.findAgents(filter, select);
   },

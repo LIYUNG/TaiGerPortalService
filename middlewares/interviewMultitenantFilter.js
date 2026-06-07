@@ -8,6 +8,7 @@ const {
 const { ErrorResponse } = require('../common/errors');
 const { getPermission } = require('../utils/queryFunctions');
 const { asyncHandler } = require('./error-handler');
+const InterviewService = require('../services/interviews');
 
 const interviewMultitenantFilter = asyncHandler(async (req, res, next) => {
   const {
@@ -17,10 +18,10 @@ const interviewMultitenantFilter = asyncHandler(async (req, res, next) => {
   if (is_TaiGer_Editor(user) || is_TaiGer_Agent(user)) {
     const permissions = await getPermission(req, user);
 
-    const interview = await req.db
-      .model('Interview')
-      .findById(interview_id)
-      .populate('student_id');
+    const interview = await InterviewService.findInterviewByIdPopulated(
+      interview_id,
+      [['student_id']]
+    );
     if (!interview) {
       next(new ErrorResponse(404, 'Interview not found'));
     }
@@ -42,10 +43,10 @@ const interviewMultitenantFilter = asyncHandler(async (req, res, next) => {
     }
   }
   if (is_TaiGer_Student(user) || is_TaiGer_Guest(user)) {
-    const interview = await req.db
-      .model('Interview')
-      .findById(interview_id)
-      .populate();
+    const interview = await InterviewService.findInterviewByIdPopulated(
+      interview_id,
+      []
+    );
     if (
       interview.student_id?.toString() &&
       user._id.toString() !== interview.student_id?.toString()
@@ -66,7 +67,7 @@ const interviewMultitenantReadOnlyFilter = asyncHandler(
     } = req;
 
     if (is_TaiGer_Student(user) || is_TaiGer_Guest(user)) {
-      const interview = await req.db.model('Interview').findById(interview_id);
+      const interview = await InterviewService.findByIdRaw(interview_id);
       if (
         interview?.student_id?.toString() &&
         user._id.toString() !== interview?.student_id?.toString()

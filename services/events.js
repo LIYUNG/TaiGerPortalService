@@ -13,6 +13,10 @@ const EventService = {
     return EventDAO.getEventById(eventId);
   },
 
+  getEventByIdLean(eventId) {
+    return EventDAO.getEventByIdLean(eventId);
+  },
+
   getEventByIdPopulated(eventId, populateSelect) {
     return EventDAO.getEventByIdPopulated(eventId, populateSelect);
   },

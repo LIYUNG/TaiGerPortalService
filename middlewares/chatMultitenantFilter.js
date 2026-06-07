@@ -5,6 +5,7 @@ const { ErrorResponse } = require('../common/errors');
 const logger = require('../services/logger');
 const { getPermission } = require('../utils/queryFunctions');
 const { asyncHandler } = require('./error-handler');
+const StudentService = require('../services/students');
 
 const chatMultitenantFilter = asyncHandler(async (req, res, next) => {
   const {
@@ -16,11 +17,10 @@ const chatMultitenantFilter = asyncHandler(async (req, res, next) => {
       `/chatMultitenantFilter/students/${studentId}`
     );
     if (cachedStudent === undefined) {
-      const student = await req.db
-        .model('Student')
-        .findById(studentId)
-        .select('agents editors')
-        .lean();
+      const student = await StudentService.getStudentByIdSelect(
+        studentId,
+        'agents editors'
+      );
 
       const success = ten_minutes_cache.set(
         `/chatMultitenantFilter/students/${studentId}`,

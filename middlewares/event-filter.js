@@ -6,6 +6,7 @@ const {
 
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('./error-handler');
+const EventService = require('../services/events');
 
 const event_multitenant_filter = asyncHandler(async (req, res, next) => {
   const {
@@ -13,7 +14,7 @@ const event_multitenant_filter = asyncHandler(async (req, res, next) => {
     params: { event_id }
   } = req;
   if (is_TaiGer_Student(user)) {
-    const event = await req.db.model('Event').findById(event_id).lean();
+    const event = await EventService.getEventByIdLean(event_id);
     const containsObjectId = event?.requester_id.some((objectId) =>
       objectId.equals(user._id)
     );
@@ -25,7 +26,7 @@ const event_multitenant_filter = asyncHandler(async (req, res, next) => {
   }
 
   if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
-    const event = await req.db.model('Event').findById(event_id).lean();
+    const event = await EventService.getEventByIdLean(event_id);
     const containsObjectId = event?.receiver_id.some((objectId) =>
       objectId.equals(user._id)
     );

@@ -35,6 +35,33 @@
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':
         $ref: '../components/responses/common.yaml#/NotFound'
+  put:
+    tags:
+      - CRM
+    summary: Update lead
+    description: Update lead
+    operationId: updateLead
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/leadId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/crm.yaml#/CRMLeadUpdate'
+    responses:
+      '200':
+        description: Lead updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/crm.yaml#/CRMLeadResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/Error'
+      '401':
+        $ref: '../components/responses/common.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses/common.yaml#/NotFound'
 
 /api/crm/leads/{leadId}/tags:
   get:
@@ -306,35 +333,6 @@
                   properties:
                     id:
                       type: string
-      '401':
-        $ref: '../components/responses/common.yaml#/Unauthorized'
-      '404':
-        $ref: '../components/responses/common.yaml#/NotFound'
-
-/api/crm/leads/{leadId}:
-  put:
-    tags:
-      - CRM
-    summary: Update lead
-    description: Update lead
-    operationId: updateLead
-    parameters:
-      - $ref: '../components/parameters/common.yaml#/leadId'
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '../components/schemas/crm.yaml#/CRMLeadUpdate'
-    responses:
-      '200':
-        description: Lead updated successfully
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/crm.yaml#/CRMLeadResponse'
-      '400':
-        $ref: '../components/responses/common.yaml#/Error'
       '401':
         $ref: '../components/responses/common.yaml#/Unauthorized'
       '404':

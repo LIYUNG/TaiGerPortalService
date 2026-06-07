@@ -73,6 +73,22 @@ const StudentService = {
     return StudentDAO.findStudentsSelect(filter, select, limit);
   },
 
+  getStudentByIdSelect(id, select) {
+    return StudentDAO.getStudentByIdSelect(id, select);
+  },
+
+  getStudentsWithCourses() {
+    return StudentDAO.getStudentsWithCourses();
+  },
+
+  getStudentsWithCoursesAndAgents() {
+    return StudentDAO.getStudentsWithCoursesAndAgents();
+  },
+
+  getStudentsForDocumentThreadIntervals(filter) {
+    return StudentDAO.getStudentsForDocumentThreadIntervals(filter);
+  },
+
   getTaigerUsersWithExpenses() {
     return StudentDAO.getTaigerUsersWithExpenses();
   },

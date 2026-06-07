@@ -26,6 +26,14 @@ const CommunicationDAO = {
       .lean();
   },
 
+  // All communications with student + author lightly populated — for the
+  // response-interval grouping job.
+  async getAllForIntervalGrouping() {
+    return Communication.find()
+      .populate('student_id user_id', 'firstname lastname email archiv')
+      .lean();
+  },
+
   // Full thread for a student, populated with the names/roles needed by the PDF
   // export (newest-first ordering is applied by the caller).
   async getByStudentIdForExport(studentId) {

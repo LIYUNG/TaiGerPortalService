@@ -172,6 +172,32 @@ const UserDAO = {
     return Guest.create(payload);
   },
 
+  async getUserByIdSelect(userId, select) {
+    return User.findById(userId).select(select).lean();
+  },
+
+  // Live document including the (normally hidden) password field — for login
+  // strategies that call user.verifyPassword().
+  async getUserDocWithPasswordByEmail(email) {
+    return User.findOne({ email }).select('+password');
+  },
+
+  async touchLastLoginByEmail(email) {
+    return User.findOneAndUpdate(
+      { email },
+      { lastLoginAt: new Date() },
+      { upsert: false }
+    );
+  },
+
+  async touchLastLoginById(userId) {
+    return User.findByIdAndUpdate(
+      userId,
+      { lastLoginAt: new Date() },
+      { upsert: true }
+    );
+  },
+
   // Agent / Editor discriminator lookups (the exact filter is passed through to
   // preserve legacy query semantics). `select` projects the returned fields.
   async findAgents(filter, select) {

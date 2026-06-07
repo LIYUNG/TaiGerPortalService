@@ -8,10 +8,13 @@ const {
 } = require('../services/email');
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
+const DocumentThreadService = require('../services/documentthreads');
+const StudentService = require('../services/students');
+const PermissionService = require('../services/permissions');
 
 const addMessageInThread = asyncHandler(
   async (req, message, threadId, userId) => {
-    const thread = await req.db.model('Documentthread').findById(threadId);
+    const thread = await DocumentThreadService.getThreadDocById(threadId);
     if (!thread) {
       throw new ErrorResponse(403, 'Invalid message thread id');
     }
@@ -58,9 +61,7 @@ const informStaff = async (user, staff, student, fileType, thread, message) => {
 
 const informNoEditor = asyncHandler(async (req, student) => {
   const agents = student?.agents;
-  await req.db
-    .model('Student')
-    .findByIdAndUpdate(student._id, { needEditor: true }, {});
+  await StudentService.updateStudentByIdRaw(student._id, { needEditor: true });
 
   // inform active-agent
   const activeAgents = agents.filter((agent) => isNotArchiv(agent));
@@ -83,13 +84,9 @@ const informNoEditor = asyncHandler(async (req, student) => {
   );
 
   // inform editor-lead
-  const permissions = await req.db
-    .model('Permission')
-    .find({
-      canAssignEditors: true
-    })
-    .populate('user_id', 'firstname lastname email')
-    .lean();
+  const permissions = await PermissionService.findPermissionsWithUser({
+    canAssignEditors: true
+  });
 
   if (!permissions || permissions.length === 0) {
     return; // Exit early if no permissions are found
@@ -132,11 +129,10 @@ const informOnSurveyUpdate = asyncHandler(async (req, user, survey, thread) => {
     return;
   }
 
-  const student = await req.db
-    .model('Student')
-    .findById(survey.studentId)
-    .populate('agents editors', 'firstname lastname email')
-    .lean();
+  const student = await StudentService.getStudentByIdPopulated(
+    survey.studentId,
+    [['agents editors', 'firstname lastname email']]
+  );
 
   const editors = student?.editors;
   const agents = student?.agents;

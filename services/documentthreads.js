@@ -182,6 +182,9 @@ const DocumentThreadService = {
   getThreadByIdLean(id) {
     return DocumentthreadDAO.getThreadByIdLean(id);
   },
+  findThreads(filter, select) {
+    return DocumentthreadDAO.findThreads(filter, select);
+  },
   getThreadDocById(id) {
     return DocumentthreadDAO.getThreadDocById(id);
   },

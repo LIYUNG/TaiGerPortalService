@@ -5,6 +5,7 @@ const {
 } = require('@taiger-common/core');
 
 const { ErrorResponse } = require('../common/errors');
+const ComplaintService = require('../services/complaints');
 
 const multitenant_filter = (req, res, next) => {
   const {
@@ -30,7 +31,7 @@ const complaintTicketMultitenant_filter = async (req, res, next) => {
     params: { ticketId }
   } = req;
   if (is_TaiGer_Student(user) || is_TaiGer_Guest(user)) {
-    const ticket = await req.db.model('Complaint').findById(ticketId);
+    const ticket = await ComplaintService.getComplaintDocById(ticketId);
     if (
       ticket.requester_id.toString() &&
       user._id.toString() !== ticket.requester_id.toString()

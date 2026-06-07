@@ -17,6 +17,10 @@ const CommunicationService = {
     return CommunicationDAO.getCommunications(query);
   },
 
+  getAllForIntervalGrouping() {
+    return CommunicationDAO.getAllForIntervalGrouping();
+  },
+
   getByStudentIdForExport(studentId) {
     return CommunicationDAO.getByStudentIdForExport(studentId);
   },

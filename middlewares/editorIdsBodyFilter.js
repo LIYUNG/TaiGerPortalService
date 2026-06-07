@@ -2,6 +2,7 @@ const { is_TaiGer_Agent, is_TaiGer_Editor } = require('@taiger-common/core');
 
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('./error-handler');
+const DocumentThreadService = require('../services/documentthreads');
 
 const editorIdsBodyFilter = asyncHandler(async (req, res, next) => {
   const {
@@ -11,17 +12,13 @@ const editorIdsBodyFilter = asyncHandler(async (req, res, next) => {
   } = req;
 
   if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
-    const thread = await req.db
-      .model('Documentthread')
-      .findById(messagesThreadId)
-      .populate('student_id')
-      .populate({
-        path: 'student_id',
-        populate: {
-          path: 'editors',
-          model: 'User'
-        }
-      });
+    const thread = await DocumentThreadService.getThreadDocByIdPopulated(
+      messagesThreadId,
+      [
+        ['student_id'],
+        [{ path: 'student_id', populate: { path: 'editors', model: 'User' } }]
+      ]
+    );
     if (thread.file_type !== 'Essay') {
       const keys = Object.keys(editorsId);
       if (

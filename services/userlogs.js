@@ -11,6 +11,14 @@ const UserlogService = {
 
   getUserlogsByUserId(userId) {
     return UserlogDAO.getUserlogsByUserId(userId);
+  },
+
+  findOneUserlog(filter) {
+    return UserlogDAO.findOneUserlog(filter);
+  },
+
+  incrementUserlogCount(filter, options) {
+    return UserlogDAO.incrementUserlogCount(filter, options);
   }
 };
 

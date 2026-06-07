@@ -7,6 +7,8 @@ const {
 const { ErrorResponse } = require('../common/errors');
 const logger = require('../services/logger');
 const { asyncHandler } = require('./error-handler');
+const DocumentThreadService = require('../services/documentthreads');
+const SurveyInputService = require('../services/surveyInputs');
 
 const docThreadMultitenant_filter = asyncHandler(async (req, res, next) => {
   const {
@@ -14,12 +16,10 @@ const docThreadMultitenant_filter = asyncHandler(async (req, res, next) => {
     params: { messagesThreadId }
   } = req;
   if (is_TaiGer_Student(user) || is_TaiGer_Guest(user)) {
-    const document_thread = await req.db
-      .model('Documentthread')
-      .findById(messagesThreadId)
-      .populate('student_id', 'firstname lastname role ')
-      .select('student_id')
-      .lean();
+    const document_thread = await DocumentThreadService.findThreadByIdPopulated(
+      messagesThreadId,
+      [['student_id', 'firstname lastname role ']]
+    );
     if (!document_thread) {
       logger.warn(`${req.originalUrl}: Thread not found!`);
       return next(
@@ -58,10 +58,9 @@ const surveyMultitenantFilter = asyncHandler(async (req, res, next) => {
     }
 
     // On PUT/DELETE: use surveyInputId to validate the document belongs to the user
-    const surveyInputs = await req.db
-      .model('surveyInput')
-      .findById(surveyInputId)
-      .lean();
+    const surveyInputs = await SurveyInputService.getSurveyInputById(
+      surveyInputId
+    );
     if (surveyInputs.studentId.toString() !== user._id.toString()) {
       return next(
         new ErrorResponse(403, 'Not allowed to access other resource.')

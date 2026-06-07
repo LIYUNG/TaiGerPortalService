@@ -192,30 +192,21 @@ describe('createApplicationV2 (ORM mocked)', () => {
 describe('Document thread file upload validation (multer, S3 mocked, no DB)', () => {
   const s3ClientMock = mockClient(s3Client);
 
-  // The thread storage's `key`/`metadata` callbacks read req.params and query
-  // req.db to derive the S3 object name — inject a fake thread so the upload
-  // can complete without a real connection.
-  const injectFakeDb = (req, res, next) => {
-    const threadDoc = {
-      _id: 'thread1',
-      file_type: 'ML',
-      program_id: undefined,
-      student_id: { firstname: 'Test', lastname: 'Student' },
-      messages: []
-    };
-    req.db = {
-      model: () => ({
-        findById: () => ({ populate: () => Promise.resolve(threadDoc) })
-      })
-    };
-    next();
+  // The thread storage's `key` callback derives the S3 object name from the
+  // thread via DocumentThreadService (default-connection DAO layer). Stub it so
+  // the upload can complete without a real connection.
+  const threadDoc = {
+    _id: 'thread1',
+    file_type: 'ML',
+    program_id: undefined,
+    student_id: { firstname: 'Test', lastname: 'Student' },
+    messages: []
   };
 
   // Minimal app exercising only the real upload middleware + error handler.
   const uploadApp = express();
   uploadApp.post(
     '/upload/:messagesThreadId/:studentId',
-    injectFakeDb,
     MessagesThreadUpload,
     (req, res) => {
       res.status(200).send({ success: true });
@@ -227,6 +218,9 @@ describe('Document thread file upload validation (multer, S3 mocked, no DB)', ()
   const uploadUrl = '/upload/653d1e116f4c8c637dd1c971/653d1e116f4c8c637dd1c000';
 
   beforeEach(() => {
+    DocumentThreadService.getThreadDocByIdPopulated.mockResolvedValue(
+      threadDoc
+    );
     s3ClientMock.reset();
     s3ClientMock.on(PutObjectCommand).callsFake(async (input, getClient) => {
       // eslint-disable-next-line no-param-reassign

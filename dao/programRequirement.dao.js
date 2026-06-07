@@ -37,6 +37,12 @@ const ProgramRequirementDAO = {
     return ProgramRequirement.findByIdAndDelete(requirementId);
   },
 
+  async deleteOneByProgramIds(programIds) {
+    return ProgramRequirement.findOneAndDelete({
+      programId: { $in: programIds }
+    });
+  },
+
   // Pull a deleted keyword set's id out of every requirement's
   // program_categories.keywordSets arrays.
   async removeKeywordSetReferences(keywordsSetId) {

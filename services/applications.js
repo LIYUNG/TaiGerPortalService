@@ -63,6 +63,34 @@ const ApplicationService = {
     return ApplicationDAO.unlockApplication(applicationId);
   },
 
+  getApplicationDocByIdWithProgram(applicationId) {
+    return ApplicationDAO.getApplicationDocByIdWithProgram(applicationId);
+  },
+
+  aggregateApplications(pipeline) {
+    return ApplicationDAO.aggregateApplications(pipeline);
+  },
+
+  findByStudentIdLean(studentId) {
+    return ApplicationDAO.findByStudentIdLean(studentId);
+  },
+
+  findByStudentIdWithProgram(studentId) {
+    return ApplicationDAO.findByStudentIdWithProgram(studentId);
+  },
+
+  findConflictApplications(filter) {
+    return ApplicationDAO.findConflictApplications(filter);
+  },
+
+  pullDocModificationThread(applicationId, threadId) {
+    return ApplicationDAO.pullDocModificationThread(applicationId, threadId);
+  },
+
+  getDecidedApplicationsByProgramPopulated(programId) {
+    return ApplicationDAO.getDecidedApplicationsByProgramPopulated(programId);
+  },
+
   getApplicationsWithCredentialsByStudentId(studentId) {
     return ApplicationDAO.getApplicationsWithCredentialsByStudentId(studentId);
   },

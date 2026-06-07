@@ -28,6 +28,10 @@ const TicketDAO = {
 
   async deleteTicketById(id) {
     return Ticket.findByIdAndDelete(id);
+  },
+
+  async deleteTicketsByProgramId(programId) {
+    return Ticket.deleteMany({ program_id: programId });
   }
 };
 

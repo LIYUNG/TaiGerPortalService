@@ -54,12 +54,6 @@ const { versionControlSchema } = require('./VersionControl');
 const compile = (name, schema) =>
   mongoose.models[name] || mongoose.model(name, schema);
 
-// Keep the unique index that database.js declared for surveyInput.
-surveyInputSchema.index(
-  { studentId: 1, programId: 1, fileType: 1 },
-  { unique: true }
-);
-
 const models = {
   // User + discriminators (already compiled in ./User).
   ...userModels,

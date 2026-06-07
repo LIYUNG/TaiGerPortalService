@@ -46,6 +46,10 @@ const ProgramRequirementService = {
 
   deleteProgramRequirementById(requirementId) {
     return ProgramRequirementDAO.deleteProgramRequirementById(requirementId);
+  },
+
+  deleteOneByProgramIds(programIds) {
+    return ProgramRequirementDAO.deleteOneByProgramIds(programIds);
   }
 };
 

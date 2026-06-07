@@ -732,6 +732,61 @@ const ApplicationDAO = {
       .lean();
   },
 
+  // Live (non-lean) Application document with the program populated — caller
+  // mutates uni_assist and calls .save().
+  async getApplicationDocByIdWithProgram(applicationId) {
+    return Application.findById(applicationId).populate('programId');
+  },
+
+  async aggregateApplications(pipeline) {
+    return Application.aggregate(pipeline);
+  },
+
+  async findByStudentIdLean(studentId) {
+    return Application.find({ studentId }).lean();
+  },
+
+  // Live (non-lean) applications with only the program populated — callers may
+  // mutate doc_modification_thread subdocs and call .save().
+  async findByStudentIdWithProgram(studentId) {
+    return Application.find({ studentId }).populate('programId');
+  },
+
+  async findConflictApplications(filter) {
+    return Application.find(filter).populate(
+      'studentId',
+      'firstname lastname pictureUrl'
+    );
+  },
+
+  async pullDocModificationThread(applicationId, threadId) {
+    return Application.findOneAndUpdate(
+      { _id: new mongoose.Types.ObjectId(applicationId) },
+      {
+        $pull: {
+          doc_modification_thread: {
+            doc_thread_id: { _id: new mongoose.Types.ObjectId(threadId) }
+          }
+        }
+      }
+    );
+  },
+
+  // Decided applications for a program, with the student (+ their team)
+  // populated — feeds the "same program students" view.
+  async getDecidedApplicationsByProgramPopulated(programId) {
+    return Application.find({ programId, decided: 'O' })
+      .populate({
+        path: 'studentId',
+        select: 'agents editors firstname lastname pictureUrl',
+        populate: {
+          path: 'agents editors',
+          select: 'firstname lastname pictureUrl'
+        }
+      })
+      .lean();
+  },
+
   // Unlock an application (used by the "refresh" action).
   async unlockApplication(applicationId) {
     return Application.findByIdAndUpdate(

@@ -37,8 +37,36 @@ const StudentService = {
     return StudentDAO.getStudentDocById(id);
   },
 
+  getStudentByIdPopulated(id, populates = []) {
+    return StudentDAO.getStudentByIdPopulated(id, populates);
+  },
+
+  getStudentDocByIdPopulated(id, populates = []) {
+    return StudentDAO.getStudentDocByIdPopulated(id, populates);
+  },
+
+  updateStudentByFilter(filter, update) {
+    return StudentDAO.updateStudentByFilter(filter, update);
+  },
+
+  updateStudentByIdRaw(id, update) {
+    return StudentDAO.updateStudentByIdRaw(id, update);
+  },
+
   findStudents(filter = {}) {
     return StudentDAO.findStudents(filter);
+  },
+
+  findStudentsWithTeamNames(filter = {}) {
+    return StudentDAO.findStudentsWithTeamNames(filter);
+  },
+
+  countStudents(filter = {}) {
+    return StudentDAO.countStudents(filter);
+  },
+
+  getStudentApplicationsForIntervals(studentId) {
+    return StudentDAO.getStudentApplicationsForIntervals(studentId);
   },
 
   findStudentsSelect(filter = {}, select = '', limit = undefined) {

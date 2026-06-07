@@ -7,6 +7,15 @@ const { VC } = require('../models');
 const VCDAO = {
   async getVC(filter) {
     return VC.findOne(filter).lean();
+  },
+
+  // Upsert the VC document and append a change entry.
+  async pushChange(filter, change) {
+    return VC.findOneAndUpdate(
+      filter,
+      { $push: { changes: change } },
+      { upsert: true, new: true }
+    );
   }
 };
 

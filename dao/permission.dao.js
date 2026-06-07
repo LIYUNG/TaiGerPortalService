@@ -9,12 +9,13 @@ const PermissionDAO = {
     return Permission.find(filter).lean();
   },
 
-  // Permissions matching `filter` with the user populated (firstname/lastname/
-  // email) — used to resolve agent/editor leads.
-  async findPermissionsWithUser(filter = {}) {
-    return Permission.find(filter)
-      .populate('user_id', 'firstname lastname email')
-      .lean();
+  // Permissions matching `filter` with the user populated — used to resolve
+  // agent/editor leads. `select` controls the populated user fields.
+  async findPermissionsWithUser(
+    filter = {},
+    select = 'firstname lastname email'
+  ) {
+    return Permission.find(filter).populate('user_id', select).lean();
   },
 
   async upsertPermissionByUserId(userId, payload) {
@@ -29,6 +30,10 @@ const PermissionDAO = {
   // Live (non-lean) document so callers can mutate + .save() it.
   async getPermissionDocByUserId(userId) {
     return Permission.findOne({ user_id: userId });
+  },
+
+  async getPermissionByUserId(userId) {
+    return Permission.findOne({ user_id: userId }).lean();
   },
 
   // Managers = users with any of the elevated capability flags. Used to notify

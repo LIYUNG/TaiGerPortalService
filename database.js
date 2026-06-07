@@ -111,11 +111,8 @@ const connectToDatabase = (tenant, uri = null) => {
     connection.model('ProgramRequirement', programRequirementSchema);
     connection.model('ResponseTime', ResponseTimeSchema);
 
-    surveyInputSchema.index(
-      { studentId: 1, programId: 1, fileType: 1 },
-      { unique: true }
-    );
-
+    // surveyInput's unique index is declared once on the schema in
+    // models/SurveyInput.js (avoids a duplicate-index warning).
     connection.model('surveyInput', surveyInputSchema);
     connection.model('Template', templatesSchema);
     connection.model('Ticket', ticketSchema);

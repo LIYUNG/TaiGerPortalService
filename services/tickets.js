@@ -19,6 +19,10 @@ const TicketService = {
 
   deleteTicketById(id) {
     return TicketDAO.deleteTicketById(id);
+  },
+
+  deleteTicketsByProgramId(programId) {
+    return TicketDAO.deleteTicketsByProgramId(programId);
   }
 };
 

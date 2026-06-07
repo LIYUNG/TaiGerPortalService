@@ -27,6 +27,7 @@ const {
   sendAccountActivationConfirmationEmail
 } = require('../services/email');
 const UserService = require('../services/users');
+const TokenService = require('../services/tokens');
 const { fetchUserFromIdToken } = require('../utils/helper');
 
 const generateAuthToken = (user, tenantId, expiresIn = JWT_EXPIRE) => {
@@ -49,7 +50,7 @@ const signup = asyncHandler(async (req, res) => {
 
   const { firstname, lastname, email, password } = req.body;
 
-  const existUser = await req.db.model('User').findOne({ email });
+  const existUser = await UserService.getUserByEmail(email);
   if (existUser) {
     logger.error('signup: An account with this email address already exists');
     throw new ErrorResponse(
@@ -59,14 +60,18 @@ const signup = asyncHandler(async (req, res) => {
   }
   // TODO: check if email address exists in the world!
 
-  const user = await req.db
-    .model('Guest')
-    .create({ firstname, lastname, email, password });
+  const user = await UserService.createGuest({
+    firstname,
+    lastname,
+    email,
+    password
+  });
 
   const activationToken = generateRandomToken();
-  await req.db
-    .model('Token')
-    .create({ userId: user._id, value: hashToken(activationToken) });
+  await TokenService.createToken({
+    userId: user._id,
+    value: hashToken(activationToken)
+  });
 
   await sendConfirmationEmail(
     { firstname, lastname, address: email },
@@ -111,15 +116,15 @@ const activateAccount = asyncHandler(async (req, res) => {
 
   const { email, token: activationToken } = req.body;
 
-  const token = await req.db
-    .model('Token')
-    .findOne({ value: hashToken(activationToken) });
+  const token = await TokenService.findOneToken({
+    value: hashToken(activationToken)
+  });
   if (!token) {
     logger.error('activateAccount: Invalid or expired token');
     throw new ErrorResponse(400, 'Invalid or expired token');
   }
 
-  const user = await req.db.model('User').findOne({ _id: token.userId, email });
+  const user = await UserService.getUserByFilter({ _id: token.userId, email });
   if (!user) {
     logger.error('activateAccount: Invalid email or token');
     throw new ErrorResponse(400, 'Invalid email or token');
@@ -130,13 +135,10 @@ const activateAccount = asyncHandler(async (req, res) => {
     throw new ErrorResponse(400, 'User account already activated');
   }
 
-  const user_updated = await req.db
-    .model('User')
-    .findOneAndUpdate(
-      { _id: token.userId },
-      { $set: { isAccountActivated: true, lastLoginAt: Date() } },
-      { new: true }
-    );
+  const user_updated = await UserService.updateUser(token.userId, {
+    isAccountActivated: true,
+    lastLoginAt: Date()
+  });
 
   await token.deleteOne();
   const authToken = generateAuthToken(user, req.tenantId, JWT_EXPIRE);
@@ -166,7 +168,7 @@ const resendActivation = asyncHandler(async (req, res) => {
 
   const { email } = req.body;
 
-  const user = await req.db.model('User').findOne({ email });
+  const user = await UserService.getUserByEmail(email);
   if (!user) {
     logger.error('resendActivation: Email not found');
     throw new ErrorResponse(400, 'Email not found');
@@ -178,7 +180,7 @@ const resendActivation = asyncHandler(async (req, res) => {
   }
 
   const activationToken = generateRandomToken();
-  await req.db.model('Token').create({
+  await TokenService.createToken({
     userId: user._id,
     value: hashToken(activationToken)
   });
@@ -197,16 +199,17 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
   const { email } = req.body;
 
-  const user = await req.db.model('User').findOne({ email });
+  const user = await UserService.getUserByEmail(email);
   if (!user) {
     logger.error('forgotPassword: Email not found');
     throw new ErrorResponse(400, 'Email not found');
   }
 
   const resetToken = generateRandomToken();
-  await req.db
-    .model('Token')
-    .create({ userId: user._id, value: hashToken(resetToken) });
+  await TokenService.createToken({
+    userId: user._id,
+    value: hashToken(resetToken)
+  });
 
   await sendForgotPasswordEmail(
     { firstname: user.firstname, lastname: user.lastname, address: email },
@@ -222,15 +225,18 @@ const resetPassword = asyncHandler(async (req, res) => {
 
   const { email, password, token: resetToken } = req.body;
 
-  const token = await req.db
-    .model('Token')
-    .findOne({ value: hashToken(resetToken) });
+  const token = await TokenService.findOneToken({
+    value: hashToken(resetToken)
+  });
   if (!token) {
     logger.error('resetPassword: Invalid or expired token');
     throw new ErrorResponse(400, 'Invalid or expired token');
   }
 
-  const user = await req.db.model('User').findOne({ _id: token.userId, email });
+  const user = await UserService.getUserDocByFilter({
+    _id: token.userId,
+    email
+  });
   if (!user) {
     logger.error('resetPassword: Invalid email or token');
     throw new ErrorResponse(403, 'Invalid email or token');

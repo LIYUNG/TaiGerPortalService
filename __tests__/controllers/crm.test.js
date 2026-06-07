@@ -312,6 +312,10 @@ const { ObjectId } = require('mongoose').Types;
 const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
 const { UserSchema } = require('../../models/User');
+// Default-connection User model — the refactored CRM controller reads the
+// student through the service/DAO layer (default connection), so the fixtures
+// must be seeded there too (the mocked req.db uses a separate useDb database).
+const { User: DefaultUserModel } = require('../../models');
 const { protect } = require('../../middlewares/auth');
 const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
 const { disconnectFromDatabase, getPostgresDb } = require('../../database');
@@ -341,6 +345,10 @@ beforeEach(async () => {
   const UserModel = db.model('User', UserSchema);
   await UserModel.deleteMany();
   await UserModel.insertMany(users);
+
+  // Also seed the default-connection User collection used by the DAO layer.
+  await DefaultUserModel.deleteMany();
+  await DefaultUserModel.insertMany(users);
 
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;

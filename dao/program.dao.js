@@ -47,6 +47,28 @@ const ProgramDAO = {
 
   async findProgramsBySchoolNameDegree({ school, program_name, degree }) {
     return Program.find({ school, program_name, degree }).lean();
+  },
+
+  async aggregatePrograms(pipeline) {
+    return Program.aggregate(pipeline);
+  },
+
+  async countPrograms(filter = {}) {
+    return Program.countDocuments(filter);
+  },
+
+  async findProgramsQuery(filter = {}, { select, sort, limit } = {}) {
+    let query = Program.find(filter);
+    if (select) {
+      query = query.select(select);
+    }
+    if (sort) {
+      query = query.sort(sort);
+    }
+    if (limit !== undefined) {
+      query = query.limit(limit);
+    }
+    return query.lean();
   }
 };
 

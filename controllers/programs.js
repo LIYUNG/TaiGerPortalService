@@ -6,10 +6,12 @@ const logger = require('../services/logger');
 const ApplicationService = require('../services/applications');
 const ProgramService = require('../services/programs');
 const VCService = require('../services/vs');
+const ProgramRequirementService = require('../services/programRequirements');
+const TicketService = require('../services/tickets');
 
 const getDistinctSchoolsAttributes = async (req, res) => {
   try {
-    const distinctCombinations = await req.db.model('Program').aggregate([
+    const distinctCombinations = await ProgramService.aggregatePrograms([
       {
         $group: {
           _id: {
@@ -111,7 +113,7 @@ const updateBatchSchoolAttributes = async (req, res) => {
  */
 const getSchoolsDistribution = asyncHandler(async (req, res) => {
   try {
-    const schools = await req.db.model('Program').aggregate([
+    const schools = await ProgramService.aggregatePrograms([
       { $match: { isArchiv: { $ne: true } } },
       {
         $group: {
@@ -163,26 +165,23 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
       applicationStats
     ] = await Promise.all([
       // Total count of active programs
-      req.db.model('Program').countDocuments({ isArchiv: { $ne: true } }),
+      ProgramService.countPrograms({ isArchiv: { $ne: true } }),
 
       // Total count of distinct schools
-      req.db
-        .model('Program')
-        .aggregate([
-          { $match: { isArchiv: { $ne: true } } },
-          {
-            $group: {
-              _id: '$school'
-            }
-          },
-          {
-            $count: 'totalSchools'
+      ProgramService.aggregatePrograms([
+        { $match: { isArchiv: { $ne: true } } },
+        {
+          $group: {
+            _id: '$school'
           }
-        ])
-        .then((result) => result[0]?.totalSchools || 0),
+        },
+        {
+          $count: 'totalSchools'
+        }
+      ]).then((result) => result[0]?.totalSchools || 0),
 
       // Programs by country
-      req.db.model('Program').aggregate([
+      ProgramService.aggregatePrograms([
         { $match: { isArchiv: { $ne: true } } },
         {
           $group: {
@@ -201,7 +200,7 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
       ]),
 
       // Programs by degree
-      req.db.model('Program').aggregate([
+      ProgramService.aggregatePrograms([
         { $match: { isArchiv: { $ne: true } } },
         {
           $group: {
@@ -220,7 +219,7 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
       ]),
 
       // Programs by language
-      req.db.model('Program').aggregate([
+      ProgramService.aggregatePrograms([
         { $match: { isArchiv: { $ne: true } } },
         {
           $group: {
@@ -239,7 +238,7 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
       ]),
 
       // Programs by subject (unwind array first)
-      req.db.model('Program').aggregate([
+      ProgramService.aggregatePrograms([
         {
           $match: {
             isArchiv: { $ne: true },
@@ -265,7 +264,7 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
       ]),
 
       // Programs by school type
-      req.db.model('Program').aggregate([
+      ProgramService.aggregatePrograms([
         { $match: { isArchiv: { $ne: true } } },
         {
           $group: {
@@ -290,7 +289,7 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
       ]),
 
       // Top 10 schools by program count
-      req.db.model('Program').aggregate([
+      ProgramService.aggregatePrograms([
         { $match: { isArchiv: { $ne: true } } },
         {
           $group: {
@@ -316,7 +315,7 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
       ]),
 
       // Top 10 contributors by update count
-      req.db.model('Program').aggregate([
+      ProgramService.aggregatePrograms([
         {
           $match: {
             isArchiv: { $ne: true },
@@ -343,21 +342,22 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
       ]),
 
       // Recently updated programs (last 30 days)
-      req.db
-        .model('Program')
-        .find({
+      ProgramService.findProgramsQuery(
+        {
           isArchiv: { $ne: true },
           updatedAt: {
             $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
           }
-        })
-        .select('school program_name degree semester updatedAt whoupdated')
-        .sort({ updatedAt: -1 })
-        .limit(10)
-        .lean(),
+        },
+        {
+          select: 'school program_name degree semester updatedAt whoupdated',
+          sort: { updatedAt: -1 },
+          limit: 10
+        }
+      ),
 
       // Application statistics - programs with most applications
-      req.db.model('Application').aggregate([
+      ApplicationService.aggregateApplications([
         {
           $group: {
             _id: '$programId',
@@ -459,21 +459,10 @@ const getPrograms = asyncHandler(async (req, res) => {
 });
 
 const getStudentsByProgram = asyncHandler(async (req, programId) => {
-  const applications = await req.db
-    .model('Application')
-    .find({
-      programId,
-      decided: 'O'
-    })
-    .populate({
-      path: 'studentId',
-      select: 'agents editors firstname lastname pictureUrl',
-      populate: {
-        path: 'agents editors',
-        select: 'firstname lastname pictureUrl'
-      }
-    })
-    .lean();
+  const applications =
+    await ApplicationService.getDecidedApplicationsByProgramPopulated(
+      programId
+    );
 
   const studentSet = new Set();
   applications.forEach((application) => {
@@ -597,17 +586,17 @@ const deleteProgram = asyncHandler(async (req, res) => {
   if (applications.length === 0) {
     logger.info('it can be safely deleted!');
 
+    // Program write stays on req.db (version-control plugins live on the
+    // per-request Program model; see models/index.js).
     await req.db
       .model('Program')
       .findByIdAndUpdate(req.params.programId, { isArchiv: true });
     logger.info('The program deleted!');
 
-    await req.db
-      .model('ProgramRequirement')
-      .findOneAndDelete({ programId: { $in: [req.params.programId] } });
-    await req.db
-      .model('Ticket')
-      .deleteMany({ program_id: req.params.programId });
+    await ProgramRequirementService.deleteOneByProgramIds([
+      req.params.programId
+    ]);
+    await TicketService.deleteTicketsByProgramId(req.params.programId);
     logger.info('Delete Tickets!');
   } else {
     logger.error('it can not be deleted!');
@@ -656,13 +645,12 @@ const refreshProgram = asyncHandler(async (req, res) => {
     changedAt: now
   };
 
-  await req.db.model('VC').findOneAndUpdate(
+  await VCService.pushChange(
     {
       docId: programId,
       collectionName: 'Program'
     },
-    { $push: { changes: docChanges } },
-    { upsert: true, new: true }
+    docChanges
   );
 
   const vc = await VCService.getVC({

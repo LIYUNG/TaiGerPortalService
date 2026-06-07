@@ -294,9 +294,67 @@ const StudentDAO = {
     return Student.findById(id);
   },
 
+  // Generic id lookups with a caller-supplied list of populate argument tuples
+  // (e.g. [['agents editors', 'firstname lastname email'], ['applications.programId']]).
+  async getStudentByIdPopulated(id, populates = []) {
+    let query = Student.findById(id);
+    populates.forEach((args) => {
+      query = query.populate(...args);
+    });
+    return query.lean();
+  },
+
+  // Same as above but returns a LIVE document (caller mutates profile/notification
+  // and calls .save()).
+  async getStudentDocByIdPopulated(id, populates = []) {
+    let query = Student.findById(id);
+    populates.forEach((args) => {
+      query = query.populate(...args);
+    });
+    return query;
+  },
+
+  // Positional applications update (findOneAndUpdate with the
+  // 'applications.$' positional operator in `filter`), returning the new doc.
+  async updateStudentByFilter(filter, update) {
+    return Student.findOneAndUpdate(filter, update, { new: true });
+  },
+
+  // Raw id update (no populate; result usually unused).
+  async updateStudentByIdRaw(id, update) {
+    return Student.findByIdAndUpdate(id, update, {});
+  },
+
   // Bare query (no population) for arbitrary student filters.
   async findStudents(filter = {}) {
     return Student.find(filter).lean();
+  },
+
+  // Students matching `filter` with only the supervising team names populated —
+  // used by the archived-students view.
+  async findStudentsWithTeamNames(filter = {}) {
+    return Student.find(filter)
+      .populate('agents editors', 'firstname lastname')
+      .lean();
+  },
+
+  async countStudents(filter = {}) {
+    return Student.find(filter).countDocuments();
+  },
+
+  // Student's applications projected to {programId, doc_thread ids} for the
+  // response-interval report.
+  async getStudentApplicationsForIntervals(studentId) {
+    return Student.findById(studentId)
+      .populate({
+        path: 'applications.programId',
+        select: 'school program_name'
+      })
+      .select({
+        'applications.programId': 1,
+        'applications.doc_modification_thread.doc_thread_id': 1
+      })
+      .lean();
   },
 
   // Filtered student lookup returning only `select` fields, capped at `limit` —

@@ -9,8 +9,8 @@ const PermissionService = {
     return PermissionDAO.getPermissions(filter);
   },
 
-  findPermissionsWithUser(filter = {}) {
-    return PermissionDAO.findPermissionsWithUser(filter);
+  findPermissionsWithUser(filter = {}, select) {
+    return PermissionDAO.findPermissionsWithUser(filter, select);
   },
 
   upsertPermissionByUserId(userId, payload) {
@@ -19,6 +19,10 @@ const PermissionService = {
 
   getManagers() {
     return PermissionDAO.getManagers();
+  },
+
+  getPermissionByUserId(userId) {
+    return PermissionDAO.getPermissionByUserId(userId);
   },
 
   // Decrement a user's remaining TaiGer AI quota by one (only while > 0).

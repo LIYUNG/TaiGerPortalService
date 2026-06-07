@@ -32,6 +32,70 @@ const UserService = {
 
   getUserByEmail(email) {
     return UserDAO.getUserByEmail(email);
+  },
+
+  getUserByFilter(filter) {
+    return UserDAO.getUserByFilter(filter);
+  },
+
+  getUserDocByFilter(filter) {
+    return UserDAO.getUserDocByFilter(filter);
+  },
+
+  createGuest(payload) {
+    return UserDAO.createGuest(payload);
+  },
+
+  findAgents(filter, select) {
+    return UserDAO.findAgents(filter, select);
+  },
+
+  findEditors(filter, select) {
+    return UserDAO.findEditors(filter, select);
+  },
+
+  findAgentById(agentId, select) {
+    return UserDAO.findAgentById(agentId, select);
+  },
+
+  getUserDocById(userId) {
+    return UserDAO.getUserDocById(userId);
+  },
+
+  getAgentDocById(agentId) {
+    return UserDAO.getAgentDocById(agentId);
+  },
+
+  createUser(role, payload) {
+    return UserDAO.createUser(role, payload);
+  },
+
+  updateUserWithOptions(userId, fields, options) {
+    return UserDAO.updateUserWithOptions(userId, fields, options);
+  },
+
+  updateUserArchiv(userId, isArchived) {
+    return UserDAO.updateUserArchiv(userId, isArchived);
+  },
+
+  deleteUserById(userId) {
+    return UserDAO.deleteUserById(userId);
+  },
+
+  pullStaffFromStudents(userId) {
+    return UserDAO.pullStaffFromStudents(userId);
+  },
+
+  deleteStudentCascade(userId) {
+    return UserDAO.deleteStudentCascade(userId);
+  },
+
+  getUserRoleCounts() {
+    return UserDAO.getUserRoleCounts();
+  },
+
+  getUsersOverview() {
+    return UserDAO.getUsersOverview();
   }
 };
 

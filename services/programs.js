@@ -194,6 +194,18 @@ const ProgramService = {
     return ProgramDAO.findPrograms(filter);
   },
 
+  aggregatePrograms(pipeline) {
+    return ProgramDAO.aggregatePrograms(pipeline);
+  },
+
+  countPrograms(filter = {}) {
+    return ProgramDAO.countPrograms(filter);
+  },
+
+  findProgramsQuery(filter = {}, options) {
+    return ProgramDAO.findProgramsQuery(filter, options);
+  },
+
   async getProgramsPaginated(req, query = {}) {
     const { page, limit, skip, search, filters, sort } =
       parseProgramsQuery(query);

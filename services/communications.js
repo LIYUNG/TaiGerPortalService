@@ -1,36 +1,24 @@
+const CommunicationDAO = require('../dao/communication.dao');
+
+/**
+ * CommunicationService — business layer; delegates data access to the DAO
+ * (controller -> service -> dao).
+ */
 const CommunicationService = {
-  async getCommunicationByStudentId(req, studentId) {
-    return req.db.model('Communication').find({ studentId }).lean();
+  getCommunicationByStudentId(studentId) {
+    return CommunicationDAO.getCommunicationByStudentId(studentId);
   },
-  async getCommunicationById(req, communicationId) {
-    return req.db
-      .model('Communication')
-      .findById(communicationId)
-      .populate(
-        'student_id user_id readBy ignoredMessageBy',
-        'firstname lastname role pictureUrl'
-      )
-      .lean();
+
+  getCommunicationById(communicationId) {
+    return CommunicationDAO.getCommunicationById(communicationId);
   },
-  async getCommunications(req, query) {
-    return req.db
-      .model('Communication')
-      .find(query)
-      .populate(
-        'student_id user_id readBy ignoredMessageBy',
-        'firstname lastname role pictureUrl'
-      )
-      .lean();
+
+  getCommunications(query) {
+    return CommunicationDAO.getCommunications(query);
   },
-  async updateCommunication(req, communicationId, payload) {
-    return req.db
-      .model('Communication')
-      .findByIdAndUpdate(communicationId, payload, { new: true })
-      .populate(
-        'student_id user_id readBy ignoredMessageBy',
-        'firstname lastname role pictureUrl'
-      )
-      .lean();
+
+  updateCommunication(communicationId, payload) {
+    return CommunicationDAO.updateCommunication(communicationId, payload);
   }
 };
 

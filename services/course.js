@@ -1,28 +1,28 @@
+const CourseDAO = require('../dao/course.dao');
+
+/**
+ * CourseService — business layer for courses. Delegates data access to the DAO
+ * (controller -> service -> dao).
+ */
 const CourseService = {
-  async getCourse(req, filter) {
-    return req.db
-      .model('Course')
-      .findOne(filter)
-      .populate(
-        'student_id',
-        'firstname lastname firstname_chinese lastname_chinese email role academic_background archiv pictureUrl application_preference'
-      )
-      .lean();
+  getCourse(filter) {
+    return CourseDAO.getCourse(filter);
   },
-  async updateCourse(req, filter, update) {
-    return req.db
-      .model('Course')
-      .findOneAndUpdate(filter, update, { new: true })
-      .lean();
+
+  updateCourse(filter, update) {
+    return CourseDAO.updateCourse(filter, update);
   },
-  async deleteCourse(req, filter) {
-    return req.db.model('Course').findOneAndDelete(filter).lean();
+
+  deleteCourse(filter) {
+    return CourseDAO.deleteCourse(filter);
   },
-  async createCourse(req, data) {
-    return req.db.model('Course').create(data);
+
+  createCourse(data) {
+    return CourseDAO.createCourse(data);
   },
-  async getCourseById(req, id) {
-    return req.db.model('Course').findById(id).lean();
+
+  getCourseById(id) {
+    return CourseDAO.getCourseById(id);
   }
 };
 

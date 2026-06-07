@@ -513,7 +513,7 @@ const getProgram = asyncHandler(async (req, res) => {
     user.role === Role.Editor ||
     user.role === Role.External
   ) {
-    vc = await VCService.getVC(req, {
+    vc = await VCService.getVC({
       docId: req.params.programId,
       collectionName: 'Program'
     });
@@ -579,7 +579,7 @@ const updateProgram = asyncHandler(async (req, res) => {
     fields_root
   );
 
-  const vc = await VCService.getVC(req, {
+  const vc = await VCService.getVC({
     docId: req.params.programId,
     collectionName: 'Program'
   });
@@ -665,7 +665,7 @@ const refreshProgram = asyncHandler(async (req, res) => {
     { upsert: true, new: true }
   );
 
-  const vc = await VCService.getVC(req, {
+  const vc = await VCService.getVC({
     docId: programId,
     collectionName: 'Program'
   });

@@ -626,11 +626,9 @@ const updateAMessageInThread = asyncHandler(async (req, res, next) => {
   } = req;
   const { message } = req.body;
   try {
-    const thread = await CommunicationService.updateCommunication(
-      req,
-      messageId,
-      { message }
-    );
+    const thread = await CommunicationService.updateCommunication(messageId, {
+      message
+    });
 
     if (!thread) {
       logger.error('updateAMessageInThread : Invalid message thread id');
@@ -650,7 +648,7 @@ const deleteAMessageInCommunicationThread = asyncHandler(
     const {
       params: { messageId }
     } = req;
-    const msg = await CommunicationService.getCommunicationById(req, messageId);
+    const msg = await CommunicationService.getCommunicationById(messageId);
 
     // remove chat attachment cache.
     msg.files?.map((file) =>
@@ -694,15 +692,11 @@ const IgnoreMessage = asyncHandler(async (req, res, next) => {
   } = req;
 
   try {
-    await CommunicationService.updateCommunication(
-      req,
-      communication_messageId,
-      {
-        ignore_message: ignoreMessageState,
-        ignoredMessageBy: user._id,
-        ignoredMessageUpdatedAt: new Date()
-      }
-    );
+    await CommunicationService.updateCommunication(communication_messageId, {
+      ignore_message: ignoreMessageState,
+      ignoredMessageBy: user._id,
+      ignoredMessageUpdatedAt: new Date()
+    });
   } catch (e) {
     logger.error(
       `IgnoreMessage error for messageId ${communication_messageId}, state: ${ignoreMessageState}`

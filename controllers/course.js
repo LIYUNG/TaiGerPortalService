@@ -26,7 +26,7 @@ const getMycourses = asyncHandler(async (req, res) => {
     logger.info('getMycourses: no student found');
     throw new ErrorResponse(500, 'Invalid student');
   }
-  const courses = await CourseService.getCourse(req, {
+  const courses = await CourseService.getCourse({
     student_id: studentId
   });
 
@@ -109,7 +109,7 @@ const processTranscript_api_gatway = asyncHandler(async (req, res, next) => {
       roleToAssumeForCourseAnalyzerAPIG
     );
 
-    const courses = await CourseService.getCourse(req, {
+    const courses = await CourseService.getCourse({
       student_id: studentId
     });
 
@@ -142,7 +142,6 @@ const processTranscript_api_gatway = asyncHandler(async (req, res, next) => {
     );
 
     await CourseService.updateCourse(
-      req,
       { student_id: studentId },
       {
         analysis: {
@@ -170,7 +169,7 @@ const downloadJson = asyncHandler(async (req, res, next) => {
     params: { studentId }
   } = req;
 
-  const course = await CourseService.getCourse(req, {
+  const course = await CourseService.getCourse({
     student_id: studentId
   });
 
@@ -203,14 +202,14 @@ const downloadJson = asyncHandler(async (req, res, next) => {
 
 const deleteMyCourse = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
-  const course = await CourseService.getCourse(req, {
+  const course = await CourseService.getCourse({
     student_id: studentId
   });
   if (!course) {
     logger.error('deleteMyCourse: Course not found');
     throw new ErrorResponse(404, 'Course not found');
   }
-  await CourseService.deleteCourse(req, { student_id: studentId });
+  await CourseService.deleteCourse({ student_id: studentId });
   res.status(200).send({ success: true });
 });
 

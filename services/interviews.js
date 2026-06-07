@@ -1,27 +1,19 @@
+const InterviewDAO = require('../dao/interview.dao');
+
+/**
+ * InterviewService — business layer; delegates data access to the DAO.
+ */
 const InterviewService = {
-  async getInterviews(req, filter) {
-    return req.db
-      .model('Interview')
-      .find(filter)
-      .populate('trainer_id', 'firstname lastname email pictureUrl')
-      .populate('event_id')
-      .lean();
+  getInterviews(filter) {
+    return InterviewDAO.getInterviews(filter);
   },
-  async getInterviewById(req, id) {
-    return req.db
-      .model('Interview')
-      .findById(id)
-      .populate('trainer_id', 'firstname lastname email pictureUrl')
-      .populate('event_id')
-      .lean();
+
+  getInterviewById(id) {
+    return InterviewDAO.getInterviewById(id);
   },
-  async getInterviewsByStudentId(req, studentId) {
-    return req.db
-      .model('Interview')
-      .find({ student_id: studentId })
-      .populate('trainer_id', 'firstname lastname email pictureUrl')
-      .populate('event_id')
-      .lean();
+
+  getInterviewsByStudentId(studentId) {
+    return InterviewDAO.getInterviewsByStudentId(studentId);
   }
 };
 

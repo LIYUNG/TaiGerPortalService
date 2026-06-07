@@ -600,7 +600,7 @@ const getTasksOverview = asyncHandler(async (req, res, next) => {
   ] = await Promise.all([
     StudentService.fetchStudents(noAgentsfilter),
     StudentService.fetchStudents(noEditorsfilter),
-    InterviewService.getInterviews(req, noTrainerInInterviewsfilter),
+    InterviewService.getInterviews(noTrainerInInterviewsfilter),
     DocumentThreadService.getAllStudentsThreads(req, {
       isFinalVersion: false,
       file_type: 'Essay',

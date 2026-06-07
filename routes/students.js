@@ -48,7 +48,6 @@ const {
   permission_canAssignAgent_filter,
   permission_canAccessStudentDatabase_filter
 } = require('../middlewares/permission-filter');
-const { logAccess } = require('../utils/log/log');
 const { auditLog } = require('../utils/log/auditLog');
 const {
   validateStudentId,
@@ -66,8 +65,7 @@ router
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
-    getStudentsV3,
-    logAccess
+    getStudentsV3
   );
 
 router
@@ -76,8 +74,7 @@ router
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
-    getStudentsV3Paginated,
-    logAccess
+    getStudentsV3Paginated
   );
 
 router
@@ -86,8 +83,7 @@ router
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
-    getStudentsByIds,
-    logAccess
+    getStudentsByIds
   );
 
 router
@@ -96,8 +92,7 @@ router
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getActiveStudents,
-    logAccess
+    getActiveStudents
   );
 
 router
@@ -107,15 +102,13 @@ router
     GeneralPOSTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent),
     permission_canAccessStudentDatabase_filter,
-    updateDocumentationHelperLink,
-    logAccess
+    updateDocumentationHelperLink
   )
   .get(
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     permission_canAccessStudentDatabase_filter,
-    getStudentsAndDocLinks,
-    logAccess
+    getStudentsAndDocLinks
   );
 
 router
@@ -127,8 +120,7 @@ router
     permission_canAccessStudentDatabase_filter,
     validateStudentId,
     multitenant_filter,
-    getStudentAndDocLinks,
-    logAccess
+    getStudentAndDocLinks
   );
 
 router
@@ -140,8 +132,7 @@ router
     permission_canAccessStudentDatabase_filter,
     validateStudentId,
     InnerTaigerMultitenantFilter,
-    updateStudentsArchivStatus,
-    logAccess
+    updateStudentsArchivStatus
   );
 
 router
@@ -176,8 +167,7 @@ router
     GeneralPOSTRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent),
     InnerTaigerMultitenantFilter,
-    assignAttributesToStudent,
-    logAccess
+    assignAttributesToStudent
   );
 
 router
@@ -191,8 +181,7 @@ router
     permission_canAccessStudentDatabase_filter,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
-    updateVPDPayment,
-    logAccess
+    updateVPDPayment
   );
 
 router
@@ -206,8 +195,7 @@ router
     permission_canAccessStudentDatabase_filter,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
-    updateVPDFileNecessity,
-    logAccess
+    updateVPDFileNecessity
   )
   .get(
     validateApplicationId,
@@ -217,8 +205,7 @@ router
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
     permission_canAccessStudentDatabase_filter,
     multitenant_filter,
-    downloadVPDFile,
-    logAccess
+    downloadVPDFile
   )
   .post(
     validateApplicationId,
@@ -230,8 +217,7 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     VPDfileUpload,
-    saveVPDFilePath,
-    logAccess
+    saveVPDFilePath
   )
   .delete(
     validateApplicationId,
@@ -242,8 +228,7 @@ router
     permission_canAccessStudentDatabase_filter,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
-    deleteVPDFile,
-    logAccess
+    deleteVPDFile
   );
 
 router
@@ -255,8 +240,7 @@ router
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
     permission_canAccessStudentDatabase_filter,
     multitenant_filter,
-    downloadProfileFileURL,
-    logAccess
+    downloadProfileFileURL
   );
 
 router
@@ -270,8 +254,7 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     ProfilefileUpload,
-    saveProfileFilePath,
-    logAccess
+    saveProfileFilePath
   )
   .delete(
     validateStudentId,
@@ -281,8 +264,7 @@ router
     permission_canAccessStudentDatabase_filter,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
-    deleteProfileFile,
-    logAccess
+    deleteProfileFile
   );
 
 router
@@ -295,8 +277,7 @@ router
     permission_canAccessStudentDatabase_filter,
     multitenant_filter,
     InnerTaigerMultitenantFilter,
-    updateProfileDocumentStatus,
-    logAccess
+    updateProfileDocumentStatus
   );
 
 router
@@ -307,7 +288,6 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     permission_canAccessStudentDatabase_filter,
     multitenant_filter,
-    getStudent,
-    logAccess
+    getStudent
   );
 module.exports = router;

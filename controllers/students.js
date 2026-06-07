@@ -38,7 +38,7 @@ const UserService = require('../services/users');
 const PermissionService = require('../services/permissions');
 const BasedocumentationslinkService = require('../services/basedocumentationslinks');
 
-const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
+const getStudentAndDocLinks = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId }
@@ -106,10 +106,9 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
       }
     });
   }
-  next();
 });
 
-const updateDocumentationHelperLink = asyncHandler(async (req, res, next) => {
+const updateDocumentationHelperLink = asyncHandler(async (req, res) => {
   const { link, key, category } = req.body;
   // if not in database, then create one
   // otherwise: update the existing one.
@@ -121,10 +120,9 @@ const updateDocumentationHelperLink = asyncHandler(async (req, res, next) => {
   const updated_helper_link =
     await BasedocumentationslinkService.findByCategory(category);
   res.status(200).send({ success: true, helper_link: updated_helper_link });
-  next();
 });
 
-const getActiveStudents = asyncHandler(async (req, res, next) => {
+const getActiveStudents = asyncHandler(async (req, res) => {
   const { editors, agents, archiv } = req.query;
   const { filter } = new UserQueryBuilder()
     .withEditors(editors ? new mongoose.Types.ObjectId(editors) : null)
@@ -134,10 +132,9 @@ const getActiveStudents = asyncHandler(async (req, res, next) => {
 
   const students = await StudentService.getStudentsWithApplications(filter);
   res.status(200).send({ success: true, data: students });
-  next();
 });
 
-const getStudentsByIds = asyncHandler(async (req, res, next) => {
+const getStudentsByIds = asyncHandler(async (req, res) => {
   const { ids } = req.query;
   if (!ids || typeof ids !== 'string' || ids.trim() === '') {
     return res
@@ -201,10 +198,9 @@ const getStudentsByIds = asyncHandler(async (req, res, next) => {
   }
 
   res.status(200).send(responsePayload);
-  next();
 });
 
-const getStudentsV3 = asyncHandler(async (req, res, next) => {
+const getStudentsV3 = asyncHandler(async (req, res) => {
   const { editors, agents, archiv } = req.query;
   const { filter } = new UserQueryBuilder()
     .withEditors(editors)
@@ -215,10 +211,9 @@ const getStudentsV3 = asyncHandler(async (req, res, next) => {
   const students = await StudentService.fetchStudents(filter);
 
   res.status(200).send({ success: true, data: students });
-  next();
 });
 
-const getStudentsV3Paginated = asyncHandler(async (req, res, next) => {
+const getStudentsV3Paginated = asyncHandler(async (req, res) => {
   const { editors, agents, archiv } = req.query;
   const { filter } = new UserQueryBuilder()
     .withEditors(editors)
@@ -232,10 +227,9 @@ const getStudentsV3Paginated = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).send({ success: true, data: result });
-  next();
 });
 
-const getStudent = asyncHandler(async (req, res, next) => {
+const getStudent = asyncHandler(async (req, res) => {
   const {
     params: { studentId }
   } = req;
@@ -249,10 +243,9 @@ const getStudent = asyncHandler(async (req, res, next) => {
   }
 
   res.status(200).send({ success: true, data: student });
-  next();
 });
 
-const getStudentsAndDocLinks = asyncHandler(async (req, res, next) => {
+const getStudentsAndDocLinks = asyncHandler(async (req, res) => {
   const { user } = req;
   const { editors, agents, archiv } = req.query;
   const { filter } = new UserQueryBuilder()
@@ -286,13 +279,12 @@ const getStudentsAndDocLinks = asyncHandler(async (req, res, next) => {
     // Guest
     res.status(200).send({ success: true, data: [user] });
   }
-  next();
 });
 
 // () TODO email : agent better notification! (only added or removed should be informed.)
 // (O) email : inform student close service
 // (O) email : inform editor that student is archived.
-const updateStudentsArchivStatus = asyncHandler(async (req, res, next) => {
+const updateStudentsArchivStatus = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId },
@@ -389,7 +381,6 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res, next) => {
       res.status(200).send({ success: true, data: [] });
     }
   }
-  next();
 });
 
 // (O) email : agent better notification! (only added should be informed.)
@@ -657,7 +648,7 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
   }
 });
 
-const assignAttributesToStudent = asyncHandler(async (req, res, next) => {
+const assignAttributesToStudent = asyncHandler(async (req, res) => {
   const {
     params: { studentId },
     body: attributesId
@@ -670,7 +661,6 @@ const assignAttributesToStudent = asyncHandler(async (req, res, next) => {
   const student_upated = await StudentService.getStudentById(studentId);
 
   res.status(200).send({ success: true, data: student_upated });
-  next();
 });
 
 module.exports = {

@@ -42,7 +42,6 @@ const {
   updateOfficehours
 } = require('../controllers/account');
 const { localAuth } = require('../middlewares/auth');
-const { logAccess } = require('../utils/log/log');
 const { validateStudentId } = require('../common/validation');
 
 const router = Router();
@@ -55,8 +54,7 @@ router
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
-    getTemplates,
-    logAccess
+    getTemplates
   );
 
 router
@@ -65,21 +63,14 @@ router
     filter_archiv_user,
     permit(Role.Admin),
     TemplatefileUpload,
-    uploadTemplate,
-    logAccess
+    uploadTemplate
   )
-  .delete(
-    filter_archiv_user,
-    permit(Role.Admin, Role.Manager),
-    deleteTemplate,
-    logAccess
-  )
+  .delete(filter_archiv_user, permit(Role.Admin, Role.Manager), deleteTemplate)
   .get(
     filter_archiv_user,
     DownloadTemplateRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
-    downloadTemplateFile,
-    logAccess
+    downloadTemplateFile
   );
 
 router
@@ -92,8 +83,7 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     admissionUpload,
-    updateStudentApplicationResultV2,
-    logAccess
+    updateStudentApplicationResultV2
   );
 
 router
@@ -106,8 +96,7 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     admissionUpload,
-    updateStudentApplicationResult,
-    logAccess
+    updateStudentApplicationResult
   );
 
 // Close notification for Studen
@@ -123,8 +112,7 @@ router
       Role.Student,
       Role.Guest
     ),
-    removeNotification,
-    logAccess
+    removeNotification
   );
 
 // Close notification for Agent
@@ -134,8 +122,7 @@ router
     filter_archiv_user,
     RemoveNotificationRateLimiter,
     permit(Role.Agent),
-    removeAgentNotification,
-    logAccess
+    removeAgentNotification
   );
 
 // My Profile for Students
@@ -144,8 +131,7 @@ router
   .get(
     updatePersonalInformationRateLimiter,
     permit(Role.Admin, Role.Agent, Role.Editor, Role.Student, Role.Guest),
-    getMyAcademicBackground,
-    logAccess
+    getMyAcademicBackground
   );
 
 router
@@ -164,8 +150,7 @@ router
     ),
     multitenant_filter,
     InnerTaigerMultitenantFilter,
-    updateAcademicBackground,
-    logAccess
+    updateAcademicBackground
   );
 
 router
@@ -184,8 +169,7 @@ router
     ),
     multitenant_filter,
     InnerTaigerMultitenantFilter,
-    updateLanguageSkill,
-    logAccess
+    updateLanguageSkill
   );
 
 router
@@ -204,8 +188,7 @@ router
     ),
     multitenant_filter,
     InnerTaigerMultitenantFilter,
-    updateApplicationPreferenceSkill,
-    logAccess
+    updateApplicationPreferenceSkill
   );
 
 router
@@ -214,8 +197,7 @@ router
     filter_archiv_user,
     updatePersonalInformationRateLimiter,
     permit(Role.Agent, Role.Editor),
-    updateOfficehours,
-    logAccess
+    updateOfficehours
   );
 
 router
@@ -231,8 +213,7 @@ router
       Role.Student,
       Role.Guest
     ),
-    updatePersonalData,
-    logAccess
+    updatePersonalData
   );
 
 router
@@ -248,8 +229,7 @@ router
       Role.Guest
     ),
     localAuth,
-    updateCredentials,
-    logAccess
+    updateCredentials
   );
 
 module.exports = router;

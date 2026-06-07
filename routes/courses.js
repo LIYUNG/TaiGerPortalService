@@ -21,7 +21,6 @@ const {
   downloadJson,
   deleteMyCourse
 } = require('../controllers/course');
-const { logAccess } = require('../utils/log/log');
 const { validateStudentId } = require('../common/validation');
 
 const router = Router();
@@ -35,8 +34,7 @@ router.route('/transcript/test').get(
   permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
   multitenant_filter,
   // InnerTaigerMultitenantFilter,
-  processTranscript_api_gatway,
-  logAccess
+  processTranscript_api_gatway
 );
 
 router
@@ -72,8 +70,7 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     multitenant_filter,
     InnerTaigerMultitenantFilter,
-    processTranscript_api_gatway,
-    logAccess
+    processTranscript_api_gatway
   );
 
 router
@@ -83,8 +80,7 @@ router
     DownloadTemplateRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,
-    downloadJson,
-    logAccess
+    downloadJson
   );
 
 module.exports = router;

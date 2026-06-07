@@ -274,7 +274,6 @@ const saveProfileFilePath = asyncHandler(async (req, res, next) => {
       );
     }
   }
-  next();
 });
 
 const updateVPDPayment = asyncHandler(async (req, res, next) => {
@@ -295,7 +294,6 @@ const updateVPDPayment = asyncHandler(async (req, res, next) => {
   );
 
   res.status(201).send({ success: true, data: updatedApp });
-  next();
 });
 // () email:
 
@@ -328,7 +326,6 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
   );
 
   res.status(201).send({ success: true, data: updatedApp });
-  next();
 });
 
 // (O) email : student notification
@@ -405,7 +402,6 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
       }
     );
   }
-  next();
 });
 
 const downloadVPDFile = asyncHandler(async (req, res, next) => {
@@ -462,7 +458,6 @@ const downloadVPDFile = asyncHandler(async (req, res, next) => {
     `attachment; filename*=UTF-8''${encodedFileName}`
   );
   res.end(response);
-  next();
 });
 
 const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
@@ -501,7 +496,6 @@ const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
 
   res.attachment(fileKey);
   res.end(response);
-  next();
 });
 
 // (O) email : student notification
@@ -571,7 +565,6 @@ const updateProfileDocumentStatus = asyncHandler(async (req, res, next) => {
         }
       }
     }
-    next();
   } catch (err) {
     logger.error('updateProfileDocumentStatus: ', err);
   }
@@ -712,7 +705,6 @@ const updateStudentApplicationResultV2 = asyncHandler(
         }
       }
     }
-    next();
   }
 );
 
@@ -864,7 +856,6 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
     student.save();
 
     res.status(200).send({ success: true, data: document });
-    next();
   } catch (err) {
     if (err) {
       logger.error('deleteProfileFile: ', err);
@@ -932,7 +923,6 @@ const deleteVPDFile = asyncHandler(async (req, res, next) => {
   );
 
   res.status(200).send({ success: true, data: updatedApp });
-  next();
 });
 
 const removeNotification = asyncHandler(async (req, res, next) => {

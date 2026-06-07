@@ -92,7 +92,7 @@ const putMycourses = asyncHandler(async (req, res) => {
   }
 });
 
-const processTranscript_api_gatway = asyncHandler(async (req, res, next) => {
+const processTranscript_api_gatway = asyncHandler(async (req, res) => {
   const {
     params: { studentId, language },
     body: { requirementIds, factor }
@@ -154,11 +154,9 @@ const processTranscript_api_gatway = asyncHandler(async (req, res, next) => {
     logger.info(err);
     throw new ErrorResponse(500, 'Error occurs while analyzing courses');
   }
-
-  next();
 });
 
-const downloadJson = asyncHandler(async (req, res, next) => {
+const downloadJson = asyncHandler(async (req, res) => {
   const {
     params: { studentId }
   } = req;
@@ -191,7 +189,6 @@ const downloadJson = asyncHandler(async (req, res, next) => {
     student: course.student_id,
     fileKey: fileKey_converted
   });
-  next();
 });
 
 const deleteMyCourse = asyncHandler(async (req, res) => {

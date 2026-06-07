@@ -139,7 +139,6 @@ jest.mock('../../database', () => {
     const {
       interviewSurveyResponseSchema
     } = require('../../models/InterviewSurveyResponse');
-    const { userlogSchema } = require('../../models/Userlog');
     const { ResponseTimeSchema } = require('../../models/ResponseTime');
     const { permissionSchema } = require('../../models/Permission');
     const { keywordSetSchema } = require('../../models/Keywordset');
@@ -192,7 +191,6 @@ jest.mock('../../database', () => {
     reg('VC', versionControlSchema);
     reg('ProgramChangeRequest', programChangeRequestSchema);
     reg('Program', programSchema);
-    reg('Userlog', userlogSchema);
 
     connections[tenantId] = conn;
     return conn;
@@ -225,10 +223,6 @@ jest.mock('../../cache/node-cache', () => ({
     get: jest.fn().mockReturnValue(null),
     set: jest.fn()
   }
-}));
-
-jest.mock('../../utils/log/log', () => ({
-  logAccess: (req, res, next) => next()
 }));
 
 jest.mock('../../utils/log/auditLog', () => ({

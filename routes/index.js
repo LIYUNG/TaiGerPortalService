@@ -32,7 +32,6 @@ const teamsRouter = require('./teams');
 const ticketsRouter = require('./tickets');
 const uniassistRouter = require('./uniassist');
 const usersRouter = require('./users');
-const userlogsRouter = require('./userlogs');
 const widgetsRouter = require('./widget');
 const CRMRouter = require('./crm');
 
@@ -96,7 +95,6 @@ const router = (app) => {
   apiRouter.use('/tickets', ticketsRouter);
   apiRouter.use('/uniassist', uniassistRouter);
   apiRouter.use('/users', usersRouter);
-  apiRouter.use('/userlogs', userlogsRouter);
   apiRouter.use('/widgets', widgetsRouter);
   apiRouter.use('/crm', CRMRouter);
   app.use('/api', apiRouter);

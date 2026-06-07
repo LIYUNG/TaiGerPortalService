@@ -36,7 +36,6 @@ const {
   interviewSurveyResponseSchema
 } = require('./models/InterviewSurveyResponse');
 const { notesSchema } = require('./models/Note');
-const { userlogSchema } = require('./models/Userlog');
 const { ResponseTimeSchema } = require('./models/ResponseTime');
 const { surveyInputSchema } = require('./models/SurveyInput');
 const { permissionSchema } = require('./models/Permission');
@@ -115,7 +114,6 @@ const connectToDatabase = (tenant, uri = null) => {
     connection.model('ProgramChangeRequest', programChangeRequestSchema);
     connection.model('VC', versionControlSchema);
     applyProgramSchema(connection);
-    connection.model('Userlog', userlogSchema);
   }
   return appConnection;
 };

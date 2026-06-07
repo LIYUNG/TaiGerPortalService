@@ -182,7 +182,7 @@ const getSurveyInputDocuments = async (req, studentId, programId, fileType) => {
   return surveys;
 };
 
-const getSurveyInputs = asyncHandler(async (req, res, next) => {
+const getSurveyInputs = asyncHandler(async (req, res) => {
   const {
     params: { messagesThreadId }
   } = req;
@@ -212,7 +212,7 @@ const getSurveyInputs = asyncHandler(async (req, res, next) => {
   res.status(200).send({ success: true, data: document });
 });
 
-const postSurveyInput = asyncHandler(async (req, res, next) => {
+const postSurveyInput = asyncHandler(async (req, res) => {
   const { user } = req;
   const { input, informEditor } = req.body;
   const newSurvey = await SurveyInputService.createSurveyInput({
@@ -234,7 +234,7 @@ const postSurveyInput = asyncHandler(async (req, res, next) => {
   }
 });
 
-const putSurveyInput = asyncHandler(async (req, res, next) => {
+const putSurveyInput = asyncHandler(async (req, res) => {
   const {
     user,
     params: { surveyInputId }
@@ -263,7 +263,7 @@ const putSurveyInput = asyncHandler(async (req, res, next) => {
   }
 });
 
-const resetSurveyInput = asyncHandler(async (req, res, next) => {
+const resetSurveyInput = asyncHandler(async (req, res) => {
   const { user } = req;
   const {
     params: { surveyInputId }
@@ -472,7 +472,7 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   }
 });
 
-const putThreadFavorite = asyncHandler(async (req, res, next) => {
+const putThreadFavorite = asyncHandler(async (req, res) => {
   const {
     user,
     params: { messagesThreadId }
@@ -1964,13 +1964,12 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const clearEssayWriters = asyncHandler(async (req, res, next) => {
+const clearEssayWriters = asyncHandler(async (req, res) => {
   await DocumentThreadService.clearAllOutsourcedUsers();
   res.status(200).send({ success: true });
-  next();
 });
 
-const IgnoreMessageInDocumentThread = asyncHandler(async (req, res, next) => {
+const IgnoreMessageInDocumentThread = asyncHandler(async (req, res) => {
   const {
     params: { messageId, ignoreMessageState }
   } = req;
@@ -1979,7 +1978,6 @@ const IgnoreMessageInDocumentThread = asyncHandler(async (req, res, next) => {
     ignoreMessageState
   );
   res.status(200).send({ success: true, data: thread });
-  next();
 });
 
 const isAdminOrAccessAllChat = async (req) => {
@@ -1999,7 +1997,7 @@ const getActiveThreadsByStudent = (student) => [
   ...(student.generaldocs_threads || [])
 ];
 
-const getThreadsByStudent = asyncHandler(async (req, res, next) => {
+const getThreadsByStudent = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
 
   const threads = await DocumentThreadService.getStudentThreadsByStudentId(
@@ -2009,11 +2007,9 @@ const getThreadsByStudent = asyncHandler(async (req, res, next) => {
     success: true,
     data: { threads }
   });
-
-  next();
 });
 
-const getMyStudentMetrics = asyncHandler(async (req, res, next) => {
+const getMyStudentMetrics = asyncHandler(async (req, res) => {
   const students = await StudentService.getStudentsWithApplications({
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   });
@@ -2047,8 +2043,6 @@ const getMyStudentMetrics = asyncHandler(async (req, res, next) => {
       students: studentsWithCount
     }
   });
-
-  next();
 });
 
 module.exports = {

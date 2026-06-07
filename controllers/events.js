@@ -182,7 +182,6 @@ const getBookedEvents = asyncHandler(async (req, res, next) => {
     success: true,
     data: bookedEvents
   });
-  return next();
 });
 
 const getEvents = asyncHandler(async (req, res, next) => {
@@ -233,7 +232,6 @@ const getEvents = asyncHandler(async (req, res, next) => {
   response.hasEvents = events.length > 0;
 
   res.status(200).send(response);
-  return next();
 });
 
 const getActiveEventsNumber = asyncHandler(async (req, res) => {
@@ -248,15 +246,14 @@ const getActiveEventsNumber = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: futureEvents.length });
 });
 
-const showEvent = asyncHandler(async (req, res, next) => {
+const showEvent = asyncHandler(async (req, res) => {
   const { event_id } = req.params;
   const event = await EventService.getEventById(event_id);
 
   res.status(200).json(event);
-  next();
 });
 
-const postEvent = asyncHandler(async (req, res, next) => {
+const postEvent = asyncHandler(async (req, res) => {
   const { user } = req;
   const newEvent = req.body;
   let events;
@@ -415,10 +412,9 @@ const postEvent = asyncHandler(async (req, res, next) => {
       throw new ErrorResponse(500, err.message);
     }
   }
-  next();
 });
 
-const confirmEvent = asyncHandler(async (req, res, next) => {
+const confirmEvent = asyncHandler(async (req, res) => {
   const { event_id } = req.params;
   const { user } = req;
   const updated_event = req.body;
@@ -499,10 +495,9 @@ const confirmEvent = asyncHandler(async (req, res, next) => {
   if (addMeetingAssistant) {
     handleTAScheduling(taigerRep, student, user, updated_event, event_id);
   }
-  next();
 });
 
-const updateEvent = asyncHandler(async (req, res, next) => {
+const updateEvent = asyncHandler(async (req, res) => {
   const { event_id } = req.params;
   const { user } = req;
   const updated_event = req.body;
@@ -550,7 +545,6 @@ const updateEvent = asyncHandler(async (req, res, next) => {
         MeetingAdjustReminder(requester, user, event);
       });
     }
-    next();
   } catch (err) {
     logger.error(err);
     throw new ErrorResponse(400, err);
@@ -564,7 +558,7 @@ const updateEvent = asyncHandler(async (req, res, next) => {
   }
 });
 
-const deleteEvent = asyncHandler(async (req, res, next) => {
+const deleteEvent = asyncHandler(async (req, res) => {
   const { event_id } = req.params;
   const { user } = req;
   try {
@@ -626,7 +620,6 @@ const deleteEvent = asyncHandler(async (req, res, next) => {
       res.status(200).send({ success: true, hasEvents: false });
     }
     // TODO: remind receiver or reqester
-    next();
   } catch (err) {
     throw new ErrorResponse(400, err);
   }

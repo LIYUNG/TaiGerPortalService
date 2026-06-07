@@ -27,7 +27,7 @@ const StudentService = require('../services/students');
 const pageSize = 5;
 
 // TODO
-const getSearchUserMessages = asyncHandler(async (req, res, next) => {
+const getSearchUserMessages = asyncHandler(async (req, res) => {
   const { user } = req;
 
   // Get only the last communication
@@ -75,7 +75,6 @@ const getSearchUserMessages = asyncHandler(async (req, res, next) => {
       .status(200)
       .send({ success: true, data: { students: mergedResults, user } });
   }
-  next();
 });
 const getSearchMessageKeywords = asyncHandler(async (req, res) => {
   const { user } = req;
@@ -170,7 +169,7 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
 });
 
 // TODO: refactor permission to middleware
-const getMyMessages = asyncHandler(async (req, res, next) => {
+const getMyMessages = asyncHandler(async (req, res) => {
   const { user } = req;
 
   if (
@@ -212,11 +211,9 @@ const getMyMessages = asyncHandler(async (req, res, next) => {
       user
     }
   });
-
-  next();
 });
 
-const loadMessages = asyncHandler(async (req, res, next) => {
+const loadMessages = asyncHandler(async (req, res) => {
   const {
     params: { studentId, pageNumber }
   } = req;
@@ -250,10 +247,9 @@ const loadMessages = asyncHandler(async (req, res, next) => {
     data: [...communication_thread].reverse(),
     student
   });
-  next();
 });
 
-const getMessages = asyncHandler(async (req, res, next) => {
+const getMessages = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId }
@@ -308,10 +304,9 @@ const getMessages = asyncHandler(async (req, res, next) => {
     data: [...communication_thread].reverse(),
     student
   });
-  next();
 });
 
-const getChatFile = asyncHandler(async (req, res, next) => {
+const getChatFile = asyncHandler(async (req, res) => {
   const {
     params: { studentId, fileName }
   } = req;
@@ -335,7 +330,7 @@ const getChatFile = asyncHandler(async (req, res, next) => {
 });
 
 // (O) notification email works
-const postMessages = asyncHandler(async (req, res, next) => {
+const postMessages = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId }
@@ -460,11 +455,10 @@ const postMessages = asyncHandler(async (req, res, next) => {
       }
     );
   }
-  next();
 });
 
 // (-) TODO email : no notification needed
-const updateAMessageInThread = asyncHandler(async (req, res, next) => {
+const updateAMessageInThread = asyncHandler(async (req, res) => {
   const {
     params: { messageId }
   } = req;
@@ -483,53 +477,49 @@ const updateAMessageInThread = asyncHandler(async (req, res, next) => {
     logger.error(`updateAMessageInThread error for messageId ${messageId}`);
     throw new ErrorResponse(400, 'message collapse');
   }
-  next();
 });
 
 // (-) TODO email : no notification needed
-const deleteAMessageInCommunicationThread = asyncHandler(
-  async (req, res, next) => {
-    const {
-      params: { messageId }
-    } = req;
-    const msg = await CommunicationService.getCommunicationById(messageId);
+const deleteAMessageInCommunicationThread = asyncHandler(async (req, res) => {
+  const {
+    params: { messageId }
+  } = req;
+  const msg = await CommunicationService.getCommunicationById(messageId);
 
-    // remove chat attachment cache.
-    msg.files?.map((file) =>
-      ten_minutes_cache.del(`chat-${msg.student_id?.toString()}${file.name}`)
-    );
+  // remove chat attachment cache.
+  msg.files?.map((file) =>
+    ten_minutes_cache.del(`chat-${msg.student_id?.toString()}${file.name}`)
+  );
 
-    try {
-      console.log('msg.files', msg.files);
-      if (msg.files?.filter((file) => file.path !== '')?.length > 0) {
-        await deleteS3Objects({
-          bucketName: AWS_S3_BUCKET_NAME,
-          objectKeys: msg.files
-            .filter((file) => file.path !== '')
-            .map((file) => ({
-              Key: file.path
-            }))
-        });
-      }
-    } catch (err) {
-      if (err) {
-        logger.error('delete chat files: ', err);
-        throw new ErrorResponse(500, 'Error occurs while deleting');
-      }
+  try {
+    console.log('msg.files', msg.files);
+    if (msg.files?.filter((file) => file.path !== '')?.length > 0) {
+      await deleteS3Objects({
+        bucketName: AWS_S3_BUCKET_NAME,
+        objectKeys: msg.files
+          .filter((file) => file.path !== '')
+          .map((file) => ({
+            Key: file.path
+          }))
+      });
     }
-
-    try {
-      await CommunicationService.deleteById(messageId);
-      res.status(200).send({ success: true });
-      next();
-    } catch (e) {
-      logger.error(`Delete error for messageId ${messageId}`);
-      throw new ErrorResponse(400, 'message collapse');
+  } catch (err) {
+    if (err) {
+      logger.error('delete chat files: ', err);
+      throw new ErrorResponse(500, 'Error occurs while deleting');
     }
   }
-);
 
-const IgnoreMessage = asyncHandler(async (req, res, next) => {
+  try {
+    await CommunicationService.deleteById(messageId);
+    res.status(200).send({ success: true });
+  } catch (e) {
+    logger.error(`Delete error for messageId ${messageId}`);
+    throw new ErrorResponse(400, 'message collapse');
+  }
+});
+
+const IgnoreMessage = asyncHandler(async (req, res) => {
   const {
     user,
     params: { communication_messageId, ignoreMessageState }
@@ -550,7 +540,6 @@ const IgnoreMessage = asyncHandler(async (req, res, next) => {
 
   logger.info('IgnoreMessage : save succeeds');
   res.status(200).send({ success: true });
-  next();
 });
 
 module.exports = {

@@ -170,10 +170,6 @@ jest.mock('../../utils/log/auditLog', () => ({
   auditLog: (req, res, next) => next()
 }));
 
-jest.mock('../../utils/log/log', () => ({
-  logAccess: (req, res, next) => next()
-}));
-
 // ---- IDs used across tests ----
 const threadId = new ObjectId().toHexString();
 const surveyInputId = new ObjectId().toHexString();

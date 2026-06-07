@@ -44,7 +44,6 @@ const { surveyInputSchema } = require('./SurveyInput');
 const { templatesSchema } = require('./Template');
 const { ticketSchema } = require('./Ticket');
 const { tokenSchema } = require('./Token');
-const { userlogSchema } = require('./Userlog');
 const { versionControlSchema } = require('./VersionControl');
 
 // Idempotent compile: reuse an already-registered model (avoids
@@ -94,7 +93,6 @@ const models = {
   Template: compile('Template', templatesSchema),
   Ticket: compile('Ticket', ticketSchema),
   Token: compile('Token', tokenSchema),
-  Userlog: compile('Userlog', userlogSchema),
   VC: compile('VC', versionControlSchema)
 };
 

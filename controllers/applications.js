@@ -235,7 +235,7 @@ const getStudentApplications = asyncHandler(async (req, res) => {
 });
 
 // TODO: application query updated not working, to be tested
-const updateStudentApplications = asyncHandler(async (req, res, next) => {
+const updateStudentApplications = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId },
@@ -372,10 +372,9 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
   //     }
   //   }
   // }
-  next();
 });
 
-const updateApplication = asyncHandler(async (req, res, next) => {
+const updateApplication = asyncHandler(async (req, res) => {
   const { application_id } = req.params;
   const payload = req.body;
   const application = await ApplicationService.updateApplication(
@@ -383,10 +382,9 @@ const updateApplication = asyncHandler(async (req, res, next) => {
     payload
   );
   res.status(200).send({ success: true, data: application });
-  next();
 });
 
-const deleteApplication = asyncHandler(async (req, res, next) => {
+const deleteApplication = asyncHandler(async (req, res) => {
   const { application_id } = req.params;
   await ApplicationService.deleteApplication(application_id);
 
@@ -394,11 +392,9 @@ const deleteApplication = asyncHandler(async (req, res, next) => {
     success: true,
     data: { message: 'Application deleted successfully' }
   });
-
-  next();
 });
 
-const createApplicationV2 = asyncHandler(async (req, res, next) => {
+const createApplicationV2 = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId },
@@ -630,7 +626,6 @@ const createApplicationV2 = asyncHandler(async (req, res, next) => {
       }
     );
   }
-  next();
 });
 
 const refreshApplication = asyncHandler(async (req, res) => {

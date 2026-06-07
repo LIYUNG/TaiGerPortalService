@@ -40,10 +40,8 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
     user,
     params: { studentId }
   } = req;
-  const applicationsPromise = ApplicationService.getApplicationsByStudentId(
-    req,
-    studentId
-  );
+  const applicationsPromise =
+    ApplicationService.getApplicationsByStudentId(studentId);
 
   const studentPromise = req.db
     .model('Student')
@@ -67,7 +65,6 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
     category: 'survey'
   });
   const auditPromise = getAuditLogs(
-    req,
     {
       targetUserId: studentId
     },
@@ -160,10 +157,7 @@ const getActiveStudents = asyncHandler(async (req, res, next) => {
     .withArchiv(archiv)
     .build();
 
-  const students = await StudentService.getStudentsWithApplications(
-    req,
-    filter
-  );
+  const students = await StudentService.getStudentsWithApplications(filter);
   res.status(200).send({ success: true, data: students });
   next();
 });
@@ -216,7 +210,7 @@ const getStudentsByIds = asyncHandler(async (req, res, next) => {
     });
   }
 
-  const students = await StudentService.getStudentsWithApplications(req, {
+  const students = await StudentService.getStudentsWithApplications({
     _id: { $in: validObjectIds }
   });
 
@@ -243,7 +237,7 @@ const getStudentsV3 = asyncHandler(async (req, res, next) => {
     .withArchiv(archiv)
     .build();
 
-  const students = await StudentService.fetchStudents(req, filter);
+  const students = await StudentService.fetchStudents(filter);
 
   res.status(200).send({ success: true, data: students });
   next();
@@ -257,7 +251,7 @@ const getStudentsV3Paginated = asyncHandler(async (req, res, next) => {
     .withArchiv(archiv)
     .build();
 
-  const result = await StudentService.getStudentsPaginated(req, {
+  const result = await StudentService.getStudentsPaginated({
     filter,
     query: req.query
   });
@@ -271,7 +265,7 @@ const getStudent = asyncHandler(async (req, res, next) => {
     params: { studentId }
   } = req;
 
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
 
   if (!student) {
     return res
@@ -297,13 +291,12 @@ const getStudentsAndDocLinks = asyncHandler(async (req, res, next) => {
     is_TaiGer_Agent(user) ||
     is_TaiGer_Editor(user)
   ) {
-    const students = await StudentService.fetchSimpleStudents(req, filter);
+    const students = await StudentService.fetchSimpleStudents(filter);
     res.status(200).send({ success: true, data: students, base_docs_link: {} });
   } else if (is_TaiGer_Student(user)) {
     const obj = user.notification; // create object
     obj['isRead_base_documents_rejected'] = true; // set value
     const student = await StudentService.updateStudentById(
-      req,
       user._id.toString(),
       {
         notification: obj
@@ -332,14 +325,14 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res, next) => {
   } = req;
 
   // TODO: data validation for isArchived and studentId
-  const student = await StudentService.updateStudentById(req, studentId, {
+  const student = await StudentService.updateStudentById(studentId, {
     archiv: isArchived
   });
 
   if (isArchived) {
     // return dashboard students
     if (user.role === Role.Admin) {
-      const students = await StudentService.fetchStudents(req, {
+      const students = await StudentService.fetchStudents({
         $or: [{ archiv: { $exists: false } }, { archiv: false }]
       });
 
@@ -347,20 +340,20 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res, next) => {
     } else if (is_TaiGer_Agent(user)) {
       const permissions = await getPermission(req, user);
       if (permissions && permissions.canAssignAgents) {
-        const students = await StudentService.fetchStudents(req, {
+        const students = await StudentService.fetchStudents({
           $or: [{ archiv: { $exists: false } }, { archiv: false }]
         });
 
         res.status(200).send({ success: true, data: students });
       } else {
-        const students = await StudentService.fetchStudents(req, {
+        const students = await StudentService.fetchStudents({
           agents: user._id,
           $or: [{ archiv: { $exists: false } }, { archiv: false }]
         });
         res.status(200).send({ success: true, data: students });
       }
     } else if (user.role === Role.Editor) {
-      const students = await StudentService.fetchStudents(req, {
+      const students = await StudentService.fetchStudents({
         editors: user._id,
         $or: [{ archiv: { $exists: false } }, { archiv: false }]
       });
@@ -394,7 +387,7 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res, next) => {
   } else {
     if (is_TaiGer_Admin(user)) {
       const query = { archiv: true };
-      const students = await StudentService.getStudents(req, {
+      const students = await StudentService.getStudents({
         filter: query,
         options: {}
       });
@@ -402,7 +395,7 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res, next) => {
       res.status(200).send({ success: true, data: students });
     } else if (is_TaiGer_Agent(user)) {
       const query = { agents: user._id, archiv: true };
-      const students = await StudentService.getStudents(req, {
+      const students = await StudentService.getStudents({
         filter: query,
         options: {}
       });
@@ -410,7 +403,7 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res, next) => {
       res.status(200).send({ success: true, data: students });
     } else if (is_TaiGer_Editor(user)) {
       const query = { editors: user._id, archiv: true };
-      const students = await StudentService.getStudents(req, {
+      const students = await StudentService.getStudents({
         filter: query,
         options: {}
       });
@@ -442,7 +435,7 @@ const assignAgentToStudent = asyncHandler(async (req, res, next) => {
     }
 
     // Fetch the student
-    const student = await StudentService.getStudentById(req, studentId);
+    const student = await StudentService.getStudentById(studentId);
     if (!student) {
       return res
         .status(404)
@@ -465,14 +458,14 @@ const assignAgentToStudent = asyncHandler(async (req, res, next) => {
         added: addedAgents,
         removed: removedAgents
       });
-      await StudentService.updateStudentById(req, studentId, {
+      await StudentService.updateStudentById(studentId, {
         'notification.isRead_new_agent_assigned': false,
         agents: updatedAgentIds
       });
     }
 
     // Populate the updated student data
-    const studentUpdated = await StudentService.getStudentById(req, studentId);
+    const studentUpdated = await StudentService.getStudentById(studentId);
 
     res.status(200).json({ success: true, data: studentUpdated });
 
@@ -580,7 +573,7 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
     }
 
     // Fetch the student
-    const student = await StudentService.getStudentById(req, studentId);
+    const student = await StudentService.getStudentById(studentId);
     if (!student) {
       return res
         .status(404)
@@ -603,14 +596,14 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
         added: addedEditors,
         removed: removedEditors
       });
-      await StudentService.updateStudentById(req, studentId, {
+      await StudentService.updateStudentById(studentId, {
         'notification.isRead_new_agent_assigned': false,
         editors: updatedEditorIds
       });
     }
 
     // Populate the updated student data
-    const studentUpdated = await StudentService.getStudentById(req, studentId);
+    const studentUpdated = await StudentService.getStudentById(studentId);
 
     res.status(200).json({ success: true, data: studentUpdated });
 
@@ -698,11 +691,11 @@ const assignAttributesToStudent = asyncHandler(async (req, res, next) => {
     body: attributesId
   } = req;
 
-  await StudentService.updateStudentById(req, studentId, {
+  await StudentService.updateStudentById(studentId, {
     attributes: attributesId
   });
 
-  const student_upated = await StudentService.getStudentById(req, studentId);
+  const student_upated = await StudentService.getStudentById(studentId);
 
   res.status(200).send({ success: true, data: student_upated });
   next();

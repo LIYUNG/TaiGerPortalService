@@ -49,7 +49,6 @@ const getApplications = asyncHandler(async (req, res) => {
   ];
 
   const applications = await ApplicationService.getApplications(
-    req,
     applicationQuery,
     selectFields,
     populateFields
@@ -81,13 +80,13 @@ const getActiveStudentsApplicationsPaginated = asyncHandler(
       }
     }
 
-    const students = await StudentService.getStudents(req, {
+    const students = await StudentService.getStudents({
       filter,
       options: {}
     });
 
     const result =
-      await ApplicationService.getActiveStudentsApplicationsPaginated(req, {
+      await ApplicationService.getActiveStudentsApplicationsPaginated({
         studentIds: students.map((student) => student._id.toString()),
         query: req.query
       });
@@ -120,18 +119,15 @@ const getApplicationsDeadlineDistribution = asyncHandler(async (req, res) => {
     }
   }
 
-  const students = await StudentService.getStudents(req, {
+  const students = await StudentService.getStudents({
     filter,
     options: {}
   });
 
   const data =
-    await ApplicationService.getActiveStudentsApplicationsDeadlineDistribution(
-      req,
-      {
-        studentIds: students.map((student) => student._id.toString())
-      }
-    );
+    await ApplicationService.getActiveStudentsApplicationsDeadlineDistribution({
+      studentIds: students.map((student) => student._id.toString())
+    });
 
   res.status(200).send({ success: true, data });
 });
@@ -158,18 +154,15 @@ const getApplicationProgramsUpdateStatus = asyncHandler(async (req, res) => {
     }
   }
 
-  const students = await StudentService.getStudents(req, {
+  const students = await StudentService.getStudents({
     filter,
     options: {}
   });
 
-  const data = await ApplicationService.getApplicationProgramsUpdateStatus(
-    req,
-    {
-      studentIds: students.map((student) => student._id.toString()),
-      decided
-    }
-  );
+  const data = await ApplicationService.getApplicationProgramsUpdateStatus({
+    studentIds: students.map((student) => student._id.toString()),
+    decided
+  });
 
   res.status(200).send({ success: true, data });
 });
@@ -193,14 +186,14 @@ const getMyStudentsApplicationsStats = asyncHandler(async (req, res) => {
     Object.assign(filter, supervisionOr);
   }
 
-  const students = await StudentService.getStudents(req, {
+  const students = await StudentService.getStudents({
     filter,
     options: {}
   });
   const studentIds = students.map((student) => student._id.toString());
 
   const [stats, user] = await Promise.all([
-    ApplicationService.getApplicationStatusStats(req, { studentIds }),
+    ApplicationService.getApplicationStatusStats({ studentIds }),
     UserService.getUserById(req, userId)
   ]);
 
@@ -224,13 +217,12 @@ const getStudentApplications = asyncHandler(async (req, res) => {
   if (user.role === Role.Student) {
     const obj = user.notification; // create object
     obj['isRead_new_programs_assigned'] = true; // set value
-    await StudentService.updateStudentById(req, user._id.toString(), {
+    await StudentService.updateStudentById(user._id.toString(), {
       notification: obj
     });
   }
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
   const applications = await ApplicationService.getApplicationsByStudentId(
-    req,
     studentId
   );
   student.applications = applications;
@@ -248,7 +240,7 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
     body: { applications, applying_program_count }
   } = req;
   // retrieve studentId differently depend on if student or Admin/Agent uploading the file
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
 
   if (!student) {
     logger.error('updateStudentApplications: Invalid student id');
@@ -264,17 +256,16 @@ const updateStudentApplications = asyncHandler(async (req, res, next) => {
     };
     return { updateOne: { filter: { _id: app._id }, update } };
   });
-  const result = await ApplicationService.updateApplicationsBulk(req, updates);
+  const result = await ApplicationService.updateApplicationsBulk(updates);
   logger.info('updateStudentApplications: result', result);
   if (user.role === Role.Admin) {
-    await StudentService.updateStudentById(req, studentId, {
+    await StudentService.updateStudentById(studentId, {
       applying_program_count: parseInt(applying_program_count, 10)
     });
   }
 
-  const updatedStudent = await StudentService.getStudentById(req, studentId);
+  const updatedStudent = await StudentService.getStudentById(studentId);
   const newApplications = await ApplicationService.getApplicationsByStudentId(
-    req,
     studentId
   );
   updatedStudent.applications = newApplications;
@@ -386,7 +377,6 @@ const updateApplication = asyncHandler(async (req, res, next) => {
   const { application_id } = req.params;
   const payload = req.body;
   const application = await ApplicationService.updateApplication(
-    req,
     { _id: application_id },
     payload
   );
@@ -396,7 +386,7 @@ const updateApplication = asyncHandler(async (req, res, next) => {
 
 const deleteApplication = asyncHandler(async (req, res, next) => {
   const { application_id } = req.params;
-  await ApplicationService.deleteApplication(req, application_id);
+  await ApplicationService.deleteApplication(application_id);
 
   res.status(200).send({
     success: true,

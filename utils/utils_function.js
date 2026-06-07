@@ -209,7 +209,6 @@ const TasksReminderEmails_Editor_core = async (req) => {
     const editorPromises = editors.map(async (editor) => {
       studentQuery.editors = editor._id;
       const editor_students = await StudentService.getStudentsWithApplications(
-        req,
         studentQuery
       );
 
@@ -246,7 +245,6 @@ const TasksReminderEmails_Student_core = async (req) => {
     };
     // TODO: it shows: "Technische Universität München (TUM) Computational Science and Engineering undefined"
     const students = await StudentService.getStudentsWithApplications(
-      req,
       studentQuery
     );
 
@@ -285,7 +283,6 @@ const UrgentTasksReminderEmails_Student_core = async (req) => {
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     };
     const students = await StudentService.getStudentsWithApplications(
-      req,
       studentQuery
     );
 
@@ -340,7 +337,6 @@ const UrgentTasksReminderEmails_Agent_core = async (req) => {
     const agentPromises = agents.map(async (agent) => {
       studentQuery.agents = agent._id;
       const agent_students = await StudentService.getStudentsWithApplications(
-        req,
         studentQuery
       );
       if (agent_students.length > 0) {
@@ -436,7 +432,6 @@ const UrgentTasksReminderEmails_Editor_core = async (req) => {
     for (let j = 0; j < editors.length; j += 1) {
       studentQuery.editors = editors[j]._id;
       const editor_students = await StudentService.getStudentsWithApplications(
-        req,
         studentQuery
       );
       if (editor_students.length > 0) {

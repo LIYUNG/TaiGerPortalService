@@ -2,9 +2,8 @@ const { asyncHandler } = require('../middlewares/error-handler');
 const ApplicationService = require('../services/applications');
 
 const getApplicationConflicts = asyncHandler(async (req, res) => {
-  const applicationConflicts = await ApplicationService.getApplicationConflicts(
-    req
-  );
+  const applicationConflicts =
+    await ApplicationService.getApplicationConflicts();
   res.status(200).send({ success: true, data: applicationConflicts });
 });
 

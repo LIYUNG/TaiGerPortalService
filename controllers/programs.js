@@ -590,7 +590,6 @@ const updateProgram = asyncHandler(async (req, res) => {
 const deleteProgram = asyncHandler(async (req, res) => {
   // All students including archived
   const applications = await ApplicationService.getApplicationsByProgramId(
-    req,
     req.params.programId
   );
 

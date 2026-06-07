@@ -320,7 +320,6 @@ const getAgentData = asyncHandler(async (req, agent) => {
   };
 
   const agentStudents = await StudentService.getStudentsWithApplications(
-    req,
     studentQuery
   );
 
@@ -599,8 +598,8 @@ const getTasksOverview = asyncHandler(async (req, res, next) => {
     noTrainerInInterviewsStudents,
     noEssayWritersEssays
   ] = await Promise.all([
-    StudentService.fetchStudents(req, noAgentsfilter),
-    StudentService.fetchStudents(req, noEditorsfilter),
+    StudentService.fetchStudents(noAgentsfilter),
+    StudentService.fetchStudents(noEditorsfilter),
     InterviewService.getInterviews(req, noTrainerInInterviewsfilter),
     DocumentThreadService.getAllStudentsThreads(req, {
       isFinalVersion: false,

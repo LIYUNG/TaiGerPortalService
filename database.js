@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { drizzle } = require('drizzle-orm/node-postgres');
 const { Pool } = require('pg');
-const { MONGODB_URI, POSTGRES_URI } = require('./config');
+const { MONGODB_URI, POSTGRES_URI, TENANT_ID } = require('./config');
 const {
   UserSchema,
   Agent,
@@ -51,7 +51,9 @@ const { auditSchema } = require('./models/Audit');
 const { allCourseSchema } = require('./models/Allcourse');
 const { applicationSchema } = require('./models/Application');
 
-const connections = {};
+// The service is no longer multi-tenant: we maintain exactly ONE shared
+// Mongoose connection instead of a per-tenant map of connections.
+let appConnection = null;
 const tenantDb = 'Tenant';
 
 const mongoDb = (dbName) =>
@@ -75,11 +77,15 @@ const applyProgramSchema = (
   return db.model('Program', programSchema);
 };
 
+// Returns the single shared application database connection, creating it on
+// first use. `tenant` is accepted for backward compatibility with existing
+// callers (and tests) but no longer selects a database. `uri` lets tests point
+// the connection at an in-memory server.
 const connectToDatabase = (tenant, uri = null) => {
-  if (!connections[tenant]) {
-    const dbUri = uri || `${mongoDb(tenant)}`;
+  if (!appConnection) {
+    const dbUri = uri || `${mongoDb(TENANT_ID)}`;
     const connection = mongoose.createConnection(dbUri, {});
-    connections[tenant] = connection;
+    appConnection = connection;
 
     connection.model('Allcourse', allCourseSchema);
     connection.model('Application', applicationSchema);
@@ -137,14 +143,15 @@ const connectToDatabase = (tenant, uri = null) => {
     );
     connection.model('Userlog', userlogSchema);
   }
-  return connections[tenant];
+  return appConnection;
 };
 
-// Ensure disconnection after tests
-const disconnectFromDatabase = async (tenant) => {
-  if (connections[tenant]) {
-    await connections[tenant].close();
-    delete connections[tenant];
+// Close the single shared connection. `tenant` is accepted for backward
+// compatibility but ignored.
+const disconnectFromDatabase = async () => {
+  if (appConnection) {
+    await appConnection.close();
+    appConnection = null;
   }
 };
 
@@ -179,7 +186,6 @@ module.exports = {
   getPostgresDb,
   closePostgresPool,
   tenantDb,
-  connections,
   connectToDatabase,
   disconnectFromDatabase
 };

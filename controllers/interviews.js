@@ -231,7 +231,6 @@ const getMyInterview = asyncHandler(async (req, res) => {
 
     interviews = await addInterviewStatus(req.db, interviews);
     const students = await StudentService.getStudentsWithApplications(
-      req,
       studentFilter
     );
 
@@ -242,12 +241,8 @@ const getMyInterview = asyncHandler(async (req, res) => {
 
     res.status(200).send({ success: true, data: interviews, students });
   } else {
-    const student = await StudentService.getStudentById(
-      req,
-      user._id.toString()
-    );
+    const student = await StudentService.getStudentById(user._id.toString());
     const applications = await ApplicationService.getApplicationsByStudentId(
-      req,
       user._id.toString()
     );
     student.applications = applications;
@@ -731,7 +726,7 @@ const createInterview = asyncHandler(async (req, res) => {
     params: { program_id, studentId },
     body: payload
   } = req;
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
   if (!student) {
     logger.info('createInterview: Invalid student id!');
     throw new ErrorResponse(400, 'Invalid student id');

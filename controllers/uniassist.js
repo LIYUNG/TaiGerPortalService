@@ -16,9 +16,8 @@ const getStudentUniAssist = asyncHandler(async (req, res) => {
       .findByIdAndUpdate(user._id.toString(), { notification: obj }, {});
   }
 
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
   const applications = await ApplicationService.getApplicationsByStudentId(
-    req,
     studentId
   );
   student.applications = applications;

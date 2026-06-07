@@ -1,8 +1,12 @@
 const schedule = require('node-schedule');
 const https = require('https');
 const fs = require('fs');
+const mongoose = require('mongoose');
 
 const { app } = require('./app');
+const { mongoDb } = require('./database');
+// Compile all models on the default Mongoose connection (used by the DAO layer).
+require('./models');
 const {
   PORT,
   isProd,
@@ -16,6 +20,7 @@ const {
   AWS_S3_PUBLIC_BUCKET_NAME,
   AWS_S3_BUCKET_NAME,
   MONGODB_URI,
+  TENANT_ID,
   COURSE_SELECTION_TASKS_REMINDER_JUNE_SCHEDULE,
   COURSE_SELECTION_TASKS_REMINDER_DECEMBER_SCHEDULE,
   COURSE_SELECTION_TASKS_REMINDER_JULY_SCHEDULE,
@@ -49,6 +54,20 @@ const {
 
 const launch = async () => {
   logger.info(`AWS_S3_BUCKET_NAME: ${process.env.AWS_S3_BUCKET_NAME}`);
+
+  // Open the single default Mongoose connection used by the DAO layer
+  // (Model.find() etc.). Without this, default-connection queries buffer and
+  // time out. The per-request `connectToDatabase` connection still exists for
+  // not-yet-migrated `req.db.model(...)` paths (and keeps the Program
+  // version-control plugin wiring); both point at the same database.
+  try {
+    await mongoose.connect(mongoDb(TENANT_ID));
+    logger.info('MongoDB default connection established');
+  } catch (err) {
+    logger.error(`MongoDB default connection failed: ${err.message}`);
+    return;
+  }
+
   if (isDev()) {
     if (
       AWS_S3_BUCKET_NAME.includes('production') ||

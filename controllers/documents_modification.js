@@ -92,7 +92,7 @@ const getActiveThreads = asyncHandler(async (req, res) => {
 });
 
 const getActiveThreadsPaginated = asyncHandler(async (req, res) => {
-  const activeStudents = await StudentService.fetchSimpleStudents(req, {
+  const activeStudents = await StudentService.fetchSimpleStudents({
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   });
 
@@ -105,7 +105,7 @@ const getActiveThreadsPaginated = asyncHandler(async (req, res) => {
 });
 
 const getActiveThreadsCounts = asyncHandler(async (req, res) => {
-  const activeStudents = await StudentService.fetchSimpleStudents(req, {
+  const activeStudents = await StudentService.fetchSimpleStudents({
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   });
 
@@ -120,7 +120,7 @@ const getActiveThreadsCounts = asyncHandler(async (req, res) => {
 // Active students supervised (agent/editor) by this user. Essay threads
 // outsourced to the user are added by the service via `outsourcedUserId`.
 const supervisedActiveStudentIds = async (req, userId) => {
-  const students = await StudentService.fetchSimpleStudents(req, {
+  const students = await StudentService.fetchSimpleStudents({
     $and: [
       { $or: [{ archiv: { $exists: false } }, { archiv: false }] },
       { $or: [{ agents: userId }, { editors: userId }] }
@@ -428,10 +428,9 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   );
   res.status(200).send({ success: true, data: newAppRecord });
 
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
 
   const applications = await ApplicationService.getApplicationsByStudentId(
-    req,
     studentId
   );
 
@@ -703,7 +702,6 @@ const getMessages = asyncHandler(async (req, res) => {
     deadline = CVDeadline_Calculator(applications);
   } else {
     const application = await ApplicationService.getApplicationById(
-      req,
       document_thread.application_id
     );
     deadline = application_deadline_V2_calculator(application);
@@ -1481,7 +1479,7 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
   const document_thread = await req.db
     .model('Documentthread')
     .findById(messagesThreadId);
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
   if (!document_thread) {
     logger.error('SetStatusMessagesThread: Invalid message thread id');
     throw new ErrorResponse(404, 'Thread not found');
@@ -1496,7 +1494,6 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
 
   if (application_id) {
     const student_application = await ApplicationService.getApplicationById(
-      req,
       application_id
     );
     if (!student_application) {
@@ -1982,7 +1979,7 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
   }
 
   const studentId = essayDocumentThreads.student_id;
-  const student_upated = await StudentService.getStudentById(req, studentId);
+  const student_upated = await StudentService.getStudentById(studentId);
 
   const essayDocumentThreads_Updated =
     await DocumentThreadService.getThreadById(req, messagesThreadId);
@@ -2127,7 +2124,7 @@ const getThreadsByStudent = asyncHandler(async (req, res, next) => {
 });
 
 const getMyStudentMetrics = asyncHandler(async (req, res, next) => {
-  const students = await StudentService.getStudentsWithApplications(req, {
+  const students = await StudentService.getStudentsWithApplications({
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   });
 

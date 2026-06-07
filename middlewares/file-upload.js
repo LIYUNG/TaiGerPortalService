@@ -191,7 +191,7 @@ const storage_profile_s3 = multerS3({
       const { studentId } = req.params;
       if (!studentId) return cb(new Error('Missing studentId'));
 
-      const student = await StudentService.getStudentById(req, studentId);
+      const student = await StudentService.getStudentById(studentId);
 
       if (!student) return cb(new Error('Student not found'));
 

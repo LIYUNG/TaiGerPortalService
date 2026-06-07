@@ -10,10 +10,9 @@ const getPortalCredentials = asyncHandler(async (req, res) => {
     params: { studentId }
   } = req;
 
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
   const applications =
     await ApplicationService.getApplicationsWithCredentialsByStudentId(
-      req,
       studentId
     );
   student.applications = applications;
@@ -36,7 +35,6 @@ const createPortalCredentials = asyncHandler(async (req, res) => {
   const { applicationId } = req.params;
   const credentials = req.body;
   const application = await ApplicationService.updateApplication(
-    req,
     {
       _id: applicationId
     },

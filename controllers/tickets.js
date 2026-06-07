@@ -55,10 +55,7 @@ const createTicket = asyncHandler(async (req, res) => {
     req,
     new_ticket.program_id
   );
-  const studentPromise = StudentService.getStudentById(
-    req,
-    user._id.toString()
-  );
+  const studentPromise = StudentService.getStudentById(user._id.toString());
 
   const [program, student] = await Promise.all([
     programPromise,

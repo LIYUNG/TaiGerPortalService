@@ -578,7 +578,7 @@ const postMessages = asyncHandler(async (req, res, next) => {
     .limit(1);
   res.status(200).send({ success: true, data: communication_latest });
 
-  const student = await StudentService.getStudentById(req, studentId);
+  const student = await StudentService.getStudentById(studentId);
 
   // inform agent/student
   if (is_TaiGer_Student(user)) {

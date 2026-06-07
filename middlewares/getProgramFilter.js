@@ -7,7 +7,7 @@ const getProgramFilter = async (req, res, next) => {
   const { user } = req;
   const { programId } = req.params;
   if (is_TaiGer_Student(user)) {
-    const myApplications = await ApplicationService.getApplications(req, {
+    const myApplications = await ApplicationService.getApplications({
       programId,
       studentId: user._id
     });

@@ -281,14 +281,13 @@ const updateVPDPayment = asyncHandler(async (req, res, next) => {
     body: { isPaid }
   } = req;
 
-  const app = await ApplicationService.getApplicationById(req, applicationId);
+  const app = await ApplicationService.getApplicationById(applicationId);
   if (!app) {
     logger.error('updateVPDPayment: Invalid program id!');
     throw new ErrorResponse(404, 'Application not found');
   }
 
   const updatedApp = await ApplicationService.updateApplication(
-    req,
     { _id: applicationId },
     { uni_assist: { ...app.uni_assist, isPaid, updatedAt: new Date() } }
   );
@@ -303,7 +302,7 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
     params: { applicationId }
   } = req;
 
-  const app = await ApplicationService.getApplicationById(req, applicationId);
+  const app = await ApplicationService.getApplicationById(applicationId);
 
   if (!app) {
     logger.error('updateVPDFileNecessity: Invalid program id!');
@@ -316,7 +315,6 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
   }
 
   const updatedApp = await ApplicationService.updateApplication(
-    req,
     { _id: applicationId },
     {
       uni_assist: {
@@ -740,7 +738,6 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
     };
 
     updatedStudent = await ApplicationService.updateApplication(
-      req,
       {
         _id: applicationId
       },
@@ -750,7 +747,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       }
     );
   } else if (result === '-') {
-    const app = await ApplicationService.getApplicationById(req, applicationId);
+    const app = await ApplicationService.getApplicationById(applicationId);
     const file_path = app.admission_letter?.admission_file_path;
     if (file_path && file_path !== '') {
       const fileKey = file_path.replace(/\\/g, '/');
@@ -774,7 +771,6 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       updatedAt: new Date()
     };
     updatedStudent = await ApplicationService.updateApplication(
-      req,
       {
         _id: applicationId
       },
@@ -785,7 +781,6 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
     );
   } else {
     updatedStudent = await ApplicationService.updateApplication(
-      req,
       {
         _id: applicationId
       },
@@ -796,11 +791,10 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   }
 
   const udpatedApplication = await ApplicationService.getApplicationById(
-    req,
     applicationId
   );
   const udpatedApplicationForEmail =
-    await ApplicationService.getApplicationById(req, applicationId);
+    await ApplicationService.getApplicationById(applicationId);
 
   res.status(200).send({ success: true, data: udpatedApplication });
 
@@ -945,7 +939,6 @@ const deleteVPDFile = asyncHandler(async (req, res, next) => {
     payload.uni_assist.vpd_paid_confirmation_file_path = '';
   }
   const updatedApp = await ApplicationService.updateApplication(
-    req,
     { _id: applicationId },
     payload
   );

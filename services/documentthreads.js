@@ -246,7 +246,7 @@ const DocumentThreadService = {
   },
   async getAllStudentsThreads(req, query) {
     const queryFilter = { ...query };
-    const activeStudentsIds = await StudentService.fetchSimpleStudents(req, {
+    const activeStudentsIds = await StudentService.fetchSimpleStudents({
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     });
     queryFilter.student_id = {

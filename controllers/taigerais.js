@@ -101,7 +101,6 @@ const TaiGerAiChat = asyncHandler(async (req, res, next) => {
     .limit(pageSize)
     .lean(); // show only first y limit items after skip.
   const applications = await ApplicationService.getApplicationsByStudentId(
-    req,
     studentId
   );
   const chat = communication_thread?.map((c) => {

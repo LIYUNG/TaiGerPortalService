@@ -223,7 +223,7 @@ const getAdmissions = asyncHandler(async (req, res, next) => {
 
   const [result, applications] = await Promise.all([
     getProgramApplicationCounts(req),
-    ApplicationService.getApplicationsWithStudentDetails(req, filter)
+    ApplicationService.getApplicationsWithStudentDetails(filter)
   ]);
 
   res.status(200).send({

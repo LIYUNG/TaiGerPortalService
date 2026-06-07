@@ -270,7 +270,7 @@ const thirdAuth = asyncHandler(async (req, res, next) => {
     throw new ErrorResponse(400, 'Invalid Google Token');
   }
   const { email, name, picture } = payload;
-  const user = await UserService.getUserByEmail(req, email);
+  const user = await UserService.getUserByEmail(email);
   if (!user) {
     throw new ErrorResponse(400, 'User not found');
   }
@@ -290,7 +290,7 @@ const thirdAuth = asyncHandler(async (req, res, next) => {
     });
 
   // if (!user.isAccountActivated) {
-  await UserService.updateUser(req, user._id.toString(), {
+  await UserService.updateUser(user._id.toString(), {
     pictureUrl: picture,
     isAccountActivated: true
   });

@@ -167,7 +167,7 @@ const getMyStudentsThreads = asyncHandler(async (req, res) => {
     userId,
     documentThreadFilter
   );
-  const user = await UserService.getUserById(req, userId);
+  const user = await UserService.getUserById(userId);
   res.status(200).send({ success: true, data: { threads, user } });
 });
 

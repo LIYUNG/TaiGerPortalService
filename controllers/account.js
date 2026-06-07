@@ -13,7 +13,7 @@ const updateCredentials = asyncHandler(async (req, res, next) => {
     user,
     body: { credentials }
   } = req;
-  const userExisted = await UserService.updateUser(req, user._id.toString(), {
+  const userExisted = await UserService.updateUser(user._id.toString(), {
     password: credentials.new_password
   });
   if (!userExisted) {
@@ -321,7 +321,7 @@ const updateApplicationPreferenceSkill = asyncHandler(
     const { studentId } = req.params;
 
     application_preference.updatedAt = new Date();
-    const updatedStudent = await UserService.updateUser(req, studentId, {
+    const updatedStudent = await UserService.updateUser(studentId, {
       application_preference
     });
 
@@ -340,11 +340,7 @@ const updatePersonalData = asyncHandler(async (req, res, next) => {
     body: { personaldata }
   } = req;
   try {
-    const updatedStudent = await UserService.updateUser(
-      req,
-      user_id,
-      personaldata
-    );
+    const updatedStudent = await UserService.updateUser(user_id, personaldata);
     if (!updatedStudent) {
       logger.error('updatePersonalData: Invalid user');
       throw new ErrorResponse(400, 'Invalid user');

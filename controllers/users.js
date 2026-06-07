@@ -247,7 +247,7 @@ const getUsers = asyncHandler(async (req, res) => {
       total,
       page: currentPage,
       limit: pageSize
-    } = await UserService.getUsersPaginated(req, {
+    } = await UserService.getUsersPaginated({
       filter,
       ...paginationQuery
     });
@@ -261,13 +261,13 @@ const getUsers = asyncHandler(async (req, res) => {
     });
   }
 
-  const users = await UserService.getUsers(req, filter);
+  const users = await UserService.getUsers(filter);
   res.status(200).send({ success: true, data: users });
 });
 
 const getUser = asyncHandler(async (req, res) => {
   const { user_id } = req.params;
-  const user = await UserService.getUserById(req, user_id);
+  const user = await UserService.getUserById(user_id);
 
   res.status(200).send({ success: true, data: user });
 });

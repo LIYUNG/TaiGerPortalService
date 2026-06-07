@@ -194,7 +194,7 @@ const getMyStudentsApplicationsStats = asyncHandler(async (req, res) => {
 
   const [stats, user] = await Promise.all([
     ApplicationService.getApplicationStatusStats({ studentIds }),
-    UserService.getUserById(req, userId)
+    UserService.getUserById(userId)
   ]);
 
   res.status(200).send({

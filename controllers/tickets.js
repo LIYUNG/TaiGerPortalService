@@ -9,6 +9,7 @@ const {
 } = require('../services/email');
 const ProgramService = require('../services/programs');
 const StudentService = require('../services/students');
+const TicketService = require('../services/tickets');
 
 const getTickets = asyncHandler(async (req, res) => {
   const { user } = req;
@@ -24,22 +25,10 @@ const getTickets = asyncHandler(async (req, res) => {
   if (status) {
     query.status = status;
   }
-  if (is_TaiGer_role(user)) {
-    const tickets = await req.db
-      .model('Ticket')
-      .find(query)
-      .populate('program_id', 'school program_name degree')
-      .populate('requester_id', 'firstname lastname email')
-      .sort({ createdAt: -1 });
-    res.send({ success: true, data: tickets });
-  } else {
-    const tickets = await req.db
-      .model('Ticket')
-      .find(query)
-      .populate('program_id', 'school program_name degree')
-      .sort({ createdAt: -1 });
-    res.send({ success: true, data: tickets });
-  }
+  const tickets = await TicketService.getTickets(query, {
+    populateRequester: is_TaiGer_role(user)
+  });
+  res.send({ success: true, data: tickets });
 });
 
 const createTicket = asyncHandler(async (req, res) => {
@@ -47,7 +36,7 @@ const createTicket = asyncHandler(async (req, res) => {
   const new_ticket = req.body;
   new_ticket.requester_id = user._id.toString();
   // TODO: DO not create the same
-  const ticket = await req.db.model('Ticket').create(new_ticket);
+  const ticket = await TicketService.createTicket(new_ticket);
 
   res.status(201).send({ success: true, data: ticket });
 
@@ -86,13 +75,7 @@ const updateTicket = asyncHandler(async (req, res) => {
 
   fields.updatedAt = new Date();
   // TODO: update resolver_id
-  const updatedTicket = await req.db
-    .model('Ticket')
-    .findByIdAndUpdate(ticket_id, fields, {
-      new: true
-    })
-    .populate('requester_id', 'firstname lastname email archiv')
-    .populate('program_id', 'school program_name degree semester');
+  const updatedTicket = await TicketService.updateTicketById(ticket_id, fields);
 
   res.status(200).send({ success: true, data: updatedTicket });
 
@@ -116,7 +99,7 @@ const updateTicket = asyncHandler(async (req, res) => {
 });
 
 const deleteTicket = asyncHandler(async (req, res) => {
-  await req.db.model('Ticket').findByIdAndDelete(req.params.ticket_id);
+  await TicketService.deleteTicketById(req.params.ticket_id);
   res.status(200).send({ success: true });
 });
 

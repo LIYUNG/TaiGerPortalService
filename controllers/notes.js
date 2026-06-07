@@ -1,20 +1,19 @@
 const { asyncHandler } = require('../middlewares/error-handler');
+const NoteService = require('../services/notes');
 
 const getStudentNotes = asyncHandler(async (req, res) => {
   const { student_id } = req.params;
-  const notes = await req.db.model('Note').findOne({ student_id });
+  const notes = await NoteService.getNoteByStudentId(student_id);
   res.status(200).send({ success: true, data: notes });
 });
 
 const updateStudentNotes = asyncHandler(async (req, res) => {
   const fields = req.body;
   fields.student_id = req.params.student_id;
-  const users = await req.db
-    .model('Note')
-    .findOneAndUpdate({ student_id: req.params.student_id }, fields, {
-      upsert: true,
-      new: true
-    });
+  const users = await NoteService.upsertNoteByStudentId(
+    req.params.student_id,
+    fields
+  );
   res.status(200).send({ success: true, data: users });
 });
 

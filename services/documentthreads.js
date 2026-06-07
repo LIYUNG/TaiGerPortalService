@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const StudentService = require('./students');
+const DocumentthreadDAO = require('../dao/documentthread.dao');
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -158,6 +159,14 @@ const buildCategoryMatch = (category, viewerId) => {
 };
 
 const DocumentThreadService = {
+  // Default-connection helpers (no req) used by the migrated application flow.
+  newThread(payload) {
+    return DocumentthreadDAO.newThread(payload);
+  },
+  countThreads(filter) {
+    return DocumentthreadDAO.countThreads(filter);
+  },
+
   async getThreadById(req, messagesThreadId) {
     const thread = await req.db
       .model('Documentthread')

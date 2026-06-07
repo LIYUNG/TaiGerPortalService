@@ -30,31 +30,29 @@ jest.mock('../../services/email', () => ({
   NewMLRLEssayTasksEmailFromTaiGer: jest.fn().mockResolvedValue(undefined)
 }));
 
+// createApplicationV2 now reads/writes exclusively through the service layer
+// (controller -> service -> dao), so the data layer is mocked at the service
+// seam instead of the legacy `req.db.model`. No Mongo connection is opened.
+jest.mock('../../services/students');
+jest.mock('../../services/applications');
+jest.mock('../../services/programs');
+jest.mock('../../services/documentthreads');
+
 const { createApplicationV2 } = require('../../controllers/applications');
 const { MessagesThreadUpload } = require('../../middlewares/file-upload');
 const { errorHandler } = require('../../middlewares/error-handler');
 const { s3Client } = require('../../aws');
+const StudentService = require('../../services/students');
+const ApplicationService = require('../../services/applications');
+const ProgramService = require('../../services/programs');
+const DocumentThreadService = require('../../services/documentthreads');
 
 // ---------------------------------------------------------------------------
-// Tiny Mongoose-ish test doubles
+// Tiny Mongoose-ish test doubles wired into the mocked service layer.
 // ---------------------------------------------------------------------------
 
-// A chainable, awaitable query stub: `.find().populate().lean()` etc. all
-// resolve to `value`.
-const makeQuery = (value) => {
-  const query = {
-    populate: () => query,
-    select: () => query,
-    sort: () => query,
-    lean: () => Promise.resolve(value),
-    countDocuments: () =>
-      Promise.resolve(Array.isArray(value) ? value.length : value),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
-  };
-  return query;
-};
-
-// Builds a fake `req.db` plus handles to inspect what the controller created.
+// Builds the service-layer doubles plus handles to inspect what the controller
+// created.
 const buildMockDb = ({ studentId, programId }) => {
   const createdThreads = [];
 
@@ -92,27 +90,25 @@ const buildMockDb = ({ studentId, programId }) => {
     save: jest.fn().mockResolvedValue(true)
   };
 
-  // Documentthread used as a constructor: `new Documentthread({...})`.
+  // Documentthread constructor double (DocumentThreadService.newThread).
   function Documentthread(doc) {
     Object.assign(this, doc);
     this._id = new mongoose.Types.ObjectId();
     this.save = jest.fn().mockResolvedValue(this);
     createdThreads.push(this);
   }
-  Documentthread.find = () => makeQuery([]);
 
-  const models = {
-    Student: { findById: jest.fn().mockResolvedValue(studentDoc) },
-    Program: { find: jest.fn(() => makeQuery([programDoc])) },
-    Application: {
-      find: jest.fn(() => makeQuery([])),
-      create: jest.fn().mockResolvedValue(applicationDoc)
-    },
-    Documentthread
-  };
+  StudentService.getStudentDocById.mockResolvedValue(studentDoc);
+  ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([]);
+  ApplicationService.createApplicationDoc.mockResolvedValue(applicationDoc);
+  ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue([]);
+  ProgramService.findPrograms.mockResolvedValue([programDoc]);
+  DocumentThreadService.newThread.mockImplementation(
+    (doc) => new Documentthread(doc)
+  );
+  DocumentThreadService.countThreads.mockResolvedValue(0);
 
   return {
-    db: { model: (name) => models[name] },
     studentDoc,
     applicationDoc,
     createdThreads

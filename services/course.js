@@ -13,6 +13,10 @@ const CourseService = {
     return CourseDAO.updateCourse(filter, update);
   },
 
+  upsertCourseByStudentId(studentId, fields) {
+    return CourseDAO.upsertCourseByStudentId(studentId, fields);
+  },
+
   deleteCourse(filter) {
     return CourseDAO.deleteCourse(filter);
   },

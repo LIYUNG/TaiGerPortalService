@@ -1,13 +1,15 @@
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
+const ProgramChangeRequestService = require('../services/programChangeRequests');
+const ProgramService = require('../services/programs');
 
 const getProgramChangeRequests = asyncHandler(async (req, res) => {
   const { programId } = req.params;
-  const changeRequests = await req.db
-    .model('ProgramChangeRequest')
-    .find({ programId, reviewedBy: { $exists: false } })
-    .populate('requestedBy', 'firstname lastname');
+  const changeRequests =
+    await ProgramChangeRequestService.getOpenChangeRequestsByProgramId(
+      programId
+    );
   if (!changeRequests) {
     logger.error('getProgramChangeRequests: Invalid program id');
     throw new ErrorResponse(404, 'ChangeRequests not found');
@@ -19,25 +21,17 @@ const submitProgramChangeRequests = asyncHandler(async (req, res) => {
   const { programId } = req.params;
   const changes = req.body;
   const { user } = req;
-  const program = await req.db.model('Program').findById(programId);
+  const program = await ProgramService.getProgramByIdLean(programId);
 
   if (!program) {
     logger.error('postProgramChangeRequests: Invalid program id');
     throw new ErrorResponse(404, 'Program not found');
   }
 
-  await req.db.model('ProgramChangeRequest').findOneAndUpdate(
-    {
-      programId,
-      requestedBy: user._id,
-      reviewedBy: {
-        $exists: false
-      }
-    },
-    {
-      programChanges: changes
-    },
-    { upsert: true }
+  await ProgramChangeRequestService.upsertChangeRequest(
+    programId,
+    user._id,
+    changes
   );
   res.send({ success: true });
 });
@@ -45,9 +39,9 @@ const submitProgramChangeRequests = asyncHandler(async (req, res) => {
 const reviewProgramChangeRequest = asyncHandler(async (req, res) => {
   const { requestId } = req.params;
   const { user } = req;
-  const changeRequest = await req.db
-    .model('ProgramChangeRequest')
-    .findById(requestId);
+  const changeRequest = await ProgramChangeRequestService.getChangeRequestById(
+    requestId
+  );
   if (!changeRequest) {
     logger.error('updateProgramChangeRequest: Invalid request id');
     throw new ErrorResponse(404, 'ChangeRequest not found');
@@ -56,10 +50,12 @@ const reviewProgramChangeRequest = asyncHandler(async (req, res) => {
     logger.error('updateProgramChangeRequest: Request already reviewed');
     throw new ErrorResponse(400, 'Request already reviewed');
   }
-  changeRequest.reviewedBy = user._id;
-  changeRequest.reviewedAt = new Date();
-  await changeRequest.save();
-  res.send({ success: true, data: changeRequest });
+  const updatedChangeRequest =
+    await ProgramChangeRequestService.updateChangeRequestById(requestId, {
+      reviewedBy: user._id,
+      reviewedAt: new Date()
+    });
+  res.send({ success: true, data: updatedChangeRequest });
 });
 
 module.exports = {

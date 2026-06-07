@@ -130,6 +130,13 @@ const UserDAO = {
     return User.findByIdAndUpdate(userId, payload, { new: true }).lean();
   },
 
+  // Returns a live (non-lean) Mongoose document so callers can keep mutating it
+  // (e.g. subdocument profile updates) and call .save(). Discriminator type is
+  // preserved, so Student-only paths like `profile` remain available.
+  async updateUserDoc(userId, payload, options = { new: true }) {
+    return User.findByIdAndUpdate(userId, payload, options);
+  },
+
   async getUserByEmail(email) {
     return User.findOne({ email }).lean();
   }

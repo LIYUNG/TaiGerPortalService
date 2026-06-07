@@ -17,20 +17,11 @@ const { AWS_S3_BUCKET_NAME } = require('../config');
 const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
 const { threadS3GarbageCollector } = require('../utils/utils_function');
 const { getS3Object } = require('../aws/s3');
+const ComplaintService = require('../services/complaints');
+const PermissionService = require('../services/permissions');
+const StudentService = require('../services/students');
 
-const getManagers = async (req) =>
-  req.db
-    .model('Permission')
-    .find({
-      $or: [
-        { canAssignEditors: true },
-        { canAssignAgents: true },
-        { canModifyAllBaseDocuments: true },
-        { canAccessAllChat: true }
-      ]
-    })
-    .populate('user_id', 'firstname lastname email archiv pictureUrl')
-    .lean();
+const getManagers = async () => PermissionService.getManagers();
 
 const getComplaints = asyncHandler(async (req, res) => {
   const { user } = req;
@@ -45,18 +36,10 @@ const getComplaints = asyncHandler(async (req, res) => {
     query.status = status;
   }
   if (is_TaiGer_Student(user)) {
-    const tickets = await req.db
-      .model('Complaint')
-      .find({ requester_id: user._id })
-      .populate('requester_id', 'firstname lastname email pictureUrl')
-      .sort({ createdAt: -1 });
+    const tickets = await ComplaintService.getComplaintsByRequester(user._id);
     res.send({ success: true, data: tickets });
   } else {
-    const tickets = await req.db
-      .model('Complaint')
-      .find(query)
-      .populate('requester_id', 'firstname lastname email pictureUrl')
-      .sort({ createdAt: -1 });
+    const tickets = await ComplaintService.getComplaints(query);
     res.send({ success: true, data: tickets });
   }
 });
@@ -64,11 +47,7 @@ const getComplaints = asyncHandler(async (req, res) => {
 const getComplaint = asyncHandler(async (req, res) => {
   const { ticketId } = req.params;
 
-  const ticket = await req.db
-    .model('Complaint')
-    .findById(ticketId)
-    .populate('messages.user_id', 'firstname lastname email pictureUrl')
-    .populate('requester_id', 'firstname lastname email pictureUrl');
+  const ticket = await ComplaintService.getComplaintByIdPopulated(ticketId);
   if (!ticket) {
     logger.error('getComplaint: Invalid ticket id');
     throw new ErrorResponse(404, 'Complaint not found');
@@ -81,12 +60,12 @@ const createComplaint = asyncHandler(async (req, res) => {
   const { ticket } = req.body;
   ticket.requester_id = user._id.toString();
   // TODO: DO not create the same
-  const new_ticket = await req.db.model('Complaint').create(ticket);
+  const new_ticket = await ComplaintService.createComplaint(ticket);
 
   res.status(201).send({ success: true, data: new_ticket });
 
   // inform manager
-  const permissions = await getManagers(req);
+  const permissions = await getManagers();
   const users = permissions.map((p) => p.user_id);
   for (let x = 0; x < users.length; x += 1) {
     if (isNotArchiv(users[x])) {
@@ -157,10 +136,9 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
     params: { ticketId }
   } = req;
   const { message } = req.body;
-  const ticket = await req.db
-    .model('Complaint')
-    .findById(ticketId)
-    .populate('requester_id');
+  const ticket = await ComplaintService.getComplaintDocByIdWithRequester(
+    ticketId
+  );
   if (!ticket) {
     logger.info('postMessageInTicket: Invalid message thread id');
     throw new ErrorResponse(404, 'Thread Id not found');
@@ -216,17 +194,13 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
   ticket.messages.push(new_message);
   ticket.updatedAt = new Date();
   await ticket.save();
-  const ticket2 = await req.db
-    .model('Complaint')
-    .findById(ticketId)
-    .populate('requester_id messages.user_id');
+  const ticket2 = await ComplaintService.getComplaintByIdWithMessages(ticketId);
 
   res.status(201).send({ success: true, data: ticket2 });
 
-  const student = await req.db
-    .model('Student')
-    .findById(ticket.requester_id)
-    .populate('editors agents', 'firstname lastname email archiv pictureUrl');
+  const student = await StudentService.getStudentByIdWithTeam(
+    ticket.requester_id
+  );
 
   const payload = {
     student_firstname: student.firstname,
@@ -238,7 +212,7 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
   if (is_TaiGer_Student(user)) {
     // TODO: Inform Manager
     if (isNotArchiv(student)) {
-      const permissions = await getManagers(req);
+      const permissions = await getManagers();
       const users = permissions.map((p) => p.user_id);
       for (let i = 0; i < users.length; i += 1) {
         if (isNotArchiv(users[i])) {
@@ -272,12 +246,10 @@ const updateComplaint = asyncHandler(async (req, res) => {
 
   fields.updatedAt = new Date();
   // TODO: update resolver_id
-  const updatedComplaint = await req.db
-    .model('Complaint')
-    .findByIdAndUpdate(ticketId, fields, {
-      new: true
-    })
-    .populate('requester_id', 'firstname lastname email archiv pictureUrl');
+  const updatedComplaint = await ComplaintService.updateComplaintById(
+    ticketId,
+    fields
+  );
 
   if (!updatedComplaint) {
     logger.error('updateComplaint: Invalid message thread id');
@@ -327,7 +299,7 @@ const updateAMessageInComplaint = asyncHandler(async (req, res) => {
   const { ticketId, messageId } = req.params;
   const payload = req.body;
 
-  const ticket = await req.db.model('Complaint').findById(ticketId);
+  const ticket = await ComplaintService.getComplaintDocById(ticketId);
   if (!ticket) {
     logger.error('updateAMessageInComplaint : Invalid message thread id');
     throw new ErrorResponse(404, 'Thread not found');
@@ -353,9 +325,7 @@ const updateAMessageInComplaint = asyncHandler(async (req, res) => {
   }
 
   // Don't need so delete in S3 , will delete by garbage collector
-  await req.db
-    .model('Complaint')
-    .findByIdAndUpdate(ticketId, payload, { upsert: false });
+  await ComplaintService.updateComplaintRaw(ticketId, payload);
 
   res.status(200).send({ success: true });
 });
@@ -364,7 +334,7 @@ const deleteAMessageInComplaint = asyncHandler(async (req, res) => {
   const { user } = req;
   const { ticketId, messageId } = req.params;
 
-  const ticket = await req.db.model('Complaint').findById(ticketId);
+  const ticket = await ComplaintService.getComplaintDocById(ticketId);
   if (!ticket) {
     logger.error('deleteAMessageInComplaint : Invalid message thread id');
     throw new ErrorResponse(404, 'Thread not found');
@@ -390,11 +360,7 @@ const deleteAMessageInComplaint = asyncHandler(async (req, res) => {
   }
 
   // Don't need so delete in S3 , will delete by garbage collector
-  await req.db.model('Complaint').findByIdAndUpdate(ticketId, {
-    $pull: {
-      messages: { _id: messageId }
-    }
-  });
+  await ComplaintService.pullMessageById(ticketId, messageId);
 
   res.status(200).send({ success: true });
 });
@@ -410,8 +376,10 @@ const deleteTicketFiles = asyncHandler(async (req, studentId, ticketId) => {
 
 const deleteComplaint = asyncHandler(async (req, res) => {
   const { ticketId } = req.params;
-  const toBeDeletedTicket = await req.db.model('Complaint').findById(ticketId);
-  await req.db.model('Complaint').findByIdAndDelete(ticketId);
+  const toBeDeletedTicket = await ComplaintService.getComplaintDocById(
+    ticketId
+  );
+  await ComplaintService.deleteComplaintById(ticketId);
   await deleteTicketFiles(
     req,
     toBeDeletedTicket.requester_id.toString(),

@@ -47,6 +47,22 @@ const ApplicationService = {
     return ApplicationDAO.getApplicationsByStudentId(studentId);
   },
 
+  createApplicationDoc(payload) {
+    return ApplicationDAO.createApplicationDoc(payload);
+  },
+
+  findByStudentIdPopulatedBasic(studentId) {
+    return ApplicationDAO.findByStudentIdPopulatedBasic(studentId);
+  },
+
+  findByStudentIdPopulatedFull(studentId) {
+    return ApplicationDAO.findByStudentIdPopulatedFull(studentId);
+  },
+
+  unlockApplication(applicationId) {
+    return ApplicationDAO.unlockApplication(applicationId);
+  },
+
   getApplicationsWithCredentialsByStudentId(studentId) {
     return ApplicationDAO.getApplicationsWithCredentialsByStudentId(studentId);
   },
@@ -73,6 +89,14 @@ const ApplicationService = {
 
   getApplicationConflicts() {
     return ApplicationDAO.getApplicationConflicts();
+  },
+
+  getAdmissionsStatusCounts() {
+    return ApplicationDAO.getAdmissionsStatusCounts();
+  },
+
+  getProgramApplicationCounts() {
+    return ApplicationDAO.getProgramApplicationCounts();
   }
 };
 

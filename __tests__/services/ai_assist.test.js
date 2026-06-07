@@ -42,6 +42,7 @@ const {
   updateConversation,
   searchStudents
 } = require('../../controllers/ai_assist');
+const StudentService = require('../../services/students');
 const {
   aiAssistConversations,
   aiAssistMessages,
@@ -252,6 +253,13 @@ const createStudentQuickStartReq = ({
   const select = jest.fn(() => ({ limit }));
   const find = jest.fn(() => ({ select }));
 
+  // listRecentStudents / listMyStudents read students through the service layer
+  // now (controller -> StudentService.findStudentsSelect); searchStudents still
+  // goes through the legacy req.db.model('Student') seam below.
+  const findStudentsSelect = jest
+    .spyOn(StudentService, 'findStudentsSelect')
+    .mockResolvedValue(students);
+
   return {
     req: {
       user,
@@ -261,7 +269,8 @@ const createStudentQuickStartReq = ({
       }
     },
     models: {
-      Student: { find, select, limit, lean }
+      Student: { find, select, limit, lean },
+      findStudentsSelect
     }
   };
 };
@@ -1270,12 +1279,15 @@ describe('AI Assist Postgres persistence', () => {
       name: 'Bob Student',
       email: 'bob@example.com'
     });
-    const studentFind = req.db.model.mock.results[0].value.find;
-    expect(studentFind).toHaveBeenCalledWith({
-      $or: [{ archiv: { $exists: false } }, { archiv: false }],
-      agents: 'agent_1',
-      _id: { $in: ['student_abby', 'student_bob'] }
-    });
+    expect(StudentService.findStudentsSelect).toHaveBeenCalledWith(
+      {
+        $or: [{ archiv: { $exists: false } }, { archiv: false }],
+        agents: 'agent_1',
+        _id: { $in: ['student_abby', 'student_bob'] }
+      },
+      expect.any(String),
+      2
+    );
   });
 
   it('keeps fetching recent conversations until 25 unique students are collected', async () => {
@@ -1391,11 +1403,14 @@ describe('AI Assist Postgres persistence', () => {
         })
       ]
     });
-    const studentFind = req.db.model.mock.results[0].value.find;
-    expect(studentFind).toHaveBeenCalledWith({
-      $or: [{ archiv: { $exists: false } }, { archiv: false }],
-      agents: 'agent_1'
-    });
+    expect(StudentService.findStudentsSelect).toHaveBeenCalledWith(
+      {
+        $or: [{ archiv: { $exists: false } }, { archiv: false }],
+        agents: 'agent_1'
+      },
+      expect.any(String),
+      25
+    );
   });
 
   it('returns searchable students in the lightweight HTTP form', async () => {

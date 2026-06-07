@@ -26,6 +26,27 @@ const CommunicationDAO = {
       .lean();
   },
 
+  // Full thread for a student, populated with the names/roles needed by the PDF
+  // export (newest-first ordering is applied by the caller).
+  async getByStudentIdForExport(studentId) {
+    return Communication.find({ student_id: studentId })
+      .populate(
+        'student_id user_id',
+        'firstname lastname firstname_chinese lastname_chinese role agents editors'
+      )
+      .lean();
+  },
+
+  // Most-recent messages for a student (newest first), lightly populated — used
+  // by the TaiGer AI chat assistant for conversation context.
+  async getRecentByStudentId(studentId, limit) {
+    return Communication.find({ student_id: studentId })
+      .populate('student_id user_id', 'firstname lastname role')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+  },
+
   async updateCommunication(communicationId, payload) {
     return Communication.findByIdAndUpdate(communicationId, payload, {
       new: true

@@ -710,6 +710,37 @@ const ApplicationDAO = {
 
     return result || zero;
   },
+  // Live (non-lean) Application document — caller mutates doc_modification_thread
+  // and calls .save().
+  async createApplicationDoc(payload) {
+    return Application.create(payload);
+  },
+
+  // Existing applications for a student, with a slim program projection (lean).
+  async findByStudentIdPopulatedBasic(studentId) {
+    return Application.find({ studentId })
+      .populate('programId', '_id school program_name degree semester')
+      .lean();
+  },
+
+  // Existing applications for a student, with program + doc-thread metadata
+  // (lean) — the post-create response shape.
+  async findByStudentIdPopulatedFull(studentId) {
+    return Application.find({ studentId })
+      .populate('programId', 'school program_name degree semester')
+      .populate('doc_modification_thread.doc_thread_id', '-messages')
+      .lean();
+  },
+
+  // Unlock an application (used by the "refresh" action).
+  async unlockApplication(applicationId) {
+    return Application.findByIdAndUpdate(
+      applicationId,
+      { isLocked: false },
+      { new: true }
+    ).lean();
+  },
+
   getApplications(filter = {}, select = [], populate = true) {
     const query = Application.find(filter);
     if (!!populate && populate !== 'false') {
@@ -821,6 +852,161 @@ const ApplicationDAO = {
     const result = await Application.bulkWrite(updates);
     return result;
   },
+  /**
+   * Aggregate admission/rejection/pending/notYetSubmitted counts across all
+   * decided ('O') applications that have a program. Returns zeros when empty.
+   * (Powers the admissions overview card.)
+   */
+  async getAdmissionsStatusCounts() {
+    const result = await Application.aggregate([
+      {
+        $match: {
+          decided: 'O',
+          programId: { $exists: true, $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          admission: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$admission', 'O'] },
+                    { $ne: ['$closed', '-'] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
+          rejection: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$admission', 'X'] },
+                    { $ne: ['$closed', '-'] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
+          pending: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$admission', '-'] },
+                    { $eq: ['$closed', 'O'] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
+          notYetSubmitted: {
+            $sum: {
+              $cond: [{ $eq: ['$closed', '-'] }, 1, 0]
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          admission: 1,
+          rejection: 1,
+          pending: 1,
+          notYetSubmitted: 1
+        }
+      }
+    ]);
+
+    return result.length > 0
+      ? result[0]
+      : {
+          admission: 0,
+          rejection: 0,
+          pending: 0,
+          notYetSubmitted: 0
+        };
+  },
+
+  /**
+   * Per-program application counts (with program details joined) for decided +
+   * closed ('O') applications. Sorted by application count descending.
+   */
+  async getProgramApplicationCounts() {
+    const result = await Application.aggregate([
+      {
+        $match: {
+          decided: 'O',
+          closed: 'O',
+          programId: { $exists: true, $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: '$programId',
+          applicationCount: { $sum: 1 },
+          admissionCount: {
+            $sum: {
+              $cond: [{ $eq: ['$admission', 'O'] }, 1, 0]
+            }
+          },
+          finalEnrolmentCount: {
+            $sum: {
+              $cond: [{ $eq: ['$finalEnrolment', true] }, 1, 0]
+            }
+          },
+          rejectionCount: {
+            $sum: {
+              $cond: [{ $eq: ['$admission', 'X'] }, 1, 0]
+            }
+          },
+          pendingResultCount: {
+            $sum: {
+              $cond: [{ $eq: ['$admission', '-'] }, 1, 0]
+            }
+          }
+        }
+      },
+      { $sort: { applicationCount: -1 } },
+      {
+        $lookup: {
+          from: 'programs',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'programDetails'
+        }
+      },
+      { $unwind: '$programDetails' },
+      {
+        $project: {
+          applicationCount: 1,
+          admissionCount: 1,
+          finalEnrolmentCount: 1,
+          rejectionCount: 1,
+          pendingResultCount: 1,
+          id: '$programDetails._id',
+          school: '$programDetails.school',
+          program_name: '$programDetails.program_name',
+          semester: '$programDetails.semester',
+          degree: '$programDetails.degree',
+          lang: '$programDetails.lang'
+        }
+      }
+    ]);
+
+    return Array.isArray(result) ? result : [];
+  },
+
   async getApplicationConflicts() {
     const applicationConflicts = await Application.aggregate([
       {

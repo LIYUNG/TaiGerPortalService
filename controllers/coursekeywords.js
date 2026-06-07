@@ -1,19 +1,17 @@
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
+const KeywordSetService = require('../services/keywordsets');
 
 const getKeywordSets = asyncHandler(async (req, res) => {
-  const keywordsets = await req.db
-    .model('KeywordSet')
-    .find({})
-    .sort({ createdAt: -1 });
+  const keywordsets = await KeywordSetService.getKeywordSets();
   res.send({ success: true, data: keywordsets });
 });
 
 const getKeywordSet = asyncHandler(async (req, res) => {
   const { keywordsSetId } = req.params;
 
-  const keywordsSet = await req.db.model('KeywordSet').findById(keywordsSetId);
+  const keywordsSet = await KeywordSetService.getKeywordSetById(keywordsSetId);
   if (!keywordsSet) {
     logger.error('getKeywordSet: Invalid keywordsSet id');
     throw new ErrorResponse(404, 'KeywordSet not found');
@@ -39,7 +37,7 @@ const createKeywordSet = asyncHandler(async (req, res) => {
       }
     ]
   };
-  const existed = await req.db.model('KeywordSet').findOne(query);
+  const existed = await KeywordSetService.findKeywordSet(query);
   if (existed) {
     // Find out which specific keywords and antiKeywords are duplicates
     const duplicateKeywordsZh = fields.keywords.zh.filter((keyword) =>
@@ -72,7 +70,7 @@ const createKeywordSet = asyncHandler(async (req, res) => {
       )}, Anti-Keywordset found: EN ${JSON.stringify(duplicateEN)}`
     );
   }
-  const newKeywordSet = await req.db.model('KeywordSet').create(fields);
+  const newKeywordSet = await KeywordSetService.createKeywordSet(fields);
 
   res.status(201).send({ success: true, data: newKeywordSet });
 });
@@ -83,11 +81,10 @@ const updateKeywordSet = asyncHandler(async (req, res) => {
 
   delete fields._id;
   fields.updatedAt = new Date();
-  const updatedKeywordSet = await req.db
-    .model('KeywordSet')
-    .findByIdAndUpdate(keywordsSetId, fields, {
-      new: true
-    });
+  const updatedKeywordSet = await KeywordSetService.updateKeywordSetById(
+    keywordsSetId,
+    fields
+  );
 
   if (!updatedKeywordSet) {
     logger.error('updateKeywordSet: Invalid keyword set id');
@@ -100,25 +97,9 @@ const updateKeywordSet = asyncHandler(async (req, res) => {
 // will also remove the keywordId from the programs who has keywordsetid in one of their requirement
 const deleteKeywordSet = asyncHandler(async (req, res) => {
   const { keywordsSetId } = req.params;
-  // Start a session for the transaction
-  const session = await req.db.startSession();
-  session.startTransaction();
   try {
-    await req.db.model('KeywordSet').findByIdAndDelete(keywordsSetId);
-    await req.db.model('ProgramRequirement').updateMany(
-      { 'program_categories.keywordSets': keywordsSetId },
-      {
-        $pull: {
-          'program_categories.$[].keywordSets': keywordsSetId
-        }
-      }
-    );
-    await session.commitTransaction();
-    await session.endSession();
+    await KeywordSetService.deleteKeywordSet(keywordsSetId);
   } catch (error) {
-    // If any operation fails, abort the transaction
-    await session.abortTransaction();
-    await session.endSession();
     logger.error('Failed to delete keywordsSetId ', error);
     throw error;
   }

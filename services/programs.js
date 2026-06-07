@@ -174,11 +174,24 @@ const buildProgramsFilter = ({ search, filters = {} }) => {
   return filter;
 };
 
+const ProgramDAO = require('../dao/program.dao');
+
 const ProgramService = {
   parseProgramsQuery,
 
   async getPrograms(req, filter) {
     return req.db.model('Program').find(filter).lean();
+  },
+
+  // Default-connection read (no req). Safe because it is read-only; see
+  // dao/program.dao.js for why Program writes still use req.db.
+  getProgramByIdLean(programId) {
+    return ProgramDAO.getProgramByIdLean(programId);
+  },
+
+  // Default-connection read (no req) for an arbitrary program filter.
+  findPrograms(filter = {}) {
+    return ProgramDAO.findPrograms(filter);
   },
 
   async getProgramsPaginated(req, query = {}) {

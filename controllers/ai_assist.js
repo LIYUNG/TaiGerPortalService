@@ -19,6 +19,7 @@ const {
 const { withPostgresRetry } = require('../services/ai-assist/postgresRetry');
 const { openAIClient, OpenAiModel } = require('../services/openai');
 const logger = require('../services/logger');
+const StudentService = require('../services/students');
 
 const DEFAULT_TITLE = 'New AI Assist conversation';
 const ACTIVE_STATUS = 'active';
@@ -555,15 +556,14 @@ const listRecentStudents = asyncHandler(async (req, res) => {
   }
 
   const filter = await getAccessibleStudentFilter(req);
-  const students = await req.db
-    .model('Student')
-    .find({
+  const students = await StudentService.findStudentsSelect(
+    {
       ...filter,
       _id: { $in: recentStudentIds }
-    })
-    .select(STUDENT_PICKER_FIELDS)
-    .limit(recentStudentIds.length)
-    .lean();
+    },
+    STUDENT_PICKER_FIELDS,
+    recentStudentIds.length
+  );
 
   const studentsById = new Map(
     students.map((student) => [
@@ -595,12 +595,11 @@ const listRecentStudents = asyncHandler(async (req, res) => {
 
 const listMyStudents = asyncHandler(async (req, res) => {
   const filter = await getAccessibleStudentFilter(req);
-  const students = await req.db
-    .model('Student')
-    .find(filter)
-    .select(STUDENT_PICKER_FIELDS)
-    .limit(25)
-    .lean();
+  const students = await StudentService.findStudentsSelect(
+    filter,
+    STUDENT_PICKER_FIELDS,
+    25
+  );
 
   res.status(200).send({
     success: true,

@@ -41,9 +41,8 @@ const updateOfficehours = asyncHandler(async (req, res, next) => {
     body: { officehours, timezone }
   } = req;
   console.log(JSON.stringify(officehours));
-  await req.db
-    .model(user.role) // Agent or Editor
-    .findByIdAndUpdate(user._id.toString(), { officehours, timezone }, {});
+  // Agent or Editor — the base User model updates the discriminator document.
+  await UserService.updateUser(user._id.toString(), { officehours, timezone });
 
   res.status(200).send({
     success: true
@@ -83,7 +82,7 @@ const updateAcademicBackground = asyncHandler(async (req, res, next) => {
     }
 
     university.updatedAt = new Date();
-    const updatedStudent = await req.db.model('User').findByIdAndUpdate(
+    const updatedStudent = await UserService.updateUserDoc(
       studentId,
       {
         'academic_background.university': university
@@ -234,7 +233,7 @@ const updateLanguageSkill = asyncHandler(async (req, res, next) => {
 
   language.updatedAt = new Date();
 
-  const updatedStudent = await req.db.model('User').findByIdAndUpdate(
+  const updatedStudent = await UserService.updateUserDoc(
     studentId,
     {
       'academic_background.language': language

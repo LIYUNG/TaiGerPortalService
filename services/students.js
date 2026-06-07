@@ -29,6 +29,46 @@ const StudentService = {
     return StudentDAO.getStudentById(id);
   },
 
+  getStudentByIdLean(id) {
+    return StudentDAO.getStudentByIdLean(id);
+  },
+
+  getStudentDocById(id) {
+    return StudentDAO.getStudentDocById(id);
+  },
+
+  findStudents(filter = {}) {
+    return StudentDAO.findStudents(filter);
+  },
+
+  findStudentsSelect(filter = {}, select = '', limit = undefined) {
+    return StudentDAO.findStudentsSelect(filter, select, limit);
+  },
+
+  getTaigerUsersWithExpenses() {
+    return StudentDAO.getTaigerUsersWithExpenses();
+  },
+
+  getStudentsWithExpenses() {
+    return StudentDAO.getStudentsWithExpenses();
+  },
+
+  getStudentsForExpenses(filter) {
+    return StudentDAO.getStudentsForExpenses(filter);
+  },
+
+  getStudentByIdWithAgents(id) {
+    return StudentDAO.getStudentByIdWithAgents(id);
+  },
+
+  getStudentByIdWithTeam(id) {
+    return StudentDAO.getStudentByIdWithTeam(id);
+  },
+
+  getStudentByIdWithDocThreads(id) {
+    return StudentDAO.getStudentByIdWithDocThreads(id);
+  },
+
   updateStudentById(id, update) {
     return StudentDAO.updateStudentById(id, update);
   },

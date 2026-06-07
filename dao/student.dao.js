@@ -282,6 +282,105 @@ const StudentDAO = {
       .lean();
   },
 
+  // Bare lookup (no population) — used where only scalar student fields and the
+  // raw agents/editors id arrays are needed.
+  async getStudentByIdLean(id) {
+    return Student.findById(id).lean();
+  },
+
+  // Live (non-lean) Student document — caller mutates generaldocs_threads /
+  // notification and calls .save().
+  async getStudentDocById(id) {
+    return Student.findById(id);
+  },
+
+  // Bare query (no population) for arbitrary student filters.
+  async findStudents(filter = {}) {
+    return Student.find(filter).lean();
+  },
+
+  // Filtered student lookup returning only `select` fields, capped at `limit` —
+  // used by the AI-assist student picker.
+  async findStudentsSelect(filter = {}, select = '', limit = undefined) {
+    const query = Student.find(filter).select(select).lean();
+    if (limit !== undefined) {
+      query.limit(limit);
+    }
+    return query;
+  },
+
+  // TaiGer staff (Admin/Agent/Editor) with their expenses joined — feeds the
+  // expenses overview.
+  async getTaigerUsersWithExpenses() {
+    return Student.aggregate([
+      { $match: { role: { $in: [Role.Admin, Role.Agent, Role.Editor] } } },
+      {
+        $lookup: {
+          from: 'expenses',
+          localField: '_id',
+          foreignField: 'student_id',
+          as: 'expenses'
+        }
+      }
+    ]);
+  },
+
+  // All users with their expenses joined (no role filter).
+  async getStudentsWithExpenses() {
+    return Student.aggregate([
+      {
+        $lookup: {
+          from: 'expenses',
+          localField: '_id',
+          foreignField: 'student_id',
+          as: 'expenses'
+        }
+      }
+    ]);
+  },
+
+  // Students matching `filter`, populated for the per-staff expenses view.
+  async getStudentsForExpenses(filter) {
+    return Student.find(filter)
+      .populate('agents editors', 'firstname lastname email')
+      .populate('generaldocs_threads.doc_thread_id', '-messages')
+      .select('-notification')
+      .lean();
+  },
+
+  // Lookup with only the supervising agents populated (firstname/lastname/email/
+  // pictureUrl) — used by course-update notifications.
+  async getStudentByIdWithAgents(id) {
+    return Student.findById(id)
+      .populate('agents', 'firstname lastname email pictureUrl')
+      .lean();
+  },
+
+  // Lookup with both supervising agents and editors populated (incl. archiv) —
+  // used by complaint-ticket notifications.
+  async getStudentByIdWithTeam(id) {
+    return Student.findById(id)
+      .populate('editors agents', 'firstname lastname email archiv pictureUrl')
+      .lean();
+  },
+
+  // Lookup with team + general-doc threads (and their latest message files)
+  // populated, minus the heavy taigerai field — used by the student detail page.
+  async getStudentByIdWithDocThreads(id) {
+    return Student.findById(id)
+      .populate('agents editors', 'firstname lastname email pictureUrl')
+      .populate({
+        path: 'generaldocs_threads.doc_thread_id',
+        select: 'file_type isFinalVersion updatedAt messages.file',
+        populate: {
+          path: 'messages.user_id',
+          select: 'firstname lastname pictureUrl'
+        }
+      })
+      .select('-taigerai')
+      .lean();
+  },
+
   async updateStudentById(id, update) {
     return Student.findByIdAndUpdate(id, update, { new: true })
       .populate(...TEAM_POPULATE)

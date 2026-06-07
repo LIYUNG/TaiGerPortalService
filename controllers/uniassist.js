@@ -11,9 +11,9 @@ const getStudentUniAssist = asyncHandler(async (req, res) => {
   if (is_TaiGer_Student(user)) {
     const obj = user.notification; // create object
     obj['isRead_uni_assist_task_assigned'] = true; // set value
-    await req.db
-      .model('Student')
-      .findByIdAndUpdate(user._id.toString(), { notification: obj }, {});
+    await StudentService.updateStudentById(user._id.toString(), {
+      notification: obj
+    });
   }
 
   const student = await StudentService.getStudentById(studentId);

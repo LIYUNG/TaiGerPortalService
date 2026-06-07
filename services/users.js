@@ -26,6 +26,10 @@ const UserService = {
     return UserDAO.updateUser(userId, payload);
   },
 
+  updateUserDoc(userId, payload, options = { new: true }) {
+    return UserDAO.updateUserDoc(userId, payload, options);
+  },
+
   getUserByEmail(email) {
     return UserDAO.getUserByEmail(email);
   }

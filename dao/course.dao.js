@@ -18,6 +18,15 @@ const CourseDAO = {
     return Course.findOneAndUpdate(filter, update, { new: true }).lean();
   },
 
+  // Upsert a student's course row, returning the pre-update document (new:false)
+  // with student_id populated — mirrors the legacy putMycourses behaviour.
+  async upsertCourseByStudentId(studentId, fields) {
+    return Course.findOneAndUpdate({ student_id: studentId }, fields, {
+      upsert: true,
+      new: false
+    }).populate('student_id', 'firstname lastname pictureUrl');
+  },
+
   async deleteCourse(filter) {
     return Course.findOneAndDelete(filter).lean();
   },

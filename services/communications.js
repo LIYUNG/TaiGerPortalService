@@ -17,6 +17,14 @@ const CommunicationService = {
     return CommunicationDAO.getCommunications(query);
   },
 
+  getByStudentIdForExport(studentId) {
+    return CommunicationDAO.getByStudentIdForExport(studentId);
+  },
+
+  getRecentByStudentId(studentId, limit) {
+    return CommunicationDAO.getRecentByStudentId(studentId, limit);
+  },
+
   updateCommunication(communicationId, payload) {
     return CommunicationDAO.updateCommunication(communicationId, payload);
   }

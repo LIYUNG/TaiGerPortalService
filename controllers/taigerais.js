@@ -13,6 +13,10 @@ const { generalMLPrompt } = require('../prompt/ml_prompt');
 const { FILE_MAPPING_TABLE } = require('../constants');
 const { generalRLPrompt } = require('../prompt/rl_prompt');
 const ApplicationService = require('../services/applications');
+const ProgramService = require('../services/programs');
+const CommunicationService = require('../services/communications');
+const PermissionService = require('../services/permissions');
+const StudentService = require('../services/students');
 
 const pageSize = 3;
 
@@ -20,10 +24,7 @@ const processProgramListAi = asyncHandler(async (req, res, next) => {
   const {
     params: { programId }
   } = req;
-  const program = await req.db
-    .model('Program')
-    .findOne({ _id: programId })
-    .lean();
+  const program = await ProgramService.getProgramByIdLean(programId);
   const programai = await ProgramAI.findOne({ program_id: programId }).lean();
   if (!program) {
     logger.error('no program found!');
@@ -91,15 +92,10 @@ const TaiGerAiChat = asyncHandler(async (req, res, next) => {
     params: { studentId }
   } = req;
 
-  const communication_thread = await req.db
-    .model('Communication')
-    .find({
-      student_id: studentId
-    })
-    .populate('student_id user_id', 'firstname lastname role')
-    .sort({ createdAt: -1 }) // 0: latest!
-    .limit(pageSize)
-    .lean(); // show only first y limit items after skip.
+  const communication_thread = await CommunicationService.getRecentByStudentId(
+    studentId,
+    pageSize
+  );
   const applications = await ApplicationService.getApplicationsByStudentId(
     studentId
   );
@@ -211,13 +207,7 @@ const TaiGerAiChat = asyncHandler(async (req, res, next) => {
   );
 
   // res.status(200).send({ success: true, data: chat });
-  const permission = await req.db.model('Permission').findOne({
-    user_id: user._id
-  });
-  if (permission.taigerAiQuota > 0) {
-    permission.taigerAiQuota -= 1;
-    await permission.save();
-  }
+  await PermissionService.decrementTaigerAiQuota(user._id);
 });
 
 const countTokens = (text) => {
@@ -240,7 +230,7 @@ const cvmlrlAi = asyncHandler(async (req, res, next) => {
   let student_info = {};
 
   try {
-    const student = await req.db.model('Student').findById(student_id);
+    const student = await StudentService.getStudentByIdLean(student_id);
     student_info = {
       firstname: student.firstname,
       lastname: student.lastname,
@@ -281,13 +271,7 @@ const cvmlrlAi = asyncHandler(async (req, res, next) => {
   }
   res.end();
 
-  const permission = await req.db.model('Permission').findOne({
-    user_id: user._id
-  });
-  if (permission.taigerAiQuota > 0) {
-    permission.taigerAiQuota -= 1;
-    await permission.save();
-  }
+  await PermissionService.decrementTaigerAiQuota(user._id);
 });
 
 module.exports = {

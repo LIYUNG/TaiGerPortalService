@@ -1,22 +1,15 @@
 const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
+const AllcourseService = require('../services/allcourses');
 
 const getCourses = asyncHandler(async (req, res) => {
-  const courses = await req.db
-    .model('Allcourse')
-    .find()
-    .populate('updatedBy', 'firstname lastname pictureUrl')
-    .lean();
+  const courses = await AllcourseService.getAllcourses();
   res.status(200).send({ success: true, data: courses });
 });
 
 const getCourse = asyncHandler(async (req, res) => {
   const { courseId } = req.params;
 
-  const course = await req.db
-    .model('Allcourse')
-    .findById(courseId)
-    .populate('updatedBy', 'firstname lastname pictureUrl');
+  const course = await AllcourseService.getAllcourseById(courseId);
 
   if (!course) {
     return res
@@ -30,7 +23,7 @@ const getCourse = asyncHandler(async (req, res) => {
 const deleteCourse = asyncHandler(async (req, res) => {
   const { courseId } = req.params;
 
-  const course = await req.db.model('Allcourse').findByIdAndDelete(courseId);
+  const course = await AllcourseService.deleteAllcourseById(courseId);
 
   if (!course) {
     return res
@@ -59,10 +52,10 @@ const updateCourse = asyncHandler(async (req, res) => {
   try {
     // Attempt to find and update the course
     payload.updatedBy = user._id;
-    const updatedCourse = await req.db
-      .model('Allcourse')
-      .findByIdAndUpdate(courseId, payload, { new: true, runValidators: true })
-      .populate('updatedBy', 'firstname lastname pictureUrl');
+    const updatedCourse = await AllcourseService.updateAllcourseById(
+      courseId,
+      payload
+    );
 
     if (!updatedCourse) {
       return res.status(404).send({
@@ -96,7 +89,7 @@ const createCourse = asyncHandler(async (req, res) => {
   }
 
   try {
-    const newCourse = await req.db.model('Allcourse').create(payload);
+    const newCourse = await AllcourseService.createAllcourse(payload);
 
     res.status(201).send({
       success: true,

@@ -34,6 +34,9 @@ const ApplicationService = require('../services/applications');
 const InterviewService = require('../services/interviews');
 const { getAuditLogs } = require('../services/audit');
 const ProgramService = require('../services/programs');
+const UserService = require('../services/users');
+const PermissionService = require('../services/permissions');
+const BasedocumentationslinkService = require('../services/basedocumentationslinks');
 
 const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const {
@@ -43,27 +46,12 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
   const applicationsPromise =
     ApplicationService.getApplicationsByStudentId(studentId);
 
-  const studentPromise = req.db
-    .model('Student')
-    .findById(studentId)
-    .populate('agents editors', 'firstname lastname email pictureUrl')
-    .populate({
-      path: 'generaldocs_threads.doc_thread_id',
-      select: 'file_type isFinalVersion updatedAt messages.file',
-      populate: {
-        path: 'messages.user_id',
-        select: 'firstname lastname pictureUrl'
-      }
-    })
-    .select('-taigerai')
-    .lean();
+  const studentPromise = StudentService.getStudentByIdWithDocThreads(studentId);
 
-  const base_docs_linkPromise = req.db.model('Basedocumentationslink').find({
-    category: 'base-documents'
-  });
-  const survey_linkPromise = req.db.model('Basedocumentationslink').find({
-    category: 'survey'
-  });
+  const base_docs_linkPromise =
+    BasedocumentationslinkService.findByCategory('base-documents');
+  const survey_linkPromise =
+    BasedocumentationslinkService.findByCategory('survey');
   const auditPromise = getAuditLogs(
     {
       targetUserId: studentId
@@ -110,17 +98,13 @@ const getStudentAndDocLinks = asyncHandler(async (req, res, next) => {
     audit
   });
   if (is_TaiGer_Agent(user)) {
-    await req.db.model('Agent').findByIdAndUpdate(
-      user._id.toString(),
-      {
-        $pull: {
-          'agent_notification.isRead_new_base_docs_uploaded': {
-            student_id: studentId
-          }
+    await UserService.updateUser(user._id.toString(), {
+      $pull: {
+        'agent_notification.isRead_new_base_docs_uploaded': {
+          student_id: studentId
         }
-      },
-      {}
-    );
+      }
+    });
   }
   next();
 });
@@ -129,22 +113,13 @@ const updateDocumentationHelperLink = asyncHandler(async (req, res, next) => {
   const { link, key, category } = req.body;
   // if not in database, then create one
   // otherwise: update the existing one.
-  await req.db.model('Basedocumentationslink').findOneAndUpdate(
-    { category, key },
-    {
-      $set: {
-        link,
-        updatedAt: new Date()
-      }
-    },
-    { upsert: true }
-  );
+  await BasedocumentationslinkService.upsertByCategoryKey(category, key, {
+    link,
+    updatedAt: new Date()
+  });
 
-  const updated_helper_link = await req.db
-    .model('Basedocumentationslink')
-    .find({
-      category
-    });
+  const updated_helper_link =
+    await BasedocumentationslinkService.findByCategory(category);
   res.status(200).send({ success: true, helper_link: updated_helper_link });
   next();
 });
@@ -303,9 +278,9 @@ const getStudentsAndDocLinks = asyncHandler(async (req, res, next) => {
       }
     );
 
-    const base_docs_link = await req.db.model('Basedocumentationslink').find({
-      category: 'base-documents'
-    });
+    const base_docs_link = await BasedocumentationslinkService.findByCategory(
+      'base-documents'
+    );
     res.status(200).send({ success: true, data: [student], base_docs_link });
   } else {
     // Guest
@@ -470,12 +445,9 @@ const assignAgentToStudent = asyncHandler(async (req, res, next) => {
     res.status(200).json({ success: true, data: studentUpdated });
 
     // inform editor-lead
-    const Permission = req.db.model('Permission');
-    const permissions = await Permission.find({
+    const permissions = await PermissionService.findPermissionsWithUser({
       canAssignAgents: true
-    })
-      .populate('user_id', 'firstname lastname email')
-      .lean();
+    });
     const agentLeads = permissions
       .map((permission) => permission.user_id)
       ?.filter(

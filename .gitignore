@@ -50,17 +50,8 @@ globalConfig.json
 **/__pycache__/**
 **/.ipynb_checkpoints/**
 
-# travis
-!/python/TaiGerProgramListAICrawler/logs/.gitkeep
-!/python/TaiGerProgramListAICrawler/result/.gitkeep
-/python/TaiGerProgramListAICrawler/app/tempDB
-/python/TaiGerProgramListAICrawler/.env
-/python/TaiGerProgramListAICrawler/logs/*
-/python/TaiGerProgramListAICrawler/result
-/python/TaiGerProgramListAICrawler/*.pyc
-/python/TaiGerProgramListAICrawler/ipynb/tempDB/
-/python/TaiGerProgramListAICrawler/ipynb/vectorDatabase/
 /python/PortalDataExtractor/output/
+/coverage
 
 .eslintcache
 .worktrees/

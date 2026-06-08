@@ -8,7 +8,7 @@ WORKDIR /app
 # Copy the rest of the application
 COPY . .
 
-RUN npm install --production 
+RUN npm install --omit=dev
 
 # Expose the port the app is listening on (default for Express is 3000)
 EXPOSE 3000

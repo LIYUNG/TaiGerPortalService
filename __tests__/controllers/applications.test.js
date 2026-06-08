@@ -18,6 +18,9 @@ jest.mock('../../services/email');
 
 const ApplicationService = require('../../services/applications');
 const StudentService = require('../../services/students');
+const ProgramService = require('../../services/programs');
+const DocumentThreadService = require('../../services/documentthreads');
+const EmailService = require('../../services/email');
 const {
   getApplications,
   deleteApplication,
@@ -28,10 +31,16 @@ const {
   getStudentApplications,
   updateStudentApplications,
   updateApplication,
+  createApplicationV2,
   refreshApplication
 } = require('../../controllers/applications');
 const { mockReq, mockRes } = require('../helpers/httpMocks');
 const { agent, admin, student } = require('../mock/user');
+
+// 24-hex ObjectId strings (createApplicationV2 wraps program ids in
+// new mongoose.Types.ObjectId(...), which requires a valid hex string).
+const programIdA = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+const programIdB = 'bbbbbbbbbbbbbbbbbbbbbbbb';
 
 const studentId = student._id.toString();
 const agentId = agent._id.toString();
@@ -223,6 +232,387 @@ describe('getStudentApplications', () => {
     expect(body.data.applications).toBe(applications);
     // Non-student callers keep the attributes field.
     expect(body.data.attributes).toBeDefined();
+  });
+
+  it('200: student caller clears the new-programs notification and strips attributes', async () => {
+    const studentUser = {
+      ...student,
+      role: 'Student',
+      notification: {}
+    };
+    StudentService.updateStudentById.mockResolvedValue({});
+    const studentDoc = { _id: studentId, firstname: 'Stu', attributes: ['x'] };
+    StudentService.getStudentById.mockResolvedValue(studentDoc);
+    ApplicationService.getApplicationsByStudentId.mockResolvedValue([
+      { _id: 'a1' }
+    ]);
+    const res = mockRes();
+
+    await getStudentApplications(
+      mockReq({ user: studentUser, params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    // Notification cleanup happens for student callers.
+    expect(StudentService.updateStudentById).toHaveBeenCalledWith(
+      studentUser._id.toString(),
+      { notification: { isRead_new_programs_assigned: true } }
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    // Student callers must not see attributes.
+    expect(body.data.attributes).toBeUndefined();
+  });
+});
+
+describe('createApplicationV2', () => {
+  // A fresh application doc whose embedded doc_modification_thread subdoc array
+  // supports .create()/.push() and which is awaitably saveable.
+  const makeApplicationDoc = (id = 'app-new') => {
+    const arr = [];
+    arr.create = (obj) => ({ ...obj });
+    return {
+      _id: id,
+      doc_modification_thread: arr,
+      save: jest.fn().mockResolvedValue()
+    };
+  };
+
+  const makeStudentDoc = (overrides = {}) => ({
+    _id: studentId,
+    firstname: 'Stu',
+    lastname: 'Dent',
+    email: 's@example.com',
+    archiv: false,
+    generaldocs_threads: [],
+    application_preference: { expected_application_date: '2025 WS' },
+    notification: {},
+    save: jest.fn().mockResolvedValue(),
+    ...overrides
+  });
+
+  it('400: rejects when more than 20 programs are assigned (no service calls)', async () => {
+    const next = jest.fn();
+    const program_id_set = Array.from({ length: 21 }, () => programIdA);
+
+    await createApplicationV2(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { program_id_set }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next.mock.calls[0][0].statusCode).toBe(400);
+    expect(StudentService.getStudentDocById).not.toHaveBeenCalled();
+  });
+
+  it('400: rejects when some program ids are out-of-date (findPrograms returns fewer)', async () => {
+    StudentService.getStudentDocById.mockResolvedValue(makeStudentDoc());
+    ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([]);
+    // Two requested, only one valid program returned => out-of-date.
+    ProgramService.findPrograms.mockResolvedValue([
+      { _id: { toString: () => programIdA } }
+    ]);
+    const next = jest.fn();
+
+    await createApplicationV2(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { program_id_set: [programIdA, programIdB] }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next.mock.calls[0][0].statusCode).toBe(400);
+    expect(ApplicationService.createApplicationDoc).not.toHaveBeenCalled();
+  });
+
+  it('400: rejects when the resulting application count would exceed the max', async () => {
+    StudentService.getStudentDocById.mockResolvedValue(makeStudentDoc());
+    // 20 existing applications + 1 new > 20 max.
+    ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue(
+      Array.from({ length: 20 }, (_, i) => ({
+        programId: { _id: { toString: () => `existing-${i}` } },
+        application_year: '2025 WS'
+      }))
+    );
+    ProgramService.findPrograms.mockResolvedValue([
+      { _id: { toString: () => programIdA }, country: 'de' }
+    ]);
+    const next = jest.fn();
+
+    await createApplicationV2(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { program_id_set: [programIdA] }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next.mock.calls[0][0].statusCode).toBe(400);
+    expect(ApplicationService.createApplicationDoc).not.toHaveBeenCalled();
+  });
+
+  it('201: creates a new application (approval country => unlocked, no RL/supplement), then emails the active student', async () => {
+    const studentDoc = makeStudentDoc();
+    StudentService.getStudentDocById.mockResolvedValue(studentDoc);
+    ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([]);
+    ProgramService.findPrograms.mockResolvedValue([
+      // 'de' is an approval country => isLocked false; no rl_required key, no
+      // PROGRAM_SPECIFIC_FILETYPE flags => neither thread branch runs.
+      { _id: { toString: () => programIdA }, country: 'DE' }
+    ]);
+    ApplicationService.createApplicationDoc.mockResolvedValue(
+      makeApplicationDoc()
+    );
+    const fullApps = [{ _id: 'app-new' }];
+    ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue(fullApps);
+    EmailService.createApplicationToStudentEmail.mockResolvedValue();
+    const res = mockRes();
+
+    await createApplicationV2(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { program_id_set: [programIdA] }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(ApplicationService.createApplicationDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ studentId, isLocked: false })
+    );
+    expect(studentDoc.save).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: fullApps });
+    expect(EmailService.createApplicationToStudentEmail).toHaveBeenCalledTimes(
+      1
+    );
+  });
+
+  it('201: non-approval country locks the application and creates general RL + supplementary threads', async () => {
+    const studentDoc = makeStudentDoc();
+    StudentService.getStudentDocById.mockResolvedValue(studentDoc);
+    ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([]);
+    ProgramService.findPrograms.mockResolvedValue([
+      {
+        _id: { toString: () => programIdA },
+        country: 'us', // not in approval list => isLocked true
+        rl_required: '2', // general RL (is_rl_specific falsy)
+        is_rl_specific: false,
+        ml_required: 'yes' // triggers a supplementary ML thread
+      }
+    ]);
+    ApplicationService.createApplicationDoc.mockResolvedValue(
+      makeApplicationDoc()
+    );
+    // No general RL threads exist yet => create 2.
+    DocumentThreadService.countThreads.mockResolvedValue(0);
+    // _id must be a 24-hex string: the general-RL branch wraps it in
+    // new mongoose.Types.ObjectId(newThread._id).
+    DocumentThreadService.newThread.mockReturnValue({
+      _id: 'cccccccccccccccccccccccc',
+      save: jest.fn().mockResolvedValue()
+    });
+    ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue([]);
+    EmailService.createApplicationToStudentEmail.mockResolvedValue();
+    const res = mockRes();
+
+    await createApplicationV2(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { program_id_set: [programIdA] }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(ApplicationService.createApplicationDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ isLocked: true })
+    );
+    // 2 general RL threads created.
+    expect(DocumentThreadService.countThreads).toHaveBeenCalledTimes(1);
+    // newThread called for the 2 RL threads + 1 supplementary (ML) thread.
+    expect(DocumentThreadService.newThread).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('201: specific RL program creates application-scoped RL threads', async () => {
+    const studentDoc = makeStudentDoc();
+    StudentService.getStudentDocById.mockResolvedValue(studentDoc);
+    ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([]);
+    ProgramService.findPrograms.mockResolvedValue([
+      {
+        _id: { toString: () => programIdA },
+        country: 'us',
+        rl_required: '1',
+        is_rl_specific: true
+      }
+    ]);
+    ApplicationService.createApplicationDoc.mockResolvedValue(
+      makeApplicationDoc()
+    );
+    DocumentThreadService.newThread.mockReturnValue({
+      _id: 'thread-rl',
+      save: jest.fn().mockResolvedValue()
+    });
+    ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue([]);
+    EmailService.createApplicationToStudentEmail.mockResolvedValue();
+    const res = mockRes();
+
+    await createApplicationV2(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { program_id_set: [programIdA] }
+      }),
+      res,
+      jest.fn()
+    );
+
+    // Specific RL path does not count general threads.
+    expect(DocumentThreadService.countThreads).not.toHaveBeenCalled();
+    expect(DocumentThreadService.newThread).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('does not email when the student is archived (still responds 201)', async () => {
+    const studentDoc = makeStudentDoc({ archiv: true });
+    StudentService.getStudentDocById.mockResolvedValue(studentDoc);
+    ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([]);
+    ProgramService.findPrograms.mockResolvedValue([
+      { _id: { toString: () => programIdA }, country: 'de' }
+    ]);
+    ApplicationService.createApplicationDoc.mockResolvedValue(
+      makeApplicationDoc()
+    );
+    ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue([]);
+    const res = mockRes();
+
+    await createApplicationV2(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { program_id_set: [programIdA] }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(EmailService.createApplicationToStudentEmail).not.toHaveBeenCalled();
+  });
+
+  it('wraps an RL-thread creation failure as a 500 (existing general threads exercised)', async () => {
+    const studentDoc = makeStudentDoc({
+      // Non-empty generaldocs_threads => the .map(thread => thread.doc_thread_id)
+      // callback runs.
+      generaldocs_threads: [{ doc_thread_id: 'existing-thread' }]
+    });
+    StudentService.getStudentDocById.mockResolvedValue(studentDoc);
+    ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([]);
+    ProgramService.findPrograms.mockResolvedValue([
+      {
+        _id: { toString: () => programIdA },
+        country: 'us',
+        rl_required: '1',
+        is_rl_specific: false
+      }
+    ]);
+    ApplicationService.createApplicationDoc.mockResolvedValue(
+      makeApplicationDoc()
+    );
+    DocumentThreadService.countThreads.mockResolvedValue(0);
+    // newThread.save rejects => inner RL catch throws 500 => outer catch
+    // re-wraps as 'Failed to create application'.
+    DocumentThreadService.newThread.mockReturnValue({
+      _id: 'cccccccccccccccccccccccc',
+      save: jest.fn().mockRejectedValue(new Error('save boom'))
+    });
+    const next = jest.fn();
+
+    await createApplicationV2(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { program_id_set: [programIdA] }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next.mock.calls[0][0].statusCode).toBe(500);
+  });
+
+  it('wraps a supplementary-form thread failure as a 500', async () => {
+    const studentDoc = makeStudentDoc();
+    StudentService.getStudentDocById.mockResolvedValue(studentDoc);
+    ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([]);
+    ProgramService.findPrograms.mockResolvedValue([
+      // No rl_required => skip RL block; ml_required 'yes' => supplementary block.
+      { _id: { toString: () => programIdA }, country: 'de', ml_required: 'yes' }
+    ]);
+    ApplicationService.createApplicationDoc.mockResolvedValue(
+      makeApplicationDoc()
+    );
+    DocumentThreadService.newThread.mockReturnValue({
+      _id: 'cccccccccccccccccccccccc',
+      save: jest.fn().mockRejectedValue(new Error('supp boom'))
+    });
+    const next = jest.fn();
+
+    await createApplicationV2(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { program_id_set: [programIdA] }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next.mock.calls[0][0].statusCode).toBe(500);
+  });
+
+  it('skips programs the student already applied to (same year) => no createApplicationDoc', async () => {
+    const studentDoc = makeStudentDoc();
+    StudentService.getStudentDocById.mockResolvedValue(studentDoc);
+    // Existing application for programIdA in the same expected year.
+    ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([
+      {
+        programId: { _id: { toString: () => programIdA } },
+        application_year: '2025 WS'
+      }
+    ]);
+    ProgramService.findPrograms.mockResolvedValue([
+      { _id: { toString: () => programIdA }, country: 'de' }
+    ]);
+    ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue([]);
+    EmailService.createApplicationToStudentEmail.mockResolvedValue();
+    const res = mockRes();
+
+    await createApplicationV2(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { program_id_set: [programIdA] }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(ApplicationService.createApplicationDoc).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
   });
 });
 

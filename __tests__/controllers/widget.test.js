@@ -81,6 +81,60 @@ describe('WidgetExportMessagePDF', () => {
     expect(sent.slice(0, 4).toString()).toBe('%PDF');
   });
 
+  it('renders thread messages, exercising the student + non-student name branches and a parse error', async () => {
+    const { Role } = require('@taiger-common/core');
+    const editorJson = JSON.stringify({
+      blocks: [
+        { type: 'paragraph', data: { text: 'Hello there' } },
+        { type: 'header', data: { text: 'ignored' } }
+      ]
+    });
+    CommunicationService.getByStudentIdForExport.mockResolvedValue([
+      {
+        // Student author -> the chinese-name suffix branch is taken.
+        user_id: {
+          firstname: 'San',
+          lastname: 'Wang',
+          firstname_chinese: '三',
+          lastname_chinese: '王',
+          role: Role.Student
+        },
+        message: `<p>${editorJson}</p>`,
+        createdAt: '2024-01-01T00:00:00.000Z'
+      },
+      {
+        // Non-student author -> no chinese suffix; null message -> '' textContent.
+        user_id: {
+          firstname: 'Ed',
+          lastname: 'Itor',
+          role: Role.Editor
+        },
+        message: null,
+        createdAt: '2024-01-02T00:00:00.000Z'
+      },
+      {
+        // Invalid JSON in the message -> JSON.parse throws -> catch branch.
+        user_id: {
+          firstname: 'Bad',
+          lastname: 'Json',
+          role: Role.Agent
+        },
+        message: '<p>{not valid json}</p>',
+        createdAt: '2024-01-03T00:00:00.000Z'
+      }
+    ]);
+    const req = mockReq({ user: admin, params: { studentId } });
+    const res = mockRes();
+    res.contentType = jest.fn(() => res);
+
+    await WidgetExportMessagePDF(req, res, jest.fn());
+
+    expect(res.contentType).toHaveBeenCalledWith('application/pdf');
+    const sent = res.send.mock.calls[0][0];
+    expect(Buffer.isBuffer(sent)).toBe(true);
+    expect(sent.slice(0, 4).toString()).toBe('%PDF');
+  });
+
   it('forwards a service error to next()', async () => {
     const err = new Error('db down');
     CommunicationService.getByStudentIdForExport.mockRejectedValue(err);

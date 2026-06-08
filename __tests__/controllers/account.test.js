@@ -73,6 +73,25 @@ describe('updateCredentials', () => {
     expect(updateCredentialsEmail).toHaveBeenCalledTimes(1);
   });
 
+  it('forwards a 400 ErrorResponse to next() when the user does not exist', async () => {
+    UserService.updateUser.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await updateCredentials(
+      mockReq({
+        user: student,
+        body: { credentials: { new_password: 'x' } }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 400 });
+    // never reaches the email side-effect
+    expect(updateCredentialsEmail).not.toHaveBeenCalled();
+  });
+
   it('forwards a service error to next()', async () => {
     const err = new Error('db down');
     UserService.updateUser.mockRejectedValue(err);
@@ -200,6 +219,44 @@ describe('updatePersonalData', () => {
     expect(body.data.lastname).toBe('New_LastName');
     expect(body.data).not.toHaveProperty('password');
   });
+
+  it('swallows the 400 (logged, not re-thrown) when the user does not exist', async () => {
+    // The handler wraps its body in try/catch; a missing user throws a 400 that
+    // is caught and only logged, so neither res nor next() is invoked.
+    UserService.updateUser.mockResolvedValue(null);
+    const res = mockRes();
+    const next = jest.fn();
+
+    await updatePersonalData(
+      mockReq({
+        params: { user_id: studentId },
+        body: { personaldata: { firstname: 'X' } }
+      }),
+      res,
+      next
+    );
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('swallows a service error (logged, not re-thrown)', async () => {
+    UserService.updateUser.mockRejectedValue(new Error('db down'));
+    const res = mockRes();
+    const next = jest.fn();
+
+    await updatePersonalData(
+      mockReq({
+        params: { user_id: studentId },
+        body: { personaldata: { firstname: 'X' } }
+      }),
+      res,
+      next
+    );
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
 });
 
 describe('updateAcademicBackground', () => {
@@ -228,6 +285,67 @@ describe('updateAcademicBackground', () => {
     expect(body.success).toBe(true);
     expect(body.data).toBe(university);
   });
+
+  it('normalizes high_school + program names and flips an existing NotNeeded doc when graduation requires documents', async () => {
+    // isGraduated graduated + high_school graduated => desiredStatus = Missing.
+    // Seed the profile with an existing Bachelor_Certificate doc currently
+    // marked NotNeeded so the "flip to Missing" else-if branch runs.
+    const {
+      ProfileNameType,
+      DocumentStatusType
+    } = require('@taiger-common/core');
+    const doc = makeStudentDoc({
+      academic_background: {
+        university: {
+          isGraduated: 'Yes',
+          high_school_isGraduated: 'Yes',
+          isSecondGraduated: 'Yes',
+          Has_Exchange_Experience: 'Yes',
+          Has_Internship_Experience: 'Yes',
+          Has_Working_Experience: 'Yes'
+        }
+      }
+    });
+    const existing = {
+      name: ProfileNameType.Bachelor_Certificate,
+      status: DocumentStatusType.NotNeeded
+    };
+    doc.profile.push(existing);
+    UserService.updateUserDoc.mockResolvedValue(doc);
+    const university = {
+      attended_high_school: '  Taipei   First  ',
+      attended_university: 'NTU',
+      attended_university_program: '  Computer   Science  '
+    };
+    const req = mockReq({ params: { studentId }, body: { university } });
+    const res = mockRes();
+
+    await updateAcademicBackground(req, res, jest.fn());
+
+    // Both extra name fields are normalized.
+    expect(university.attended_high_school).toBe('Taipei First');
+    expect(university.attended_university_program).toBe('Computer Science');
+    // The existing NotNeeded doc was flipped to Missing.
+    expect(existing.status).toBe(DocumentStatusType.Missing);
+    expect(doc.save).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('forwards a 400 ErrorResponse to next() when document processing throws', async () => {
+    // updatedStudent has no profile/academic_background => the body access in the
+    // try block throws, hitting the catch -> 400.
+    UserService.updateUserDoc.mockResolvedValue({ save: jest.fn() });
+    const next = jest.fn();
+
+    await updateAcademicBackground(
+      mockReq({ params: { studentId }, body: { university: {} } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 400 });
+  });
 });
 
 describe('updateLanguageSkill', () => {
@@ -252,6 +370,79 @@ describe('updateLanguageSkill', () => {
     const body = res.send.mock.calls[0][0];
     expect(body.success).toBe(true);
     expect(body.data).toBe(doc.academic_background.language);
+  });
+
+  it("creates NotNeeded certificate docs for '--' skills and flips existing NotNeeded docs to Missing", async () => {
+    const {
+      ProfileNameType,
+      DocumentStatusType
+    } = require('@taiger-common/core');
+    const doc = makeStudentDoc({
+      academic_background: {
+        language: {
+          german_isPassed: '--', // -> create NotNeeded
+          english_isPassed: 'Yes', // existing NotNeeded -> flip to Missing
+          gre_isPassed: '--',
+          gmat_isPassed: '--'
+        }
+      }
+    });
+    // Seed an existing English cert currently NotNeeded so the flip branch runs.
+    const englishDoc = {
+      name: ProfileNameType.Englisch_Certificate,
+      status: DocumentStatusType.NotNeeded
+    };
+    doc.profile.push(englishDoc);
+    UserService.updateUserDoc.mockResolvedValue(doc);
+    const res = mockRes();
+
+    await updateLanguageSkill(
+      mockReq({ params: { studentId }, body: { language: {} } }),
+      res,
+      jest.fn()
+    );
+
+    expect(englishDoc.status).toBe(DocumentStatusType.Missing);
+    // A German cert was created with NotNeeded status.
+    const germanDoc = doc.profile.find(
+      (d) => d.name === ProfileNameType.German_Certificate
+    );
+    expect(germanDoc.status).toBe(DocumentStatusType.NotNeeded);
+    expect(doc.save).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it("flips an existing Missing cert to NotNeeded when the skill becomes '--'", async () => {
+    const {
+      ProfileNameType,
+      DocumentStatusType
+    } = require('@taiger-common/core');
+    const doc = makeStudentDoc({
+      academic_background: {
+        language: {
+          german_isPassed: '--',
+          english_isPassed: '-',
+          gre_isPassed: '-',
+          gmat_isPassed: '-'
+        }
+      }
+    });
+    const germanDoc = {
+      name: ProfileNameType.German_Certificate,
+      status: DocumentStatusType.Missing
+    };
+    doc.profile.push(germanDoc);
+    UserService.updateUserDoc.mockResolvedValue(doc);
+    const res = mockRes();
+
+    await updateLanguageSkill(
+      mockReq({ params: { studentId }, body: { language: {} } }),
+      res,
+      jest.fn()
+    );
+
+    expect(germanDoc.status).toBe(DocumentStatusType.NotNeeded);
+    expect(res.status).toHaveBeenCalledWith(200);
   });
 
   it('forwards a service error to next()', async () => {

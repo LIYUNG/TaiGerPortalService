@@ -26,10 +26,14 @@ const {
   createProgram,
   updateProgram,
   deleteProgram,
-  refreshProgram
+  refreshProgram,
+  getDistinctSchoolsAttributes,
+  updateBatchSchoolAttributes,
+  getSchoolsDistribution,
+  getProgramsOverview
 } = require('../../controllers/programs');
 const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin } = require('../mock/user');
+const { admin, agent, editor, student } = require('../mock/user');
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -286,5 +290,187 @@ describe('refreshProgram', () => {
     );
 
     expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
+  });
+});
+
+// getDistinctSchoolsAttributes / updateBatchSchoolAttributes are plain async
+// (NOT asyncHandler-wrapped): they re-throw the service error to the caller, so
+// the unit test awaits/rejects directly rather than asserting next(err).
+describe('getDistinctSchoolsAttributes', () => {
+  it('responds with the distinct school/attribute combinations', async () => {
+    const combos = [{ school: 'MIT', count: 3 }];
+    ProgramService.aggregatePrograms.mockResolvedValue(combos);
+    const res = mockRes();
+
+    await getDistinctSchoolsAttributes(mockReq(), res);
+
+    expect(ProgramService.aggregatePrograms).toHaveBeenCalledTimes(1);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: combos });
+  });
+
+  it('re-throws a service error', async () => {
+    const err = new Error('agg down');
+    ProgramService.aggregatePrograms.mockRejectedValue(err);
+
+    await expect(
+      getDistinctSchoolsAttributes(mockReq(), mockRes())
+    ).rejects.toBe(err);
+  });
+});
+
+describe('updateBatchSchoolAttributes', () => {
+  it('forwards the school filter + $set fields and responds { success: true }', async () => {
+    ProgramService.updateManyPrograms.mockResolvedValue({ modifiedCount: 2 });
+    const res = mockRes();
+
+    await updateBatchSchoolAttributes(
+      mockReq({
+        body: {
+          school: 'MIT',
+          isPrivateSchool: true,
+          isPartnerSchool: false,
+          schoolType: 'public',
+          tags: ['x'],
+          country: 'US'
+        }
+      }),
+      res
+    );
+
+    expect(ProgramService.updateManyPrograms).toHaveBeenCalledWith(
+      expect.objectContaining({ school: 'MIT' }),
+      expect.objectContaining({
+        $set: expect.objectContaining({ schoolType: 'public', country: 'US' })
+      }),
+      { upsert: false }
+    );
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('re-throws a service error', async () => {
+    const err = new Error('update down');
+    ProgramService.updateManyPrograms.mockRejectedValue(err);
+
+    await expect(
+      updateBatchSchoolAttributes(mockReq({ body: { school: 'X' } }), mockRes())
+    ).rejects.toBe(err);
+  });
+});
+
+describe('getSchoolsDistribution', () => {
+  it('responds 200 with only the rows that have a school name', async () => {
+    ProgramService.aggregatePrograms.mockResolvedValue([
+      { school: 'MIT', programCount: 4 },
+      { school: null, programCount: 1 } // dropped by the controller filter
+    ]);
+    const res = mockRes();
+
+    await getSchoolsDistribution(mockReq(), res, jest.fn());
+
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data).toEqual([{ school: 'MIT', programCount: 4 }]);
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('agg down');
+    ProgramService.aggregatePrograms.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getSchoolsDistribution(mockReq(), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
+  });
+});
+
+describe('getProgramsOverview', () => {
+  it('runs every aggregation in parallel and assembles the (filtered) overview', async () => {
+    // 8 aggregatePrograms calls, in the controller's order:
+    // totalSchools, byCountry, byDegree, byLanguage, bySubject, bySchoolType,
+    // topSchools, topContributors.
+    ProgramService.countPrograms.mockResolvedValue(42);
+    ProgramService.aggregatePrograms
+      .mockResolvedValueOnce([{ totalSchools: 7 }]) // totalSchools -> [0].totalSchools
+      .mockResolvedValueOnce([{ country: 'US', count: 5 }, { count: 1 }]) // byCountry (one dropped)
+      .mockResolvedValueOnce([{ degree: 'Master', count: 3 }]) // byDegree
+      .mockResolvedValueOnce([{ language: 'English', count: 2 }]) // byLanguage
+      .mockResolvedValueOnce([{ subject: 'CS', count: 8 }]) // bySubject
+      .mockResolvedValueOnce([{ schoolType: 'public', count: 9 }]) // bySchoolType (no filter)
+      .mockResolvedValueOnce([{ school: 'MIT', programCount: 10 }]) // topSchools
+      .mockResolvedValueOnce([{ contributor: 'Ann', updateCount: 6 }]); // topContributors
+    ProgramService.findProgramsQuery.mockResolvedValue([{ _id: 'p1' }]); // recentlyUpdated
+    ApplicationService.aggregateApplications.mockResolvedValue([
+      { school: 'MIT', program_name: 'CS', totalApplications: 3 },
+      { school: null, program_name: null } // dropped by the controller filter
+    ]);
+    const res = mockRes();
+
+    await getProgramsOverview(mockReq(), res, jest.fn());
+
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.totalPrograms).toBe(42);
+    expect(body.data.totalSchools).toBe(7);
+    expect(body.data.byCountry).toEqual([{ country: 'US', count: 5 }]);
+    expect(body.data.topApplicationPrograms).toHaveLength(1);
+    expect(body.data.generatedAt).toBeInstanceOf(Date);
+  });
+
+  it('defaults totalSchools to 0 when the count aggregation is empty', async () => {
+    ProgramService.countPrograms.mockResolvedValue(0);
+    ProgramService.aggregatePrograms.mockResolvedValue([]); // every aggregation, incl. totalSchools
+    ProgramService.findProgramsQuery.mockResolvedValue([]);
+    ApplicationService.aggregateApplications.mockResolvedValue([]);
+    const res = mockRes();
+
+    await getProgramsOverview(mockReq(), res, jest.fn());
+
+    const body = res.send.mock.calls[0][0];
+    expect(body.data.totalSchools).toBe(0);
+    expect(body.data.byCountry).toEqual([]);
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('overview down');
+    ProgramService.countPrograms.mockRejectedValue(err);
+    ProgramService.aggregatePrograms.mockResolvedValue([]);
+    ProgramService.findProgramsQuery.mockResolvedValue([]);
+    ApplicationService.aggregateApplications.mockResolvedValue([]);
+    const next = jest.fn();
+
+    await getProgramsOverview(mockReq(), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
+  });
+});
+
+describe('getProgram (role branches)', () => {
+  it('does not load version control for a Student (vc null)', async () => {
+    ProgramService.getProgramById.mockResolvedValue({ _id: 'prog-1' });
+    const res = mockRes();
+
+    await getProgram(
+      mockReq({ params: { programId: 'prog-1' }, user: student }),
+      res,
+      jest.fn()
+    );
+
+    expect(VCService.getVC).not.toHaveBeenCalled();
+    const body = res.send.mock.calls[0][0];
+    expect(body.vc).toBeNull();
+  });
+
+  it('loads version control for an Agent', async () => {
+    ProgramService.getProgramById.mockResolvedValue({ _id: 'prog-1' });
+    VCService.getVC.mockResolvedValue({ docId: 'prog-1' });
+    const res = mockRes();
+
+    await getProgram(
+      mockReq({ params: { programId: 'prog-1' }, user: agent }),
+      res,
+      jest.fn()
+    );
+
+    expect(VCService.getVC).toHaveBeenCalledTimes(1);
   });
 });

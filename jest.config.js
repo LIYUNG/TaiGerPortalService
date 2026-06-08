@@ -24,12 +24,17 @@ module.exports = {
   workerIdleMemoryLimit: '512MB',
   coverageReporters: ['text-summary', 'html', 'lcov'],
   collectCoverage: true,
+  // Gates set just under the achieved coverage so any regression fails the
+  // build. Statements/functions/lines clear 95%; branches plateau at ~83.5%
+  // because of unreachable/dead production code (e.g. the always-true
+  // checkDocumentPattern guard, unused exports, the informEditor asyncHandler
+  // arg-drop) that can't be exercised without changing production behavior.
   coverageThreshold: {
     global: {
-      statements: 57,
-      branches: 34,
-      functions: 59,
-      lines: 58
+      statements: 96,
+      branches: 83,
+      functions: 95,
+      lines: 96
     }
   }
 };

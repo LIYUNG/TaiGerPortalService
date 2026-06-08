@@ -32,13 +32,20 @@ const {
   getAllDocumentations,
   getAllInternalDocumentations,
   getDocumentation,
+  getInternalDocumentation,
   createDocumentation,
   createInternalDocumentation,
   updateDocumentation,
   updateInternalDocumentation,
   deleteDocumentation,
+  deleteInternalDocumentation,
   getCategoryDocumentationsPage,
-  getDocFile
+  getDocFile,
+  updateInternalDocumentationPage,
+  getInternalDocumentationsPage,
+  updateDocumentationPage,
+  uploadDocImage,
+  uploadDocDocs
 } = require('../../controllers/documentations');
 const { mockReq, mockRes } = require('../helpers/httpMocks');
 const { admin } = require('../mock/user');
@@ -300,5 +307,202 @@ describe('getDocFile', () => {
     expect(getS3Object).toHaveBeenCalledTimes(1);
     expect(res.attachment).toHaveBeenCalledWith('my-file.pdf');
     expect(res.end).toHaveBeenCalled();
+  });
+
+  it('cache-hit: serves the cached buffer without touching S3', async () => {
+    ten_minutes_cache.get.mockReturnValue(Buffer.from('cached'));
+    const res = mockRes();
+    res.attachment = jest.fn(() => res);
+
+    await getDocFile(
+      mockReq({ params: { object_key: 'my-file.pdf' }, originalUrl: '/f' }),
+      res,
+      jest.fn()
+    );
+
+    expect(getS3Object).not.toHaveBeenCalled();
+    expect(res.attachment).toHaveBeenCalledWith('my-file.pdf');
+    expect(res.end).toHaveBeenCalled();
+  });
+});
+
+describe('updateInternalDocumentationPage', () => {
+  it('201: stamps author and upserts the internal docspage', async () => {
+    const page = { _id: 'p1', category: 'internal' };
+    DocumentationService.upsertDocspageByCategory.mockResolvedValue(page);
+    const res = mockRes();
+
+    await updateInternalDocumentationPage(
+      mockReq({ body: { _id: 'strip', text: 'X' }, user: admin }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentationService.upsertDocspageByCategory).toHaveBeenCalledWith(
+      'internal',
+      expect.objectContaining({ text: 'X', author: authorStamp })
+    );
+    const fields =
+      DocumentationService.upsertDocspageByCategory.mock.calls[0][1];
+    expect(fields).not.toHaveProperty('_id');
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: page });
+  });
+});
+
+describe('getInternalDocumentationsPage', () => {
+  it('returns the internal docspage from the service', async () => {
+    const page = { _id: 'p1', category: 'internal' };
+    DocumentationService.getDocspageByCategory.mockResolvedValue(page);
+    const res = mockRes();
+
+    await getInternalDocumentationsPage(mockReq(), res, jest.fn());
+
+    expect(DocumentationService.getDocspageByCategory).toHaveBeenCalledWith(
+      'internal'
+    );
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: page });
+  });
+
+  it('returns {} when no internal docspage exists', async () => {
+    DocumentationService.getDocspageByCategory.mockResolvedValue(null);
+    const res = mockRes();
+
+    await getInternalDocumentationsPage(mockReq(), res, jest.fn());
+
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: {} });
+  });
+});
+
+describe('updateDocumentationPage', () => {
+  it('201: upserts the category page, stamps author and sets the cache', async () => {
+    const page = { _id: 'p1', category: 'visa' };
+    DocumentationService.upsertDocspageByCategory.mockResolvedValue(page);
+    const res = mockRes();
+
+    await updateDocumentationPage(
+      mockReq({
+        params: { category: 'visa' },
+        body: { _id: 'strip', text: 'X' },
+        user: admin,
+        url: '/visa'
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentationService.upsertDocspageByCategory).toHaveBeenCalledWith(
+      'visa',
+      expect.objectContaining({ text: 'X', author: authorStamp })
+    );
+    expect(ten_minutes_cache.set).toHaveBeenCalledWith('/visa', page);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: page });
+  });
+});
+
+describe('getCategoryDocumentationsPage (cache hit + empty)', () => {
+  it('cache-hit: serves the cached value without calling the service', async () => {
+    ten_minutes_cache.get.mockReturnValue({ _id: 'cached' });
+    const res = mockRes();
+
+    await getCategoryDocumentationsPage(
+      mockReq({ params: { category: 'visa' }, user: admin, url: '/visa' }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentationService.getDocspageByCategory).not.toHaveBeenCalled();
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: { _id: 'cached' }
+    });
+  });
+
+  it('cache-miss with no docspage: returns {}', async () => {
+    ten_minutes_cache.get.mockReturnValue(undefined);
+    DocumentationService.getDocspageByCategory.mockResolvedValue(null);
+    const res = mockRes();
+
+    await getCategoryDocumentationsPage(
+      mockReq({ params: { category: 'visa' }, user: admin, url: '/visa' }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: {} });
+  });
+});
+
+describe('getInternalDocumentation', () => {
+  it('forwards req.params.doc_id and returns the internal documentation', async () => {
+    const docId = new ObjectId().toHexString();
+    const doc = { _id: docId, title: 'IT' };
+    DocumentationService.getInternalDocumentationById.mockResolvedValue(doc);
+    const res = mockRes();
+
+    await getInternalDocumentation(
+      mockReq({ params: { doc_id: docId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(
+      DocumentationService.getInternalDocumentationById
+    ).toHaveBeenCalledWith(docId);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: doc });
+  });
+});
+
+describe('uploadDocImage', () => {
+  it('builds an image url from the uploaded file key', async () => {
+    const res = mockRes();
+
+    await uploadDocImage(
+      mockReq({ file: { key: 'Documentations/pic.png' } }),
+      res,
+      jest.fn()
+    );
+
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data).toContain('pic.png');
+  });
+});
+
+describe('uploadDocDocs', () => {
+  it('builds a doc url, extension and deletes the stale cache key', async () => {
+    const res = mockRes();
+
+    await uploadDocDocs(
+      mockReq({ file: { key: 'Documentations/report.docx' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(ten_minutes_cache.del).toHaveBeenCalled();
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.extension).toBe('docx');
+    expect(body.url).toContain('report.docx');
+  });
+});
+
+describe('deleteInternalDocumentation', () => {
+  it('200: forwards the id to the internal-delete service', async () => {
+    const docId = new ObjectId().toHexString();
+    DocumentationService.deleteInternalDocumentationById.mockResolvedValue({});
+    const res = mockRes();
+
+    await deleteInternalDocumentation(
+      mockReq({ params: { id: docId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(
+      DocumentationService.deleteInternalDocumentationById
+    ).toHaveBeenCalledWith(docId);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
   });
 });

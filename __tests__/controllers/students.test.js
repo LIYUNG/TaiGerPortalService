@@ -37,6 +37,7 @@ const UserService = require('../../services/users');
 const PermissionService = require('../../services/permissions');
 const BasedocumentationslinkService = require('../../services/basedocumentationslinks');
 const { getAuditLogs } = require('../../services/audit');
+const { getPermission } = require('../../utils/queryFunctions');
 const { userChangesHelperFunction } = require('../../utils/utils_function');
 const {
   getStudent,
@@ -47,11 +48,14 @@ const {
   getStudentAndDocLinks,
   getStudentsAndDocLinks,
   updateDocumentationHelperLink,
+  updateStudentsArchivStatus,
   assignAttributesToStudent,
-  assignAgentToStudent
+  assignAgentToStudent,
+  assignEditorToStudent
 } = require('../../controllers/students');
 const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, agent, student } = require('../mock/user');
+const { Role } = require('@taiger-common/core');
+const { admin, agent, editor, student } = require('../mock/user');
 
 const studentId = student._id.toString();
 
@@ -178,6 +182,27 @@ describe('getStudentsByIds', () => {
     const body = res.send.mock.calls[0][0];
     expect(body.success).toBe(false);
     expect(body.invalidIds).toEqual(['not-an-id', 'also-bad']);
+  });
+
+  it('ignores empty segments + invalid ids and reports them alongside 200 results', async () => {
+    const students = [{ _id: studentId }];
+    StudentService.getStudentsWithApplications.mockResolvedValue(students);
+    const res = mockRes();
+
+    // `${studentId}` is valid, `bad-id` is invalid, the trailing comma yields an
+    // empty segment (the !trimmedId short-circuit), and whitespace is trimmed.
+    await getStudentsByIds(
+      mockReq({ query: { ids: `${studentId}, bad-id ,` }, requestId: 'r-1' }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.getStudentsWithApplications).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.invalidIds).toEqual(['bad-id']);
+    expect(body.message).toMatch(/ignored/i);
   });
 
   it('queries by the parsed valid ids and responds 200', async () => {
@@ -415,5 +440,507 @@ describe('assignAgentToStudent', () => {
     expect(res.json).toHaveBeenCalledWith({ success: true, data: updated });
     // an audit entry was attached and next() invoked for the audit middleware
     expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('emails agent-leads, newly-informed agents and the student after assigning', async () => {
+    const {
+      informAgentManagerNewStudentEmail,
+      informAgentNewStudentEmail,
+      informStudentTheirAgentEmail
+    } = require('../../services/email');
+    const existing = { _id: studentId, agents: [], archiv: false };
+    const updated = {
+      _id: { toString: () => studentId },
+      agents: [agent._id],
+      firstname: 'Ann',
+      lastname: 'B',
+      email: 'a@b.c',
+      archiv: false
+    };
+    StudentService.getStudentById
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(updated);
+    userChangesHelperFunction.mockResolvedValue({
+      addedUsers: [{ _id: agent._id }],
+      removedUsers: [],
+      // non-empty updatedUsers -> informStudentTheirAgentEmail branch
+      updatedUsers: [{ _id: agent._id, firstname: 'New', lastname: 'Agent' }],
+      // non-empty toBeInformedUsers (non-archived) -> informAgentNewStudentEmail
+      toBeInformedUsers: [
+        {
+          _id: agent._id,
+          firstname: 'New',
+          lastname: 'Agent',
+          email: 'n@a.c',
+          archiv: false
+        }
+      ],
+      updatedUserIds: [agent._id]
+    });
+    StudentService.updateStudentById.mockResolvedValue({});
+    // an agent-lead distinct from the requesting admin, non-archived.
+    PermissionService.findPermissionsWithUser.mockResolvedValue([
+      {
+        user_id: {
+          _id: { toString: () => 'lead-1' },
+          firstname: 'Lead',
+          lastname: 'Er',
+          email: 'lead@x.c',
+          archiv: false
+        }
+      }
+    ]);
+    const res = mockRes();
+    const next = jest.fn();
+
+    await assignAgentToStudent(
+      mockReq({
+        user: admin,
+        params: { studentId },
+        body: { [agent._id]: true }
+      }),
+      res,
+      next
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(informAgentManagerNewStudentEmail).toHaveBeenCalledTimes(1);
+    expect(informAgentNewStudentEmail).toHaveBeenCalledTimes(1);
+    expect(informStudentTheirAgentEmail).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('responds 500 when an internal error is thrown', async () => {
+    StudentService.getStudentById.mockResolvedValueOnce({
+      _id: studentId,
+      agents: []
+    });
+    userChangesHelperFunction.mockRejectedValue(new Error('boom'));
+    const res = mockRes();
+
+    await assignAgentToStudent(
+      mockReq({ user: admin, params: { studentId }, body: { x: true } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Internal server error.'
+    });
+  });
+});
+
+describe('getStudentAndDocLinks agent notification pull', () => {
+  it('clears the agent base-docs notification after responding 200', async () => {
+    StudentService.getStudentByIdWithDocThreads.mockResolvedValue({
+      _id: studentId
+    });
+    ApplicationService.getApplicationsByStudentId.mockResolvedValue([
+      { _id: 'app1', isLocked: undefined }
+    ]);
+    BasedocumentationslinkService.findByCategory.mockResolvedValue({});
+    getAuditLogs.mockResolvedValue([]);
+    UserService.updateUser.mockResolvedValue({});
+    const res = mockRes();
+
+    await getStudentAndDocLinks(
+      mockReq({ user: agent, params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(UserService.updateUser).toHaveBeenCalledWith(
+      agent._id.toString(),
+      expect.objectContaining({ $pull: expect.any(Object) })
+    );
+  });
+});
+
+describe('getStudentsAndDocLinks role branches', () => {
+  it('student branch: marks base-docs read and returns the single student + links', async () => {
+    const studentUser = { ...student, notification: {} };
+    StudentService.updateStudentById.mockResolvedValue({ _id: studentId });
+    BasedocumentationslinkService.findByCategory.mockResolvedValue({
+      base: 'd'
+    });
+    const res = mockRes();
+
+    await getStudentsAndDocLinks(
+      mockReq({ user: studentUser, query: {} }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.updateStudentById).toHaveBeenCalledWith(
+      studentUser._id.toString(),
+      expect.objectContaining({
+        notification: expect.objectContaining({
+          isRead_base_documents_rejected: true
+        })
+      })
+    );
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [{ _id: studentId }],
+      base_docs_link: { base: 'd' }
+    });
+  });
+
+  it('guest branch: echoes the user back', async () => {
+    const guest = { _id: 'g1', role: Role.Guest };
+    const res = mockRes();
+
+    await getStudentsAndDocLinks(
+      mockReq({ user: guest, query: {} }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: [guest] });
+  });
+});
+
+describe('updateStudentsArchivStatus', () => {
+  it('archived + admin: returns active students and emails editors', async () => {
+    const archivedStudent = {
+      firstname: 'Stu',
+      lastname: 'Dent',
+      email: 's@d.co',
+      editors: [{ firstname: 'E', lastname: 'D', email: 'e@d.co' }]
+    };
+    StudentService.updateStudentById.mockResolvedValue(archivedStudent);
+    StudentService.fetchStudents.mockResolvedValue([{ _id: 's1' }]);
+    const res = mockRes();
+
+    await updateStudentsArchivStatus(
+      mockReq({
+        user: admin,
+        params: { studentId },
+        body: { isArchived: true, shouldInform: true }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.fetchStudents).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [{ _id: 's1' }]
+    });
+  });
+
+  it('archived + agent with canAssignAgents: returns all active students', async () => {
+    StudentService.updateStudentById.mockResolvedValue({ editors: [] });
+    StudentService.fetchStudents.mockResolvedValue([{ _id: 's2' }]);
+    getPermission.mockResolvedValue({ canAssignAgents: true });
+    const res = mockRes();
+
+    await updateStudentsArchivStatus(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { isArchived: true, shouldInform: false }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [{ _id: 's2' }]
+    });
+  });
+
+  it('archived + agent without canAssignAgents: scopes to own students', async () => {
+    StudentService.updateStudentById.mockResolvedValue({ editors: [] });
+    StudentService.fetchStudents.mockResolvedValue([{ _id: 's3' }]);
+    getPermission.mockResolvedValue({ canAssignAgents: false });
+    const res = mockRes();
+
+    await updateStudentsArchivStatus(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { isArchived: true, shouldInform: false }
+      }),
+      res,
+      jest.fn()
+    );
+
+    const filter = StudentService.fetchStudents.mock.calls[0][0];
+    expect(filter.agents).toEqual(agent._id);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [{ _id: 's3' }]
+    });
+  });
+
+  it('archived + editor: scopes to own students', async () => {
+    StudentService.updateStudentById.mockResolvedValue({ editors: [] });
+    StudentService.fetchStudents.mockResolvedValue([{ _id: 's4' }]);
+    const res = mockRes();
+
+    await updateStudentsArchivStatus(
+      mockReq({
+        user: editor,
+        params: { studentId },
+        body: { isArchived: true, shouldInform: false }
+      }),
+      res,
+      jest.fn()
+    );
+
+    const filter = StudentService.fetchStudents.mock.calls[0][0];
+    expect(filter.editors).toEqual(editor._id);
+  });
+
+  it('unarchived + admin: returns archived students', async () => {
+    StudentService.updateStudentById.mockResolvedValue({ editors: [] });
+    StudentService.getStudents.mockResolvedValue([{ _id: 'arch1' }]);
+    const res = mockRes();
+
+    await updateStudentsArchivStatus(
+      mockReq({
+        user: admin,
+        params: { studentId },
+        body: { isArchived: false }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.getStudents).toHaveBeenCalledWith({
+      filter: { archiv: true },
+      options: {}
+    });
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [{ _id: 'arch1' }]
+    });
+  });
+
+  it('unarchived + agent: returns the agent archived students', async () => {
+    StudentService.updateStudentById.mockResolvedValue({ editors: [] });
+    StudentService.getStudents.mockResolvedValue([{ _id: 'arch2' }]);
+    const res = mockRes();
+
+    await updateStudentsArchivStatus(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { isArchived: false }
+      }),
+      res,
+      jest.fn()
+    );
+
+    const arg = StudentService.getStudents.mock.calls[0][0];
+    expect(arg.filter).toEqual({ agents: agent._id, archiv: true });
+  });
+
+  it('unarchived + editor: returns the editor archived students', async () => {
+    StudentService.updateStudentById.mockResolvedValue({ editors: [] });
+    StudentService.getStudents.mockResolvedValue([{ _id: 'arch3' }]);
+    const res = mockRes();
+
+    await updateStudentsArchivStatus(
+      mockReq({
+        user: editor,
+        params: { studentId },
+        body: { isArchived: false }
+      }),
+      res,
+      jest.fn()
+    );
+
+    const arg = StudentService.getStudents.mock.calls[0][0];
+    expect(arg.filter).toEqual({ editors: editor._id, archiv: true });
+  });
+
+  it('unarchived + guest: returns an empty list', async () => {
+    StudentService.updateStudentById.mockResolvedValue({ editors: [] });
+    const res = mockRes();
+
+    await updateStudentsArchivStatus(
+      mockReq({
+        user: { _id: 'g', role: Role.Guest },
+        params: { studentId },
+        body: { isArchived: false }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: [] });
+  });
+});
+
+describe('assignEditorToStudent', () => {
+  it('responds 400 on invalid input (non-object body)', async () => {
+    const res = mockRes();
+
+    await assignEditorToStudent(
+      mockReq({ user: admin, params: { studentId }, body: 'nope' }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(StudentService.getStudentById).not.toHaveBeenCalled();
+  });
+
+  it('responds 404 when the student does not exist', async () => {
+    StudentService.getStudentById.mockResolvedValue(null);
+    const res = mockRes();
+
+    await assignEditorToStudent(
+      mockReq({ user: admin, params: { studentId }, body: {} }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('updates editors, returns the refreshed student and calls next() for audit', async () => {
+    const existing = {
+      _id: studentId,
+      editors: [],
+      agents: [],
+      firstname: 'Ann',
+      lastname: 'B',
+      email: 'a@b.c',
+      archiv: false
+    };
+    const updated = {
+      _id: { toString: () => studentId },
+      editors: [editor._id],
+      agents: [],
+      firstname: 'Ann',
+      archiv: false
+    };
+    StudentService.getStudentById
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(updated);
+    userChangesHelperFunction.mockResolvedValue({
+      addedUsers: [
+        {
+          _id: editor._id,
+          firstname: 'E',
+          lastname: 'D',
+          email: 'e@d.c',
+          archiv: false
+        }
+      ],
+      removedUsers: [],
+      updatedUsers: [{ _id: editor._id, firstname: 'E' }],
+      toBeInformedUsers: [
+        {
+          _id: editor._id,
+          firstname: 'E',
+          lastname: 'D',
+          email: 'e@d.c',
+          archiv: false
+        }
+      ],
+      updatedUserIds: [editor._id]
+    });
+    StudentService.updateStudentById.mockResolvedValue({});
+    const res = mockRes();
+    const next = jest.fn();
+
+    await assignEditorToStudent(
+      mockReq({
+        user: admin,
+        params: { studentId },
+        body: { [editor._id]: true }
+      }),
+      res,
+      next
+    );
+
+    expect(StudentService.updateStudentById).toHaveBeenCalledWith(
+      studentId,
+      expect.objectContaining({ editors: [editor._id] })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('also emails the assigned agents of the student after assigning editors', async () => {
+    const { informAgentStudentAssignedEmail } = require('../../services/email');
+    const existing = {
+      _id: studentId,
+      editors: [],
+      agents: [],
+      firstname: 'Ann',
+      lastname: 'B',
+      email: 'a@b.c',
+      archiv: false
+    };
+    const updated = {
+      _id: { toString: () => studentId },
+      editors: [editor._id],
+      // non-empty agents (non-archived) -> informAgentStudentAssignedEmail loop
+      agents: [
+        {
+          _id: agent._id,
+          firstname: 'Ag',
+          lastname: 'Ent',
+          email: 'ag@e.c',
+          archiv: false
+        }
+      ],
+      firstname: 'Ann',
+      archiv: false
+    };
+    StudentService.getStudentById
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(updated);
+    userChangesHelperFunction.mockResolvedValue({
+      addedUsers: [{ _id: editor._id }],
+      removedUsers: [],
+      updatedUsers: [],
+      toBeInformedUsers: [],
+      updatedUserIds: [editor._id]
+    });
+    StudentService.updateStudentById.mockResolvedValue({});
+    const res = mockRes();
+    const next = jest.fn();
+
+    await assignEditorToStudent(
+      mockReq({
+        user: admin,
+        params: { studentId },
+        body: { [editor._id]: true }
+      }),
+      res,
+      next
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(informAgentStudentAssignedEmail).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('responds 500 when an internal error is thrown', async () => {
+    StudentService.getStudentById.mockResolvedValueOnce({
+      _id: studentId,
+      editors: []
+    });
+    userChangesHelperFunction.mockRejectedValue(new Error('boom'));
+    const res = mockRes();
+
+    await assignEditorToStudent(
+      mockReq({ user: admin, params: { studentId }, body: { x: true } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(500);
   });
 });

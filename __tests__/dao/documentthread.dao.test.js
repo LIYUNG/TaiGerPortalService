@@ -29,7 +29,16 @@ jest.mock('../../models', () => {
   return { Documentthread };
 });
 
+// createApplicationThread delegates to the version-control helper; mock it so we
+// assert the delegation without pulling in the real model wiring.
+jest.mock('../../utils/modelHelper/versionControl', () => ({
+  createApplicationThreadV2: jest.fn()
+}));
+
 const { Documentthread } = require('../../models');
+const {
+  createApplicationThreadV2
+} = require('../../utils/modelHelper/versionControl');
 const DocumentthreadDAO = require('../../dao/documentthread.dao');
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
@@ -85,6 +94,20 @@ describe('DocumentthreadDAO simple CRUD/read (mocked models)', () => {
       file_type: 'Essay'
     });
     expect(result).toBe(7);
+  });
+
+  it('createApplicationThread delegates to createApplicationThreadV2', async () => {
+    const created = { _id: 't0' };
+    createApplicationThreadV2.mockResolvedValue(created);
+
+    const result = await DocumentthreadDAO.createApplicationThread(
+      's1',
+      'a1',
+      'CV'
+    );
+
+    expect(createApplicationThreadV2).toHaveBeenCalledWith('s1', 'a1', 'CV');
+    expect(result).toBe(created);
   });
 
   it('createThread forwards the payload to create', async () => {
@@ -539,5 +562,293 @@ describe('DocumentthreadDAO query parsing (pure, via empty short-circuit)', () =
     });
     expect(res.page).toBe(5);
     expect(res.limit).toBe(15);
+  });
+});
+
+// ---- Pipeline-branch coverage: drive the module-private helpers
+// (buildFileTypeCond / parseArrayParam / buildCategoryMatch / escapeRegex /
+// THREAD_SORT_FIELD_MAP) through the two aggregation entry points and inspect
+// the pipeline passed to Documentthread.aggregate. Pipeline *internals* are
+// validated by the integration suite; here we only assert the conditional
+// stages/$match conditions the DAO assembles from the query/scope.
+describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () => {
+  const STUDENT = '64b000000000000000000001';
+
+  // Returns the preMatch ($match on the thread) and the post-computed-fields
+  // $match (the one carrying $and with student.archiv).
+  const runAndGetPipeline = async (extra) => {
+    Documentthread.aggregate.mockReturnValue(
+      aggDiskChain([{ rows: [], total: [] }])
+    );
+    await DocumentthreadDAO.findActiveThreadsPaginated({
+      studentIds: [STUDENT],
+      query: { page: 1, limit: 20, ...extra?.query },
+      ...extra
+    });
+    return Documentthread.aggregate.mock.calls[0][0];
+  };
+
+  it('defaults file_type to {$ne: "Interview"} and scopes by student_id', async () => {
+    const pipeline = await runAndGetPipeline();
+    const preMatch = pipeline[0].$match;
+    expect(preMatch.file_type).toEqual({ $ne: 'Interview' });
+    expect(preMatch.student_id.$in).toHaveLength(1);
+  });
+
+  it('uses a single file_type value when one is given', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { file_type: 'Essay' }
+    });
+    expect(pipeline[0].$match.file_type).toBe('Essay');
+  });
+
+  it('uses $in when a comma-separated file_type list is given', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { file_type: 'CV,ML,RL_A' }
+    });
+    expect(pipeline[0].$match.file_type).toEqual({ $in: ['CV', 'ML', 'RL_A'] });
+  });
+
+  it('builds the outsourced-user scope $or (instead of student_id) when set', async () => {
+    const pipeline = await runAndGetPipeline({
+      outsourcedUserId: '64b000000000000000000002'
+    });
+    const preMatch = pipeline[0].$match;
+    // student_id moves into the $and -> $or scope, not the top-level match.
+    expect(preMatch.student_id).toBeUndefined();
+    expect(preMatch.$and[0].$or[0].student_id.$in).toHaveLength(1);
+    expect(preMatch.$and[0].$or[1].file_type).toBe('Essay');
+  });
+
+  it('adds an excludeFileType $nin (with viewer override) scope condition', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: {
+        excludeFileType: 'Supplementary_Form,Supplementary_Material',
+        viewerId: '64b000000000000000000003'
+      }
+    });
+    const scope = pipeline[0].$match.$and;
+    const orCond = scope.find((c) => c.$or);
+    expect(orCond.$or[0].file_type.$nin).toEqual([
+      'Supplementary_Form',
+      'Supplementary_Material'
+    ]);
+    // viewer override: outsourced collaborators still see the excluded type.
+    expect(orCond.$or[1].outsourced_user_id).toBeDefined();
+  });
+
+  it('accepts an already-array excludeFileType param', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: {
+        excludeFileType: ['Supplementary_Form', 'Supplementary_Material']
+      }
+    });
+    const scope = pipeline[0].$match.$and;
+    const orCond = scope.find((c) => c.$or);
+    expect(orCond.$or[0].file_type.$nin).toEqual([
+      'Supplementary_Form',
+      'Supplementary_Material'
+    ]);
+  });
+
+  it('pre-matches isFinalVersion=true for the "closed" category', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { category: 'closed' }
+    });
+    expect(pipeline[0].$match.isFinalVersion).toBe(true);
+  });
+
+  it('pre-matches isFinalVersion={$ne:true} for non-closed, non-all categories', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { category: 'in_progress' }
+    });
+    expect(pipeline[0].$match.isFinalVersion).toEqual({ $ne: true });
+  });
+
+  it('appends a buildCategoryMatch stage for a computed category (no_writer)', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { category: 'no_writer' }
+    });
+    const hasNoWriter = pipeline.some(
+      (s) => s.$match && s.$match._noWriter === true
+    );
+    expect(hasNoWriter).toBe(true);
+  });
+
+  it('appends a closed category match (_isFinal: true)', async () => {
+    const pipeline = await runAndGetPipeline({ query: { category: 'closed' } });
+    expect(pipeline.some((s) => s.$match && s.$match._isFinal === true)).toBe(
+      true
+    );
+  });
+
+  it('appends an in_progress category match (_hasMessages: true)', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { category: 'in_progress' }
+    });
+    expect(
+      pipeline.some(
+        (s) =>
+          s.$match &&
+          s.$match._isFinal === false &&
+          s.$match._hasMessages === true
+      )
+    ).toBe(true);
+  });
+
+  it('appends a no_input category match (_hasMessages: false)', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { category: 'no_input' }
+    });
+    expect(
+      pipeline.some(
+        (s) =>
+          s.$match &&
+          s.$match._isFinal === false &&
+          s.$match._hasMessages === false
+      )
+    ).toBe(true);
+  });
+
+  it('appends a fav category match (_favForViewer: true)', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { category: 'fav', viewerId: '64b000000000000000000003' }
+    });
+    expect(
+      pipeline.some((s) => s.$match && s.$match._favForViewer === true)
+    ).toBe(true);
+  });
+
+  it('appends a new_message category match ($nin on _latestById)', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { category: 'new_message', viewerId: '64b000000000000000000003' }
+    });
+    expect(
+      pipeline.some(
+        (s) => s.$match && s.$match._latestById && s.$match._latestById.$nin
+      )
+    ).toBe(true);
+  });
+
+  it('appends a pending_progress category match (_hasMessages: false)', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { category: 'pending_progress' }
+    });
+    expect(
+      pipeline.some(
+        (s) =>
+          s.$match &&
+          s.$match._isFinal === false &&
+          s.$match._hasMessages === false
+      )
+    ).toBe(true);
+  });
+
+  it('appends a viewer-dependent followup category match', async () => {
+    const viewerId = '64b000000000000000000003';
+    const pipeline = await runAndGetPipeline({
+      query: { category: 'followup', viewerId }
+    });
+    const followup = pipeline.find(
+      (s) => s.$match && s.$match._latestById === viewerId
+    );
+    expect(followup).toBeDefined();
+  });
+
+  it('adds column filters (name/document_name/lang/deadline/status) + search to the post $and', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: {
+        name: 'Ja.ne',
+        document_name: 'CV',
+        lang: 'English',
+        deadline: '2025/09',
+        status: 'Locked',
+        search: 'a*b'
+      }
+    });
+    // The post-lookup $and match always starts with student.archiv filter.
+    const andMatch = pipeline.find(
+      (s) =>
+        s.$match &&
+        Array.isArray(s.$match.$and) &&
+        s.$match.$and.some((c) => c['student.archiv'])
+    ).$match.$and;
+    const flat = JSON.stringify(andMatch);
+    expect(flat).toContain('student.firstname');
+    expect(flat).toContain('document_name');
+    expect(flat).toContain('lang');
+    expect(flat).toContain('deadline');
+    // status Locked -> isLocked true
+    expect(andMatch.some((c) => c.isLocked === true)).toBe(true);
+    // search metacharacters escaped (a\\*b)
+    expect(flat).toContain('a\\\\*b');
+  });
+
+  it('maps an Unlocked status filter to isLocked=false', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { status: 'Unlocked' }
+    });
+    const andMatch = pipeline.find(
+      (s) =>
+        s.$match &&
+        Array.isArray(s.$match.$and) &&
+        s.$match.$and.some((c) => c['student.archiv'])
+    ).$match.$and;
+    expect(andMatch.some((c) => c.isLocked === false)).toBe(true);
+  });
+
+  it('honours the document_name sort field map', async () => {
+    Documentthread.aggregate.mockReturnValue(
+      aggDiskChain([{ rows: [], total: [] }])
+    );
+    await DocumentthreadDAO.findActiveThreadsPaginated({
+      studentIds: [STUDENT],
+      query: { sortBy: 'document_name', sortOrder: 'desc' }
+    });
+    const pipeline = Documentthread.aggregate.mock.calls[0][0];
+    const facet = pipeline.find((s) => s.$facet).$facet;
+    expect(facet.rows[0].$sort).toEqual({ document_name: -1, _id: 1 });
+  });
+});
+
+describe('DocumentthreadDAO.countActiveThreads pipeline assembly', () => {
+  const STUDENT = '64b000000000000000000001';
+
+  it('defaults file_type and scopes by student_id', async () => {
+    Documentthread.aggregate.mockReturnValue(aggDiskChain([{ all: 0 }]));
+    await DocumentthreadDAO.countActiveThreads({
+      studentIds: [STUDENT],
+      query: {}
+    });
+    const preMatch = Documentthread.aggregate.mock.calls[0][0][0].$match;
+    expect(preMatch.file_type).toEqual({ $ne: 'Interview' });
+    expect(preMatch.student_id.$in).toHaveLength(1);
+  });
+
+  it('builds the outsourced scope $or when outsourcedUserId is set', async () => {
+    Documentthread.aggregate.mockReturnValue(aggDiskChain([{ all: 0 }]));
+    await DocumentthreadDAO.countActiveThreads({
+      studentIds: [STUDENT],
+      outsourcedUserId: '64b000000000000000000002',
+      query: { file_type: 'Essay' }
+    });
+    const preMatch = Documentthread.aggregate.mock.calls[0][0][0].$match;
+    expect(preMatch.student_id).toBeUndefined();
+    expect(preMatch.$and[0].$or[1].file_type).toBe('Essay');
+  });
+
+  it('adds the excludeFileType $nin scope (with viewer override)', async () => {
+    Documentthread.aggregate.mockReturnValue(aggDiskChain([{ all: 0 }]));
+    await DocumentthreadDAO.countActiveThreads({
+      studentIds: [STUDENT],
+      query: {
+        excludeFileType: 'Supplementary_Form',
+        viewerId: '64b000000000000000000003'
+      }
+    });
+    const scope = Documentthread.aggregate.mock.calls[0][0][0].$match.$and;
+    const orCond = scope.find((c) => c.$or);
+    expect(orCond.$or[0].file_type.$nin).toEqual(['Supplementary_Form']);
+    expect(orCond.$or[1].outsourced_user_id).toBeDefined();
   });
 });

@@ -33,6 +33,7 @@ const TokenService = require('../../services/tokens');
 const EmailService = require('../../services/email');
 const { fetchUserFromIdToken } = require('../../utils/helper');
 const {
+  signup,
   login,
   logout,
   verify,
@@ -101,6 +102,61 @@ describe('verify', () => {
     const body = res.json.mock.calls[0][0];
     expect(body.success).toBe(true);
     expect(body.data.email).toBe(fakeUser.email);
+  });
+});
+
+describe('signup', () => {
+  const validBody = {
+    firstname: 'Ann',
+    lastname: 'Smith',
+    email: 'ann@example.com',
+    password: 'NewPassword1!'
+  };
+
+  it('creates a guest, stores a hashed activation token, emails them, responds 201', async () => {
+    UserService.getUserByEmail.mockResolvedValue(null);
+    UserService.createGuest.mockResolvedValue({ _id: fakeUser._id });
+    TokenService.createToken.mockResolvedValue({ _id: 'tok-1' });
+    const res = mockRes();
+
+    await signup(mockReq({ body: { ...validBody } }), res, jest.fn());
+
+    expect(UserService.getUserByEmail).toHaveBeenCalledWith(validBody.email);
+    expect(UserService.createGuest).toHaveBeenCalledWith(
+      expect.objectContaining({ email: validBody.email })
+    );
+    expect(TokenService.createToken).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: fakeUser._id })
+    );
+    expect(EmailService.sendConfirmationEmail).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('forwards a 400 ErrorResponse when the email already exists (no guest created)', async () => {
+    UserService.getUserByEmail.mockResolvedValue(fakeUser);
+    const next = jest.fn();
+
+    await signup(mockReq({ body: { ...validBody } }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 400 });
+    expect(UserService.createGuest).not.toHaveBeenCalled();
+  });
+
+  it('forwards a validation error to next() for an invalid body', async () => {
+    const next = jest.fn();
+
+    await signup(
+      mockReq({
+        body: { firstname: '', lastname: '', email: 'x', password: '' }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(UserService.createGuest).not.toHaveBeenCalled();
   });
 });
 
@@ -289,6 +345,41 @@ describe('activateAccount', () => {
     expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 400 });
   });
 
+  it('forwards a 400 ErrorResponse when no user matches the token + email', async () => {
+    TokenService.findOneToken.mockResolvedValue({ userId: fakeUser._id });
+    UserService.getUserByFilter.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await activateAccount(
+      mockReq({ body: { email: fakeUser.email, token: 'validtoken123' } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 400 });
+    expect(UserService.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('forwards a 400 ErrorResponse when the account is already activated', async () => {
+    TokenService.findOneToken.mockResolvedValue({ userId: fakeUser._id });
+    UserService.getUserByFilter.mockResolvedValue({
+      ...fakeUser,
+      isAccountActivated: true
+    });
+    const next = jest.fn();
+
+    await activateAccount(
+      mockReq({ body: { email: fakeUser.email, token: 'validtoken123' } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 400 });
+    expect(UserService.updateUser).not.toHaveBeenCalled();
+  });
+
   it('activates the account and responds 200 on a valid token', async () => {
     const token = {
       userId: fakeUser._id,
@@ -355,6 +446,27 @@ describe('thirdAuth (Google OAuth)', () => {
     const body = res.json.mock.calls[0][0];
     expect(body.success).toBe(true);
     expect(body.data.email).toBe(fakeUser.email);
+  });
+
+  it('forwards a 400 ErrorResponse to next() when no local user matches the Google email', async () => {
+    axios.post.mockResolvedValue({ data: { id_token: 'google-id-token' } });
+    fetchUserFromIdToken.mockResolvedValue({
+      email: 'ghost@example.com',
+      name: 'Ghost',
+      picture: 'http://pic'
+    });
+    UserService.getUserByEmail.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await thirdAuth(
+      mockReq({ body: { code: 'auth-code' }, tenantId: 'test' }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 400 });
+    expect(UserService.updateUser).not.toHaveBeenCalled();
   });
 
   it('forwards a 400 ErrorResponse to next() when the Google token is invalid', async () => {

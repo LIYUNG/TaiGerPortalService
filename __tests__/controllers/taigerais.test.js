@@ -122,6 +122,45 @@ describe('TaiGerAiGeneral', () => {
 });
 
 describe('TaiGerAiChat', () => {
+  it('parses thread messages (valid + invalid JSON) and picks the latest student message', async () => {
+    const { Role } = require('@taiger-common/core');
+    CommunicationService.getRecentByStudentId.mockResolvedValue([
+      {
+        createdAt: '2024-01-01',
+        user_id: { firstname: 'Stu', role: Role.Student },
+        message: JSON.stringify({
+          blocks: [
+            { type: 'paragraph', data: { text: 'Need help with ML' } },
+            { type: 'header', data: { text: 'skip' } }
+          ]
+        })
+      },
+      {
+        createdAt: '2024-01-02',
+        user_id: { firstname: 'Bad', role: Role.Agent },
+        message: '{invalid json'
+      }
+    ]);
+    ApplicationService.getApplicationsByStudentId.mockResolvedValue([]);
+    PermissionService.decrementTaigerAiQuota.mockResolvedValue({});
+    openAIClient.chat.completions.create.mockResolvedValue(
+      makeStream(['reply'])
+    );
+    const res = mockStreamRes();
+
+    await TaiGerAiChat(
+      mockReq({ user: admin, params: { studentId }, body: { prompt: 'q' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.write).toHaveBeenCalledWith('reply');
+    expect(res.end).toHaveBeenCalledTimes(1);
+    expect(PermissionService.decrementTaigerAiQuota).toHaveBeenCalledWith(
+      admin._id
+    );
+  });
+
   it('reads the thread + applications for studentId, streams the reply, and decrements the AI quota', async () => {
     CommunicationService.getRecentByStudentId.mockResolvedValue([]);
     ApplicationService.getApplicationsByStudentId.mockResolvedValue([]);
@@ -203,6 +242,41 @@ describe('cvmlrlAi', () => {
     );
   });
 
+  it('uses the RL prompt for non-ML file types (and tolerates a missing student)', async () => {
+    // Student lookup rejects -> the try/catch leaves student_info = {}.
+    StudentService.getStudentByIdLean.mockRejectedValue(
+      new Error('no student')
+    );
+    PermissionService.decrementTaigerAiQuota.mockResolvedValue({});
+    openAIClient.chat.completions.create.mockResolvedValue(
+      makeStream(['rl draft'])
+    );
+    const res = mockStreamRes();
+
+    await cvmlrlAi(
+      mockReq({
+        user: admin,
+        body: {
+          student_input: 'My manager will recommend me',
+          document_requirements: 'one page',
+          editor_requirements: JSON.stringify({}),
+          program_full_name: 'MSc CS',
+          // file_type without 'ML' -> generalRLPrompt branch
+          file_type: 'RL_A',
+          student_id: studentId
+        }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.write).toHaveBeenCalledWith('rl draft');
+    expect(res.end).toHaveBeenCalledTimes(1);
+    expect(PermissionService.decrementTaigerAiQuota).toHaveBeenCalledWith(
+      admin._id
+    );
+  });
+
   it('forwards an OpenAI error to next()', async () => {
     StudentService.getStudentByIdLean.mockResolvedValue({});
     const err = new Error('openai down');
@@ -248,6 +322,36 @@ describe('processProgramListAi', () => {
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('responds 403 when the crawler closes with a non-zero exit code, and fires the data/error listeners', async () => {
+    ProgramService.getProgramByIdLean.mockResolvedValue({
+      _id: 'p1',
+      school: 'TUM',
+      program_name: 'CS',
+      degree: 'MSc'
+    });
+    // This spawn double drives every registered listener: data, error, and a
+    // non-zero close so the 403 branch runs.
+    spawn.mockImplementationOnce(() => ({
+      stdout: { on: jest.fn() },
+      stderr: { on: jest.fn() },
+      on: jest.fn((event, cb) => {
+        if (event === 'data') cb('some output');
+        if (event === 'error') cb(new Error('spawn boom'));
+        if (event === 'close') cb(1);
+      })
+    }));
+    const res = mockRes();
+
+    await processProgramListAi(
+      mockReq({ user: admin, params: { programId: 'p1' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.send).toHaveBeenCalledWith({ message: 1 });
   });
 
   it('short-circuits with an empty data object when the program is missing', async () => {

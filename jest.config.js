@@ -22,13 +22,14 @@ module.exports = {
   // forces --runInBand.)
   maxWorkers: '50%',
   workerIdleMemoryLimit: '512MB',
+  coverageReporters: ['text-summary', 'html', 'lcov'],
   collectCoverage: true,
   coverageThreshold: {
     global: {
-      statements: 50,
-      branches: 30,
-      functions: 50,
-      lines: 50
+      statements: 57,
+      branches: 34,
+      functions: 59,
+      lines: 58
     }
   }
 };

@@ -1,10 +1,7 @@
 # FROM node:18-alpine
 
 # Test aws ecr
-FROM --platform=linux/arm64 public.ecr.aws/docker/library/node:18.20.5-alpine
-
-# Update package list and install necessary tools
-RUN apk add --no-cache bash curl
+FROM --platform=linux/arm64 public.ecr.aws/docker/library/node:22-alpine
 
 WORKDIR /app
 

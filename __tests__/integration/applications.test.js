@@ -8,11 +8,9 @@
 // (../controllers/applications.test.js) cannot see. Kept thin but deterministic:
 // happy paths asserting real persisted data and computed aggregations.
 
-const fs = require('fs');
 const mongoose = require('mongoose');
 const request = require('supertest');
 
-const { UPLOAD_PATH } = require('../../config');
 const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
 const { UserSchema } = require('../../models/User');
@@ -132,8 +130,6 @@ afterEach(async () => {
   await DocumentthreadModel.deleteMany();
   await ProgramModel.deleteMany();
   await ApplicationModel.deleteMany();
-
-  fs.rmSync(UPLOAD_PATH, { recursive: true, force: true });
 });
 
 describe('POST /api/applications/student/:studentId (full stack)', () => {

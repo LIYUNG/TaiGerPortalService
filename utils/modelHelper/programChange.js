@@ -139,64 +139,65 @@ const findStudentDeltaGet = asyncHandler(
   }
 );
 
-const findStudentDelta = asyncHandler(
-  async (studentId, program, { DocumentthreadModel }, options) => {
-    const { skipCompleted } = options || {};
+const findStudentDelta = asyncHandler(async (studentId, program, options) => {
+  const { skipCompleted } = options || {};
 
-    const delta = {
-      add: [],
-      remove: []
-    };
+  // eslint-disable-next-line global-require
+  const { Documentthread } = require('../../models');
 
-    const studentProgramThreads = await DocumentthreadModel.find({
-      student_id: studentId,
-      program_id: program._id
-    })
-      .select('file_type messages isFinalVersion')
-      .lean();
+  const delta = {
+    add: [],
+    remove: []
+  };
 
-    studentProgramThreads.map((thread) => {
-      thread.messageSize = thread.messages.length;
-      delete thread.messages;
-    });
+  const studentProgramThreads = await Documentthread.find({
+    student_id: studentId,
+    program_id: program._id
+  })
+    .select('file_type messages isFinalVersion')
+    .lean();
 
-    for (const fileType of Object.keys(FILETYPES)) {
-      if (FILETYPES[fileType] === 'RL') {
+  studentProgramThreads.map((thread) => {
+    thread.messageSize = thread.messages.length;
+    delete thread.messages;
+  });
+
+  for (const fileType of Object.keys(FILETYPES)) {
+    if (FILETYPES[fileType] === 'RL') {
+      continue;
+    }
+    const fileThread = studentProgramThreads.find(
+      (thread) => thread.file_type === FILETYPES[fileType]
+    );
+
+    if (program[fileType]?.toLowerCase() === 'yes' && !fileThread) {
+      delta.add.push({
+        studentId,
+        programId: program._id,
+        fileType: FILETYPES[fileType]
+      });
+    } else if (program[fileType]?.toLowerCase() !== 'yes' && fileThread) {
+      if (skipCompleted && fileThread.isFinalVersion) {
         continue;
       }
-      const fileThread = studentProgramThreads.find(
-        (thread) => thread.file_type === FILETYPES[fileType]
-      );
-
-      if (program[fileType]?.toLowerCase() === 'yes' && !fileThread) {
-        delta.add.push({
-          studentId,
-          programId: program._id,
-          fileType: FILETYPES[fileType]
-        });
-      } else if (program[fileType]?.toLowerCase() !== 'yes' && fileThread) {
-        if (skipCompleted && fileThread.isFinalVersion) {
-          continue;
-        }
-        delta.remove.push({
-          studentId,
-          programId: program._id,
-          fileThread
-        });
-      }
+      delta.remove.push({
+        studentId,
+        programId: program._id,
+        fileThread
+      });
     }
-
-    const RLdelta = await findRLDelta(
-      program,
-      studentId,
-      studentProgramThreads,
-      options || {}
-    );
-    delta.add = delta.add.concat(RLdelta.add);
-    delta.remove = delta.remove.concat(RLdelta.remove);
-    return delta;
   }
-);
+
+  const RLdelta = await findRLDelta(
+    program,
+    studentId,
+    studentProgramThreads,
+    options || {}
+  );
+  delta.add = delta.add.concat(RLdelta.add);
+  delta.remove = delta.remove.concat(RLdelta.remove);
+  return delta;
+});
 
 module.exports = {
   findStudentDeltaGet,

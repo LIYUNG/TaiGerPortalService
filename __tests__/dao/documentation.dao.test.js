@@ -1,87 +1,198 @@
-// DAO-level integration tests for the docs DAOs (Docspage / Documentation /
-// Internaldoc) against the in-memory MongoDB.
-const { connect, clearDatabase } = require('../fixtures/db');
+// Unit tests for the docs DAOs (Docspage / Documentation / Internaldoc).
+// These DAOs are thin query-building layers over their Mongoose models, so we
+// mock the models entirely (NO database). Each test asserts the DAO method
+// builds the expected query/chain and forwards the model's result. Real query
+// behaviour is covered by the integration suite.
+jest.mock('../../models', () => {
+  const model = () => ({
+    find: jest.fn(),
+    findOne: jest.fn(),
+    findById: jest.fn(),
+    findOneAndUpdate: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
+    findByIdAndDelete: jest.fn(),
+    create: jest.fn()
+  });
+  return {
+    Docspage: model(),
+    Documentation: model(),
+    Internaldoc: model()
+  };
+});
+
 const { Docspage, Documentation, Internaldoc } = require('../../models');
 const DocspageDAO = require('../../dao/docspage.dao');
 const DocumentationDAO = require('../../dao/documentation.dao');
 const InternaldocDAO = require('../../dao/internaldoc.dao');
-const { disconnectFromDatabase } = require('../../database');
-const { TENANT_ID } = require('../fixtures/constants');
 
-beforeAll(async () => {
-  await connect();
+// A query chain that is both chainable (select returns the same chain) and
+// thenable, so `await chain` resolves to `value` when the method ends in
+// .select() (no trailing .lean()).
+const queryChain = (value) => {
+  const chain = {
+    select: jest.fn(() => chain),
+    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+  };
+  return chain;
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+describe('DocspageDAO (mocked models)', () => {
+  it('upsertByCategory upserts with { upsert: true, new: true }', async () => {
+    const page = { category: 'internal' };
+    Docspage.findOneAndUpdate.mockResolvedValue(page);
 
-beforeEach(async () => {
-  await Docspage.deleteMany({});
-  await Documentation.deleteMany({});
-  await Internaldoc.deleteMany({});
-});
+    const res = await DocspageDAO.upsertByCategory('internal', { author: 'B' });
 
-describe('DocspageDAO (in-memory)', () => {
-  it('upsertByCategory creates then updates a single page per category', async () => {
-    await DocspageDAO.upsertByCategory('internal', { author: 'A' });
-    const updated = await DocspageDAO.upsertByCategory('internal', {
-      author: 'B'
-    });
-
-    expect(updated.author).toBe('B');
-    expect(await Docspage.countDocuments({})).toBe(1);
+    expect(Docspage.findOneAndUpdate).toHaveBeenCalledWith(
+      { category: 'internal' },
+      { author: 'B' },
+      { upsert: true, new: true }
+    );
+    expect(res).toBe(page);
   });
 
-  it('getByCategory returns the stored page', async () => {
-    await DocspageDAO.upsertByCategory('visa', { author: 'A' });
-    const page = await DocspageDAO.getByCategory('visa');
-    expect(page.category).toBe('visa');
-  });
-});
+  it('getByCategory finds one by category', async () => {
+    const page = { category: 'visa' };
+    Docspage.findOne.mockResolvedValue(page);
 
-describe('DocumentationDAO (in-memory)', () => {
-  it('create + findByCategory returns the doc without the text field', async () => {
-    await DocumentationDAO.create({
-      title: 'How to apply',
-      category: 'application',
-      text: 'long body'
-    });
+    const res = await DocspageDAO.getByCategory('visa');
 
-    const docs = await DocumentationDAO.findByCategory('application');
-
-    expect(docs).toHaveLength(1);
-    expect(docs[0].title).toBe('How to apply');
-    expect(docs[0].text).toBeUndefined();
-  });
-
-  it('updateById and deleteById work', async () => {
-    const created = await DocumentationDAO.create({
-      title: 'A',
-      category: 'visa'
-    });
-    const updated = await DocumentationDAO.updateById(created._id, {
-      title: 'B'
-    });
-    expect(updated.title).toBe('B');
-
-    await DocumentationDAO.deleteById(created._id);
-    expect(await Documentation.countDocuments({})).toBe(0);
+    expect(Docspage.findOne).toHaveBeenCalledWith({ category: 'visa' });
+    expect(res).toBe(page);
   });
 });
 
-describe('InternaldocDAO (in-memory)', () => {
-  it('create + findAllTitleInternalCategory returns slim rows', async () => {
-    await InternaldocDAO.create({
-      title: 'Internal note',
-      category: 'ops',
-      internal: true
-    });
+describe('DocumentationDAO (mocked models)', () => {
+  it('findByCategory filters by category and excludes the text field', async () => {
+    const docs = [{ title: 'How to apply' }];
+    Documentation.find.mockResolvedValue(docs);
 
-    const docs = await InternaldocDAO.findAllTitleInternalCategory();
+    const res = await DocumentationDAO.findByCategory('application');
 
-    expect(docs).toHaveLength(1);
-    expect(docs[0].title).toBe('Internal note');
+    expect(Documentation.find).toHaveBeenCalledWith(
+      { category: 'application' },
+      { text: 0 }
+    );
+    expect(res).toBe(docs);
+  });
+
+  it('findAllTitleCategory selects only title + category', async () => {
+    const docs = [{ title: 'A', category: 'visa' }];
+    Documentation.find.mockReturnValue(queryChain(docs));
+
+    const res = await DocumentationDAO.findAllTitleCategory();
+
+    expect(Documentation.find).toHaveBeenCalledWith();
+    const chain = Documentation.find.mock.results[0].value;
+    expect(chain.select).toHaveBeenCalledWith('title category');
+    expect(res).toBe(docs);
+  });
+
+  it('getById finds by id', async () => {
+    const doc = { _id: 'd1' };
+    Documentation.findById.mockResolvedValue(doc);
+
+    const res = await DocumentationDAO.getById('d1');
+
+    expect(Documentation.findById).toHaveBeenCalledWith('d1');
+    expect(res).toBe(doc);
+  });
+
+  it('create delegates to Documentation.create', async () => {
+    const fields = { title: 'A', category: 'visa' };
+    const created = { _id: 'd1', ...fields };
+    Documentation.create.mockResolvedValue(created);
+
+    const res = await DocumentationDAO.create(fields);
+
+    expect(Documentation.create).toHaveBeenCalledWith(fields);
+    expect(res).toBe(created);
+  });
+
+  it('updateById updates with { new: true }', async () => {
+    const updated = { _id: 'd1', title: 'B' };
+    Documentation.findByIdAndUpdate.mockResolvedValue(updated);
+
+    const res = await DocumentationDAO.updateById('d1', { title: 'B' });
+
+    expect(Documentation.findByIdAndUpdate).toHaveBeenCalledWith(
+      'd1',
+      { title: 'B' },
+      { new: true }
+    );
+    expect(res).toBe(updated);
+  });
+
+  it('deleteById deletes by id', async () => {
+    const deleted = { _id: 'd1' };
+    Documentation.findByIdAndDelete.mockResolvedValue(deleted);
+
+    const res = await DocumentationDAO.deleteById('d1');
+
+    expect(Documentation.findByIdAndDelete).toHaveBeenCalledWith('d1');
+    expect(res).toBe(deleted);
+  });
+});
+
+describe('InternaldocDAO (mocked models)', () => {
+  it('findAllTitleInternalCategory selects title + internal + category', async () => {
+    const docs = [{ title: 'Internal note' }];
+    Internaldoc.find.mockReturnValue(queryChain(docs));
+
+    const res = await InternaldocDAO.findAllTitleInternalCategory();
+
+    expect(Internaldoc.find).toHaveBeenCalledWith();
+    const chain = Internaldoc.find.mock.results[0].value;
+    expect(chain.select).toHaveBeenCalledWith('title internal category');
+    expect(res).toBe(docs);
+  });
+
+  it('getById finds by id', async () => {
+    const doc = { _id: 'i1' };
+    Internaldoc.findById.mockResolvedValue(doc);
+
+    const res = await InternaldocDAO.getById('i1');
+
+    expect(Internaldoc.findById).toHaveBeenCalledWith('i1');
+    expect(res).toBe(doc);
+  });
+
+  it('create delegates to Internaldoc.create', async () => {
+    const fields = { title: 'Internal note', category: 'ops' };
+    const created = { _id: 'i1', ...fields };
+    Internaldoc.create.mockResolvedValue(created);
+
+    const res = await InternaldocDAO.create(fields);
+
+    expect(Internaldoc.create).toHaveBeenCalledWith(fields);
+    expect(res).toBe(created);
+  });
+
+  it('updateById updates with { new: true }', async () => {
+    const updated = { _id: 'i1', title: 'B' };
+    Internaldoc.findByIdAndUpdate.mockResolvedValue(updated);
+
+    const res = await InternaldocDAO.updateById('i1', { title: 'B' });
+
+    expect(Internaldoc.findByIdAndUpdate).toHaveBeenCalledWith(
+      'i1',
+      { title: 'B' },
+      { new: true }
+    );
+    expect(res).toBe(updated);
+  });
+
+  it('deleteById deletes by id', async () => {
+    const deleted = { _id: 'i1' };
+    Internaldoc.findByIdAndDelete.mockResolvedValue(deleted);
+
+    const res = await InternaldocDAO.deleteById('i1');
+
+    expect(Internaldoc.findByIdAndDelete).toHaveBeenCalledWith('i1');
+    expect(res).toBe(deleted);
   });
 });

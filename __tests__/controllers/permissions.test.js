@@ -1,131 +1,107 @@
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
+// Controller UNIT test for controllers/permissions.
+//
+// The handlers are plain (req, res, next) functions (wrapped by asyncHandler),
+// so we call them DIRECTLY with fake req/res/next, the PermissionService mocked,
+// and the outbound notification email mocked. No route, no middleware, no DB —
+// only the controller's own work: the args it forwards to the service, the
+// status + body it writes, that it fires the notification email on an update,
+// and that a service error is forwarded to next(). Full-stack coverage (route ->
+// service -> dao -> in-memory Mongo) lives in __tests__/integration/permissions.test.js.
+
+jest.mock('../../services/permissions');
 jest.mock('../../services/email', () => ({
   updatePermissionNotificationEmail: jest.fn()
 }));
 
-const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { permissionSchema } = require('../../models/Permission');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, agent } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
+const PermissionService = require('../../services/permissions');
+const { updatePermissionNotificationEmail } = require('../../services/email');
+const {
+  getUserPermission,
+  updateUserPermission
+} = require('../../controllers/permissions');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { agent } = require('../mock/user');
 
-const requestWithSupertest = request(app);
-let dbUri;
+const userId = agent._id.toString();
 
-const testPermission = {
-  user_id: agent._id,
-  canAssignAgents: false,
-  canAssignEditors: false,
-  canModifyProgramList: false,
-  canContactStudents: false
-};
-
-beforeAll(async () => {
-  dbUri = await connect();
+beforeEach(() => {
+  jest.clearAllMocks();
 });
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const PermissionModel = db.model('Permission', permissionSchema);
-  await UserModel.deleteMany();
-  await PermissionModel.deleteMany();
-  await UserModel.insertMany(users);
-  await PermissionModel.insertMany([testPermission]);
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
+
+describe('getUserPermission', () => {
+  it('responds 200 with the full permissions list (filter {}) regardless of the path id', async () => {
+    const data = [{ _id: 'p1', user_id: agent._id, canAssignAgents: true }];
+    PermissionService.getPermissions.mockResolvedValue(data);
+    const res = mockRes();
+
+    await getUserPermission(
+      mockReq({ params: { user_id: userId } }),
+      res,
+      jest.fn()
+    );
+
+    // Controller fetches the full list (filter {}); the path id is not used.
+    expect(PermissionService.getPermissions).toHaveBeenCalledWith({});
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data });
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    PermissionService.getPermissions.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getUserPermission(
+      mockReq({ params: { user_id: userId } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('GET /api/permissions/:user_id', () => {
-  it('should respond without crash', async () => {
-    const resp = await requestWithSupertest
-      .get(`/api/permissions/${agent._id}`)
-      .set('tenantId', TENANT_ID);
+describe('updateUserPermission', () => {
+  it('upserts via the service (user_id + body), responds 200, and fires the notification email', async () => {
+    const saved = {
+      user_id: { firstname: 'A', lastname: 'B', email: 'a@b.c' },
+      canAssignAgents: true
+    };
+    PermissionService.upsertPermissionByUserId.mockResolvedValue(saved);
+    const body = { canAssignAgents: true, canAssignEditors: false };
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
+    await updateUserPermission(
+      mockReq({ params: { user_id: userId }, body }),
+      res,
+      jest.fn()
+    );
+
+    expect(PermissionService.upsertPermissionByUserId).toHaveBeenCalledWith(
+      userId,
+      body
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: saved });
+    // Email built from the populated user_id of the upserted permission.
+    expect(updatePermissionNotificationEmail).toHaveBeenCalledWith(
+      { firstname: 'A', lastname: 'B', address: 'a@b.c' },
+      {}
+    );
   });
-});
 
-describe('POST /api/permissions/:user_id', () => {
-  it('should respond without crash', async () => {
-    const resp = await requestWithSupertest
-      .post(`/api/permissions/${agent._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({
-        user_id: agent._id,
-        canAssignAgents: true,
-        canAssignEditors: false,
-        canModifyProgramList: false,
-        canContactStudents: true
-      });
+  it('forwards a service error to next() and does not send the email', async () => {
+    const err = new Error('db down');
+    PermissionService.upsertPermissionByUserId.mockRejectedValue(err);
+    const next = jest.fn();
 
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
+    await updateUserPermission(
+      mockReq({ params: { user_id: userId }, body: {} }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
+    expect(updatePermissionNotificationEmail).not.toHaveBeenCalled();
   });
 });

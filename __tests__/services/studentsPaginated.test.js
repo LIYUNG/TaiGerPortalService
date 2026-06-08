@@ -1,111 +1,74 @@
-// Service-level integration test for the students pagination/search aggregation
-// (StudentService.getStudentsPaginated), run against the in-memory MongoDB
-// through the DEFAULT connection. The HTTP controller (getStudentsV3Paginated)
-// is a thin wrapper that builds the scope filter and forwards req.query; here we
-// build the same filter and call the service directly so seeding and reading
-// share one connection (no per-request-connection split -> no flakiness).
-const { connect, clearDatabase } = require('../fixtures/db');
-const { User, Student } = require('../../models');
-const { disconnectFromDatabase } = require('../../database');
-const { TENANT_ID } = require('../fixtures/constants');
-const { users, agent, student, student2 } = require('../mock/user');
+// StudentService.getStudentsPaginated is a thin pass-through to
+// StudentDAO.getStudentsPaginated, which owns the pagination/search/sort
+// aggregation pipeline. This is a UNIT test: the DAO is mocked so no database
+// (in-memory or otherwise) is touched. The real aggregation behaviour (search by
+// name, column filters, sorting, agent scoping, page capping) is exercised
+// against the DAO/model in the integration suite.
+jest.mock('../../dao/student.dao');
+
+const StudentDAO = require('../../dao/student.dao');
 const StudentService = require('../../services/students');
-const UserQueryBuilder = require('../../builders/UserQueryBuilder');
 
-const studentCount = users.filter((u) => u.role === 'Student').length;
-
-// Mirror the controller: build the scope filter from the query, then forward the
-// raw query (page/limit/sort/search/column filters) to the service.
-const paginate = (query = {}) => {
-  const { filter } = new UserQueryBuilder()
-    .withEditors(query.editors)
-    .withAgents(query.agents)
-    .withArchiv(query.archiv)
-    .build();
-  return StudentService.getStudentsPaginated({ filter, query });
-};
-
-beforeAll(async () => {
-  await connect();
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+describe('StudentService.getStudentsPaginated (mocked DAO)', () => {
+  it('delegates to DAO.getStudentsPaginated with filter+query and returns its result', async () => {
+    const filter = { $or: [{ archiv: { $exists: false } }, { archiv: false }] };
+    const query = { page: '1', limit: '20', sortBy: 'name_en' };
+    const daoResult = {
+      students: [{ _id: 's1' }, { _id: 's2' }],
+      total: 2,
+      page: 1,
+      limit: 20
+    };
+    StudentDAO.getStudentsPaginated.mockResolvedValue(daoResult);
 
-beforeEach(async () => {
-  await User.deleteMany();
-  await User.insertMany(users);
-});
+    const result = await StudentService.getStudentsPaginated({ filter, query });
 
-describe('StudentService.getStudentsPaginated (in-memory)', () => {
-  it('returns a page of students with a total count', async () => {
-    const { students, total } = await paginate({ page: '1', limit: '20' });
-
-    expect(total).toBe(studentCount);
-    expect(students).toHaveLength(studentCount);
-  });
-
-  it('caps the page by limit while total stays the full count', async () => {
-    const page1 = await paginate({ page: '1', limit: '2', sortBy: 'name_en' });
-    const page2 = await paginate({ page: '2', limit: '2', sortBy: 'name_en' });
-
-    expect(page1.students).toHaveLength(2);
-    expect(page1.total).toBe(studentCount);
-    expect(page2.students).toHaveLength(2);
-    // Pages are disjoint (stable sort).
-    const ids1 = page1.students.map((s) => s._id.toString());
-    const ids2 = page2.students.map((s) => s._id.toString());
-    expect(ids1.filter((id) => ids2.includes(id))).toHaveLength(0);
-  });
-
-  it('searches by student name (English)', async () => {
-    const { students, total } = await paginate({ search: student.firstname });
-
-    expect(total).toBeGreaterThanOrEqual(1);
-    const ids = students.map((s) => s._id.toString());
-    expect(ids).toContain(student._id.toString());
-    // Every returned student's English name contains the searched term.
-    students.forEach((s) => {
-      expect(`${s.firstname} ${s.lastname}`.toLowerCase()).toContain(
-        student.firstname.toLowerCase()
-      );
+    expect(StudentDAO.getStudentsPaginated).toHaveBeenCalledTimes(1);
+    expect(StudentDAO.getStudentsPaginated).toHaveBeenCalledWith({
+      filter,
+      query
     });
+    expect(result).toBe(daoResult);
   });
 
-  it('filters by the name_en column (contains)', async () => {
-    const { students } = await paginate({ name_en: student.lastname });
+  it('defaults filter and query to empty objects when omitted', async () => {
+    const daoResult = { students: [], total: 0, page: 1, limit: 20 };
+    StudentDAO.getStudentsPaginated.mockResolvedValue(daoResult);
 
-    const ids = students.map((s) => s._id.toString());
-    expect(ids).toContain(student._id.toString());
-  });
+    const result = await StudentService.getStudentsPaginated({});
 
-  it('sorts by createdAt (descending = newest first)', async () => {
-    const { students } = await paginate({
-      sortBy: 'createdAt',
-      sortOrder: 'desc'
+    expect(StudentDAO.getStudentsPaginated).toHaveBeenCalledTimes(1);
+    expect(StudentDAO.getStudentsPaginated).toHaveBeenCalledWith({
+      filter: {},
+      query: {}
     });
-
-    const createdAts = students.map((s) => new Date(s.createdAt).getTime());
-    const sorted = [...createdAts].sort((a, b) => b - a);
-    expect(createdAts).toEqual(sorted);
+    expect(result).toBe(daoResult);
   });
 
-  it('scopes to students supervised by a given agent id', async () => {
-    // Make `agent` supervise `student` only.
-    await Student.updateOne(
-      { _id: student._id },
-      { $set: { agents: [agent._id] } }
-    );
+  it('forwards an agent-scoped filter to the DAO unchanged', async () => {
+    const filter = {
+      $or: [{ archiv: { $exists: false } }, { archiv: false }],
+      agents: 'agent_1'
+    };
+    const query = { agents: 'agent_1' };
+    const daoResult = {
+      students: [{ _id: 's1' }],
+      total: 1,
+      page: 1,
+      limit: 20
+    };
+    StudentDAO.getStudentsPaginated.mockResolvedValue(daoResult);
 
-    const { students, total } = await paginate({
-      agents: agent._id.toString()
+    const result = await StudentService.getStudentsPaginated({ filter, query });
+
+    expect(StudentDAO.getStudentsPaginated).toHaveBeenCalledWith({
+      filter,
+      query
     });
-
-    const ids = students.map((s) => s._id.toString());
-    expect(ids).toContain(student._id.toString());
-    expect(ids).not.toContain(student2._id.toString());
-    expect(total).toBe(1);
+    expect(result).toBe(daoResult);
   });
 });

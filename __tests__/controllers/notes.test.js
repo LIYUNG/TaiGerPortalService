@@ -1,114 +1,76 @@
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
+// Controller UNIT test for controllers/notes.
+//
+// The controller handlers are plain (req, res, next) functions, so we call them
+// DIRECTLY with fake req/res/next and a mocked service. No route, no middleware,
+// no database here — only the controller's own responsibilities:
+//   - what it pulls off req (params/body),
+//   - the args it forwards to the service,
+//   - the status + body it writes to res,
+//   - that it forwards a service error to next().
+// Route + middleware wiring is covered by __tests__/integration/notes.test.js.
+
+jest.mock('../../services/notes');
+
+const NoteService = require('../../services/notes');
+const {
+  getStudentNotes,
+  updateStudentNotes
+} = require('../../controllers/notes');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { student } = require('../mock/user');
+
+const studentId = student._id.toString();
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { notesSchema } = require('../../models/Note');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, student } = require('../mock/user');
-const { generateNote } = require('../mock/notes');
-const { disconnectFromDatabase } = require('../../database');
+describe('getStudentNotes', () => {
+  it('responds 200 with the note resolved by the service for req.params.student_id', async () => {
+    const note = { _id: 'n1', student_id: studentId, notes: 'hello' };
+    NoteService.getNoteByStudentId.mockResolvedValue(note);
+    const req = mockReq({ params: { student_id: studentId } });
+    const res = mockRes();
 
-const requestWithSupertest = request(app);
-let dbUri;
+    await getStudentNotes(req, res, jest.fn());
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const NoteModel = db.model('Note', notesSchema);
-  await UserModel.deleteMany();
-  await NoteModel.deleteMany();
-  await UserModel.insertMany(users);
-  await NoteModel.insertMany([generateNote(student._id.toString())]);
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
+    expect(NoteService.getNoteByStudentId).toHaveBeenCalledWith(studentId);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: note });
+  });
+
+  it("forwards a service error to next() (status mapping is the error middleware's job)", async () => {
+    const err = new Error('db down');
+    NoteService.getNoteByStudentId.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getStudentNotes(
+      mockReq({ params: { student_id: studentId } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('GET /api/notes/:student_id', () => {
-  it('should respond without crash', async () => {
-    const resp = await requestWithSupertest
-      .get(`/api/notes/${student._id}`)
-      .set('tenantId', TENANT_ID);
+describe('updateStudentNotes', () => {
+  it('upserts with the body merged with student_id and responds 200 with the result', async () => {
+    const saved = { student_id: studentId, notes: 'updated' };
+    NoteService.upsertNoteByStudentId.mockResolvedValue(saved);
+    const req = mockReq({
+      params: { student_id: studentId },
+      body: { notes: 'updated' }
+    });
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
-  });
-});
+    await updateStudentNotes(req, res, jest.fn());
 
-describe('PUT /api/notes/:student_id', () => {
-  it('should respond without crash', async () => {
-    const resp = await requestWithSupertest
-      .put(`/api/notes/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({ content: 'Updated note content' });
-
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
+    expect(NoteService.upsertNoteByStudentId).toHaveBeenCalledWith(
+      studentId,
+      expect.objectContaining({ notes: 'updated', student_id: studentId })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: saved });
   });
 });

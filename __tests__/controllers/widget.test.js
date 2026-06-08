@@ -1,86 +1,31 @@
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
+// Controller UNIT test for controllers/widget.
+//
+// The handlers are plain (req, res, next) functions (wrapped by asyncHandler), so
+// we call them DIRECTLY with fake req/res/next. The service layer
+// (CommunicationService) and every external boundary (AWS S3 / API Gateway / STS)
+// are MOCKED so NO database and NO network is touched. We assert ONLY the
+// controller's own work: the args it forwards downstream, the metadata it builds
+// from req.user, the status + body / content-type it writes, and error handling
+// (this controller catches the gateway failure itself -> 403). Full-stack
+// coverage lives in __tests__/integration/widget.test.js.
 
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
+jest.mock('../../services/communications');
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-// Do NOT use jest.requireActual on file-upload — multerS3({ s3: s3Client }) is
-// called at module eval time and crashes when s3Client is mocked.
-jest.mock('../../middlewares/file-upload', () => {
-  const passthrough = async (req, res, next) => {
-    req.files = [];
-    next();
-  };
-  return {
-    imageUpload: passthrough,
-    admissionUpload: passthrough,
-    documentationDocsUpload: passthrough,
-    VPDfileUpload: passthrough,
-    ProfilefileUpload: passthrough,
-    TemplatefileUpload: passthrough,
-    MessagesThreadUpload: passthrough,
-    MessagesTicketUpload: passthrough,
-    MessagesChatUpload: passthrough,
-    MessagesImageThreadUpload: passthrough,
-    upload: passthrough
-  };
-});
+// Mock aws/s3 directly so uploadJsonToS3 / getS3Object don't create real S3
+// clients. aws/index.js re-exports s3Client from here, so keep a stub for it.
+jest.mock('../../aws/s3', () => ({
+  s3Client: { send: jest.fn(), config: { region: 'us-east-1' } },
+  uploadJsonToS3: jest.fn().mockResolvedValue(undefined),
+  getS3Object: jest.fn().mockResolvedValue(
+    Buffer.from(
+      JSON.stringify({
+        courses: [{ name: 'Calculus', grade: 90 }],
+        summary: 'analysis result'
+      })
+    )
+  ),
+  putS3Object: jest.fn().mockResolvedValue({})
+}));
 
 jest.mock('../../aws', () => ({
   ...jest.requireActual('../../aws'),
@@ -97,114 +42,132 @@ jest.mock('../../aws', () => ({
   })
 }));
 
-// Mock aws/s3 directly so uploadJsonToS3 and getS3Object don't create real S3
-// clients — putS3Object uses `new S3Client({})` internally which bypasses
-// aws-sdk-client-mock and causes real network calls.
-jest.mock('../../aws/s3', () => ({
-  uploadJsonToS3: jest.fn().mockResolvedValue(undefined),
-  getS3Object: jest.fn().mockResolvedValue(
-    Buffer.from(
-      JSON.stringify({
-        courses: [{ name: 'Calculus', grade: 90 }],
-        summary: 'analysis result'
-      })
-    )
-  ),
-  putS3Object: jest.fn().mockResolvedValue({})
-}));
+const CommunicationService = require('../../services/communications');
+const { getS3Object, uploadJsonToS3 } = require('../../aws/s3');
+const { callApiGateway, getTemporaryCredentials } = require('../../aws');
+const {
+  WidgetProcessTranscriptV2,
+  WidgetdownloadJson,
+  WidgetExportMessagePDF
+} = require('../../controllers/widget');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { admin, student } = require('../mock/user');
 
-const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, agent, student } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
-const { communicationsSchema } = require('../../models/Communication');
-const { generateCommunicationMessage } = require('../fixtures/faker');
+const studentId = student._id.toString();
+const adminId = admin._id.toString();
 
-const requestWithSupertest = request(app);
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+describe('WidgetExportMessagePDF', () => {
+  it('reads the thread for req.params.studentId and writes a PDF buffer', async () => {
+    CommunicationService.getByStudentIdForExport.mockResolvedValue([]);
+    const req = mockReq({ user: admin, params: { studentId } });
+    const res = mockRes();
+    // The shared mockRes() helper doesn't stub res.contentType (Express adds it);
+    // add it here so the handler can set the PDF content type.
+    res.contentType = jest.fn(() => res);
 
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const CommunicationModel = db.model('Communication', communicationsSchema);
+    await WidgetExportMessagePDF(req, res, jest.fn());
 
-  await UserModel.deleteMany();
-  await CommunicationModel.deleteMany();
+    expect(CommunicationService.getByStudentIdForExport).toHaveBeenCalledWith(
+      studentId
+    );
+    expect(res.contentType).toHaveBeenCalledWith('application/pdf');
+    const sent = res.send.mock.calls[0][0];
+    expect(Buffer.isBuffer(sent)).toBe(true);
+    // A jsPDF document always starts with the "%PDF" magic bytes.
+    expect(sent.slice(0, 4).toString()).toBe('%PDF');
+  });
 
-  await UserModel.insertMany(users);
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    CommunicationService.getByStudentIdForExport.mockRejectedValue(err);
+    const next = jest.fn();
 
-  const messages = [
-    generateCommunicationMessage({
-      studnet_id: student._id,
-      user_id: agent._id
-    }),
-    generateCommunicationMessage({
-      studnet_id: student._id,
-      user_id: agent._id
-    })
-  ];
-  await CommunicationModel.insertMany(messages);
+    await WidgetExportMessagePDF(
+      mockReq({ user: admin, params: { studentId } }),
+      mockRes(),
+      next
+    );
 
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('WidgetExportMessagePDF Controller', () => {
-  it('GET /api/widgets/messages/export/:studentId should return 200 with a PDF buffer', async () => {
-    const resp = await requestWithSupertest
-      .get(`/api/widgets/messages/export/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .buffer(true)
-      .parse((res, callback) => {
-        const chunks = [];
-        res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => callback(null, Buffer.concat(chunks)));
-      });
-
-    expect(resp.status).toBe(200);
-  });
-});
-
-describe('WidgetProcessTranscriptV2 Controller', () => {
-  it('POST /api/widgets/transcript/engine/v2/:language should return 200 on success', async () => {
-    const resp = await requestWithSupertest
-      .post('/api/widgets/transcript/engine/v2/en')
-      .set('tenantId', TENANT_ID)
-      .send({
+describe('WidgetProcessTranscriptV2', () => {
+  it('calls the gateway, uploads the result, and returns analysis metadata keyed by req.user._id', async () => {
+    const req = mockReq({
+      user: admin,
+      params: { language: 'en' },
+      body: {
         courses: [{ name: 'Calculus', grade: '90', credits: '3' }],
         requirementIds: ['req1', 'req2'],
         factor: 1.5
-      });
+      }
+    });
+    const res = mockRes();
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
+    await WidgetProcessTranscriptV2(req, res, jest.fn());
+
+    expect(getTemporaryCredentials).toHaveBeenCalledTimes(1);
+    expect(callApiGateway).toHaveBeenCalledTimes(1);
+    expect(uploadJsonToS3).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.isAnalysedV2).toBe(true);
+    // pathV2 is derived from req.user._id.
+    expect(body.data.pathV2).toContain(adminId);
+  });
+
+  it('catches a gateway failure itself and responds 403', async () => {
+    callApiGateway.mockRejectedValueOnce(new Error('gateway down'));
+    const req = mockReq({
+      user: admin,
+      params: { language: 'en' },
+      body: { courses: [], requirementIds: [], factor: 1.5 }
+    });
+    const res = mockRes();
+    const next = jest.fn();
+
+    await WidgetProcessTranscriptV2(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    // Handler catches internally -> error is NOT forwarded to next().
+    expect(next).not.toHaveBeenCalled();
   });
 });
 
-describe('WidgetdownloadJson Controller', () => {
-  it('GET /api/widgets/transcript/v2/:adminId should return 200 with JSON data', async () => {
-    const resp = await requestWithSupertest
-      .get(`/api/widgets/transcript/v2/${admin._id}`)
-      .set('tenantId', TENANT_ID);
+describe('WidgetdownloadJson', () => {
+  it('reads the analysed JSON from S3 and responds 200 with the parsed data', async () => {
+    const req = mockReq({ user: admin, params: { adminId } });
+    const res = mockRes();
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(resp.body.json).toBeDefined();
+    await WidgetdownloadJson(req, res, jest.fn());
+
+    expect(getS3Object).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.json).toEqual({
+      courses: [{ name: 'Calculus', grade: 90 }],
+      summary: 'analysis result'
+    });
+  });
+
+  it('forwards an S3 error to next()', async () => {
+    const err = new Error('s3 down');
+    getS3Object.mockRejectedValueOnce(err);
+    const next = jest.fn();
+
+    await WidgetdownloadJson(
+      mockReq({ user: admin, params: { adminId } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });

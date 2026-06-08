@@ -1,92 +1,60 @@
-// DB-free controller test: the DAO layer is mocked, so no MongoDB is touched.
-// The real service (services/audit.js) runs and delegates to the mocked DAO.
-// Query/aggregation behaviour is covered separately in __tests__/dao/audit.dao.test.js.
-const passthrough = async (req, res, next) => next();
+// Controller UNIT test for controllers/audit.
+//
+// getAuditLogs is a plain (req, res, next) function (wrapped by asyncHandler),
+// so we call it DIRECTLY with fake req/res/next and a mocked AuditService. No
+// route, no middleware, no database. We assert ONLY the controller's own work:
+// the filter + options it builds (via the real UserQueryBuilder from the query
+// string) and forwards to the service, the status + body it writes, and that a
+// service error is forwarded to next(). Full-stack wiring lives in
+// __tests__/integration/audit.test.js.
 
-jest.mock('../../middlewares/tenantMiddleware', () => ({
-  ...jest.requireActual('../../middlewares/tenantMiddleware'),
-  checkTenantDBMiddleware: jest.fn(async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  })
-}));
+jest.mock('../../services/audit');
 
-jest.mock('../../middlewares/decryptCookieMiddleware', () => ({
-  ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-  decryptCookieMiddleware: jest.fn(passthrough)
-}));
-
-jest.mock('../../middlewares/auth', () => ({
-  ...jest.requireActual('../../middlewares/auth'),
-  protect: jest.fn(passthrough),
-  permit: jest.fn(() => passthrough)
-}));
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => ({
-  ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-  InnerTaigerMultitenantFilter: jest.fn(passthrough)
-}));
-
-jest.mock('../../middlewares/permission-filter', () => ({
-  ...jest.requireActual('../../middlewares/permission-filter'),
-  permission_canAccessStudentDatabase_filter: jest.fn(passthrough)
-}));
-
-jest.mock('../../middlewares/multitenant-filter', () => ({
-  ...jest.requireActual('../../middlewares/multitenant-filter'),
-  multitenant_filter: jest.fn(passthrough)
-}));
-
-jest.mock('../../middlewares/limit_archiv_user', () => ({
-  ...jest.requireActual('../../middlewares/limit_archiv_user'),
-  filter_archiv_user: jest.fn(passthrough)
-}));
-
-// The data-access layer is mocked — this is what keeps the test DB-free.
-jest.mock('../../dao/audit.dao', () => ({
-  getAuditLogs: jest.fn().mockResolvedValue([]),
-  createAuditLog: jest.fn().mockResolvedValue({})
-}));
-
-const request = require('supertest');
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const AuditDAO = require('../../dao/audit.dao');
-
-const requestWithSupertest = request(app);
+const AuditService = require('../../services/audit');
+const { getAuditLogs } = require('../../controllers/audit');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = { role: 'Admin', _id: 'u1' };
-    next();
-  });
 });
 
-describe('getAuditLogs Controller', () => {
-  it('GET /api/audit/ returns 200 with the DAO result', async () => {
-    AuditDAO.getAuditLogs.mockResolvedValueOnce([{ _id: 'a1', action: 'X' }]);
+describe('getAuditLogs', () => {
+  it('responds 200 with the audit logs the service resolves', async () => {
+    const logs = [{ _id: 'a1', action: 'X' }];
+    AuditService.getAuditLogs.mockResolvedValue(logs);
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .get('/api/audit/')
-      .set('tenantId', 'test');
+    await getAuditLogs(mockReq({ query: {} }), res, jest.fn());
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(resp.body.data).toEqual([{ _id: 'a1', action: 'X' }]);
-    expect(AuditDAO.getAuditLogs).toHaveBeenCalledTimes(1);
+    expect(AuditService.getAuditLogs).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: logs });
   });
 
-  it('passes pagination/sort options through to the DAO', async () => {
-    await requestWithSupertest
-      .get('/api/audit/?page=2&limit=5&sortBy=createdAt&sortOrder=asc')
-      .set('tenantId', 'test');
+  it('passes pagination/sort options (built by UserQueryBuilder) to the service', async () => {
+    AuditService.getAuditLogs.mockResolvedValue([]);
+    const req = mockReq({
+      query: { page: '2', limit: '5', sortBy: 'createdAt', sortOrder: 'asc' }
+    });
 
-    const [, options] = AuditDAO.getAuditLogs.mock.calls[0];
+    await getAuditLogs(req, mockRes(), jest.fn());
+
+    const [filter, options] = AuditService.getAuditLogs.mock.calls[0];
+    expect(filter).toEqual({});
     expect(options).toMatchObject({
       limit: 5,
-      skip: 5,
-      sort: { createdAt: 1 }
+      skip: 5, // page 2 * limit 5
+      sort: { createdAt: 1 } // asc
     });
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    AuditService.getAuditLogs.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getAuditLogs(mockReq({ query: {} }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });

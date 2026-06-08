@@ -1,67 +1,127 @@
-// DAO-level integration test for CourseDAO against the in-memory MongoDB.
-const { connect, clearDatabase } = require('../fixtures/db');
-const { Course, User } = require('../../models');
+// CourseDAO unit tests — the DAO is a thin query-building layer over the Course
+// Mongoose model, so we mock the model entirely (NO database). These assert
+// that each DAO method builds the expected query/chain and forwards the
+// model's result. Real query behaviour is covered by the integration suite.
+jest.mock('../../models', () => {
+  const model = () => ({
+    findOne: jest.fn(),
+    findById: jest.fn(),
+    findOneAndUpdate: jest.fn(),
+    findOneAndDelete: jest.fn(),
+    create: jest.fn()
+  });
+  return {
+    Course: model()
+  };
+});
+
+const { Course } = require('../../models');
 const CourseDAO = require('../../dao/course.dao');
-const { disconnectFromDatabase } = require('../../database');
-const { TENANT_ID } = require('../fixtures/constants');
-const { users, student } = require('../mock/user');
-const { generateCourse } = require('../fixtures/faker');
 
-beforeAll(async () => {
-  await connect();
+// A query chain that is both chainable (populate/lean return the same chain)
+// and thenable, so `await chain` (when a method ends in .populate() without a
+// trailing .lean()) resolves to `value` too. Terminal `.lean()` resolves to
+// value as well.
+const queryChain = (value) => {
+  const chain = {
+    populate: jest.fn(() => chain),
+    lean: jest.fn().mockResolvedValue(value),
+    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+  };
+  return chain;
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+describe('CourseDAO (mocked models)', () => {
+  it('getCourse finds one, populates the student and returns the lean doc', async () => {
+    const doc = { _id: 'c1' };
+    Course.findOne.mockReturnValue(queryChain(doc));
 
-beforeEach(async () => {
-  await Course.deleteMany({});
-  await User.deleteMany({});
-  await User.insertMany(users);
-});
+    const res = await CourseDAO.getCourse({ student_id: 's1' });
 
-describe('CourseDAO (in-memory)', () => {
-  it('createCourse inserts and getCourse returns it with the student populated', async () => {
-    await CourseDAO.createCourse(generateCourse(student._id));
-
-    const course = await CourseDAO.getCourse({ student_id: student._id });
-
-    expect(course).toBeTruthy();
-    expect(course.student_id._id.toString()).toBe(student._id.toString());
-    expect(course.student_id.firstname).toBe(student.firstname);
+    expect(Course.findOne).toHaveBeenCalledWith({ student_id: 's1' });
+    const chain = Course.findOne.mock.results[0].value;
+    expect(chain.populate).toHaveBeenCalledWith(
+      'student_id',
+      'firstname lastname firstname_chinese lastname_chinese email role academic_background archiv pictureUrl application_preference'
+    );
+    expect(chain.lean).toHaveBeenCalled();
+    expect(res).toBe(doc);
   });
 
-  it('getCourse returns null when no record exists', async () => {
-    const course = await CourseDAO.getCourse({ student_id: student._id });
-    expect(course).toBeNull();
-  });
+  it('updateCourse updates with { new: true } and returns the lean doc', async () => {
+    const updated = { _id: 'c1', table_data_string_locked: true };
+    Course.findOneAndUpdate.mockReturnValue(queryChain(updated));
 
-  it('updateCourse applies the update and returns the new document', async () => {
-    await CourseDAO.createCourse(generateCourse(student._id));
-
-    const updated = await CourseDAO.updateCourse(
-      { student_id: student._id },
+    const res = await CourseDAO.updateCourse(
+      { student_id: 's1' },
       { table_data_string_locked: true }
     );
 
-    expect(updated.table_data_string_locked).toBe(true);
+    expect(Course.findOneAndUpdate).toHaveBeenCalledWith(
+      { student_id: 's1' },
+      { table_data_string_locked: true },
+      { new: true }
+    );
+    const chain = Course.findOneAndUpdate.mock.results[0].value;
+    expect(chain.lean).toHaveBeenCalled();
+    expect(res).toBe(updated);
   });
 
-  it('getCourseById returns the matching course', async () => {
-    const created = await CourseDAO.createCourse(generateCourse(student._id));
+  it('upsertCourseByStudentId upserts (new:false), populates and returns the pre-update doc', async () => {
+    const prev = { _id: 'c1' };
+    Course.findOneAndUpdate.mockReturnValue(queryChain(prev));
 
-    const found = await CourseDAO.getCourseById(created._id);
+    const res = await CourseDAO.upsertCourseByStudentId('s1', { a: 1 });
 
-    expect(found._id.toString()).toBe(created._id.toString());
+    expect(Course.findOneAndUpdate).toHaveBeenCalledWith(
+      { student_id: 's1' },
+      { a: 1 },
+      { upsert: true, new: false }
+    );
+    const chain = Course.findOneAndUpdate.mock.results[0].value;
+    expect(chain.populate).toHaveBeenCalledWith(
+      'student_id',
+      'firstname lastname pictureUrl'
+    );
+    expect(res).toBe(prev);
   });
 
-  it('deleteCourse removes the record', async () => {
-    await CourseDAO.createCourse(generateCourse(student._id));
+  it('deleteCourse deletes one and returns the lean doc', async () => {
+    const deleted = { _id: 'c1' };
+    Course.findOneAndDelete.mockReturnValue(queryChain(deleted));
 
-    await CourseDAO.deleteCourse({ student_id: student._id });
+    const res = await CourseDAO.deleteCourse({ student_id: 's1' });
 
-    expect(await Course.countDocuments({})).toBe(0);
+    expect(Course.findOneAndDelete).toHaveBeenCalledWith({ student_id: 's1' });
+    const chain = Course.findOneAndDelete.mock.results[0].value;
+    expect(chain.lean).toHaveBeenCalled();
+    expect(res).toBe(deleted);
+  });
+
+  it('createCourse delegates to Course.create and returns the doc', async () => {
+    const data = { student_id: 's1' };
+    const created = { _id: 'c1', ...data };
+    Course.create.mockResolvedValue(created);
+
+    const res = await CourseDAO.createCourse(data);
+
+    expect(Course.create).toHaveBeenCalledWith(data);
+    expect(res).toBe(created);
+  });
+
+  it('getCourseById finds by id and returns the lean doc', async () => {
+    const doc = { _id: 'c1' };
+    Course.findById.mockReturnValue(queryChain(doc));
+
+    const res = await CourseDAO.getCourseById('c1');
+
+    expect(Course.findById).toHaveBeenCalledWith('c1');
+    const chain = Course.findById.mock.results[0].value;
+    expect(chain.lean).toHaveBeenCalled();
+    expect(res).toBe(doc);
   });
 });

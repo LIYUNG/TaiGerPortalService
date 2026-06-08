@@ -1,526 +1,419 @@
-const fs = require('fs');
-const request = require('supertest');
-const { mockClient } = require('aws-sdk-client-mock');
-const { PutObjectCommand } = require('@aws-sdk/client-s3');
-const { GetObjectCommand } = require('@aws-sdk/client-s3');
+// Controller UNIT test for controllers/students.
+//
+// students is the "tangled" controller: a single handler can fan out to several
+// services (Student/Application/User/Permission/Basedocumentationslink/Audit)
+// plus side-effect helpers (email senders, userChangesHelperFunction). We call
+// each handler DIRECTLY as a (req, res, next) function with ALL of those mocked
+// and assert ONLY the controller's own work: the filter/args it forwards, the
+// status + body it writes, the branching it does, and that it forwards a service
+// error to next(). No route, no middleware, no DB, no real email.
+//
+// This is a representative subset of the main route handlers — the deep service
+// logic (pagination, fetchStudents shaping) is already covered by the service
+// suites (__tests__/services/studentsPaginated.test.js, activeThreadsPaginated)
+// and the full-stack wiring by __tests__/integration/students.test.js.
 
-const { UPLOAD_PATH } = require('../../config');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { Student, UserSchema } = require('../../models/User');
-const { protect, permit } = require('../../middlewares/auth');
+jest.mock('../../services/students');
+jest.mock('../../services/applications');
+jest.mock('../../services/interviews');
+jest.mock('../../services/programs');
+jest.mock('../../services/users');
+jest.mock('../../services/permissions');
+jest.mock('../../services/basedocumentationslinks');
+jest.mock('../../services/audit');
+jest.mock('../../services/email');
+jest.mock('../../utils/queryFunctions');
+// Keep the real query builder (pure filter assembly) but stub the DB/email-hitting
+// helpers used by the assign* handlers.
+jest.mock('../../utils/utils_function', () => ({
+  ...jest.requireActual('../../utils/utils_function'),
+  add_portals_registered_status: jest.fn((apps) => apps),
+  userChangesHelperFunction: jest.fn()
+}));
+
+const StudentService = require('../../services/students');
+const ApplicationService = require('../../services/applications');
+const UserService = require('../../services/users');
+const PermissionService = require('../../services/permissions');
+const BasedocumentationslinkService = require('../../services/basedocumentationslinks');
+const { getAuditLogs } = require('../../services/audit');
+const { userChangesHelperFunction } = require('../../utils/utils_function');
 const {
-  InnerTaigerMultitenantFilter
-} = require('../../middlewares/InnerTaigerMultitenantFilter');
-const {
-  permission_canAccessStudentDatabase_filter
-} = require('../../middlewares/permission-filter');
-const { programSchema } = require('../../models/Program');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { documentThreadsSchema } = require('../../models/Documentthread');
-const {
-  users,
-  admin,
-  agents,
-  agent,
-  editors,
-  student,
-  student2
-} = require('../mock/user');
-const { s3Client } = require('../../aws');
-const { program1, programs } = require('../mock/programs');
-const { disconnectFromDatabase } = require('../../database');
+  getStudent,
+  getActiveStudents,
+  getStudentsV3,
+  getStudentsV3Paginated,
+  getStudentsByIds,
+  getStudentAndDocLinks,
+  getStudentsAndDocLinks,
+  updateDocumentationHelperLink,
+  assignAttributesToStudent,
+  assignAgentToStudent
+} = require('../../controllers/students');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { admin, agent, student } = require('../mock/user');
 
-const s3ClientMock = mockClient(s3Client);
-const requestWithSupertest = request(app);
+const studentId = student._id.toString();
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+describe('getStudent', () => {
+  it('responds 200 with the student resolved for req.params.studentId', async () => {
+    const doc = { _id: studentId, firstname: 'Ann' };
+    StudentService.getStudentById.mockResolvedValue(doc);
+    const res = mockRes();
 
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
+    await getStudent(mockReq({ params: { studentId } }), res, jest.fn());
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough),
-    permission_canAssignAgent_filter: jest.fn().mockImplementation(passthrough),
-    permission_canAssignEditor_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-  s3ClientMock.on(PutObjectCommand).callsFake(async (input, getClient) => {
-    getClient().config.endpoint = () => ({ hostname: '' });
-    return {};
-  });
-  s3ClientMock.on(GetObjectCommand).callsFake(async () => ({
-    Body: {
-      transformToByteArray: async () => Buffer.from('mock file content')
-    }
-  }));
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const DocumentthreadModel = db.model('Documentthread', documentThreadsSchema);
-  const ProgramModel = db.model('Program', programSchema);
-
-  await UserModel.deleteMany();
-  await DocumentthreadModel.deleteMany();
-  await ProgramModel.deleteMany();
-
-  await UserModel.insertMany(users);
-  await ProgramModel.insertMany(programs);
-});
-
-afterEach(() => {
-  fs.rmSync(UPLOAD_PATH, { recursive: true, force: true });
-});
-
-describe('POST /api/students/:id/agents', () => {
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
+    expect(StudentService.getStudentById).toHaveBeenCalledWith(studentId);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: doc });
   });
 
-  it('should assign agent(s) to student', async () => {
-    const { _id: studentId } = student;
+  it('responds 404 when the student is not found', async () => {
+    StudentService.getStudentById.mockResolvedValue(null);
+    const res = mockRes();
 
-    const agents_obj = {};
-    agents.forEach((ag) => {
-      agents_obj[ag._id] = true;
-    });
+    await getStudent(mockReq({ params: { studentId } }), res, jest.fn());
 
-    const resp = await requestWithSupertest
-      .post(`/api/students/${studentId}/agents`)
-      .set('tenantId', TENANT_ID)
-      .send(agents_obj);
-
-    expect(resp.status).toBe(200);
-
-    var agents_arr = [];
-    agents.forEach((ag) => {
-      if ((agents_obj[ag._id] = true)) {
-        agents_arr.push(ag._id);
-      }
-    });
-
-    const updatedStudent = await Student.findById(studentId).lean();
-    expect(updatedStudent.agents.map(String)).toEqual(agents_arr);
-  });
-});
-
-describe('POST /api/students/:id/editors', () => {
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
-  });
-  it('should assign editors to student', async () => {
-    const { _id: studentId } = student;
-    const { _id: editorId } = editors[0];
-
-    const editors_obj = {};
-    editors.forEach((editor) => {
-      editors_obj[editor._id] = true;
-    });
-
-    const resp = await requestWithSupertest
-      .post(`/api/students/${studentId}/editors`)
-      .set('tenantId', TENANT_ID)
-      .send(editors_obj);
-
-    expect(resp.status).toBe(200);
-
-    var editors_arr = [];
-    editors.forEach((editor) => {
-      if ((editors_obj[editor._id] = true)) {
-        editors_arr.push(editor._id);
-      }
-    });
-
-    const updatedStudent = await Student.findById(studentId).lean();
-    expect(updatedStudent.editors.map(String)).toEqual(editors_arr);
-    // TODO: verify editors data
-    // const updatedEditor = await Editor.findById(editorId).lean();
-    // expect(updatedEditor.students.map(String)).toEqual([studentId]);
-  });
-});
-
-// Student uploads profile files
-// user: Student
-describe('POST /api/students/:studentId/files/:category', () => {
-  const { _id: studentId } = student;
-  const { _id: student2Id } = student2;
-  const filename_invalid_ext = 'invalid_extension.exe'; // will be overwrite to docName
-  const filename = 'my-file.pdf'; // will be overwrite to docName
-  const category = 'Bachelor_Transcript';
-
-  let temp_name;
-
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = student;
-    next();
-  });
-
-  it('should return 415 when profile file type not .pdf .png, .jpg and .jpeg .docx', async () => {
-    let buffer_2MB_exe = Buffer.alloc(1024 * 1024 * 2); // 2 MB
-    const resp2 = await requestWithSupertest
-      .post(`/api/students/${studentId}/files/${category}`)
-      .set('tenantId', TENANT_ID)
-      .attach('file', buffer_2MB_exe, { filename: filename_invalid_ext });
-
-    expect(resp2.status).toBe(415);
-    expect(resp2.body.success).toBe(false);
-    buffer_2MB_exe = null; // Mark for GC
-    if (global.gc) global.gc(); // Force GC if available
-  });
-
-  // TODO: take too much time
-  // it('should return 413 when profile size over 5 MB', async () => {
-  //   const buffer_10MB = Buffer.alloc(1024 * 1024 * 6); // 6 MB
-  //   const resp2 = await requestWithSupertest
-  //     .post(`/api/students/${studentId}/files/${category}`)
-  //     .set('tenantId', TENANT_ID)
-  //     .attach('file', buffer_10MB, { filename });
-
-  //   expect(resp2.text).toBe(413);
-  //   expect(resp2.body.success).toBe(false);
-  // });
-
-  // TODO: take too long to test
-  // it('should save the uploaded profile file and store the path in db', async () => {
-  //   let buffer_1kB_exe = Buffer.alloc(1024 * 1); // 1 kB
-
-  //   const resp = await requestWithSupertest
-  //     .post(`/api/students/${studentId}/files/${category}`)
-  //     .set('tenantId', TENANT_ID)
-  //     .attach('file', buffer_1kB_exe, { filename });
-
-  //   const { status, body } = resp;
-  //   expect(status).toBe(201);
-  //   expect(body.success).toBe(true);
-  //   // Cleanup
-  //   buffer_1kB_exe = null; // Mark for GC
-  //   if (global.gc) global.gc(); // Force GC if available
-
-  //   const updatedFile = body.data;
-
-  //   temp_name = `${student.lastname}_${
-  //     student.firstname
-  //   }_${category}${path.extname(updatedFile.path)}`;
-
-  //   const file_name_inDB = path.basename(updatedFile.path);
-
-  //   expect(updatedFile.name).toBe(category);
-  //   expect(file_name_inDB).toBe(temp_name);
-
-  //   // Test Download:
-  //   const resp2 = await requestWithSupertest
-  //     .get(`/api/students/${studentId}/files/${category}`)
-  //     .set('tenantId', TENANT_ID)
-  //     .buffer();
-
-  //   expect(resp2.status).toBe(200);
-  //   expect(resp2.headers['content-disposition']).toEqual(
-  //     `attachment; filename="${temp_name}"`
-  //   );
-
-  //   // TODO: test download: should not download other students's stuff!
-  //   // const invalidApplicationId = "invalidapplicationID";
-  //   // const resp3 = await requestWithSupertest
-  //   //   .get(`/api/students/${studentId}/files/${category}`)
-  //   //   .buffer();
-
-  //   // expect(resp3).toBe(400);
-  //   // expect(resp3.body.success).toBe(false);
-
-  //   // test delete
-  //   const resp4 = await requestWithSupertest
-  //     .delete(`/api/students/${studentId}/files/${category}`)
-  //     .set('tenantId', TENANT_ID);
-  //   expect(resp4.status).toBe(200);
-  //   expect(resp4.body.success).toBe(true);
-
-  //   // TODO test delete: should not delete other students file
-  //   const resp5 = await requestWithSupertest
-  //     .delete(`/api/students/${student2Id}/files/${category}`)
-  //     .set('tenantId', TENANT_ID);
-  //   expect(resp5.status).toBe(403);
-  //   expect(resp5.body.success).toBe(false);
-  // });
-});
-
-// user: Agent
-describe('POST /api/students/:studentId/files/:category', () => {
-  const { _id: studentId } = student;
-  const filename = 'my-file.pdf'; // will be overwrite to docName
-  const category = 'Bachelor_Transcript';
-
-  let temp_name;
-
-  permit.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
-  });
-  permission_canAccessStudentDatabase_filter.mockImplementation(
-    async (req, res, next) => {
-      next();
-    }
-  );
-  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) => {
-    next();
-  });
-
-  it.each([
-    ['my-file.exe', 415, false],
-    ['my-file.pdf', 201, true]
-  ])(
-    'should return 415 when profile file type not .pdf .png, .jpg and .jpeg .docx',
-    async (File_Name, status, success) => {
-      let buffer_1MB_exe = Buffer.alloc(1024 * 1024 * 1); // 1 MB
-      const resp2 = await requestWithSupertest
-        .post(`/api/students/${studentId.toString()}/files/${category}`)
-        .set('tenantId', TENANT_ID)
-        .attach('file', buffer_1MB_exe, { filename: File_Name });
-
-      expect(resp2.status).toBe(status);
-      expect(resp2.body.success).toBe(success);
-      // Cleanup
-      buffer_1MB_exe = null; // Mark for GC
-      if (global.gc) global.gc(); // Force GC if available
-    }
-  );
-
-  // TODO: take too much time
-  // it('should return 413 when profile size over 5 MB', async () => {
-  //   const buffer_10MB = Buffer.alloc(1024 * 1024 * 6); // 6 MB
-  //   const resp2 = await requestWithSupertest
-  //     .post(`/api/students/${studentId.toString()}/files/${category}`)
-  //     .set('tenantId', TENANT_ID)
-  //     .attach('file', buffer_10MB, { filename });
-
-  //   expect(resp2.text).toBe(413);
-  //   expect(resp2.body.success).toBe(false);
-  // });
-
-  // TODO: take too much to run
-  // it('should save the uploaded profile file and store the path in db', async () => {
-  //   let buffer_1kB_exe = Buffer.alloc(1024 * 1); // 1 kB
-  //   const resp = await requestWithSupertest
-  //     .post(`/api/students/${studentId.toString()}/files/${category}`)
-  //     .set('tenantId', TENANT_ID)
-  //     .attach('file', buffer_1kB_exe, { filename });
-
-  //   const { status, body } = resp;
-  //   expect(status).toBe(201);
-  //   expect(body.success).toBe(true);
-  //   // Cleanup
-  //   buffer_1kB_exe = null; // Mark for GC
-  //   if (global.gc) global.gc(); // Force GC if available
-
-  //   const updatedFile = body.data;
-  //   temp_name = `${student.lastname}_${
-  //     student.firstname
-  //   }_${category}${path.extname(updatedFile.path)}`;
-
-  //   const file_name_inDB = path.basename(updatedFile.path);
-
-  //   expect(updatedFile.name).toBe(category);
-  //   expect(file_name_inDB).toBe(temp_name);
-
-  //   // Test Download:
-  //   const resp2 = await requestWithSupertest
-  //     .get(`/api/students/${studentId.toString()}/files/${category}`)
-  //     .set('tenantId', TENANT_ID)
-  //     .buffer();
-
-  //   expect(resp2.status).toBe(200);
-  //   expect(resp2.headers['content-disposition']).toEqual(
-  //     `attachment; filename="${temp_name}"`
-  //   );
-
-  //   // TODO: test download: should not download other students's stuff!
-  //   // const invalidApplicationId = "invalidapplicationID";
-  //   // const resp3 = await requestWithSupertest
-  //   //   .get(`/api/students/${studentId.toString()}/files/${category}`)
-  //   //   .buffer();
-
-  //   // expect(resp3).toBe(400);
-  //   // expect(resp3.body.success).toBe(false);
-
-  //   // test update profile status
-  //   const feedback_str = 'too blurred';
-  //   const resp5 = await requestWithSupertest
-  //     .post(`/api/students/${studentId}/${category}/status`)
-  //     .set('tenantId', TENANT_ID)
-  //     .send({ status: 'rejected', feedback: feedback_str });
-  //   expect(resp5.status).toBe(201);
-  //   const updatedFile2 = resp5.body.data;
-
-  //   expect(resp5.body.success).toBe(true);
-  //   expect(updatedFile2.feedback).toBe(feedback_str);
-
-  //   // test delete
-  //   const resp4 = await requestWithSupertest
-  //     .delete(`/api/students/${studentId}/files/${category}`)
-  //     .set('tenantId', TENANT_ID);
-  //   expect(resp4.status).toBe(200);
-  //   expect(resp4.body.success).toBe(true);
-  // });
-});
-
-// //TODO: token-specific API!!!
-// describe("GET /api/students", () => {
-//   it("should return role-specific students", async () => {
-//     const resp = await requestWithSupertest.get("/api/students").set('tenantId', TENANT_ID);
-//     const { success, data } = resp.body;
-
-//     const studentIds = students.map(({ _id }) => _id).sort();
-//     // const receivedIds = data.map(({ _id }) => _id).sort();
-
-//     expect(resp.status).toBe(200);
-//     expect(success).toBe(true);
-//     // expect(receivedIds).toEqual(studentIds);
-//   });
-// });
-
-// TODO: token-specific API!!!
-// describe("GET /api/students/archiv", () => {
-//   it("should return all archiv students", async () => {
-//     const resp = await requestWithSupertest.get("/api/students/archiv");
-//     const { success, data } = resp.body;
-
-//     const studentIds = students.map(({ _id }) => _id).sort();
-//     const receivedIds = data.map(({ _id }) => _id).sort();
-
-//     expect(resp.status).toBe(200);
-//     expect(success).toBe(true);
-//     expect(receivedIds).toEqual(studentIds);
-//   });
-// });
-
-describe('GET /api/students/active', () => {
-  beforeEach(() => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Student not found.'
     });
   });
 
-  it('should return active students', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/students/active')
-      .set('tenantId', TENANT_ID);
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    StudentService.getStudentById.mockRejectedValue(err);
+    const next = jest.fn();
 
-    expect(resp.status).toBe(200);
+    await getStudent(mockReq({ params: { studentId } }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('GET /api/students/:studentId', () => {
-  beforeEach(() => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
-    });
-  });
+describe('getActiveStudents', () => {
+  it('builds a filter from the query and forwards it to the service', async () => {
+    const students = [{ _id: 's1' }];
+    StudentService.getStudentsWithApplications.mockResolvedValue(students);
+    const res = mockRes();
 
-  it('should return a single student by id', async () => {
-    const { _id: studentId } = student;
+    // archiv:'false' makes the builder emit an $or; editors/agents omitted.
+    await getActiveStudents(
+      mockReq({ query: { archiv: 'false' } }),
+      res,
+      jest.fn()
+    );
 
-    const resp = await requestWithSupertest
-      .get(`/api/students/${studentId}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-  });
-});
-
-describe('POST /api/students/archiv/:studentId', () => {
-  beforeEach(() => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
-    });
-  });
-
-  it('should archive or respond to archive request for a student', async () => {
-    const { _id: studentId } = student;
-
-    const resp = await requestWithSupertest
-      .post(`/api/students/archiv/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .send({});
-
-    expect(resp.status).toBeLessThan(600);
+    expect(StudentService.getStudentsWithApplications).toHaveBeenCalledTimes(1);
+    const filter = StudentService.getStudentsWithApplications.mock.calls[0][0];
+    expect(filter).toHaveProperty('$or');
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: students });
   });
 });
 
-describe('GET /api/students/:studentId/files/:file_key', () => {
-  beforeEach(() => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
+describe('getStudentsV3', () => {
+  it('responds 200 with fetchStudents output for the built filter', async () => {
+    const students = [{ _id: 's1' }, { _id: 's2' }];
+    StudentService.fetchStudents.mockResolvedValue(students);
+    const res = mockRes();
+
+    await getStudentsV3(
+      mockReq({ query: { agents: 'agent-1' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.fetchStudents).toHaveBeenCalledWith(
+      expect.objectContaining({ agents: 'agent-1' })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: students });
+  });
+});
+
+describe('getStudentsV3Paginated', () => {
+  it('forwards the built filter and the raw query to getStudentsPaginated', async () => {
+    const result = { data: [], total: 0, page: 1 };
+    StudentService.getStudentsPaginated.mockResolvedValue(result);
+    const query = { agents: 'agent-1', page: '1', limit: '10' };
+    const res = mockRes();
+
+    await getStudentsV3Paginated(mockReq({ query }), res, jest.fn());
+
+    expect(StudentService.getStudentsPaginated).toHaveBeenCalledWith({
+      filter: expect.objectContaining({ agents: 'agent-1' }),
+      query
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: result });
+  });
+});
+
+describe('getStudentsByIds', () => {
+  it('responds 400 when the ids query param is missing', async () => {
+    const res = mockRes();
+
+    await getStudentsByIds(mockReq({ query: {} }), res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(StudentService.getStudentsWithApplications).not.toHaveBeenCalled();
+  });
+
+  it('responds 400 when no valid object ids are supplied', async () => {
+    const res = mockRes();
+
+    await getStudentsByIds(
+      mockReq({ query: { ids: 'not-an-id,also-bad' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(false);
+    expect(body.invalidIds).toEqual(['not-an-id', 'also-bad']);
+  });
+
+  it('queries by the parsed valid ids and responds 200', async () => {
+    const students = [{ _id: studentId }];
+    StudentService.getStudentsWithApplications.mockResolvedValue(students);
+    const res = mockRes();
+
+    await getStudentsByIds(
+      mockReq({ query: { ids: studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.getStudentsWithApplications).toHaveBeenCalledTimes(1);
+    const filter = StudentService.getStudentsWithApplications.mock.calls[0][0];
+    expect(filter._id.$in).toHaveLength(1);
+    expect(filter._id.$in[0].toString()).toBe(studentId);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: students });
+  });
+});
+
+describe('getStudentAndDocLinks', () => {
+  it('responds 200 bundling student/applications/doc links/audit', async () => {
+    StudentService.getStudentByIdWithDocThreads.mockResolvedValue({
+      _id: studentId,
+      firstname: 'Ann'
+    });
+    ApplicationService.getApplicationsByStudentId.mockResolvedValue([
+      { _id: 'app1' }
+    ]);
+    BasedocumentationslinkService.findByCategory
+      .mockResolvedValueOnce({ base: 'docs' }) // base-documents
+      .mockResolvedValueOnce({ survey: 'link' }); // survey
+    getAuditLogs.mockResolvedValue([{ _id: 'a1' }]);
+    const res = mockRes();
+
+    await getStudentAndDocLinks(
+      mockReq({ user: admin, params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.getStudentByIdWithDocThreads).toHaveBeenCalledWith(
+      studentId
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data._id).toBe(studentId);
+    expect(body.base_docs_link).toEqual({ base: 'docs' });
+    expect(body.survey_link).toEqual({ survey: 'link' });
+    expect(body.audit).toEqual([{ _id: 'a1' }]);
+  });
+
+  it('responds 404 when the student does not exist', async () => {
+    StudentService.getStudentByIdWithDocThreads.mockResolvedValue(null);
+    ApplicationService.getApplicationsByStudentId.mockResolvedValue([]);
+    BasedocumentationslinkService.findByCategory.mockResolvedValue({});
+    getAuditLogs.mockResolvedValue([]);
+    const res = mockRes();
+
+    await getStudentAndDocLinks(
+      mockReq({ user: admin, params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith({
+      success: false,
+      message: 'Student not found'
+    });
+  });
+});
+
+describe('getStudentsAndDocLinks', () => {
+  it('staff branch: returns simple students with an empty base_docs_link', async () => {
+    const students = [{ _id: 's1' }];
+    StudentService.fetchSimpleStudents.mockResolvedValue(students);
+    const res = mockRes();
+
+    await getStudentsAndDocLinks(
+      mockReq({ user: admin, query: {} }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.fetchSimpleStudents).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: students,
+      base_docs_link: {}
+    });
+  });
+});
+
+describe('updateDocumentationHelperLink', () => {
+  it('upserts the link and responds 200 with the refreshed category', async () => {
+    BasedocumentationslinkService.upsertByCategoryKey.mockResolvedValue({});
+    BasedocumentationslinkService.findByCategory.mockResolvedValue({
+      key: 'val'
+    });
+    const res = mockRes();
+
+    await updateDocumentationHelperLink(
+      mockReq({
+        body: { link: 'http://x', key: 'k', category: 'base-documents' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(
+      BasedocumentationslinkService.upsertByCategoryKey
+    ).toHaveBeenCalledWith(
+      'base-documents',
+      'k',
+      expect.objectContaining({ link: 'http://x' })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      helper_link: { key: 'val' }
+    });
+  });
+});
+
+describe('assignAttributesToStudent', () => {
+  it('updates attributes then returns the refreshed student', async () => {
+    StudentService.updateStudentById.mockResolvedValue({});
+    const updated = { _id: studentId, attributes: ['a1'] };
+    StudentService.getStudentById.mockResolvedValue(updated);
+    const res = mockRes();
+
+    await assignAttributesToStudent(
+      mockReq({ params: { studentId }, body: ['a1'] }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.updateStudentById).toHaveBeenCalledWith(studentId, {
+      attributes: ['a1']
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: updated });
+  });
+});
+
+describe('assignAgentToStudent', () => {
+  it('responds 400 on invalid input (non-object body)', async () => {
+    const res = mockRes();
+
+    await assignAgentToStudent(
+      mockReq({ user: admin, params: { studentId }, body: 'nope' }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(StudentService.getStudentById).not.toHaveBeenCalled();
+  });
+
+  it('responds 404 when the student does not exist', async () => {
+    StudentService.getStudentById.mockResolvedValue(null);
+    const res = mockRes();
+
+    await assignAgentToStudent(
+      mockReq({ user: admin, params: { studentId }, body: {} }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Student not found.'
     });
   });
 
-  it('should respond to file download request for a student', async () => {
-    const { _id: studentId } = student;
-    const file_key = 'Bachelor_Transcript';
+  it('updates agents, returns the refreshed student, and calls next() for audit', async () => {
+    const existing = {
+      _id: studentId,
+      agents: [],
+      firstname: 'Ann',
+      archiv: false
+    };
+    const updated = {
+      _id: { toString: () => studentId },
+      agents: [agent._id],
+      firstname: 'Ann',
+      lastname: 'B',
+      email: 'a@b.c',
+      archiv: false
+    };
+    StudentService.getStudentById
+      .mockResolvedValueOnce(existing) // initial fetch
+      .mockResolvedValueOnce(updated); // refreshed after update
+    userChangesHelperFunction.mockResolvedValue({
+      addedUsers: [
+        {
+          _id: agent._id,
+          firstname: 'New',
+          lastname: 'Agent',
+          email: 'n@a.c',
+          archiv: false
+        }
+      ],
+      removedUsers: [],
+      updatedUsers: [],
+      toBeInformedUsers: [],
+      updatedUserIds: [agent._id]
+    });
+    StudentService.updateStudentById.mockResolvedValue({});
+    PermissionService.findPermissionsWithUser.mockResolvedValue([]);
+    const res = mockRes();
+    const next = jest.fn();
 
-    const resp = await requestWithSupertest
-      .get(`/api/students/${studentId}/files/${file_key}`)
-      .set('tenantId', TENANT_ID);
+    await assignAgentToStudent(
+      mockReq({
+        user: admin,
+        params: { studentId },
+        body: { [agent._id]: true }
+      }),
+      res,
+      next
+    );
 
-    expect(resp.status).toBeLessThan(600);
+    expect(StudentService.updateStudentById).toHaveBeenCalledWith(
+      studentId,
+      expect.objectContaining({ agents: [agent._id] })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: updated });
+    // an audit entry was attached and next() invoked for the audit middleware
+    expect(next).toHaveBeenCalledTimes(1);
   });
 });

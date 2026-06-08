@@ -1,156 +1,235 @@
-const request = require('supertest');
+// Controller UNIT test for controllers/course (the courses routes).
+//
+// The handlers are plain (req, res, next) functions, so we call them DIRECTLY
+// with fake req/res/next and MOCKED collaborators (CourseService, StudentService,
+// the email module and the AWS helpers the analyse/download handlers call). No
+// route, no middleware, no database — only the controller's own work:
+//   - what it pulls off req (params/body/user),
+//   - the args it forwards to the service,
+//   - the status + body it writes to res,
+//   - that it forwards a service error to next().
+// Route + middleware wiring + real persistence is covered by
+// __tests__/integration/courses.test.js.
 
-const { connect, closeDatabase, clearDatabase } = require('../fixtures/db');
-const { UserSchema } = require('../../models/User');
-const { generateCourse } = require('../fixtures/faker');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { coursesSchema } = require('../../models/Course');
-const { users, student } = require('../mock/user');
-const { app } = require('../../app');
-const { disconnectFromDatabase } = require('../../database');
+jest.mock('../../services/course');
+jest.mock('../../services/students');
+jest.mock('../../services/email', () => ({
+  updateCoursesDataAgentEmail: jest.fn(),
+  AnalysedCoursesDataStudentEmail: jest.fn()
+}));
+// The analyse/download handlers call AWS; keep them out of the unit test.
+jest.mock('../../aws', () => ({
+  getTemporaryCredentials: jest
+    .fn()
+    .mockResolvedValue({ Credentials: { AccessKeyId: 'x' } }),
+  callApiGateway: jest.fn().mockResolvedValue({ result: { ok: true } })
+}));
+jest.mock('../../aws/s3', () => ({
+  getS3Object: jest.fn().mockResolvedValue(Buffer.from('{}')),
+  uploadJsonToS3: jest.fn().mockResolvedValue(undefined)
+}));
 
-const requestWithSupertest = request(app);
+const CourseService = require('../../services/course');
+const StudentService = require('../../services/students');
+const { getS3Object } = require('../../aws/s3');
+const {
+  getMycourses,
+  putMycourses,
+  deleteMyCourse,
+  downloadJson,
+  processTranscript_api_gatway
+} = require('../../controllers/course');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { admin, student } = require('../mock/user');
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
+const studentId = student._id.toString();
 
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+describe('getMycourses', () => {
+  it('responds with the persisted courses when the student has a record', async () => {
+    StudentService.getStudentByIdLean.mockResolvedValue({
+      _id: studentId,
+      firstname: 'Ann',
+      lastname: 'Smith'
+    });
+    const courses = {
+      student_id: studentId,
+      table_data_string: '[{"course_chinese":"微積分"}]'
+    };
+    CourseService.getCourse.mockResolvedValue(courses);
+    const res = mockRes();
 
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
+    await getMycourses(mockReq({ params: { studentId } }), res, jest.fn());
 
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+    expect(StudentService.getStudentByIdLean).toHaveBeenCalledWith(studentId);
+    expect(CourseService.getCourse).toHaveBeenCalledWith({
+      student_id: studentId
+    });
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: courses });
+  });
 
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
+  it('responds with default example course data when no record exists', async () => {
+    StudentService.getStudentByIdLean.mockResolvedValue({
+      _id: studentId,
+      firstname: 'Ann',
+      lastname: 'Smith',
+      agents: [],
+      editors: [],
+      archiv: false
+    });
+    CourseService.getCourse.mockResolvedValue(null);
+    const res = mockRes();
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+    await getMycourses(mockReq({ params: { studentId } }), res, jest.fn());
 
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    localAuth: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.table_data_string).toContain('(Example)');
+    expect(body.data.table_data_string_locked).toBe(false);
+  });
 
-const course1 = generateCourse(student._id);
+  it('forwards a 500 ErrorResponse to next() when the student does not exist', async () => {
+    StudentService.getStudentByIdLean.mockResolvedValue(null);
+    const next = jest.fn();
 
-let dbUri;
+    await getMycourses(mockReq({ params: { studentId } }), mockRes(), next);
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const CourseModel = db.model('Course', coursesSchema);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-  await CourseModel.deleteMany();
-  await CourseModel.insertMany([course1]);
-
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = await UserModel.findById(student._id);
-    next();
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 500 });
+    expect(CourseService.getCourse).not.toHaveBeenCalled();
   });
 });
 
-describe('GET /api/courses/:studentId', () => {
-  it('getMycourses', async () => {
-    const resp = await requestWithSupertest
-      .get(`/api/courses/${student._id}`)
-      .set('tenantId', TENANT_ID);
+describe('putMycourses', () => {
+  it('upserts with the body (stamped updatedAt) and responds with the result', async () => {
+    const saved = {
+      student_id: { firstname: 'Ann', lastname: 'Smith' },
+      table_data_string: '[{"course_chinese":"電子學一"}]'
+    };
+    CourseService.upsertCourseByStudentId.mockResolvedValue(saved);
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
-    expect(resp.body.data.table_data_string).toContain('(Example)微積分一');
+    await putMycourses(
+      mockReq({
+        params: { studentId },
+        body: { table_data_string: '[{"course_chinese":"電子學一"}]' },
+        user: admin
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(CourseService.upsertCourseByStudentId).toHaveBeenCalledWith(
+      studentId,
+      expect.objectContaining({
+        table_data_string: '[{"course_chinese":"電子學一"}]',
+        updatedAt: expect.any(Date)
+      })
+    );
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: saved });
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    CourseService.upsertCourseByStudentId.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await putMycourses(
+      mockReq({ params: { studentId }, body: {}, user: admin }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('PUT /api/courses/:studentId', () => {
-  it('putMycourses', async () => {
-    const resp = await requestWithSupertest
-      .put(`/api/courses/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({
-        table_data_string:
-          '[{"course_chinese":"電子學一","course_english":"Electronics I","credits":"2","grades":"73"}]'
-      });
+describe('deleteMyCourse', () => {
+  it('deletes the course when one exists and responds 200', async () => {
+    CourseService.getCourse.mockResolvedValue({ student_id: studentId });
+    CourseService.deleteCourse.mockResolvedValue(undefined);
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
+    await deleteMyCourse(mockReq({ params: { studentId } }), res, jest.fn());
+
+    expect(CourseService.deleteCourse).toHaveBeenCalledWith({
+      student_id: studentId
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when there is no course', async () => {
+    CourseService.getCourse.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await deleteMyCourse(mockReq({ params: { studentId } }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
+    expect(CourseService.deleteCourse).not.toHaveBeenCalled();
   });
 });
 
-describe('DELETE /api/courses/:studentId', () => {
-  it('deleteMyCourse', async () => {
-    const resp = await requestWithSupertest
-      .delete(`/api/courses/${student._id}`)
-      .set('tenantId', TENANT_ID);
+describe('downloadJson', () => {
+  it('responds 200 with the parsed analysed json from S3', async () => {
+    CourseService.getCourse.mockResolvedValue({
+      student_id: { _id: studentId },
+      analysis: { isAnalysedV2: true, pathV2: `${studentId}/analysed.json` }
+    });
+    getS3Object.mockResolvedValue(Buffer.from('{"score":5}'));
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
+    await downloadJson(mockReq({ params: { studentId } }), res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.json).toEqual({ score: 5 });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the course is missing', async () => {
+    CourseService.getCourse.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await downloadJson(mockReq({ params: { studentId } }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
+  });
+
+  it('forwards a 403 ErrorResponse to next() when not analysed yet', async () => {
+    CourseService.getCourse.mockResolvedValue({
+      student_id: { _id: studentId },
+      analysis: { isAnalysedV2: false, pathV2: null }
+    });
+    const next = jest.fn();
+
+    await downloadJson(mockReq({ params: { studentId } }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
   });
 });
 
-describe('PUT /api/courses/:studentId (upsert creates new record)', () => {
-  it('should upsert (create) a course record when none exists', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const CourseModel = db.model('Course', coursesSchema);
+describe('processTranscript_api_gatway', () => {
+  it('short-circuits with empty data when the student has no course', async () => {
+    CourseService.getCourse.mockResolvedValue(null);
+    const res = mockRes();
 
-    // Delete existing course so we test the upsert-create path
-    await CourseModel.deleteMany({ student_id: student._id });
+    await processTranscript_api_gatway(
+      mockReq({
+        params: { studentId, language: 'en' },
+        body: { requirementIds: [], factor: 1.5 }
+      }),
+      res,
+      jest.fn()
+    );
 
-    const resp = await requestWithSupertest
-      .put(`/api/courses/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({
-        table_data_string:
-          '[{"course_chinese":"新課程","course_english":"New Course","credits":"3","grades":"85"}]'
-      });
-
-    expect([200, 201, 400]).toContain(resp.status);
-  });
-});
-
-describe('GET /api/courses/:studentId (no course record)', () => {
-  it('should return default course data when no course record exists for student', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const CourseModel = db.model('Course', coursesSchema);
-
-    // Delete existing course so the controller returns default data
-    await CourseModel.deleteMany({ student_id: student._id });
-
-    const resp = await requestWithSupertest
-      .get(`/api/courses/${student._id}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toEqual(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: {} });
+    expect(CourseService.updateCourse).not.toHaveBeenCalled();
   });
 });

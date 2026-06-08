@@ -1,193 +1,356 @@
-const request = require('supertest');
+// Controller UNIT test for controllers/complaints.
+//
+// The handlers are plain (req, res, next) functions, so we call them DIRECTLY
+// with fake req/res/next and MOCKED collaborators (ComplaintService,
+// PermissionService, StudentService, the complaints email module, and the S3 /
+// garbage-collector side effects the write handlers fire after responding). No
+// route, no middleware, no database — only the controller's own work:
+//   - the role-based branch it takes (student vs staff),
+//   - the args it forwards to the service,
+//   - the status + body it writes to res,
+//   - that it forwards a service error to next().
+// Route + middleware wiring + real persistence is covered by
+// __tests__/integration/complaints.test.js.
 
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { complaintSchema } = require('../../models/Complaint');
-const { users, student } = require('../mock/user');
+jest.mock('../../services/complaints');
+jest.mock('../../services/permissions');
+jest.mock('../../services/students');
+jest.mock('../../services/email/complaints', () => ({
+  newCustomerCenterTicketEmail: jest.fn(),
+  newCustomerCenterTicketSubmitConfirmationEmail: jest.fn(),
+  complaintResolvedRequesterReminderEmail: jest.fn(),
+  newCustomerCenterTicketMessageEmail: jest.fn()
+}));
+jest.mock('../../utils/utils_function', () => ({
+  ...jest.requireActual('../../utils/utils_function'),
+  threadS3GarbageCollector: jest.fn().mockResolvedValue(undefined)
+}));
+jest.mock('../../utils/modelHelper/versionControl', () => ({
+  ...jest.requireActual('../../utils/modelHelper/versionControl'),
+  emptyS3Directory: jest.fn().mockResolvedValue(undefined)
+}));
+jest.mock('../../aws/s3', () => ({
+  ...jest.requireActual('../../aws/s3'),
+  getS3Object: jest.fn().mockResolvedValue(Buffer.from(''))
+}));
+
+const ComplaintService = require('../../services/complaints');
+const PermissionService = require('../../services/permissions');
+const StudentService = require('../../services/students');
 const {
-  tickets,
-  ticket,
-  ticketNew,
-  ticketWithMessage
-} = require('../mock/complaintTickets');
+  getComplaints,
+  getComplaint,
+  createComplaint,
+  updateComplaint,
+  postMessageInTicket,
+  updateAMessageInComplaint,
+  deleteAMessageInComplaint,
+  deleteComplaint
+} = require('../../controllers/complaints');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { admin, student } = require('../mock/user');
 
-const requestWithSupertest = request(app);
+const ticketId = '5f9f1b9b9b9b9b9b9b9b9b9b';
+const messageId = '6f9f1b9b9b9b9b9b9b9b9b9b';
+const validMessage =
+  '{"time":1709677608094,"blocks":[{"id":"a","type":"paragraph","data":{"text":"New message"}}],"version":"2.29.0"}';
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    complaintTicketMultitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    localAuth: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-});
-afterAll(async () => await clearDatabase());
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const ComplaintSchema = db.model('Complaint', complaintSchema);
-
-  await ComplaintSchema.deleteMany();
-  await ComplaintSchema.insertMany(tickets);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = await UserModel.findById(student._id);
-    next();
+beforeEach(() => {
+  jest.clearAllMocks();
+  // The create / post-message handlers fire-and-forget email after responding;
+  // give the post-response services benign resolutions so they don't reject.
+  PermissionService.getManagers.mockResolvedValue([]);
+  StudentService.getStudentByIdWithTeam.mockResolvedValue({
+    firstname: 'S',
+    lastname: 'T',
+    archiv: false
   });
 });
 
-describe('GET /api/complaints', () => {
-  it('getComplaints', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/complaints')
-      .set('tenantId', TENANT_ID);
+describe('getComplaints', () => {
+  it('staff branch: returns all tickets the service resolves', async () => {
+    const tickets = [{ _id: 't1', title: 'late deadline' }];
+    ComplaintService.getComplaints.mockResolvedValue(tickets);
+    const res = mockRes();
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toEqual(true);
+    await getComplaints(mockReq({ user: admin, query: {} }), res, jest.fn());
+
+    expect(ComplaintService.getComplaints).toHaveBeenCalledWith({});
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: tickets });
+  });
+
+  it('student branch: returns only the requester tickets', async () => {
+    const tickets = [{ _id: 't2', title: 'mine' }];
+    ComplaintService.getComplaintsByRequester.mockResolvedValue(tickets);
+    const res = mockRes();
+
+    await getComplaints(mockReq({ user: student, query: {} }), res, jest.fn());
+
+    expect(ComplaintService.getComplaintsByRequester).toHaveBeenCalledWith(
+      student._id
+    );
+    expect(ComplaintService.getComplaints).not.toHaveBeenCalled();
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: tickets });
+  });
+
+  it('staff branch: forwards a status filter from the query', async () => {
+    ComplaintService.getComplaints.mockResolvedValue([]);
+    const res = mockRes();
+
+    await getComplaints(
+      mockReq({ user: admin, query: { status: 'resolved' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(ComplaintService.getComplaints).toHaveBeenCalledWith({
+      status: 'resolved'
+    });
   });
 });
 
-describe('POST /api/complaints', () => {
-  it('createComplaint', async () => {
-    const resp = await requestWithSupertest
-      .post('/api/complaints')
-      .set('tenantId', TENANT_ID)
-      .send({ ticket: ticketNew });
+describe('getComplaint', () => {
+  it('returns the populated ticket and forwards the id', async () => {
+    const ticket = { _id: ticketId, title: 'x' };
+    ComplaintService.getComplaintByIdPopulated.mockResolvedValue(ticket);
+    const res = mockRes();
 
-    expect(resp.status).toBe(201);
-    expect(resp.body.success).toEqual(true);
+    await getComplaint(mockReq({ params: { ticketId } }), res, jest.fn());
+
+    expect(ComplaintService.getComplaintByIdPopulated).toHaveBeenCalledWith(
+      ticketId
+    );
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: ticket });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the ticket is missing', async () => {
+    ComplaintService.getComplaintByIdPopulated.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await getComplaint(mockReq({ params: { ticketId } }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
   });
 });
 
-describe('message In Ticket Controller', () => {
-  it('postMessageInTicket: should post a message in a ticket', async () => {
-    const resp = await requestWithSupertest
-      .post(
-        `/api/complaints/new-message/${ticket._id.toString()}/${student._id}`
-      )
-      .set('tenantId', TENANT_ID)
-      .send({
-        message:
-          '{"time":1709677608094,"blocks":[{"id":"9ntXJB6f3L","type":"paragraph","data":{"text":"New message"}}],"version":"2.29.0"}'
-      });
+describe('createComplaint', () => {
+  it('stamps the requester id and responds 201 with the created ticket', async () => {
+    const created = { _id: 'new1', title: 'broken', description: 'desc' };
+    ComplaintService.createComplaint.mockResolvedValue(created);
+    const res = mockRes();
 
-    expect(resp.status).toBe(201);
-    expect(resp.body.data.messages[0].message).toContain('New message');
-  });
+    await createComplaint(
+      mockReq({
+        user: admin,
+        body: { ticket: { title: 'broken', description: 'desc' } }
+      }),
+      res,
+      jest.fn()
+    );
 
-  it('updateAMessageInComplaint: should update a message in a ticket', async () => {
-    const resp = await requestWithSupertest
-      .put(
-        `/api/complaints/${ticketWithMessage._id.toString()}/${
-          ticketWithMessage.messages[0]._id
-        }`
-      )
-      .set('tenantId', TENANT_ID)
-      .send({
-        message:
-          '{"time":1709677608094,"blocks":[{"id":"9ntXJB6f3L","type":"paragraph","data":{"text":"updated message"}}],"version":"2.29.0"}'
-      });
-
-    expect(resp.status).toBe(200);
+    expect(ComplaintService.createComplaint).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'broken',
+        requester_id: admin._id.toString()
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: created });
   });
 });
 
-describe('getComplaint Controller', () => {
-  it('should get a ticket', async () => {
-    const resp = await requestWithSupertest
-      .get(`/api/complaints/${ticket._id.toString()}`)
-      .set('tenantId', TENANT_ID);
+describe('updateComplaint', () => {
+  it('forwards the id + fields (stamped updatedAt) and responds 200 with the ticket', async () => {
+    const updated = { _id: ticketId, description: 'new information' };
+    ComplaintService.updateComplaintById.mockResolvedValue(updated);
+    const res = mockRes();
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toEqual(true);
+    await updateComplaint(
+      mockReq({
+        user: admin,
+        params: { ticketId },
+        body: { description: 'new information' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(ComplaintService.updateComplaintById).toHaveBeenCalledWith(
+      ticketId,
+      expect.objectContaining({
+        description: 'new information',
+        updatedAt: expect.any(Date)
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: updated });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the ticket is missing', async () => {
+    ComplaintService.updateComplaintById.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await updateComplaint(
+      mockReq({
+        user: admin,
+        params: { ticketId },
+        body: { description: 'x' }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
   });
 });
 
-describe('updateComplaint Controller', () => {
-  it('should update a ticket', async () => {
-    const resp = await requestWithSupertest
-      .put(`/api/complaints/${ticket._id.toString()}`)
-      .set('tenantId', TENANT_ID)
-      .send({ description: 'new information' });
-    const updatedTicket = resp.body.data;
-    expect(resp.status).toBe(200);
-    expect(updatedTicket.description).toEqual('new information');
+describe('updateAMessageInComplaint', () => {
+  it('updates the message when the caller owns it', async () => {
+    ComplaintService.getComplaintDocById.mockResolvedValue({
+      status: 'open',
+      messages: [{ _id: messageId, user_id: admin._id }]
+    });
+    ComplaintService.updateComplaintRaw.mockResolvedValue(undefined);
+    const res = mockRes();
+
+    await updateAMessageInComplaint(
+      mockReq({
+        user: admin,
+        params: { ticketId, messageId },
+        body: { messages: [{ message: 'updated' }] }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(ComplaintService.updateComplaintRaw).toHaveBeenCalledWith(
+      ticketId,
+      expect.any(Object)
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('forwards a 409 ErrorResponse to next() when the message belongs to another user', async () => {
+    ComplaintService.getComplaintDocById.mockResolvedValue({
+      status: 'open',
+      messages: [{ _id: messageId, user_id: student._id }]
+    });
+    const next = jest.fn();
+
+    await updateAMessageInComplaint(
+      mockReq({
+        user: admin,
+        params: { ticketId, messageId },
+        body: { messages: [{ message: 'updated' }] }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 409 });
+    expect(ComplaintService.updateComplaintRaw).not.toHaveBeenCalled();
   });
 });
 
-describe('deleteComplaint Controller', () => {
-  it('should delete a tickets', async () => {
-    const resp = await requestWithSupertest
-      .delete(`/api/complaints/${ticket._id.toString()}`)
-      .set('tenantId', TENANT_ID);
+describe('deleteAMessageInComplaint', () => {
+  it('pulls the message when the caller owns it and responds 200', async () => {
+    ComplaintService.getComplaintDocById.mockResolvedValue({
+      status: 'open',
+      messages: [{ _id: messageId, user_id: admin._id }]
+    });
+    ComplaintService.pullMessageById.mockResolvedValue(undefined);
+    const res = mockRes();
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toEqual(true);
+    await deleteAMessageInComplaint(
+      mockReq({ user: admin, params: { ticketId, messageId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(ComplaintService.pullMessageById).toHaveBeenCalledWith(
+      ticketId,
+      messageId
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+});
+
+describe('deleteComplaint', () => {
+  it('deletes the ticket and responds 200', async () => {
+    ComplaintService.getComplaintDocById.mockResolvedValue({
+      _id: ticketId,
+      requester_id: student._id
+    });
+    ComplaintService.deleteComplaintById.mockResolvedValue(undefined);
+    const res = mockRes();
+
+    await deleteComplaint(mockReq({ params: { ticketId } }), res, jest.fn());
+
+    expect(ComplaintService.deleteComplaintById).toHaveBeenCalledWith(ticketId);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+});
+
+describe('postMessageInTicket', () => {
+  it('appends a message, saves the ticket and responds 201 with the refreshed ticket', async () => {
+    const ticketDoc = {
+      status: 'open',
+      requester_id: {
+        _id: admin._id,
+        toString: () => admin._id.toString()
+      },
+      messages: [],
+      _id: { toString: () => ticketId },
+      title: 'x',
+      save: jest.fn().mockResolvedValue(undefined)
+    };
+    ComplaintService.getComplaintDocByIdWithRequester.mockResolvedValue(
+      ticketDoc
+    );
+    const refreshed = {
+      _id: ticketId,
+      messages: [{ message: 'New message' }],
+      requester_id: { firstname: 'S', lastname: 'T', email: 's@t.co' }
+    };
+    ComplaintService.getComplaintByIdWithMessages.mockResolvedValue(refreshed);
+    const res = mockRes();
+
+    await postMessageInTicket(
+      mockReq({
+        user: admin,
+        params: { ticketId, studentId: student._id },
+        body: { message: validMessage }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(ticketDoc.save).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: refreshed });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the ticket does not exist', async () => {
+    ComplaintService.getComplaintDocByIdWithRequester.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await postMessageInTicket(
+      mockReq({
+        user: admin,
+        params: { ticketId, studentId: student._id },
+        body: { message: '{}' }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
   });
 });

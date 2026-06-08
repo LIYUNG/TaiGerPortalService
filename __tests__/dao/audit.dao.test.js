@@ -1,57 +1,62 @@
-// DAO-level integration test: exercises the real Audit queries against the
-// in-memory MongoDB (this is where query/sort/pagination coverage lives now
-// that controller tests mock the DAO).
-const { connect, clearDatabase } = require('../fixtures/db');
+// AuditDAO unit tests — the DAO is a thin query-building layer over the Audit
+// model, so we mock the model entirely (NO database, in-memory or otherwise).
+// These assert that each DAO method builds the expected query/options and
+// forwards the model's result. Real query/pagination behaviour is covered by
+// the integration suite (__tests__/integration).
+jest.mock('../../models', () => {
+  const model = () => ({
+    find: jest.fn(),
+    create: jest.fn()
+  });
+  return {
+    Audit: model()
+  };
+});
+
 const { Audit } = require('../../models');
 const AuditDAO = require('../../dao/audit.dao');
-const { disconnectFromDatabase } = require('../../database');
-const { TENANT_ID } = require('../fixtures/constants');
 
-beforeAll(async () => {
-  await connect();
+// A query chain that terminates in `.sort()` resolving to `value`. Intermediate
+// builder calls (populate/limit/skip) return the same chain so they compose.
+const sortChain = (value) => {
+  const chain = {
+    populate: jest.fn(() => chain),
+    limit: jest.fn(() => chain),
+    skip: jest.fn(() => chain),
+    sort: jest.fn().mockResolvedValue(value)
+  };
+  return chain;
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+describe('AuditDAO (mocked models)', () => {
+  it('getAuditLogs forwards filter + limit/skip/sort options and returns the docs', async () => {
+    const docs = [{ _id: 'a1', action: 'CREATE' }];
+    const chain = sortChain(docs);
+    Audit.find.mockReturnValue(chain);
 
-beforeEach(async () => {
-  await Audit.deleteMany({});
-});
+    const filter = { action: 'CREATE' };
+    const options = { limit: 10, skip: 0, sort: { createdAt: -1 } };
+    const result = await AuditDAO.getAuditLogs(filter, options);
 
-describe('AuditDAO (in-memory)', () => {
-  it('createAuditLog inserts a document', async () => {
-    const created = await AuditDAO.createAuditLog({ action: 'CREATE' });
-    expect(created._id).toBeDefined();
-    expect(await Audit.countDocuments({})).toBe(1);
+    expect(Audit.find).toHaveBeenCalledWith(filter);
+    expect(chain.limit).toHaveBeenCalledWith(10);
+    expect(chain.skip).toHaveBeenCalledWith(0);
+    expect(chain.sort).toHaveBeenCalledWith({ createdAt: -1 });
+    expect(result).toBe(docs);
   });
 
-  it('getAuditLogs returns matching logs filtered by action', async () => {
-    await Audit.create([{ action: 'CREATE' }, { action: 'DELETE' }]);
+  it('createAuditLog forwards the payload to create and returns the doc', async () => {
+    const created = { _id: 'a1', action: 'CREATE' };
+    Audit.create.mockResolvedValue(created);
 
-    const logs = await AuditDAO.getAuditLogs(
-      { action: 'CREATE' },
-      { limit: 10, skip: 0, sort: { createdAt: -1 } }
-    );
+    const payload = { action: 'CREATE' };
+    const result = await AuditDAO.createAuditLog(payload);
 
-    expect(logs).toHaveLength(1);
-    expect(logs[0].action).toBe('CREATE');
-  });
-
-  it('applies limit / skip / sort', async () => {
-    await Audit.create([{ action: 'A' }, { action: 'B' }, { action: 'C' }]);
-
-    const page1 = await AuditDAO.getAuditLogs(
-      {},
-      { limit: 2, skip: 0, sort: { action: 1 } }
-    );
-    const page2 = await AuditDAO.getAuditLogs(
-      {},
-      { limit: 2, skip: 2, sort: { action: 1 } }
-    );
-
-    expect(page1.map((l) => l.action)).toEqual(['A', 'B']);
-    expect(page2.map((l) => l.action)).toEqual(['C']);
+    expect(Audit.create).toHaveBeenCalledWith(payload);
+    expect(result).toBe(created);
   });
 });

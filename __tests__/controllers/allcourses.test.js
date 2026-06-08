@@ -1,118 +1,206 @@
-const request = require('supertest');
-const { allCourseSchema } = require('@taiger-common/model');
+// Controller UNIT test for controllers/allcourses.
+//
+// The allcourses handlers are plain (req, res, next) functions (wrapped by
+// asyncHandler), so we call them DIRECTLY with fake req/res/next and a mocked
+// AllcourseService. No route, no middleware, no database. We assert ONLY the
+// controller's own work: the args it forwards to the service, the status + body
+// it writes (including the 400 validation and 404 not-found branches), and that
+// a service error is forwarded to next(). Full-stack wiring lives in
+// __tests__/integration/allcourses.test.js.
 
-const { protect } = require('../../middlewares/auth');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { TENANT_ID } = require('../fixtures/constants');
-const { subjects, subject1, subject3 } = require('../mock/allcourses');
+jest.mock('../../services/allcourses');
+
+const AllcourseService = require('../../services/allcourses');
+const {
+  getCourses,
+  getCourse,
+  deleteCourse,
+  updateCourse,
+  createCourse
+} = require('../../controllers/allcourses');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 const { agent } = require('../mock/user');
-const { app } = require('../../app');
-const { disconnectFromDatabase } = require('../../database');
 
-const requestWithSupertest = request(app);
+const courseId = '012345678901234567891234';
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+describe('getCourses', () => {
+  it('responds 200 with the courses the service resolves', async () => {
+    const courses = [{ _id: 'c1', all_course_english: 'math' }];
+    AllcourseService.getAllcourses.mockResolvedValue(courses);
+    const res = mockRes();
 
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
+    await getCourses(mockReq(), res, jest.fn());
 
-let dbUri;
+    expect(AllcourseService.getAllcourses).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: courses });
+  });
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    AllcourseService.getAllcourses.mockRejectedValue(err);
+    const next = jest.fn();
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
+    await getCourses(mockReq(), mockRes(), next);
 
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const allCourseModel = db.model('Allcourse', allCourseSchema);
-
-  await allCourseModel.deleteMany();
-  await allCourseModel.insertMany(subjects);
-
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('GET /api/all-courses', () => {
-  it('getCourses', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/all-courses/')
-      .set('tenantId', TENANT_ID);
+describe('getCourse', () => {
+  it('200: returns the course and forwards the courseId', async () => {
+    const course = { _id: courseId, all_course_english: 'physics' };
+    AllcourseService.getAllcourseById.mockResolvedValue(course);
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
+    await getCourse(mockReq({ params: { courseId } }), res, jest.fn());
+
+    expect(AllcourseService.getAllcourseById).toHaveBeenCalledWith(courseId);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: course });
+  });
+
+  it('404: responds not found when the service resolves nothing', async () => {
+    AllcourseService.getAllcourseById.mockResolvedValue(null);
+    const res = mockRes();
+
+    await getCourse(mockReq({ params: { courseId } }), res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
   });
 });
 
-describe('POST /api/all-courses', () => {
-  it('createCourse', async () => {
-    const resp = await requestWithSupertest
-      .post('/api/all-courses/')
-      .set('tenantId', TENANT_ID)
-      .send({
+describe('createCourse', () => {
+  it('201: forwards the body to createAllcourse and returns the created course', async () => {
+    const created = { _id: 'c2', all_course_english: 'test' };
+    AllcourseService.createAllcourse.mockResolvedValue(created);
+    const req = mockReq({
+      body: { all_course_chinese: '測試', all_course_english: 'test' }
+    });
+    const res = mockRes();
+
+    await createCourse(req, res, jest.fn());
+
+    expect(AllcourseService.createAllcourse).toHaveBeenCalledWith(
+      expect.objectContaining({
         all_course_chinese: '測試',
         all_course_english: 'test'
-      });
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data).toEqual(created);
+  });
 
-    expect(resp.status).toEqual(201);
+  it('400: rejects when a required name is missing (no service call)', async () => {
+    const res = mockRes();
+
+    await createCourse(
+      mockReq({ body: { all_course_english: 'only english' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
+    expect(AllcourseService.createAllcourse).not.toHaveBeenCalled();
   });
 });
 
-describe('GET /api/all-courses/:courseId', () => {
-  it('getCourse', async () => {
-    const resp = await requestWithSupertest
-      .get(`/api/all-courses/${subject1._id}`)
-      .set('tenantId', TENANT_ID);
+describe('updateCourse', () => {
+  it('200: forwards courseId + payload (with updatedBy) and returns the updated course', async () => {
+    const updated = { _id: courseId, all_course_english: 'updated' };
+    AllcourseService.updateAllcourseById.mockResolvedValue(updated);
+    const req = mockReq({
+      user: agent,
+      params: { courseId },
+      body: { all_course_chinese: '測試', all_course_english: 'updated' }
+    });
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
+    await updateCourse(req, res, jest.fn());
+
+    expect(AllcourseService.updateAllcourseById).toHaveBeenCalledWith(
+      courseId,
+      expect.objectContaining({
+        all_course_english: 'updated',
+        updatedBy: agent._id
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data).toEqual(updated);
+  });
+
+  it('400: rejects when a required name is missing (no service call)', async () => {
+    const res = mockRes();
+
+    await updateCourse(
+      mockReq({
+        user: agent,
+        params: { courseId },
+        body: { all_course_english: 'only english' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(AllcourseService.updateAllcourseById).not.toHaveBeenCalled();
+  });
+
+  it('404: responds not found when the service resolves nothing', async () => {
+    AllcourseService.updateAllcourseById.mockResolvedValue(null);
+    const res = mockRes();
+
+    await updateCourse(
+      mockReq({
+        user: agent,
+        params: { courseId },
+        body: { all_course_chinese: '測試', all_course_english: 'updated' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
   });
 });
 
-describe('PUT /api/all-courses/:courseId', () => {
-  it('updateCourse', async () => {
-    const resp = await requestWithSupertest
-      .put(`/api/all-courses/${subject1._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({
-        all_course_chinese: '測試',
-        all_course_english: 'test'
-      });
+describe('deleteCourse', () => {
+  it('200: forwards the courseId and reports success', async () => {
+    AllcourseService.deleteAllcourseById.mockResolvedValue({ _id: courseId });
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
+    await deleteCourse(mockReq({ params: { courseId } }), res, jest.fn());
+
+    expect(AllcourseService.deleteAllcourseById).toHaveBeenCalledWith(courseId);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true })
+    );
   });
-});
 
-describe('DELETE /api/all-courses/:courseId', () => {
-  it('deleteCourse', async () => {
-    const resp = await requestWithSupertest
-      .delete(`/api/all-courses/${subject3._id}`)
-      .set('tenantId', TENANT_ID);
+  it('404: responds not found when the service resolves nothing', async () => {
+    AllcourseService.deleteAllcourseById.mockResolvedValue(null);
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
+    await deleteCourse(mockReq({ params: { courseId } }), res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
   });
 });

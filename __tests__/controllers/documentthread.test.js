@@ -1,254 +1,424 @@
-// DB-free rewrite.
+// Controller UNIT test for the message-thread handlers of
+// controllers/documents_modification (the "document thread" surface).
 //
-// This suite used to boot an in-memory Mongo plus a separate tenant connection
-// (`connect()` + `connectToDatabase(TENANT_ID, dbUri)`) and tear them down in
-// `afterAll`. Creating applications fires the `handleProgramChanges` /
-// `enableVersionControl` Mongoose plugins, whose async writes were still
-// in-flight when the connection was closed — so teardown intermittently threw
-//   MongoClientClosedError: Operation interrupted because client was closed
-// making the whole file flaky.
+// These handlers are the tangled ones: a single call fans out to many services
+// (DocumentThread/Student/User/Application/Audit/...) and touches S3, node-cache
+// and email. We call each handler DIRECTLY as a (req, res, next) function with
+// ALL of those modules mocked, so NOTHING real runs below the controller. We
+// assert ONLY the controller's own work: the args it forwards, the status + body
+// it writes, the not-found / final-version guards it owns, and that a service
+// error is forwarded to next().
 //
-// The ORM is now mocked end-to-end, so no Mongo connection is ever opened:
-//   1. `createApplicationV2` is unit-tested against fake models — real
-//      controller logic, fake data layer. This is the "create ML thread when a
-//      program with ML required is assigned" behaviour.
-//   2. The thread file-upload validation (.exe / .pdf / size limit) is tested
-//      against the *real* multer middleware with S3 mocked — no DB involved.
+// The sibling CRUD/overview/survey-input handlers are unit-tested in
+// __tests__/controllers/documents_modification.test.js. Full route -> service ->
+// dao -> in-memory Mongo wiring lives in __tests__/integration/documentthread.test.js.
 
-const express = require('express');
-const request = require('supertest');
-const { mockClient } = require('aws-sdk-client-mock');
-const { PutObjectCommand } = require('@aws-sdk/client-s3');
-const mongoose = require('mongoose');
-
-// Mock the email layer so the post-response notification in createApplicationV2
-// never tries to send a real email.
+jest.mock('../../services/documentthreads');
+jest.mock('../../services/students');
+jest.mock('../../services/users');
+jest.mock('../../services/applications');
+jest.mock('../../services/surveyInputs');
+jest.mock('../../services/permissions');
+jest.mock('../../services/interviews');
+jest.mock('../../services/audit');
+jest.mock('../../utils/informEditor', () => ({
+  informOnSurveyUpdate: jest.fn().mockResolvedValue({})
+}));
+jest.mock('../../utils/modelHelper/versionControl', () => ({
+  // Keep the schema plugins (handleProgramChanges/enableVersionControl) real —
+  // models/Program.js applies them at compile time and they must be functions.
+  // Only the S3 directory-wipe is stubbed so deletes never hit AWS.
+  ...jest.requireActual('../../utils/modelHelper/versionControl'),
+  emptyS3Directory: jest.fn().mockResolvedValue({})
+}));
+jest.mock('../../utils/utils_function', () => ({
+  threadS3GarbageCollector: jest.fn().mockResolvedValue({}),
+  patternMatched: jest.fn().mockResolvedValue(false),
+  userChangesHelperFunction: jest.fn()
+}));
+jest.mock('../../utils/queryFunctions', () => ({
+  getPermission: jest.fn().mockResolvedValue({})
+}));
+jest.mock('../../aws/s3', () => ({
+  getS3Object: jest.fn().mockResolvedValue(Buffer.from('bytes')),
+  deleteS3Objects: jest.fn().mockResolvedValue({})
+}));
+jest.mock('../../cache/node-cache', () => ({
+  ten_minutes_cache: {
+    get: jest.fn().mockReturnValue(undefined),
+    set: jest.fn().mockReturnValue(true),
+    del: jest.fn().mockReturnValue(1),
+    flushAll: jest.fn()
+  }
+}));
 jest.mock('../../services/email', () => ({
-  createApplicationToStudentEmail: jest.fn().mockResolvedValue(undefined),
-  UpdateStudentApplicationsEmail: jest.fn().mockResolvedValue(undefined),
-  NewMLRLEssayTasksEmail: jest.fn().mockResolvedValue(undefined),
-  NewMLRLEssayTasksEmailFromTaiGer: jest.fn().mockResolvedValue(undefined)
+  sendNewApplicationMessageInThreadEmail: jest.fn(),
+  sendAssignEditorReminderEmail: jest.fn(),
+  sendNewGeneraldocMessageInThreadEmail: jest.fn(),
+  sendSetAsFinalGeneralFileForAgentEmail: jest.fn(),
+  sendSetAsFinalGeneralFileForStudentEmail: jest.fn(),
+  sendSetAsFinalProgramSpecificFileForStudentEmail: jest.fn(),
+  sendSetAsFinalProgramSpecificFileForAgentEmail: jest.fn(),
+  assignDocumentTaskToEditorEmail: jest.fn(),
+  assignDocumentTaskToStudentEmail: jest.fn(),
+  sendAssignEssayWriterReminderEmail: jest.fn(),
+  assignEssayTaskToEditorEmail: jest.fn(),
+  sendAssignTrainerReminderEmail: jest.fn(),
+  sendNewInterviewMessageInThreadEmail: jest.fn(),
+  informEssayWriterNewEssayEmail: jest.fn(),
+  informStudentTheirEssayWriterEmail: jest.fn(),
+  informAgentEssayAssignedEmail: jest.fn()
 }));
 
-jest.mock('../../services/students');
-jest.mock('../../services/applications');
-jest.mock('../../services/programs');
-jest.mock('../../services/documentthreads');
-
-const { createApplicationV2 } = require('../../controllers/applications');
-const { MessagesThreadUpload } = require('../../middlewares/file-upload');
-const { errorHandler } = require('../../middlewares/error-handler');
-const { s3Client } = require('../../aws');
-const StudentService = require('../../services/students');
-const ApplicationService = require('../../services/applications');
-const ProgramService = require('../../services/programs');
+const { ObjectId } = require('mongoose').Types;
 const DocumentThreadService = require('../../services/documentthreads');
+const StudentService = require('../../services/students');
+const UserService = require('../../services/users');
+const ApplicationService = require('../../services/applications');
+const AuditService = require('../../services/audit');
+const SurveyInputService = require('../../services/surveyInputs');
+const {
+  getSurveyInputs,
+  getMessages,
+  putThreadFavorite,
+  deleteAMessageInThread,
+  handleDeleteGeneralThread,
+  handleDeleteProgramThread
+} = require('../../controllers/documents_modification');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { admin, agent, student } = require('../mock/user');
 
-// ---------------------------------------------------------------------------
-// Tiny Mongoose-ish test doubles wired into the mocked service layer.
-// ---------------------------------------------------------------------------
+const studentId = student._id.toString();
+const adminId = admin._id.toString();
 
-// Builds the service-layer doubles plus handles to inspect what the controller
-// created.
-const buildMockDb = ({ studentId, programId }) => {
-  const createdThreads = [];
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
-  const studentDoc = {
-    _id: studentId,
-    firstname: 'Test',
-    lastname: 'Student',
-    email: 'student@example.com',
-    application_preference: { expected_application_date: '2025' },
-    generaldocs_threads: [],
-    notification: {},
-    save: jest.fn().mockResolvedValue(true)
-  };
+describe('getSurveyInputs', () => {
+  it('200: returns the thread merged with its resolved survey inputs', async () => {
+    const messagesThreadId = new ObjectId().toHexString();
+    DocumentThreadService.getThreadById.mockResolvedValue({
+      _id: messagesThreadId,
+      student_id: { _id: student._id },
+      program_id: null,
+      file_type: 'ML'
+    });
+    SurveyInputService.findSurveyInputs.mockResolvedValue([]);
+    const res = mockRes();
 
-  // ml_required: 'yes' -> the supplementary-form loop should create one ML
-  // thread. rl_required left undefined -> the RL block is skipped.
-  const programDoc = {
-    _id: new mongoose.Types.ObjectId(programId),
-    school: 'Test School',
-    program_name: 'Test Program',
-    degree: 'MSc',
-    semester: 'WS',
-    country: 'de',
-    ml_required: 'yes'
-  };
-
-  // `application.doc_modification_thread` is a subdoc array: it must support
-  // both Array#push and Mongoose's `.create()` helper.
-  const docModThread = [];
-  docModThread.create = (entry) => entry;
-  const applicationDoc = {
-    _id: new mongoose.Types.ObjectId(),
-    studentId,
-    doc_modification_thread: docModThread,
-    save: jest.fn().mockResolvedValue(true)
-  };
-
-  // Documentthread constructor double (DocumentThreadService.newThread).
-  function Documentthread(doc) {
-    Object.assign(this, doc);
-    this._id = new mongoose.Types.ObjectId();
-    this.save = jest.fn().mockResolvedValue(this);
-    createdThreads.push(this);
-  }
-
-  StudentService.getStudentDocById.mockResolvedValue(studentDoc);
-  ApplicationService.findByStudentIdPopulatedBasic.mockResolvedValue([]);
-  ApplicationService.createApplicationDoc.mockResolvedValue(applicationDoc);
-  ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue([]);
-  ProgramService.findPrograms.mockResolvedValue([programDoc]);
-  DocumentThreadService.newThread.mockImplementation(
-    (doc) => new Documentthread(doc)
-  );
-  DocumentThreadService.countThreads.mockResolvedValue(0);
-
-  return {
-    studentDoc,
-    applicationDoc,
-    createdThreads
-  };
-};
-
-describe('createApplicationV2 (ORM mocked)', () => {
-  it('creates an ML thread when a program with ML required is assigned', async () => {
-    const studentId = new mongoose.Types.ObjectId().toString();
-    const programId = new mongoose.Types.ObjectId().toString();
-    const mock = buildMockDb({ studentId, programId });
-
-    const req = {
-      db: mock.db,
-      user: { firstname: 'Agent', lastname: 'Smith', email: 'agent@a.com' },
-      params: { studentId },
-      body: { program_id_set: [programId] }
-    };
-    const res = {
-      status: jest.fn().mockReturnThis(),
-      send: jest.fn().mockReturnThis()
-    };
-    const next = jest.fn();
-
-    await createApplicationV2(req, res, next);
-
-    // No error path was taken.
-    expect(next).not.toHaveBeenCalledWith(expect.any(Error));
-    expect(res.status).toHaveBeenCalledWith(201);
-
-    // The application was created and persisted.
-    expect(mock.applicationDoc.save).toHaveBeenCalled();
-    expect(mock.studentDoc.save).toHaveBeenCalled();
-
-    // Exactly one thread, of type ML, was created and saved.
-    const mlThreads = mock.createdThreads.filter((t) => t.file_type === 'ML');
-    expect(mlThreads).toHaveLength(1);
-    expect(mlThreads[0].student_id.toString()).toBe(studentId);
-    expect(mlThreads[0].save).toHaveBeenCalled();
-    // It is linked into the application's doc_modification_thread list.
-    expect(mock.applicationDoc.doc_modification_thread).toContainEqual(
-      expect.objectContaining({
-        doc_thread_id: mlThreads[0]._id
-      })
+    await getSurveyInputs(
+      mockReq({ params: { messagesThreadId } }),
+      res,
+      jest.fn()
     );
+
+    expect(DocumentThreadService.getThreadById).toHaveBeenCalledWith(
+      messagesThreadId
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data).toHaveProperty('surveyInputs');
   });
 
-  it('rejects when more than the max number of programs are assigned', async () => {
-    const studentId = new mongoose.Types.ObjectId().toString();
-    const mock = buildMockDb({
-      studentId,
-      programId: new mongoose.Types.ObjectId().toString()
-    });
-    const program_id_set = Array.from({ length: 21 }, () =>
-      new mongoose.Types.ObjectId().toString()
-    );
-
-    const req = {
-      db: mock.db,
-      user: { firstname: 'Agent', lastname: 'Smith', email: 'agent@a.com' },
-      params: { studentId },
-      body: { program_id_set }
-    };
-    const res = {
-      status: jest.fn().mockReturnThis(),
-      send: jest.fn().mockReturnThis()
-    };
+  it('forwards a 404 ErrorResponse to next() for an invalid thread id', async () => {
+    DocumentThreadService.getThreadById.mockResolvedValue(null);
     const next = jest.fn();
 
-    await createApplicationV2(req, res, next);
-
-    // asyncHandler forwards the ErrorResponse to next(); nothing is created.
-    expect(next).toHaveBeenCalledWith(
-      expect.objectContaining({ statusCode: 400 })
+    await getSurveyInputs(
+      mockReq({ params: { messagesThreadId: new ObjectId().toHexString() } }),
+      mockRes(),
+      next
     );
-    expect(res.status).not.toHaveBeenCalledWith(201);
-    expect(mock.createdThreads).toHaveLength(0);
+
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 404 })
+    );
   });
 });
 
-describe('Document thread file upload validation (multer, S3 mocked, no DB)', () => {
-  const s3ClientMock = mockClient(s3Client);
+describe('getMessages', () => {
+  it('200: aggregates thread + agents/editors/applications/audit for a general (CV) thread', async () => {
+    const messagesThreadId = new ObjectId().toHexString();
+    DocumentThreadService.getThreadById.mockResolvedValue({
+      _id: messagesThreadId,
+      file_type: 'CV', // general doc -> CVDeadline_Calculator, no program lookup
+      program_id: null,
+      application_id: null,
+      student_id: { _id: student._id, agents: [], editors: [] }
+    });
+    UserService.findAgents.mockResolvedValue([{ _id: 'a1' }]);
+    UserService.findEditors.mockResolvedValue([]);
+    ApplicationService.findByStudentIdWithProgram.mockResolvedValue([]);
+    AuditService.getAuditLogs.mockResolvedValue([]);
+    const res = mockRes();
 
-  // The thread storage's `key` callback derives the S3 object name from the
-  // thread via DocumentThreadService (default-connection DAO layer). Stub it so
-  // the upload can complete without a real connection.
-  const threadDoc = {
-    _id: 'thread1',
-    file_type: 'ML',
-    program_id: undefined,
-    student_id: { firstname: 'Test', lastname: 'Student' },
-    messages: []
-  };
-
-  // Minimal app exercising only the real upload middleware + error handler.
-  const uploadApp = express();
-  uploadApp.post(
-    '/upload/:messagesThreadId/:studentId',
-    MessagesThreadUpload,
-    (req, res) => {
-      res.status(200).send({ success: true });
-    }
-  );
-  uploadApp.use(errorHandler);
-
-  const uploadAgent = request(uploadApp);
-  const uploadUrl = '/upload/653d1e116f4c8c637dd1c971/653d1e116f4c8c637dd1c000';
-
-  beforeEach(() => {
-    DocumentThreadService.getThreadDocByIdPopulated.mockResolvedValue(
-      threadDoc
+    await getMessages(
+      mockReq({ user: admin, params: { messagesThreadId } }),
+      res,
+      jest.fn()
     );
-    s3ClientMock.reset();
-    s3ClientMock.on(PutObjectCommand).callsFake(async (input, getClient) => {
-      // eslint-disable-next-line no-param-reassign
-      getClient().config.endpoint = () => ({ hostname: '' });
-      return {};
+
+    expect(DocumentThreadService.getThreadById).toHaveBeenCalledWith(
+      messagesThreadId
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.agents).toEqual([{ _id: 'a1' }]);
+    expect(body.editors).toEqual([]);
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the thread is missing', async () => {
+    DocumentThreadService.getThreadById.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await getMessages(
+      mockReq({
+        user: admin,
+        params: { messagesThreadId: new ObjectId().toHexString() }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 404 })
+    );
+  });
+});
+
+describe('putThreadFavorite', () => {
+  it('200: ADDS the user to favourites when not already flagged', async () => {
+    const messagesThreadId = new ObjectId().toHexString();
+    DocumentThreadService.getThreadById.mockResolvedValue({
+      _id: messagesThreadId,
+      flag_by_user_id: [] // not flagged
+    });
+    DocumentThreadService.updateThreadById.mockResolvedValue({});
+    const res = mockRes();
+
+    await putThreadFavorite(
+      mockReq({ user: admin, params: { messagesThreadId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentThreadService.updateThreadById).toHaveBeenCalledWith(
+      messagesThreadId,
+      expect.objectContaining({ $addToSet: expect.any(Object) })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: { isFlagged: true }
     });
   });
 
-  it.each([
-    ['my-file.exe', 415, false],
-    ['my-file.pdf', 200, true]
-  ])(
-    '%p should return %p (success=%p) based on the allowed file type',
-    async (filename, status, success) => {
-      const buffer = Buffer.alloc(1024); // 1 kB — under the limit
-      const resp = await uploadAgent
-        .post(uploadUrl)
-        .attach('files', buffer, { filename });
+  it('200: REMOVES the user from favourites when already flagged', async () => {
+    const messagesThreadId = new ObjectId().toHexString();
+    DocumentThreadService.getThreadById.mockResolvedValue({
+      _id: messagesThreadId,
+      flag_by_user_id: [admin._id] // already flagged
+    });
+    DocumentThreadService.updateThreadById.mockResolvedValue({});
+    const res = mockRes();
 
-      expect(resp.status).toBe(status);
-      expect(resp.body.success).toBe(success);
-    }
-  );
+    await putThreadFavorite(
+      mockReq({ user: admin, params: { messagesThreadId } }),
+      res,
+      jest.fn()
+    );
 
-  it('rejects an upload that exceeds the 1 MB document size limit', async () => {
-    const buffer = Buffer.alloc(1024 * 1024 * 2); // 2 MB — over the limit
-    const resp = await uploadAgent
-      .post(uploadUrl)
-      .attach('files', buffer, { filename: 'my-file.pdf' });
+    expect(DocumentThreadService.updateThreadById).toHaveBeenCalledWith(
+      messagesThreadId,
+      expect.objectContaining({ $pull: expect.any(Object) })
+    );
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: { isFlagged: false }
+    });
+  });
 
-    expect(resp.status).toBe(413);
-    expect(resp.body.success).toBe(false);
+  it('forwards a 404 ErrorResponse to next() when the thread is missing', async () => {
+    DocumentThreadService.getThreadById.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await putThreadFavorite(
+      mockReq({
+        user: admin,
+        params: { messagesThreadId: new ObjectId().toHexString() }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 404 })
+    );
+  });
+});
+
+describe('deleteAMessageInThread', () => {
+  it('200: pulls the message the admin owns and responds success', async () => {
+    const messagesThreadId = new ObjectId().toHexString();
+    const messageId = new ObjectId().toHexString();
+    // First getThreadDocById -> thread with the message; second call (after
+    // delete) -> the refreshed thread used to recompute latest_message.
+    DocumentThreadService.getThreadDocById
+      .mockResolvedValueOnce({
+        _id: messagesThreadId,
+        isFinalVersion: false,
+        student_id: student._id,
+        messages: [{ _id: messageId, user_id: admin._id, file: [] }]
+      })
+      .mockResolvedValueOnce({ _id: messagesThreadId, messages: [] });
+    DocumentThreadService.updateThreadById.mockResolvedValue({});
+    StudentService.getStudentDocById.mockResolvedValue({
+      generaldocs_threads: [
+        {
+          doc_thread_id: messagesThreadId,
+          save: jest.fn().mockResolvedValue({})
+        }
+      ]
+    });
+    ApplicationService.findByStudentIdLean.mockResolvedValue([]);
+    const res = mockRes();
+
+    await deleteAMessageInThread(
+      mockReq({ user: admin, params: { messagesThreadId, messageId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentThreadService.updateThreadById).toHaveBeenCalledWith(
+      messagesThreadId,
+      expect.objectContaining({ $pull: expect.any(Object) })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the thread is missing', async () => {
+    DocumentThreadService.getThreadDocById.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await deleteAMessageInThread(
+      mockReq({
+        user: admin,
+        params: {
+          messagesThreadId: new ObjectId().toHexString(),
+          messageId: new ObjectId().toHexString()
+        }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 404 })
+    );
+  });
+
+  it('forwards a 409 ErrorResponse to next() when deleting another users message', async () => {
+    const messagesThreadId = new ObjectId().toHexString();
+    const messageId = new ObjectId().toHexString();
+    DocumentThreadService.getThreadDocById.mockResolvedValue({
+      _id: messagesThreadId,
+      isFinalVersion: false,
+      messages: [{ _id: messageId, user_id: student._id, file: [] }]
+    });
+    const next = jest.fn();
+
+    // agent (non-admin) tries to delete a message authored by the student
+    await deleteAMessageInThread(
+      mockReq({ user: agent, params: { messagesThreadId, messageId } }),
+      mockRes(),
+      next
+    );
+
+    expect(DocumentThreadService.updateThreadById).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 409 })
+    );
+  });
+});
+
+describe('handleDeleteGeneralThread', () => {
+  it('200: deletes the thread + unlinks it from the student', async () => {
+    const messagesThreadId = new ObjectId().toHexString();
+    DocumentThreadService.getThreadDocById.mockResolvedValue({
+      _id: messagesThreadId
+    });
+    StudentService.getStudentDocById.mockResolvedValue({ _id: student._id });
+    DocumentThreadService.deleteThreadById.mockResolvedValue({});
+    StudentService.updateStudentByIdRaw.mockResolvedValue({});
+    const res = mockRes();
+
+    await handleDeleteGeneralThread(
+      mockReq({ params: { messagesThreadId, studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentThreadService.deleteThreadById).toHaveBeenCalledWith(
+      messagesThreadId
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the thread is missing', async () => {
+    DocumentThreadService.getThreadDocById.mockResolvedValue(null);
+    StudentService.getStudentDocById.mockResolvedValue({ _id: student._id });
+    const next = jest.fn();
+
+    await handleDeleteGeneralThread(
+      mockReq({
+        params: { messagesThreadId: new ObjectId().toHexString(), studentId }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(DocumentThreadService.deleteThreadById).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 404 })
+    );
+  });
+});
+
+describe('handleDeleteProgramThread', () => {
+  it('200: pulls the thread from the application and deletes survey + thread', async () => {
+    const messagesThreadId = new ObjectId().toHexString();
+    const application_id = new ObjectId().toHexString();
+    DocumentThreadService.getThreadDocById.mockResolvedValue({
+      _id: messagesThreadId,
+      program_id: new ObjectId().toHexString()
+    });
+    StudentService.getStudentDocById.mockResolvedValue({ _id: student._id });
+    ApplicationService.pullDocModificationThread.mockResolvedValue({});
+    DocumentThreadService.deleteThreadById.mockResolvedValue({
+      file_type: 'ML'
+    });
+    SurveyInputService.deleteSurveyInput.mockResolvedValue({});
+    const res = mockRes();
+
+    await handleDeleteProgramThread(
+      mockReq({ params: { messagesThreadId, application_id, studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(ApplicationService.pullDocModificationThread).toHaveBeenCalledWith(
+      application_id,
+      messagesThreadId
+    );
+    expect(DocumentThreadService.deleteThreadById).toHaveBeenCalledWith(
+      messagesThreadId
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
   });
 });

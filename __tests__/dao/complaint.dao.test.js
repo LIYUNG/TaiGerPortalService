@@ -1,87 +1,210 @@
-// DAO-level integration test for ComplaintDAO against the in-memory MongoDB.
-const { connect, clearDatabase } = require('../fixtures/db');
-const { Complaint, User } = require('../../models');
+// ComplaintDAO unit tests — the DAO is a thin query-building layer over the
+// Complaint Mongoose model, so we mock the model entirely (NO database).
+// These assert that each DAO method builds the expected query/chain and
+// forwards the model's result. Real query behaviour is covered by the
+// integration suite.
+jest.mock('../../models', () => {
+  const model = () => ({
+    find: jest.fn(),
+    findById: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
+    findByIdAndDelete: jest.fn(),
+    create: jest.fn()
+  });
+  return {
+    Complaint: model()
+  };
+});
+
+const { Complaint } = require('../../models');
 const ComplaintDAO = require('../../dao/complaint.dao');
-const { disconnectFromDatabase } = require('../../database');
-const { TENANT_ID } = require('../fixtures/constants');
-const { users, student } = require('../mock/user');
 
-beforeAll(async () => {
-  await connect();
+// A query chain that is both chainable (populate/sort/select/limit/lean return
+// the same chain) and thenable, so `await chain` (when no terminal .lean() is
+// called) resolves to `value` too. Terminal `.lean()` also resolves to value.
+const queryChain = (value) => {
+  const chain = {
+    populate: jest.fn(() => chain),
+    sort: jest.fn(() => chain),
+    select: jest.fn(() => chain),
+    limit: jest.fn(() => chain),
+    lean: jest.fn().mockResolvedValue(value),
+    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+  };
+  return chain;
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+describe('ComplaintDAO (mocked models)', () => {
+  it('getComplaintsByRequester filters by requester, populates and sorts desc', async () => {
+    const docs = [{ _id: 't1' }];
+    Complaint.find.mockReturnValue(queryChain(docs));
 
-beforeEach(async () => {
-  await Complaint.deleteMany({});
-  await User.deleteMany({});
-  await User.insertMany(users);
-});
+    const res = await ComplaintDAO.getComplaintsByRequester('u1');
 
-const makeTicket = () => ({
-  requester_id: student._id.toString(),
-  title: 'Cannot upload file',
-  description: 'The upload button is broken',
-  status: 'open',
-  messages: []
-});
+    expect(Complaint.find).toHaveBeenCalledWith({ requester_id: 'u1' });
+    const chain = Complaint.find.mock.results[0].value;
+    expect(chain.populate).toHaveBeenCalledWith(
+      'requester_id',
+      'firstname lastname email pictureUrl'
+    );
+    expect(chain.sort).toHaveBeenCalledWith({ createdAt: -1 });
+    expect(res).toBe(docs);
+  });
 
-describe('ComplaintDAO (in-memory)', () => {
-  it('createComplaint inserts and getComplaintsByRequester returns it', async () => {
-    await ComplaintDAO.createComplaint(makeTicket());
+  it('getComplaints forwards the query, populates and sorts desc', async () => {
+    const docs = [{ status: 'open' }];
+    Complaint.find.mockReturnValue(queryChain(docs));
 
-    const tickets = await ComplaintDAO.getComplaintsByRequester(
-      student._id.toString()
+    const res = await ComplaintDAO.getComplaints({ status: 'open' });
+
+    expect(Complaint.find).toHaveBeenCalledWith({ status: 'open' });
+    const chain = Complaint.find.mock.results[0].value;
+    expect(chain.sort).toHaveBeenCalledWith({ createdAt: -1 });
+    expect(res).toBe(docs);
+  });
+
+  it('findComplaintsSelect applies select + limit and returns the lean docs', async () => {
+    const docs = [{ _id: 't1' }];
+    Complaint.find.mockReturnValue(queryChain(docs));
+
+    const res = await ComplaintDAO.findComplaintsSelect(
+      { status: 'open' },
+      'title description',
+      5
     );
 
-    expect(tickets).toHaveLength(1);
-    expect(tickets[0].requester_id.firstname).toBe(student.firstname);
+    expect(Complaint.find).toHaveBeenCalledWith({ status: 'open' });
+    const chain = Complaint.find.mock.results[0].value;
+    expect(chain.select).toHaveBeenCalledWith('title description');
+    expect(chain.limit).toHaveBeenCalledWith(5);
+    expect(chain.lean).toHaveBeenCalled();
+    expect(res).toBe(docs);
   });
 
-  it('getComplaints applies the status filter', async () => {
-    await ComplaintDAO.createComplaint(makeTicket());
-    await ComplaintDAO.createComplaint({ ...makeTicket(), status: 'resolved' });
+  it('getComplaintByIdPopulated finds by id and populates messages + requester', async () => {
+    const doc = { _id: 't1' };
+    Complaint.findById.mockReturnValue(queryChain(doc));
 
-    const open = await ComplaintDAO.getComplaints({ status: 'open' });
-    const resolved = await ComplaintDAO.getComplaints({ status: 'resolved' });
+    const res = await ComplaintDAO.getComplaintByIdPopulated('t1');
 
-    expect(open).toHaveLength(1);
-    expect(resolved).toHaveLength(1);
-    expect(resolved[0].status).toBe('resolved');
-  });
-
-  it('getComplaintDocById returns a live document that can be mutated and saved', async () => {
-    const created = await ComplaintDAO.createComplaint(makeTicket());
-
-    const doc = await ComplaintDAO.getComplaintDocById(created._id);
-    doc.messages.push({ user_id: student._id.toString(), message: 'hello' });
-    await doc.save();
-
-    const reloaded = await ComplaintDAO.getComplaintByIdWithMessages(
-      created._id
+    expect(Complaint.findById).toHaveBeenCalledWith('t1');
+    const chain = Complaint.findById.mock.results[0].value;
+    expect(chain.populate).toHaveBeenCalledWith(
+      'messages.user_id',
+      'firstname lastname email pictureUrl'
     );
-    expect(reloaded.messages).toHaveLength(1);
+    expect(chain.populate).toHaveBeenCalledWith(
+      'requester_id',
+      'firstname lastname email pictureUrl'
+    );
+    expect(res).toBe(doc);
   });
 
-  it('updateComplaintById applies the update and populates the requester', async () => {
-    const created = await ComplaintDAO.createComplaint(makeTicket());
+  it('createComplaint delegates to Complaint.create and returns the doc', async () => {
+    const ticket = { title: 'x' };
+    const created = { _id: 't1', ...ticket };
+    Complaint.create.mockResolvedValue(created);
 
-    const updated = await ComplaintDAO.updateComplaintById(created._id, {
+    const res = await ComplaintDAO.createComplaint(ticket);
+
+    expect(Complaint.create).toHaveBeenCalledWith(ticket);
+    expect(res).toBe(created);
+  });
+
+  it('getComplaintDocByIdWithRequester finds by id and populates requester', async () => {
+    const doc = { _id: 't1' };
+    Complaint.findById.mockReturnValue(queryChain(doc));
+
+    const res = await ComplaintDAO.getComplaintDocByIdWithRequester('t1');
+
+    expect(Complaint.findById).toHaveBeenCalledWith('t1');
+    const chain = Complaint.findById.mock.results[0].value;
+    expect(chain.populate).toHaveBeenCalledWith('requester_id');
+    expect(res).toBe(doc);
+  });
+
+  it('getComplaintByIdWithMessages finds by id and populates requester + messages', async () => {
+    const doc = { _id: 't1' };
+    Complaint.findById.mockReturnValue(queryChain(doc));
+
+    const res = await ComplaintDAO.getComplaintByIdWithMessages('t1');
+
+    expect(Complaint.findById).toHaveBeenCalledWith('t1');
+    const chain = Complaint.findById.mock.results[0].value;
+    expect(chain.populate).toHaveBeenCalledWith(
+      'requester_id messages.user_id'
+    );
+    expect(res).toBe(doc);
+  });
+
+  it('updateComplaintById updates with { new: true } and populates the requester', async () => {
+    const updated = { _id: 't1', status: 'resolved' };
+    Complaint.findByIdAndUpdate.mockReturnValue(queryChain(updated));
+
+    const res = await ComplaintDAO.updateComplaintById('t1', {
       status: 'resolved'
     });
 
-    expect(updated.status).toBe('resolved');
-    expect(updated.requester_id.firstname).toBe(student.firstname);
+    expect(Complaint.findByIdAndUpdate).toHaveBeenCalledWith(
+      't1',
+      { status: 'resolved' },
+      { new: true }
+    );
+    const chain = Complaint.findByIdAndUpdate.mock.results[0].value;
+    expect(chain.populate).toHaveBeenCalledWith(
+      'requester_id',
+      'firstname lastname email archiv pictureUrl'
+    );
+    expect(res).toBe(updated);
   });
 
-  it('deleteComplaintById removes the record', async () => {
-    const created = await ComplaintDAO.createComplaint(makeTicket());
+  it('getComplaintDocById finds by id and returns the live doc', async () => {
+    const doc = { _id: 't1' };
+    Complaint.findById.mockReturnValue(doc);
 
-    await ComplaintDAO.deleteComplaintById(created._id);
+    const res = await ComplaintDAO.getComplaintDocById('t1');
 
-    expect(await Complaint.countDocuments({})).toBe(0);
+    expect(Complaint.findById).toHaveBeenCalledWith('t1');
+    expect(res).toBe(doc);
+  });
+
+  it('updateComplaintRaw updates with { upsert: false }', async () => {
+    const updated = { _id: 't1' };
+    Complaint.findByIdAndUpdate.mockResolvedValue(updated);
+
+    const res = await ComplaintDAO.updateComplaintRaw('t1', { read: true });
+
+    expect(Complaint.findByIdAndUpdate).toHaveBeenCalledWith(
+      't1',
+      { read: true },
+      { upsert: false }
+    );
+    expect(res).toBe(updated);
+  });
+
+  it('pullMessageById issues a $pull on the message id', async () => {
+    const updated = { _id: 't1' };
+    Complaint.findByIdAndUpdate.mockResolvedValue(updated);
+
+    const res = await ComplaintDAO.pullMessageById('t1', 'm1');
+
+    expect(Complaint.findByIdAndUpdate).toHaveBeenCalledWith('t1', {
+      $pull: { messages: { _id: 'm1' } }
+    });
+    expect(res).toBe(updated);
+  });
+
+  it('deleteComplaintById deletes by id and returns the result', async () => {
+    const deleted = { _id: 't1' };
+    Complaint.findByIdAndDelete.mockResolvedValue(deleted);
+
+    const res = await ComplaintDAO.deleteComplaintById('t1');
+
+    expect(Complaint.findByIdAndDelete).toHaveBeenCalledWith('t1');
+    expect(res).toBe(deleted);
   });
 });

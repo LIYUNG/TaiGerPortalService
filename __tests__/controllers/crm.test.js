@@ -1,39 +1,33 @@
-// ── Mock declarations (must be at top, before any require()) ─────────────────
+// Controller UNIT test for controllers/crm.
+//
+// CRM is a proxy/lambda-style controller: there is NO Mongo service layer — the
+// controller talks to the Postgres/Drizzle ORM and the meeting-assistant client
+// directly. So the "service" we isolate is that BOUNDARY: we mock the Drizzle
+// query builder (../../database -> getPostgresDb), the meeting-assistant client
+// and the single UserService call, then call each handler DIRECTLY as a
+// (req, res, next) function. We assert ONLY the controller's own work:
+//   - the status code + body it writes to res (incl. 400 validation, 404),
+//   - the args it forwards to the boundary (e.g. instantInviteTA, getUserById),
+//   - that a boundary error is forwarded to next().
+// No route, no supertest, no middleware. The route-level wiring is covered by
+// __tests__/integration/crm.test.js.
+//
+// The DB mock must be declared before the controller is required, because the
+// controller calls getPostgresDb() at module-evaluation time.
 
 jest.mock('../../database', () => {
-  // ---------------------------------------------------------------------------
-  // Drizzle query builder mock
-  // ---------------------------------------------------------------------------
-  // Drizzle builders are simultaneously chainable AND awaitable (thenable).
-  // For example:
-  //   await db.select().from(t)                  -- from() is the terminal
-  //   await db.select().from(t).where(eq(...))   -- where() is the terminal
-  //   await db.update(t).set({}).where().returning() -- returning() is terminal
-  //
-  // We model this by making the shared builder object itself a thenable that
-  // resolves to `[]` by default. Each chainable method returns the same
-  // builder, so the "last" awaited method in any chain resolves correctly.
-  // `returning()` is special: it must resolve to the insert payload, so it
-  // returns its own dedicated Promise rather than the shared builder.
-  // ---------------------------------------------------------------------------
+  // A chainable + awaitable Drizzle double. `_setSelect` controls what an
+  // awaited select chain resolves to; `_setReturning` controls insert/update
+  // .returning().
+  const state = { selectResult: [], returningResult: [] };
 
-  // Mutable defaults that individual tests can adjust via mockPostgresDb helpers
-  const state = {
-    selectResult: [],
-    insertResult: [{ id: 1, userId: 'test-user' }]
-  };
-
-  // The shared thenable builder
   const builder = {};
-
-  // Thenable protocol — resolves to state.selectResult when awaited
   builder.then = (resolve, reject) =>
     Promise.resolve(state.selectResult).then(resolve, reject);
   builder.catch = (cb) => Promise.resolve(state.selectResult).catch(cb);
   builder.finally = (cb) => Promise.resolve(state.selectResult).finally(cb);
 
-  // Chainable methods — all return `builder` so any chain length works
-  const chainMethods = [
+  [
     'select',
     'from',
     'where',
@@ -48,492 +42,352 @@ jest.mock('../../database', () => {
     'delete',
     'onConflictDoNothing',
     'onConflictDoUpdate'
-  ];
-  chainMethods.forEach((m) => {
+  ].forEach((m) => {
     builder[m] = jest.fn().mockReturnValue(builder);
   });
-
-  // `returning` is terminal for insert/update — returns a dedicated Promise
   builder.returning = jest
     .fn()
-    .mockImplementation(() => Promise.resolve(state.insertResult));
-
-  // getPostgresDb().$with(cte) returns a CTE placeholder
-  const $with = jest.fn().mockReturnValue({
-    as: jest.fn().mockReturnValue({})
-  });
+    .mockImplementation(() => Promise.resolve(state.returningResult));
 
   const mockPostgresDb = {
     ...builder,
-    $with,
-    transaction: jest.fn(async (callback) => callback(mockPostgresDb)),
-    // getPostgresDb().with(cteRef) starts a chain that resolves via builder
+    $with: jest.fn().mockReturnValue({ as: jest.fn().mockReturnValue({}) }),
     with: jest.fn().mockReturnValue(builder),
-    // query.leads.findFirst is used by getLead / getLeadByStudentId
-    query: {
-      leads: {
-        findFirst: jest.fn().mockResolvedValue(null)
-      }
-    },
-    // Test helpers to override resolved values
-    _setSelectResult: (v) => {
+    transaction: jest.fn(async (cb) => cb(mockPostgresDb)),
+    execute: jest.fn().mockResolvedValue([]),
+    query: { leads: { findFirst: jest.fn().mockResolvedValue(null) } },
+    _setSelect: (v) => {
       state.selectResult = v;
     },
-    _setInsertResult: (v) => {
-      state.insertResult = v;
+    _setReturning: (v) => {
+      state.returningResult = v;
     },
-    _resetState: () => {
+    _reset: () => {
       state.selectResult = [];
-      state.insertResult = [{ id: 1, userId: 'test-user' }];
+      state.returningResult = [];
     }
   };
 
-  const connections = {};
-  const connectToDatabase = jest.fn().mockImplementation((tenantId) => {
-    if (connections[tenantId]) return connections[tenantId];
-    const mongoose = require('mongoose');
-    const conn = mongoose.connection.useDb
-      ? mongoose.connection.useDb(tenantId, { useCache: true })
-      : mongoose.connection;
-
-    // Helper: register model only if not already registered
-    const reg = (name, schema) => {
-      try {
-        return conn.model(name);
-      } catch (_) {
-        return conn.model(name, schema);
-      }
-    };
-
-    const {
-      UserSchema,
-      Agent,
-      Editor,
-      Student,
-      Admin,
-      External,
-      Guest
-    } = require('../../models/User');
-    const { applicationSchema } = require('../../models/Application');
-    const { EventSchema } = require('@taiger-common/model');
-    const { documentThreadsSchema } = require('../../models/Documentthread');
-    const { programSchema } = require('../../models/Program');
-    const { versionControlSchema } = require('../../models/VersionControl');
-    const {
-      programChangeRequestSchema
-    } = require('../../models/ProgramChangeRequest');
-    const { surveyInputSchema } = require('../../models/SurveyInput');
-    const { ticketSchema } = require('../../models/Ticket');
-    const { communicationsSchema } = require('../../models/Communication');
-    const { documentationsSchema } = require('../../models/Documentation');
-    const { internaldocsSchema } = require('../../models/Internaldoc');
-    const { notesSchema } = require('../../models/Note');
-    const { complaintSchema } = require('../../models/Complaint');
-    const { coursesSchema } = require('../../models/Course');
-    const { tokenSchema } = require('../../models/Token');
-    const { allCourseSchema } = require('../../models/Allcourse');
-    const { expensesSchema } = require('../../models/Expense');
-    const { incomesSchema } = require('../../models/Income');
-    const { interviewsSchema } = require('../../models/Interview');
-    const { intervalSchema } = require('../../models/Interval');
-    const {
-      interviewSurveyResponseSchema
-    } = require('../../models/InterviewSurveyResponse');
-    const { ResponseTimeSchema } = require('../../models/ResponseTime');
-    const { permissionSchema } = require('../../models/Permission');
-    const { keywordSetSchema } = require('../../models/Keywordset');
-    const {
-      programRequirementSchema
-    } = require('../../models/Programrequirement');
-    const { auditSchema } = require('../../models/Audit');
-    const {
-      basedocumentationslinksSchema
-    } = require('../../models/Basedocumentationslink');
-    const { docspagesSchema } = require('../../models/Docspage');
-    const { templatesSchema } = require('../../models/Template');
-
-    reg('User', UserSchema);
-    try {
-      conn.model('User').discriminator('Agent', Agent.schema);
-      conn.model('User').discriminator('Editor', Editor.schema);
-      conn.model('User').discriminator('Student', Student.schema);
-      conn.model('User').discriminator('Admin', Admin.schema);
-      conn.model('User').discriminator('External', External.schema);
-      conn.model('User').discriminator('Guest', Guest.schema);
-    } catch (_) {}
-
-    reg('Application', applicationSchema);
-    reg('Allcourse', allCourseSchema);
-    reg('Audit', auditSchema);
-    reg('Basedocumentationslink', basedocumentationslinksSchema);
-    reg('Communication', communicationsSchema);
-    reg('Complaint', complaintSchema);
-    reg('Course', coursesSchema);
-    reg('Documentation', documentationsSchema);
-    reg('Documentthread', documentThreadsSchema);
-    reg('Docspage', docspagesSchema);
-    reg('Event', EventSchema);
-    reg('Expense', expensesSchema);
-    reg('Incom', incomesSchema);
-    reg('Internaldoc', internaldocsSchema);
-    reg('Interval', intervalSchema);
-    reg('Interview', interviewsSchema);
-    reg('InterviewSurveyResponse', interviewSurveyResponseSchema);
-    reg('KeywordSet', keywordSetSchema);
-    reg('Note', notesSchema);
-    reg('Permission', permissionSchema);
-    reg('ProgramRequirement', programRequirementSchema);
-    reg('ResponseTime', ResponseTimeSchema);
-    reg('surveyInput', surveyInputSchema);
-    reg('Template', templatesSchema);
-    reg('Ticket', ticketSchema);
-    reg('Token', tokenSchema);
-    reg('VC', versionControlSchema);
-    reg('ProgramChangeRequest', programChangeRequestSchema);
-    reg('Program', programSchema);
-
-    connections[tenantId] = conn;
-    return conn;
-  });
-
-  const disconnectFromDatabase = jest
-    .fn()
-    .mockImplementation(async (tenant) => {
-      delete connections[tenant];
-    });
-
   return {
     getPostgresDb: jest.fn(() => mockPostgresDb),
-    connectToDatabase,
-    disconnectFromDatabase,
-    connections,
+    connectToDatabase: jest.fn(),
+    disconnectFromDatabase: jest.fn(async () => {}),
+    connections: {},
     mongoDb: jest.fn().mockReturnValue('mongodb://localhost:27017/test'),
     tenantDb: 'Tenant'
   };
 });
 
+jest.mock('../../services/users');
 jest.mock('../../utils/meeting-assistant.service', () => ({
-  instantInviteTA: jest
-    .fn()
-    .mockResolvedValue({ success: true, meetingId: 'meet-123' })
+  instantInviteTA: jest.fn(),
+  scheduleInviteTA: jest.fn().mockResolvedValue({ success: true })
 }));
-
 jest.mock('../../cache/node-cache', () => ({
   ten_minutes_cache: {
     get: jest.fn().mockReturnValue(null),
-    set: jest.fn()
+    set: jest.fn(),
+    flushAll: jest.fn()
   }
 }));
 
-jest.mock('../../utils/log/auditLog', () => ({
-  auditLog: (req, res, next) => next()
-}));
-
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-// ── Imports ───────────────────────────────────────────────────────────────────
-
-const request = require('supertest');
 const { ObjectId } = require('mongoose').Types;
+const { getPostgresDb } = require('../../database');
+const UserService = require('../../services/users');
+const { instantInviteTA } = require('../../utils/meeting-assistant.service');
+const {
+  getLeads,
+  getLead,
+  getLeadByStudentId,
+  createLeadFromStudent,
+  getMeeting,
+  createDeal,
+  updateDeal,
+  instantInviteMeetingAssistant
+} = require('../../controllers/crm');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { admin, student } = require('../mock/user');
 
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { User: DefaultUserModel } = require('../../models');
-const { protect } = require('../../middlewares/auth');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { disconnectFromDatabase, getPostgresDb } = require('../../database');
-const { TENANT_ID } = require('../fixtures/constants');
-const { users, admin, student } = require('../mock/user');
 const postgres = getPostgresDb();
 
-const requestWithSupertest = request(app);
-
-// ── Lifecycle ─────────────────────────────────────────────────────────────────
-
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
+beforeEach(() => {
+  jest.clearAllMocks();
+  postgres._reset();
+  postgres.query.leads.findFirst.mockResolvedValue(null);
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+describe('getLeads', () => {
+  it('200: returns the leads the ORM resolves', async () => {
+    postgres._setSelect([{ id: 'l1', fullName: 'Ann' }]);
+    const res = mockRes();
 
-beforeEach(async () => {
-  postgres._resetState();
+    await getLeads(mockReq(), res, jest.fn());
 
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [{ id: 'l1', fullName: 'Ann' }]
+    });
+  });
 
-  // Also seed the default-connection User collection used by the DAO layer.
-  await DefaultUserModel.deleteMany();
-  await DefaultUserModel.insertMany(users);
+  it('forwards an ORM error to next()', async () => {
+    const err = new Error('pg down');
+    // Make the awaited select chain reject.
+    postgres.orderBy.mockReturnValueOnce({
+      then: (_res, rej) => Promise.reject(err).then(_res, rej)
+    });
+    const next = jest.fn();
 
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
+    await getLeads(mockReq(), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+describe('getLead', () => {
+  it('200: returns the formatted lead when found', async () => {
+    const leadId = new ObjectId().toHexString();
+    postgres.query.leads.findFirst.mockResolvedValue({
+      id: leadId,
+      fullName: 'Ann',
+      leadTags: [],
+      leadNotes: [],
+      meetingTranscripts: []
+    });
+    const res = mockRes();
 
-describe('GET /api/crm/leads', () => {
-  it('should return all leads', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/crm/leads')
-      .set('tenantId', TENANT_ID);
+    await getLead(mockReq({ params: { leadId } }), res, jest.fn());
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.id).toBe(leadId);
   });
-});
 
-describe('GET /api/crm/leads/:leadId', () => {
-  it('should return 200 when lead does not exist', async () => {
+  it('200: data is null when no lead is found', async () => {
     const leadId = new ObjectId().toHexString();
     postgres.query.leads.findFirst.mockResolvedValue(null);
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .get(`/api/crm/leads/${leadId}`)
-      .set('tenantId', TENANT_ID);
+    await getLead(mockReq({ params: { leadId } }), res, jest.fn());
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: null });
   });
 });
 
-describe('PUT /api/crm/leads/:leadId', () => {
-  it('should update a lead and return 200', async () => {
-    const leadId = new ObjectId().toHexString();
-    postgres._setInsertResult([{ id: leadId, status: 'contacted' }]);
+describe('getLeadByStudentId', () => {
+  it('200: returns the matched lead id', async () => {
+    const studentId = new ObjectId().toHexString();
+    postgres.query.leads.findFirst.mockResolvedValue({ id: 'lead-9' });
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .put(`/api/crm/leads/${leadId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ status: 'contacted' });
+    await getLeadByStudentId(
+      mockReq({ params: { studentId } }),
+      res,
+      jest.fn()
+    );
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: { id: 'lead-9' }
+    });
   });
-});
 
-describe('POST /api/crm/students/:studentId/lead', () => {
-  it('should create a lead from an existing student and return 201', async () => {
-    const { _id: studentId } = student;
-    // The postgres insert.values().returning() resolves to the new lead
-    postgres._setInsertResult([{ id: 1, fullName: 'TestStudent' }]);
-
-    const resp = await requestWithSupertest
-      .post(`/api/crm/students/${studentId}/lead`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(201);
-    expect(resp.body.success).toBe(true);
-  });
-});
-
-describe('GET /api/crm/students/:studentId/lead', () => {
-  it('should return 404 when student has no lead', async () => {
-    const { _id: studentId } = student;
+  it('404: when the student has no matching lead', async () => {
+    const studentId = new ObjectId().toHexString();
     postgres.query.leads.findFirst.mockResolvedValue(null);
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .get(`/api/crm/students/${studentId}/lead`)
-      .set('tenantId', TENANT_ID);
+    await getLeadByStudentId(
+      mockReq({ params: { studentId } }),
+      res,
+      jest.fn()
+    );
 
-    expect(resp.status).toBe(404);
-    expect(resp.body.success).toBe(false);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
   });
 });
 
-describe('GET /api/crm/meetings', () => {
-  it('should return all meetings', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/crm/meetings')
-      .set('tenantId', TENANT_ID);
+describe('createLeadFromStudent', () => {
+  it('201: looks the student up via UserService and creates the lead', async () => {
+    const studentId = student._id.toString();
+    UserService.getUserById.mockResolvedValue({
+      _id: studentId,
+      firstname_chinese: '三',
+      lastname_chinese: '王'
+    });
+    postgres._setReturning([{ id: 7, fullName: '王三' }]);
+    // The follow-up .update(...).set(...).where(...) resolves via the select
+    // path (no .returning()); give it a rowCount via the awaitable chain.
+    postgres._setSelect({ rowCount: 0 });
+    const res = mockRes();
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
+    await createLeadFromStudent(
+      mockReq({ params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(UserService.getUserById).toHaveBeenCalledWith(studentId);
+    expect(res.status).toHaveBeenCalledWith(201);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data).toEqual({ id: 7, fullName: '王三' });
+  });
+
+  it('404: when the student does not exist (no insert)', async () => {
+    const studentId = new ObjectId().toHexString();
+    UserService.getUserById.mockResolvedValue(null);
+    const res = mockRes();
+
+    await createLeadFromStudent(
+      mockReq({ params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(postgres.insert).not.toHaveBeenCalled();
   });
 });
 
-describe('GET /api/crm/meetings/:meetingId', () => {
-  it('should return 404 when meeting does not exist', async () => {
+describe('getMeeting', () => {
+  it('200: returns the meeting when found', async () => {
     const meetingId = new ObjectId().toHexString();
-    // limit() resolves to [] via builder.then — no meeting found
+    postgres._setSelect([{ id: meetingId, title: 'Intro' }]);
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .get(`/api/crm/meetings/${meetingId}`)
-      .set('tenantId', TENANT_ID);
+    await getMeeting(mockReq({ params: { meetingId } }), res, jest.fn());
 
-    expect(resp.status).toBe(404);
-    expect(resp.body.success).toBe(false);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: { id: meetingId, title: 'Intro' }
+    });
   });
-});
 
-describe('PUT /api/crm/meetings/:meetingId', () => {
-  it('should update a meeting and return 200', async () => {
+  it('404: when no meeting matches', async () => {
     const meetingId = new ObjectId().toHexString();
-    postgres._setInsertResult([{ id: meetingId, title: 'Updated meeting' }]);
+    postgres._setSelect([]);
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .put(`/api/crm/meetings/${meetingId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ title: 'Updated meeting' });
+    await getMeeting(mockReq({ params: { meetingId } }), res, jest.fn());
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
   });
 });
 
-describe('GET /api/crm/stats', () => {
-  it('should return CRM stats with 200', async () => {
-    // getCRMStats awaits multiple postgres queries all resolving to [] via builder
-    const resp = await requestWithSupertest
-      .get('/api/crm/stats')
-      .set('tenantId', TENANT_ID);
+describe('createDeal', () => {
+  it('201: creates the deal returned by the ORM', async () => {
+    postgres._setReturning([{ id: 1, leadId: 'l1', status: 'initiated' }]);
+    const res = mockRes();
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(resp.body.data).toBeDefined();
+    await createDeal(
+      mockReq({ body: { leadId: 'l1', salesUserId: 'u1' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data).toEqual({ id: 1, leadId: 'l1', status: 'initiated' });
+  });
+
+  it('400: rejects when leadId or salesUserId is missing (no insert)', async () => {
+    const res = mockRes();
+
+    await createDeal(mockReq({ body: { leadId: 'l1' } }), res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(postgres.insert).not.toHaveBeenCalled();
   });
 });
 
-describe('GET /api/crm/sales-reps', () => {
-  it('should return all sales reps', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/crm/sales-reps')
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
-  });
-});
-
-describe('GET /api/crm/deals', () => {
-  it('should return all deals', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/crm/deals')
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
-  });
-});
-
-describe('POST /api/crm/deals', () => {
-  it('should create a deal and return 201', async () => {
-    postgres._setInsertResult([
-      { id: 1, leadId: 'lead-1', salesUserId: 'user-1', status: 'initiated' }
-    ]);
-
-    const resp = await requestWithSupertest
-      .post('/api/crm/deals')
-      .set('tenantId', TENANT_ID)
-      .send({ leadId: 'lead-1', salesUserId: 'user-1' });
-
-    expect(resp.status).toBe(201);
-    expect(resp.body.success).toBe(true);
-    expect(resp.body.data).toBeDefined();
-  });
-});
-
-describe('PUT /api/crm/deals/:dealId', () => {
-  it('should update a deal and return 200', async () => {
+describe('updateDeal', () => {
+  it('200: returns the updated deal', async () => {
     const dealId = new ObjectId().toHexString();
-    postgres._setInsertResult([{ id: dealId, status: 'signed' }]);
+    postgres._setReturning([{ id: dealId, status: 'signed' }]);
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .put(`/api/crm/deals/${dealId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ status: 'signed' });
+    await updateDeal(
+      mockReq({ params: { dealId }, body: { status: 'signed' } }),
+      res,
+      jest.fn()
+    );
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data).toEqual({ id: dealId, status: 'signed' });
+  });
+
+  it('404: when no deal matches the id', async () => {
+    const dealId = new ObjectId().toHexString();
+    postgres._setReturning([]);
+    const res = mockRes();
+
+    await updateDeal(
+      mockReq({ params: { dealId }, body: { status: 'signed' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
   });
 });
 
-describe('POST /api/crm/instant-invite', () => {
-  it('should call meeting assistant and return 200', async () => {
-    const resp = await requestWithSupertest
-      .post('/api/crm/instant-invite')
-      .set('tenantId', TENANT_ID)
-      .send({
-        meetingSummary: 'Intro call with candidate',
-        meetingLink: 'https://meet.example.com/abc123'
-      });
+describe('instantInviteMeetingAssistant', () => {
+  it('200: forwards summary + link to the meeting assistant on success', async () => {
+    instantInviteTA.mockResolvedValue({ success: true, meetingId: 'm-1' });
+    const res = mockRes();
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(resp.body.meetingId).toBe('meet-123');
+    await instantInviteMeetingAssistant(
+      mockReq({
+        body: { meetingSummary: 'Intro', meetingLink: 'https://x/y' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(instantInviteTA).toHaveBeenCalledWith('Intro', 'https://x/y');
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, meetingId: 'm-1' });
+  });
+
+  it('400: when summary or link is missing (no client call)', async () => {
+    const res = mockRes();
+
+    await instantInviteMeetingAssistant(
+      mockReq({ body: { meetingSummary: 'Intro' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(instantInviteTA).not.toHaveBeenCalled();
+  });
+
+  it('500: when the meeting assistant reports failure', async () => {
+    instantInviteTA.mockResolvedValue({ success: false });
+    const res = mockRes();
+
+    await instantInviteMeetingAssistant(
+      mockReq({
+        body: { meetingSummary: 'Intro', meetingLink: 'https://x/y' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(500);
   });
 });

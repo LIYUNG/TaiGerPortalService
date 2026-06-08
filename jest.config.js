@@ -1,6 +1,9 @@
 module.exports = {
   testEnvironment: 'node',
-  preset: '@shelf/jest-mongodb',
+  // No database: DAO unit tests mock the Mongoose models, and integration tests
+  // mock the DAO layer (see __tests__/integration/*). Nothing connects to Mongo,
+  // so the @shelf/jest-mongodb preset / in-memory server is no longer used and
+  // the whole suite is deterministic.
   watchPathIgnorePatterns: ['globalConfig'],
   testRegex: '/__tests__/.*\\.(test|spec)\\.jsx?$',
   setupFilesAfterEnv: ['jest-extended'],

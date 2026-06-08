@@ -1,278 +1,304 @@
-const request = require('supertest');
+// Controller UNIT test for controllers/documentations.
+//
+// The handlers are plain (req, res, next) functions (wrapped by asyncHandler),
+// so we call them DIRECTLY with fake req/res/next and a MOCKED service layer.
+// No route, no supertest, no middleware, no database. We assert ONLY the
+// controller's own work: the (id-stripped, author-stamped) args it forwards to
+// DocumentationService, the status + body it writes to res, the category
+// validation it owns, and that a service error is forwarded to next().
+//
+// The full route -> controller -> service -> dao -> in-memory Mongo wiring is
+// covered by __tests__/integration/documentations.test.js.
 
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { User, UserSchema } = require('../../models/User');
-const { programSchema } = require('../../models/Program');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin } = require('../mock/user');
-const { program1 } = require('../mock/programs');
-const { disconnectFromDatabase } = require('../../database');
+jest.mock('../../services/documentations');
+jest.mock('../../cache/node-cache', () => ({
+  ten_minutes_cache: {
+    get: jest.fn().mockReturnValue(undefined),
+    set: jest.fn().mockReturnValue(true),
+    del: jest.fn().mockReturnValue(1),
+    flushAll: jest.fn()
+  }
+}));
+jest.mock('../../aws/s3', () => ({
+  getS3Object: jest.fn().mockResolvedValue(Buffer.from('file-bytes'))
+}));
 
-const requestWithSupertest = request(app);
+const { ObjectId } = require('mongoose').Types;
+const DocumentationService = require('../../services/documentations');
+const { ten_minutes_cache } = require('../../cache/node-cache');
+const { getS3Object } = require('../../aws/s3');
+const {
+  getCategoryDocumentations,
+  getAllDocumentations,
+  getAllInternalDocumentations,
+  getDocumentation,
+  createDocumentation,
+  createInternalDocumentation,
+  updateDocumentation,
+  updateInternalDocumentation,
+  deleteDocumentation,
+  getCategoryDocumentationsPage,
+  getDocFile
+} = require('../../controllers/documentations');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { admin } = require('../mock/user');
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
+const authorStamp = `${admin.firstname} ${admin.lastname}`;
 
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+describe('createDocumentation', () => {
+  it('strips _id from the body and forwards the rest to the service', async () => {
+    const created = { _id: 'd1', title: 'T', text: 'X' };
+    DocumentationService.createDocumentation.mockResolvedValue(created);
+    const res = mockRes();
 
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
+    await createDocumentation(
+      mockReq({ body: { _id: 'should-be-stripped', title: 'T', text: 'X' } }),
+      res,
+      jest.fn()
+    );
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const ProgramModel = db.model('Program', programSchema);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-  await ProgramModel.deleteMany();
-  await ProgramModel.create(program1);
-});
-
-describe('/api/docs/:category', () => {
-  const category_uniassist = 'uniassist';
-  const category_visa = 'visa';
-  const category_certification = 'certification';
-  const category_application = 'application';
-  const article = {
-    name: 'article.name',
-    title: 'article.title',
-    text: 'article.text',
-    updatedAt: new Date().toString(),
-    country: 'article.updatedAt'
-  };
-  const Newarticle = {
-    name: 'article.name',
-    title: 'Newarticle.title',
-    text: 'Newarticle.text',
-    updatedAt: new Date().toString(),
-    country: 'article.updatedAt'
-  };
-  let article_id;
-
-  beforeEach(async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = await User.findById(admin._id);
-      next();
-    });
+    const fields = DocumentationService.createDocumentation.mock.calls[0][0];
+    expect(fields).not.toHaveProperty('_id');
+    expect(fields).toMatchObject({ title: 'T', text: 'X' });
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: created });
   });
 
-  test('POST should create a new documentation in db', async () => {
-    const resp = await requestWithSupertest
-      .post('/api/docs')
-      .set('tenantId', TENANT_ID)
-      .send(article);
-    const { status, body } = resp;
-    expect(status).toBe(200);
-    expect(body.success).toBe(true);
-    const new_article = body.data;
-    expect(new_article.title).toBe(article.title);
-    expect(new_article.text).toBe(article.text);
-    article_id = new_article._id.toString();
-  });
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    DocumentationService.createDocumentation.mockRejectedValue(err);
+    const next = jest.fn();
 
-  test('GET uni-assist documentation in db', async () => {
-    // Test Get Article:
-    const resp2 = await requestWithSupertest
-      .get(`/api/docs/${category_uniassist}`)
-      .set('tenantId', TENANT_ID)
-      .buffer();
-    expect(resp2.status).toBe(200);
-  });
+    await createDocumentation(
+      mockReq({ body: { title: 'T' } }),
+      mockRes(),
+      next
+    );
 
-  test('GET certification documentation in db', async () => {
-    const resp2_cert = await requestWithSupertest
-      .get(`/api/docs/${category_certification}`)
-      .set('tenantId', TENANT_ID)
-      .buffer();
-    expect(resp2_cert.status).toBe(200);
-  });
-
-  test('GET application documentation in db', async () => {
-    const resp2_app = await requestWithSupertest
-      .get(`/api/docs/${category_application}`)
-      .set('tenantId', TENANT_ID)
-      .buffer();
-    expect(resp2_app.status).toBe(200);
-  });
-
-  test('GET visa documentation in db', async () => {
-    const resp2_visa = await requestWithSupertest
-      .get(`/api/docs/${category_visa}`)
-      .set('tenantId', TENANT_ID)
-      .buffer();
-    expect(resp2_visa.status).toBe(200);
-  });
-
-  test('PUT update documentation in db', async () => {
-    // test update doc status
-    const resp5 = await requestWithSupertest
-      .put(`/api/docs/${article_id}`)
-      .set('tenantId', TENANT_ID)
-      .send(Newarticle);
-    expect(resp5.status).toBe(201);
-    const new_article = resp5.body.data;
-    expect(resp5.body.success).toBe(true);
-    expect(new_article.title).toBe(Newarticle.title);
-    expect(new_article.text).toBe(Newarticle.text);
-  });
-
-  test('GET all documentation in db', async () => {
-    const resp4 = await requestWithSupertest
-      .get('/api/docs/all')
-      .set('tenantId', TENANT_ID);
-    expect(resp4.body.success).toBe(true);
-  });
-
-  test('GET all internal documentation in db', async () => {
-    const resp4 = await requestWithSupertest
-      .get('/api/docs/internal/all')
-      .set('tenantId', TENANT_ID);
-    expect(resp4.body.success).toBe(true);
-  });
-
-  test('DELETE documentation in db', async () => {
-    // test delete
-    const resp4 = await requestWithSupertest
-      .delete(`/api/docs/${article_id}`)
-      .set('tenantId', TENANT_ID);
-    expect(resp4.status).toBe(200);
-    expect(resp4.body.success).toBe(true);
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('/api/docs/pages/:category', () => {
-  beforeEach(async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = await User.findById(admin._id);
-      next();
-    });
-  });
+describe('createInternalDocumentation', () => {
+  it('strips _id and forwards to the internal-create service', async () => {
+    const created = { _id: 'i1', title: 'IT' };
+    DocumentationService.createInternalDocumentation.mockResolvedValue(created);
+    const res = mockRes();
 
-  test('GET pages by a valid category returns 200', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/docs/pages/uniassist')
-      .set('tenantId', TENANT_ID);
+    await createInternalDocumentation(
+      mockReq({ body: { _id: 'strip', title: 'IT', internal: true } }),
+      res,
+      jest.fn()
+    );
 
-    expect(resp.status).toBeLessThan(600);
-  });
-
-  test('PUT update page by category responds', async () => {
-    const payload = {
-      name: 'page.name',
-      title: 'page.title',
-      text: 'page.text',
-      updatedAt: new Date().toString(),
-      country: 'page.country'
-    };
-
-    const resp = await requestWithSupertest
-      .put('/api/docs/pages/uniassist')
-      .set('tenantId', TENANT_ID)
-      .send(payload);
-
-    expect(resp.status).toBeLessThan(600);
+    const fields =
+      DocumentationService.createInternalDocumentation.mock.calls[0][0];
+    expect(fields).not.toHaveProperty('_id');
+    expect(fields).toMatchObject({ title: 'IT' });
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: created });
   });
 });
 
-describe('/api/docs/internal CRUD', () => {
-  let internaldoc_id;
+describe('getCategoryDocumentations', () => {
+  it('200: returns documentations for a valid category, forwarding it', async () => {
+    const docs = [{ _id: 'd1' }, { _id: 'd2' }];
+    DocumentationService.getDocumentationsByCategory.mockResolvedValue(docs);
+    const res = mockRes();
 
-  beforeEach(async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = await User.findById(admin._id);
-      next();
-    });
+    await getCategoryDocumentations(
+      mockReq({ params: { category: 'uniassist' } }),
+      res,
+      jest.fn()
+    );
 
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const InternaldocModel = db.model('Internaldoc');
-    await InternaldocModel.deleteMany();
-    const created = await InternaldocModel.create({
-      name: 'internal.name',
-      title: 'internal.title',
-      text: 'internal.text',
-      category: 'internal',
-      internal: true,
-      author: 'Test Author',
-      updatedAt: new Date()
-    });
-    internaldoc_id = created._id.toString();
+    expect(
+      DocumentationService.getDocumentationsByCategory
+    ).toHaveBeenCalledWith('uniassist');
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: docs });
   });
 
-  test('POST /api/docs/internal creates an internal doc', async () => {
-    const payload = {
-      name: 'new.internal.name',
-      title: 'new.internal.title',
-      text: 'new.internal.text',
-      category: 'internal',
-      internal: true
-    };
+  it('forwards a 400 ErrorResponse to next() for an invalid category (no service call)', async () => {
+    const next = jest.fn();
 
-    const resp = await requestWithSupertest
-      .post('/api/docs/internal')
-      .set('tenantId', TENANT_ID)
-      .send(payload);
+    await getCategoryDocumentations(
+      mockReq({ params: { category: 'not-a-real-category' } }),
+      mockRes(),
+      next
+    );
 
-    expect(resp.status).toBeLessThan(600);
+    expect(
+      DocumentationService.getDocumentationsByCategory
+    ).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 400 })
+    );
+  });
+});
+
+describe('getAllDocumentations / getAllInternalDocumentations', () => {
+  it('getAllDocumentations: forwards what the service resolves', async () => {
+    const docs = [{ _id: 'd1', title: 'T' }];
+    DocumentationService.getAllDocumentations.mockResolvedValue(docs);
+    const res = mockRes();
+
+    await getAllDocumentations(mockReq(), res, jest.fn());
+
+    expect(DocumentationService.getAllDocumentations).toHaveBeenCalledTimes(1);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: docs });
   });
 
-  test('PUT /api/docs/internal/:id updates an internal doc', async () => {
-    const payload = {
-      title: 'updated.internal.title',
-      text: 'updated.internal.text'
-    };
+  it('getAllInternalDocumentations: forwards what the service resolves', async () => {
+    const docs = [{ _id: 'i1' }];
+    DocumentationService.getAllInternalDocumentations.mockResolvedValue(docs);
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .put(`/api/docs/internal/${internaldoc_id}`)
-      .set('tenantId', TENANT_ID)
-      .send(payload);
+    await getAllInternalDocumentations(mockReq(), res, jest.fn());
 
-    expect(resp.status).toBeLessThan(600);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: docs });
+  });
+});
+
+describe('getDocumentation', () => {
+  it('forwards req.params.doc_id and returns the documentation', async () => {
+    const docId = new ObjectId().toHexString();
+    const doc = { _id: docId, title: 'T' };
+    DocumentationService.getDocumentationById.mockResolvedValue(doc);
+    const res = mockRes();
+
+    await getDocumentation(
+      mockReq({ params: { doc_id: docId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentationService.getDocumentationById).toHaveBeenCalledWith(
+      docId
+    );
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: doc });
+  });
+});
+
+describe('updateDocumentation', () => {
+  it('201: stamps author from req.user and forwards id + fields', async () => {
+    const docId = new ObjectId().toHexString();
+    const updated = { _id: docId, title: 'New' };
+    DocumentationService.updateDocumentationById.mockResolvedValue(updated);
+    const res = mockRes();
+
+    await updateDocumentation(
+      mockReq({
+        params: { id: docId },
+        body: { title: 'New', text: 'Body' },
+        user: admin
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentationService.updateDocumentationById).toHaveBeenCalledWith(
+      docId,
+      expect.objectContaining({ title: 'New', author: authorStamp })
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: updated });
+  });
+});
+
+describe('updateInternalDocumentation', () => {
+  it('201: stamps author and forwards to the internal-update service', async () => {
+    const docId = new ObjectId().toHexString();
+    const updated = { _id: docId, title: 'IU' };
+    DocumentationService.updateInternalDocumentationById.mockResolvedValue(
+      updated
+    );
+    const res = mockRes();
+
+    await updateInternalDocumentation(
+      mockReq({ params: { id: docId }, body: { title: 'IU' }, user: admin }),
+      res,
+      jest.fn()
+    );
+
+    expect(
+      DocumentationService.updateInternalDocumentationById
+    ).toHaveBeenCalledWith(
+      docId,
+      expect.objectContaining({ title: 'IU', author: authorStamp })
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+});
+
+describe('deleteDocumentation', () => {
+  it('200: forwards the id to the service and responds { success: true }', async () => {
+    const docId = new ObjectId().toHexString();
+    DocumentationService.deleteDocumentationById.mockResolvedValue({});
+    const res = mockRes();
+
+    await deleteDocumentation(
+      mockReq({ params: { id: docId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentationService.deleteDocumentationById).toHaveBeenCalledWith(
+      docId
+    );
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+});
+
+describe('getCategoryDocumentationsPage', () => {
+  it('cache-miss: fetches the docspage and forwards req.params.category', async () => {
+    ten_minutes_cache.get.mockReturnValue(undefined); // cache miss
+    const page = { _id: 'p1', category: 'uniassist' };
+    DocumentationService.getDocspageByCategory.mockResolvedValue(page);
+    const res = mockRes();
+
+    await getCategoryDocumentationsPage(
+      mockReq({ params: { category: 'uniassist' }, user: admin, url: '/u' }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentationService.getDocspageByCategory).toHaveBeenCalledWith(
+      'uniassist'
+    );
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: page });
   });
 
-  test('DELETE /api/docs/internal/:id deletes an internal doc', async () => {
-    const resp = await requestWithSupertest
-      .delete(`/api/docs/internal/${internaldoc_id}`)
-      .set('tenantId', TENANT_ID);
+  it('forwards a 400 ErrorResponse to next() for an invalid category', async () => {
+    const next = jest.fn();
 
-    expect(resp.status).toBeLessThan(600);
+    await getCategoryDocumentationsPage(
+      mockReq({ params: { category: 'bogus' }, user: admin, url: '/u' }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 400 })
+    );
+  });
+});
+
+describe('getDocFile', () => {
+  it('cache-miss: streams the S3 object as an attachment', async () => {
+    ten_minutes_cache.get.mockReturnValue(undefined); // cache miss
+    const res = mockRes();
+    res.attachment = jest.fn(() => res);
+
+    await getDocFile(
+      mockReq({ params: { object_key: 'my-file.pdf' }, originalUrl: '/f' }),
+      res,
+      jest.fn()
+    );
+
+    expect(getS3Object).toHaveBeenCalledTimes(1);
+    expect(res.attachment).toHaveBeenCalledWith('my-file.pdf');
+    expect(res.end).toHaveBeenCalled();
   });
 });

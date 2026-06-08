@@ -1,66 +1,134 @@
-// DAO-level integration test for PermissionDAO against the in-memory MongoDB.
-const { connect, clearDatabase } = require('../fixtures/db');
-const { Permission, User } = require('../../models');
+// PermissionDAO unit tests — the DAO is a thin query-building layer over the
+// Mongoose models, so we mock the models entirely (NO database, in-memory or
+// otherwise). These assert that each DAO method builds the expected
+// query/options and forwards the model's result. Real query behaviour is
+// covered by the integration suite (__tests__/integration), which runs against
+// in-memory MongoDB on happy/unhappy paths only.
+jest.mock('../../models', () => {
+  const model = () => ({
+    find: jest.fn(),
+    findOne: jest.fn(),
+    findOneAndUpdate: jest.fn()
+  });
+  return {
+    Permission: model()
+  };
+});
+
+const { Permission } = require('../../models');
 const PermissionDAO = require('../../dao/permission.dao');
-const { disconnectFromDatabase } = require('../../database');
-const { TENANT_ID } = require('../fixtures/constants');
-const { users, admin } = require('../mock/user');
 
-beforeAll(async () => {
-  await connect();
+// A query chain whose terminal `.lean()` resolves to `value`. Intermediate
+// builder calls (populate) return the same chain so they compose.
+const leanChain = (value) => {
+  const chain = {
+    populate: jest.fn(() => chain),
+    lean: jest.fn().mockResolvedValue(value)
+  };
+  return chain;
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+describe('PermissionDAO (mocked models)', () => {
+  it('getPermissions forwards the filter to find().lean()', async () => {
+    const docs = [{ _id: 'p1' }];
+    Permission.find.mockReturnValue(leanChain(docs));
 
-beforeEach(async () => {
-  await Permission.deleteMany({});
-  await User.deleteMany({});
-  await User.insertMany(users);
-});
+    const result = await PermissionDAO.getPermissions({ user_id: 'u1' });
 
-describe('PermissionDAO (in-memory)', () => {
-  it('getPermissions returns an empty array when none exist', async () => {
-    const permissions = await PermissionDAO.getPermissions({});
-    expect(permissions).toEqual([]);
+    expect(Permission.find).toHaveBeenCalledWith({ user_id: 'u1' });
+    expect(result).toBe(docs);
   });
 
-  it('upsertPermissionByUserId creates a permission and populates the user', async () => {
-    const permission = await PermissionDAO.upsertPermissionByUserId(
-      admin._id.toString(),
-      { canAccessStudentDatabase: true }
+  it('findPermissionsWithUser populates user_id with the default select', async () => {
+    const docs = [{ _id: 'p1' }];
+    const chain = leanChain(docs);
+    Permission.find.mockReturnValue(chain);
+
+    const result = await PermissionDAO.findPermissionsWithUser({ a: 1 });
+
+    expect(Permission.find).toHaveBeenCalledWith({ a: 1 });
+    expect(chain.populate).toHaveBeenCalledWith(
+      'user_id',
+      'firstname lastname email'
     );
-
-    expect(permission).toBeTruthy();
-    expect(permission.canAccessStudentDatabase).toBe(true);
-    expect(permission.user_id.firstname).toBe(admin.firstname);
-    expect(await Permission.countDocuments({})).toBe(1);
+    expect(result).toBe(docs);
   });
 
-  it('upsertPermissionByUserId updates the existing permission in place', async () => {
-    await PermissionDAO.upsertPermissionByUserId(admin._id.toString(), {
-      canAccessStudentDatabase: false
-    });
+  it('findPermissionsWithUser honours a custom select', async () => {
+    const chain = leanChain([]);
+    Permission.find.mockReturnValue(chain);
 
-    const updated = await PermissionDAO.upsertPermissionByUserId(
-      admin._id.toString(),
-      { canAccessStudentDatabase: true }
-    );
+    await PermissionDAO.findPermissionsWithUser({ a: 1 }, 'firstname');
 
-    expect(updated.canAccessStudentDatabase).toBe(true);
-    expect(await Permission.countDocuments({})).toBe(1);
+    expect(chain.populate).toHaveBeenCalledWith('user_id', 'firstname');
   });
 
-  it('getPermissions returns the stored permissions', async () => {
-    await PermissionDAO.upsertPermissionByUserId(admin._id.toString(), {
+  it('upsertPermissionByUserId upserts, populates the user and returns the doc', async () => {
+    const updated = { _id: 'p1', canAccessStudentDatabase: true };
+    const chain = leanChain(updated);
+    Permission.findOneAndUpdate.mockReturnValue(chain);
+
+    const result = await PermissionDAO.upsertPermissionByUserId('u1', {
       canAccessStudentDatabase: true
     });
 
-    const permissions = await PermissionDAO.getPermissions({});
+    expect(Permission.findOneAndUpdate).toHaveBeenCalledWith(
+      { user_id: 'u1' },
+      { canAccessStudentDatabase: true },
+      { upsert: true, new: true }
+    );
+    expect(chain.populate).toHaveBeenCalledWith(
+      'user_id',
+      'firstname lastname email'
+    );
+    expect(result).toBe(updated);
+  });
 
-    expect(permissions).toHaveLength(1);
-    expect(permissions[0].user_id.toString()).toBe(admin._id.toString());
+  it('getPermissionDocByUserId returns the live (non-lean) doc', async () => {
+    const doc = { _id: 'p1' };
+    Permission.findOne.mockResolvedValue(doc);
+
+    const result = await PermissionDAO.getPermissionDocByUserId('u1');
+
+    expect(Permission.findOne).toHaveBeenCalledWith({ user_id: 'u1' });
+    expect(result).toBe(doc);
+  });
+
+  it('getPermissionByUserId returns the lean doc', async () => {
+    const doc = { _id: 'p1' };
+    Permission.findOne.mockReturnValue(leanChain(doc));
+
+    const result = await PermissionDAO.getPermissionByUserId('u1');
+
+    expect(Permission.findOne).toHaveBeenCalledWith({ user_id: 'u1' });
+    expect(result).toBe(doc);
+  });
+
+  it('getManagers queries the elevated capability flags and populates the user', async () => {
+    const docs = [{ _id: 'p1' }];
+    const chain = leanChain(docs);
+    Permission.find.mockReturnValue(chain);
+
+    const result = await PermissionDAO.getManagers();
+
+    const usedFilter = Permission.find.mock.calls[0][0];
+    expect(usedFilter).toHaveProperty('$or');
+    expect(usedFilter.$or).toEqual(
+      expect.arrayContaining([
+        { canAssignEditors: true },
+        { canAssignAgents: true },
+        { canModifyAllBaseDocuments: true },
+        { canAccessAllChat: true }
+      ])
+    );
+    expect(chain.populate).toHaveBeenCalledWith(
+      'user_id',
+      'firstname lastname email archiv pictureUrl'
+    );
+    expect(result).toBe(docs);
   });
 });

@@ -1,9 +1,5 @@
 const StudentService = require('./students');
 const DocumentthreadDAO = require('../dao/documentthread.dao');
-const { Student, Application, Documentthread } = require('../models');
-const {
-  createApplicationThreadV2
-} = require('../utils/modelHelper/versionControl');
 
 const DocumentThreadService = {
   // Default-connection helpers (no req) used by the migrated application flow.
@@ -52,15 +48,10 @@ const DocumentThreadService = {
   setMessageIgnore(messageId, ignoreMessageState) {
     return DocumentthreadDAO.setMessageIgnore(messageId, ignoreMessageState);
   },
-  // Wraps the version-control thread-creation helper with the central
-  // default-connection models (no req).
+  // Delegates the version-control thread-creation helper to the DAO (which owns
+  // the model wiring).
   createApplicationThread(studentId, applicationId, documentCategory) {
-    return createApplicationThreadV2(
-      {
-        StudentModel: Student,
-        ApplicationModel: Application,
-        DocumentthreadModel: Documentthread
-      },
+    return DocumentthreadDAO.createApplicationThread(
       studentId,
       applicationId,
       documentCategory

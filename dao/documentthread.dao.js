@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
 const { Documentthread } = require('../models');
+const {
+  createApplicationThreadV2
+} = require('../utils/modelHelper/versionControl');
 
 const applyPopulates = (query, populates = []) => {
   populates.forEach((args) => {
@@ -173,6 +176,16 @@ const DocumentthreadDAO = {
   // application/student subdocument entries before persisting with .save().
   newThread(payload) {
     return new Documentthread(payload);
+  },
+
+  // Delegates to the version-control thread-creation helper (which pulls the
+  // central default-connection models itself).
+  createApplicationThread(studentId, applicationId, documentCategory) {
+    return createApplicationThreadV2(
+      studentId,
+      applicationId,
+      documentCategory
+    );
   },
 
   async countThreads(filter) {

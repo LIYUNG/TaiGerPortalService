@@ -1,805 +1,413 @@
-const fs = require('fs');
-const mongoose = require('mongoose');
-const request = require('supertest');
+// Controller UNIT test for controllers/applications.
+//
+// applications is a "tangled" controller: a handler can fan out to several
+// services (Application/Student/User/Program/DocumentThread) and an email
+// side-effect. We call each handler DIRECTLY as a (req, res, next) function with
+// all of those mocked, and assert ONLY the controller's own work: the
+// filter/args it forwards, the status + body it writes, and its branching. No
+// route, no middleware, no DB. The heavy document-mutating create flow
+// (createApplicationV2) and the real aggregation are covered end-to-end by
+// __tests__/integration/applications.test.js and the service/dao suites.
 
-const { UPLOAD_PATH } = require('../../config');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { protect } = require('../../middlewares/auth');
+jest.mock('../../services/applications');
+jest.mock('../../services/users');
+jest.mock('../../services/students');
+jest.mock('../../services/programs');
+jest.mock('../../services/documentthreads');
+jest.mock('../../services/email');
+
+const ApplicationService = require('../../services/applications');
+const StudentService = require('../../services/students');
 const {
-  InnerTaigerMultitenantFilter
-} = require('../../middlewares/InnerTaigerMultitenantFilter');
-const {
-  permission_canAccessStudentDatabase_filter
-} = require('../../middlewares/permission-filter');
-const { programSchema } = require('../../models/Program');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { documentThreadsSchema } = require('../../models/Documentthread');
-const { users, agent, editor, student, student2 } = require('../mock/user');
-const { program1, programs } = require('../mock/programs');
-const { disconnectFromDatabase } = require('../../database');
+  getApplications,
+  deleteApplication,
+  getActiveStudentsApplicationsPaginated,
+  getApplicationsDeadlineDistribution,
+  getApplicationProgramsUpdateStatus,
+  getMyStudentsApplicationsStats,
+  getStudentApplications,
+  updateStudentApplications,
+  updateApplication,
+  refreshApplication
+} = require('../../controllers/applications');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { agent, admin, student } = require('../mock/user');
 
-const requestWithSupertest = request(app);
+const studentId = student._id.toString();
+const agentId = agent._id.toString();
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+describe('getApplications', () => {
+  it('200: forwards the built filter + select/populate and returns the applications', async () => {
+    const applications = [{ _id: 'a1' }];
+    ApplicationService.getApplications.mockResolvedValue(applications);
+    const req = mockReq({ query: { decided: 'O', year: '2025' } });
+    const res = mockRes();
 
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
+    await getApplications(req, res, jest.fn());
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough),
-    permission_canAssignAgent_filter: jest.fn().mockImplementation(passthrough),
-    permission_canAssignEditor_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const DocumentthreadModel = db.model('Documentthread', documentThreadsSchema);
-  const ProgramModel = db.model('Program', programSchema);
-  // Application must also be cleared — applications created in earlier tests
-  // persist and break the length assertions in later tests.
-  const ApplicationModel = db.model('Application');
-
-  await UserModel.deleteMany();
-  await DocumentthreadModel.deleteMany();
-  await ProgramModel.deleteMany();
-  await ApplicationModel.deleteMany();
-
-  await UserModel.insertMany(users);
-  await ProgramModel.insertMany(programs);
-});
-
-afterEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const DocumentthreadModel = db.model('Documentthread', documentThreadsSchema);
-  const ProgramModel = db.model('Program', programSchema);
-
-  await UserModel.deleteMany();
-  await DocumentthreadModel.deleteMany();
-  await ProgramModel.deleteMany();
-
-  fs.rmSync(UPLOAD_PATH, { recursive: true, force: true });
-});
-
-// Get all applications for a student
-describe('GET /api/applications/student/:studentId', () => {
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
-  });
-
-  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) => {
-    next();
-  });
-
-  it('should return an empty applications list when no applications exist', async () => {
-    const { _id: studentId } = student;
-
-    const resp = await requestWithSupertest
-      .get(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID);
-
-    expect([200, 400, 404]).toContain(resp.status);
-  });
-
-  it('should return applications for a student after creating them', async () => {
-    const { _id: studentId } = student2;
-    const programs_arr = programs.map((pro) => pro._id.toString());
-
-    const createResp = await requestWithSupertest
-      .post(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: programs_arr });
-
-    expect(createResp.status).toBe(201);
-
-    const resp = await requestWithSupertest
-      .get(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(resp.body.data.applications).toHaveLength(programs_arr.length);
-  });
-});
-
-// Get all applications (admin/agent/editor route)
-describe('GET /api/applications', () => {
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
-  });
-
-  it('should return a list of applications', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/applications')
-      .set('tenantId', TENANT_ID);
-
-    expect([200, 400, 403]).toContain(resp.status);
-  });
-});
-
-// Agent should create applications (programs) to student
-describe('POST /api/applications/student/:studentId', () => {
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
-  });
-
-  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) => {
-    next();
-  });
-
-  it('should create an application for student', async () => {
-    const { _id: studentId } = student;
-    const programs_arr = [];
-    programs.forEach((pro) => {
-      programs_arr.push(pro._id.toString());
+    expect(ApplicationService.getApplications).toHaveBeenCalledWith(
+      { decided: 'O', application_year: '2025' },
+      expect.arrayContaining(['programId', 'studentId', 'application_year']),
+      false
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: applications
     });
-    const resp = await requestWithSupertest
-      .post(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: programs_arr });
+  });
 
-    const {
-      status,
-      body: { success }
-    } = resp;
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    ApplicationService.getApplications.mockRejectedValue(err);
+    const next = jest.fn();
 
-    expect(status).toBe(201);
-    expect(success).toBe(true);
+    await getApplications(mockReq({ query: {} }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-// Update a specific application (decide/close/admission)
-describe('PUT /api/applications/student/:studentId/:application_id', () => {
-  permission_canAccessStudentDatabase_filter.mockImplementation(
-    async (req, res, next) => {
-      next();
-    }
-  );
-  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) => {
-    next();
-  });
-
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
-  });
-
-  it('should update an application decision', async () => {
-    const { _id: studentId } = student2;
-
-    // First create an application
-    const createResp = await requestWithSupertest
-      .post(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: [program1._id.toString()] });
-
-    expect(createResp.status).toBe(201);
-
-    const applications = createResp.body.data;
-    const applicationId = applications[0]._id;
-
-    const resp = await requestWithSupertest
-      .put(`/api/applications/student/${studentId}/${applicationId}`)
-      .set('tenantId', TENANT_ID)
-      .send({
-        decided: true,
-        closed: false,
-        admission: false,
-        finalEnrolment: false
-      });
-
-    expect([200, 201, 400, 403, 404]).toContain(resp.status);
-  });
-});
-
-describe('DELETE /api/applications/application/:applicationId', () => {
-  permission_canAccessStudentDatabase_filter.mockImplementation(
-    async (req, res, next) => {
-      next();
-    }
-  );
-  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) => {
-    next();
-  });
-
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
-  });
-  it('should delete an application from student', async () => {
-    const { _id: studentId } = student2;
-
-    const resp = await requestWithSupertest
-      .post(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: [program1._id] });
-
-    expect(resp.status).toBe(201);
-    // !!data = []
-    const applications = resp.body.data;
-    const applicationId = applications[0]._id;
-    const resp2 = await requestWithSupertest
-      .delete(`/api/applications/application/${applicationId}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp2.status).toBe(200);
-    const resp2_std = await requestWithSupertest
-      .get(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID);
-    //   Why got 4?
-    expect(resp2_std.body.data.applications).toHaveLength(0);
-  });
-
-  it('deleting an application should fail if one of the threads is none-empty', async () => {
-    const { _id: studentId } = student2;
-
-    const resp = await requestWithSupertest
-      .post(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: [program1._id?.toString()] });
-
-    expect(resp.status).toBe(201);
-
-    const resp_std = await requestWithSupertest
-      .get(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp_std.status).toBe(200);
-    const newStudentData = resp_std.body.data;
-
-    const newApplication = newStudentData.applications.find(
-      (appl) => appl.programId._id?.toString() === program1._id?.toString()
+describe('getActiveStudentsApplicationsPaginated', () => {
+  it('200: resolves student ids then forwards them + the query to the service', async () => {
+    StudentService.getStudents.mockResolvedValue([
+      { _id: studentId },
+      { _id: '012345678901234567891234' }
+    ]);
+    const result = { applications: [], total: 0 };
+    ApplicationService.getActiveStudentsApplicationsPaginated.mockResolvedValue(
+      result
     );
-    const thread = newApplication.doc_modification_thread.find(
-      (thr) => thr.doc_thread_id.file_type === 'ML'
-    );
-    expect(thread.doc_thread_id.file_type).toBe('ML');
-    const messagesThreadId = thread.doc_thread_id._id?.toString();
+    const req = mockReq({ query: { page: '1' } });
+    const res = mockRes();
 
-    const resp2 = await requestWithSupertest
-      .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .field('message', '{}');
-    expect(resp2.status).toBe(200);
-    const application_id = newApplication._id;
-    const resp3 = await requestWithSupertest
-      .delete(`/api/applications/application/${application_id}`)
-      .set('tenantId', TENANT_ID);
+    await getActiveStudentsApplicationsPaginated(req, res, jest.fn());
 
-    expect(resp3.status).toBe(409);
-    const resp3_std = await requestWithSupertest
-      .get(`/api/students/doc-links/${studentId}`)
-      .set('tenantId', TENANT_ID);
-    // why TODO:Got 5
-    expect(resp3_std.body.data.applications).toHaveLength(1);
-  });
-});
-
-// Paginated / sorted / searchable active applications
-describe('GET /api/applications/all/active/applications/paginated', () => {
-  const PAGINATED_URL = '/api/applications/all/active/applications/paginated';
-
-  // Programs with deterministic string deadlines + semesters so the derived
-  // deadlineDate is predictable. With application_year 2025:
-  //   Alpha: WS, 01-15 -> month 1 (<=9) -> 2025/01/15
-  //   Beta : SS, 05-01 -> month 5 (>3)  -> 2024/05/01
-  //   Gamma: WS, 11-30 -> month 11 (>9) -> 2024/11/30
-  // => deadlineDate ascending order is Beta, Gamma, Alpha.
-  const progAlpha = {
-    ...program1,
-    _id: undefined,
-    program_name: 'Alpha Program',
-    school: 'Aalto University',
-    country: 'Finland',
-    semester: 'WS',
-    application_deadline: '01-15'
-  };
-  const progBeta = {
-    ...program1,
-    _id: undefined,
-    program_name: 'Beta Program',
-    school: 'Berlin University',
-    country: 'Germany',
-    semester: 'SS',
-    application_deadline: '05-01'
-  };
-  const progGamma = {
-    ...program1,
-    _id: undefined,
-    program_name: 'Gamma Program',
-    school: 'Cologne University',
-    country: 'Germany',
-    semester: 'WS',
-    application_deadline: '11-30'
-  };
-
-  beforeEach(async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
+    expect(
+      ApplicationService.getActiveStudentsApplicationsPaginated
+    ).toHaveBeenCalledWith({
+      studentIds: [studentId, '012345678901234567891234'],
+      query: { page: '1' }
     });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: result });
+  });
 
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramModel = db.model('Program', programSchema);
-    const ApplicationModel = db.model('Application');
-
-    const created = await ProgramModel.insertMany([
-      progAlpha,
-      progBeta,
-      progGamma
-    ]);
-    const [alpha, beta, gamma] = created;
-
-    await ApplicationModel.insertMany(
-      [alpha, beta, gamma].map((prog) => ({
-        studentId: student._id,
-        programId: prog._id,
-        application_year: '2025',
-        decided: 'O',
-        closed: '-'
-      }))
+  it('scopes to a supervising user when userId is present', async () => {
+    StudentService.getStudents.mockResolvedValue([]);
+    ApplicationService.getActiveStudentsApplicationsPaginated.mockResolvedValue(
+      { applications: [], total: 0 }
     );
-  });
+    const req = mockReq({ query: { userId: agentId } });
 
-  const deadlineNames = (resp) =>
-    resp.body.data.applications.map(
-      (application) => application.programId.program_name
+    await getActiveStudentsApplicationsPaginated(req, mockRes(), jest.fn());
+
+    // withArchiv(false) sets $or, so the supervision condition is merged via $and.
+    const passedFilter = StudentService.getStudents.mock.calls[0][0].filter;
+    expect(passedFilter.$and).toEqual([
+      { $or: [{ archiv: { $exists: false } }, { archiv: false }] },
+      { $or: [{ agents: agentId }, { editors: agentId }] }
+    ]);
+    expect(passedFilter.$or).toBeUndefined();
+  });
+});
+
+describe('getApplicationsDeadlineDistribution', () => {
+  it('200: forwards resolved student ids and returns the distribution', async () => {
+    StudentService.getStudents.mockResolvedValue([{ _id: studentId }]);
+    const data = [{ name: '2025/01/15', active: 1, potentials: 0 }];
+    ApplicationService.getActiveStudentsApplicationsDeadlineDistribution.mockResolvedValue(
+      data
     );
+    const res = mockRes();
 
-  it('returns the deadline-ascending page with a total count', async () => {
-    const resp = await requestWithSupertest
-      .get(`${PAGINATED_URL}?page=1&limit=20&sortBy=deadline&sortOrder=asc`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(resp.body.data.total).toBe(3);
-    // Derived deadlineDate ordering (the tricky year-adjustment part).
-    expect(deadlineNames(resp)).toEqual([
-      'Beta Program',
-      'Gamma Program',
-      'Alpha Program'
-    ]);
-  });
-
-  it('paginates: limit caps the page while total stays the full count', async () => {
-    const page1 = await requestWithSupertest
-      .get(`${PAGINATED_URL}?page=1&limit=2&sortBy=deadline&sortOrder=asc`)
-      .set('tenantId', TENANT_ID);
-    const page2 = await requestWithSupertest
-      .get(`${PAGINATED_URL}?page=2&limit=2&sortBy=deadline&sortOrder=asc`)
-      .set('tenantId', TENANT_ID);
-
-    expect(page1.body.data.applications).toHaveLength(2);
-    expect(page1.body.data.total).toBe(3);
-    expect(page2.body.data.applications).toHaveLength(1);
-    expect(deadlineNames(page1)).toEqual(['Beta Program', 'Gamma Program']);
-    expect(deadlineNames(page2)).toEqual(['Alpha Program']);
-  });
-
-  it('sorts by a joined program field (program_name)', async () => {
-    const resp = await requestWithSupertest
-      .get(`${PAGINATED_URL}?sortBy=program_name&sortOrder=asc`)
-      .set('tenantId', TENANT_ID);
-
-    expect(deadlineNames(resp)).toEqual([
-      'Alpha Program',
-      'Beta Program',
-      'Gamma Program'
-    ]);
-  });
-
-  it('searches across joined fields', async () => {
-    const resp = await requestWithSupertest
-      .get(`${PAGINATED_URL}?search=Berlin`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.body.data.total).toBe(1);
-    expect(deadlineNames(resp)).toEqual(['Beta Program']);
-
-    // Global search also covers the program's application_deadline string.
-    const byDeadline = await requestWithSupertest
-      .get(`${PAGINATED_URL}?search=11-30`)
-      .set('tenantId', TENANT_ID);
-
-    expect(byDeadline.body.data.total).toBe(1);
-    expect(deadlineNames(byDeadline)).toEqual(['Gamma Program']);
-  });
-
-  it('filters by exact decided / closed status (column filters)', async () => {
-    // All three applications are decided 'O', closed '-'.
-    const decidedMatch = await requestWithSupertest
-      .get(`${PAGINATED_URL}?decided=O`)
-      .set('tenantId', TENANT_ID);
-    const decidedNone = await requestWithSupertest
-      .get(`${PAGINATED_URL}?decided=X`)
-      .set('tenantId', TENANT_ID);
-    const closedNone = await requestWithSupertest
-      .get(`${PAGINATED_URL}?closed=O`)
-      .set('tenantId', TENANT_ID);
-
-    expect(decidedMatch.body.data.total).toBe(3);
-    expect(decidedNone.body.data.total).toBe(0);
-    expect(closedNone.body.data.total).toBe(0);
-  });
-
-  it('filters country by $in over comma-separated values (multi-select)', async () => {
-    // Alpha -> Finland, Beta & Gamma -> Germany.
-    const germany = await requestWithSupertest
-      .get(`${PAGINATED_URL}?country=Germany`)
-      .set('tenantId', TENANT_ID);
-    const both = await requestWithSupertest
-      .get(`${PAGINATED_URL}?country=Finland,Germany&sortBy=program_name`)
-      .set('tenantId', TENANT_ID);
-
-    expect(germany.body.data.total).toBe(2);
-    expect(deadlineNames(germany).sort()).toEqual([
-      'Beta Program',
-      'Gamma Program'
-    ]);
-    expect(both.body.data.total).toBe(3);
-  });
-
-  it('filters by student name (first or last name, contains)', async () => {
-    // All three applications belong to `student`.
-    const byFirst = await requestWithSupertest
-      .get(
-        `${PAGINATED_URL}?studentName=${encodeURIComponent(student.firstname)}`
-      )
-      .set('tenantId', TENANT_ID);
-    const byLast = await requestWithSupertest
-      .get(
-        `${PAGINATED_URL}?studentName=${encodeURIComponent(student.lastname)}`
-      )
-      .set('tenantId', TENANT_ID);
-    const noMatch = await requestWithSupertest
-      .get(`${PAGINATED_URL}?studentName=zzzznomatchzzzz`)
-      .set('tenantId', TENANT_ID);
-
-    expect(byFirst.body.data.total).toBe(3);
-    expect(byLast.body.data.total).toBe(3);
-    expect(noMatch.body.data.total).toBe(0);
-  });
-
-  it('filters by program: spans school OR program_name (contains)', async () => {
-    // By program_name.
-    const byName = await requestWithSupertest
-      .get(`${PAGINATED_URL}?program=Alpha`)
-      .set('tenantId', TENANT_ID);
-    // By school: only Alpha is at "Aalto University".
-    const bySchool = await requestWithSupertest
-      .get(`${PAGINATED_URL}?program=Aalto`)
-      .set('tenantId', TENANT_ID);
-    // All three schools contain "University" (case-insensitive).
-    const allBySchoolWord = await requestWithSupertest
-      .get(`${PAGINATED_URL}?program=university`)
-      .set('tenantId', TENANT_ID);
-    const noMatch = await requestWithSupertest
-      .get(`${PAGINATED_URL}?program=zzzznomatchzzzz`)
-      .set('tenantId', TENANT_ID);
-
-    expect(byName.body.data.total).toBe(1);
-    expect(deadlineNames(byName)).toEqual(['Alpha Program']);
-    expect(bySchool.body.data.total).toBe(1);
-    expect(deadlineNames(bySchool)).toEqual(['Alpha Program']);
-    expect(allBySchoolWord.body.data.total).toBe(3);
-    expect(noMatch.body.data.total).toBe(0);
-  });
-
-  it('filters by agent name (first or last name, contains)', async () => {
-    // Make `agent` supervise `student` (who owns all three applications).
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const UserModel = db.model('User', UserSchema);
-    await UserModel.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(student._id) },
-      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
+    await getApplicationsDeadlineDistribution(
+      mockReq({ query: {} }),
+      res,
+      jest.fn()
     );
 
-    const byFirst = await requestWithSupertest
-      .get(`${PAGINATED_URL}?agentName=${encodeURIComponent(agent.firstname)}`)
-      .set('tenantId', TENANT_ID);
-    const byLast = await requestWithSupertest
-      .get(`${PAGINATED_URL}?agentName=${encodeURIComponent(agent.lastname)}`)
-      .set('tenantId', TENANT_ID);
-    const noMatch = await requestWithSupertest
-      .get(`${PAGINATED_URL}?agentName=zzzznomatchzzzz`)
-      .set('tenantId', TENANT_ID);
-
-    expect(byFirst.body.data.total).toBe(3);
-    expect(byLast.body.data.total).toBe(3);
-    expect(noMatch.body.data.total).toBe(0);
+    expect(
+      ApplicationService.getActiveStudentsApplicationsDeadlineDistribution
+    ).toHaveBeenCalledWith({ studentIds: [studentId] });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data });
   });
+});
 
-  it('filters by editor name (first or last name, contains)', async () => {
-    // Make `editor` supervise `student` (who owns all three applications).
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const UserModel = db.model('User', UserSchema);
-    await UserModel.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(student._id) },
-      { $set: { editors: [new mongoose.Types.ObjectId(editor._id)] } }
+describe('getApplicationProgramsUpdateStatus', () => {
+  it('200: forwards student ids + decided flag and returns the programs', async () => {
+    StudentService.getStudents.mockResolvedValue([{ _id: studentId }]);
+    const data = [{ _id: 'p1', program_name: 'Alpha' }];
+    ApplicationService.getApplicationProgramsUpdateStatus.mockResolvedValue(
+      data
+    );
+    const res = mockRes();
+
+    await getApplicationProgramsUpdateStatus(
+      mockReq({ query: { decided: 'O' } }),
+      res,
+      jest.fn()
     );
 
-    const byFirst = await requestWithSupertest
-      .get(
-        `${PAGINATED_URL}?editorName=${encodeURIComponent(editor.firstname)}`
-      )
-      .set('tenantId', TENANT_ID);
-    const byLast = await requestWithSupertest
-      .get(`${PAGINATED_URL}?editorName=${encodeURIComponent(editor.lastname)}`)
-      .set('tenantId', TENANT_ID);
-    const noMatch = await requestWithSupertest
-      .get(`${PAGINATED_URL}?editorName=zzzznomatchzzzz`)
-      .set('tenantId', TENANT_ID);
+    expect(
+      ApplicationService.getApplicationProgramsUpdateStatus
+    ).toHaveBeenCalledWith({ studentIds: [studentId], decided: 'O' });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data });
+  });
+});
 
-    expect(byFirst.body.data.total).toBe(3);
-    expect(byLast.body.data.total).toBe(3);
-    expect(noMatch.body.data.total).toBe(0);
+describe('getMyStudentsApplicationsStats', () => {
+  it('200: returns the user + stats with totalStudents derived from the student count', async () => {
+    StudentService.getStudents.mockResolvedValue([
+      { _id: studentId },
+      { _id: '012345678901234567891234' }
+    ]);
+    ApplicationService.getApplicationStatusStats.mockResolvedValue({
+      totalApplications: 3,
+      decidedYesApplications: 3
+    });
+    const UserService = require('../../services/users');
+    UserService.getUserById.mockResolvedValue({ _id: agentId });
+    const res = mockRes();
+
+    await getMyStudentsApplicationsStats(
+      mockReq({ params: { userId: agentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(ApplicationService.getApplicationStatusStats).toHaveBeenCalledWith({
+      studentIds: [studentId, '012345678901234567891234']
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.user).toEqual({ _id: agentId });
+    expect(body.data.stats).toMatchObject({
+      totalStudents: 2,
+      totalApplications: 3,
+      decidedYesApplications: 3
+    });
+  });
+});
+
+describe('getStudentApplications', () => {
+  it('200: attaches the applications onto the student (non-student user, no notification touch)', async () => {
+    const studentDoc = { _id: studentId, firstname: 'Stu', attributes: ['x'] };
+    StudentService.getStudentById.mockResolvedValue(studentDoc);
+    const applications = [{ _id: 'a1' }];
+    ApplicationService.getApplicationsByStudentId.mockResolvedValue(
+      applications
+    );
+    const res = mockRes();
+
+    await getStudentApplications(
+      mockReq({ user: agent, params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.getStudentById).toHaveBeenCalledWith(studentId);
+    expect(ApplicationService.getApplicationsByStudentId).toHaveBeenCalledWith(
+      studentId
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.applications).toBe(applications);
+    // Non-student callers keep the attributes field.
+    expect(body.data.attributes).toBeDefined();
+  });
+});
+
+describe('updateStudentApplications', () => {
+  it('404: throws (forwarded to next) when the student does not exist', async () => {
+    StudentService.getStudentById.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await updateStudentApplications(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { applications: [], applying_program_count: 3 }
+      }),
+      mockRes(),
+      next
+    );
+
+    const err = next.mock.calls[0][0];
+    expect(err).toBeInstanceOf(Error);
+    expect(err.statusCode).toBe(404);
   });
 
-  it('filters semester by case-insensitive contains, application_year exact', async () => {
-    // Alpha & Gamma -> WS, Beta -> SS. All -> application_year 2025.
-    const ws = await requestWithSupertest
-      .get(`${PAGINATED_URL}?semester=WS&sortBy=program_name`)
-      .set('tenantId', TENANT_ID);
-    // Free-text semester filter is case-insensitive (lowercase still matches).
-    const wsLower = await requestWithSupertest
-      .get(`${PAGINATED_URL}?semester=ws`)
-      .set('tenantId', TENANT_ID);
-    const ss = await requestWithSupertest
-      .get(`${PAGINATED_URL}?semester=SS`)
-      .set('tenantId', TENANT_ID);
-    const year2025 = await requestWithSupertest
-      .get(`${PAGINATED_URL}?application_year=2025`)
-      .set('tenantId', TENANT_ID);
-    const yearNone = await requestWithSupertest
-      .get(`${PAGINATED_URL}?application_year=2099`)
-      .set('tenantId', TENANT_ID);
+  it('201: bulk-updates applications and returns the refreshed student (agent does not touch applying_program_count)', async () => {
+    StudentService.getStudentById
+      .mockResolvedValueOnce({ _id: studentId }) // pre-update lookup
+      .mockResolvedValueOnce({ _id: studentId, firstname: 'Stu' }); // post-update
+    ApplicationService.updateApplicationsBulk.mockResolvedValue({
+      modifiedCount: 1
+    });
+    const newApplications = [{ _id: 'a1', decided: 'O' }];
+    ApplicationService.getApplicationsByStudentId.mockResolvedValue(
+      newApplications
+    );
+    const res = mockRes();
 
-    expect(ws.body.data.total).toBe(2);
-    expect(deadlineNames(ws)).toEqual(['Alpha Program', 'Gamma Program']);
-    expect(wsLower.body.data.total).toBe(2);
-    expect(ss.body.data.total).toBe(1);
-    expect(year2025.body.data.total).toBe(3);
-    expect(yearNone.body.data.total).toBe(0);
-  });
+    await updateStudentApplications(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: {
+          applications: [
+            {
+              _id: 'a1',
+              decided: 'O',
+              closed: '-',
+              admission: '-',
+              finalEnrolment: false
+            }
+          ],
+          applying_program_count: 5
+        }
+      }),
+      res,
+      jest.fn()
+    );
 
-  it('scopes to a supervising TaiGer user (my-students paginated)', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const UserModel = db.model('User', UserSchema);
-    // `agents` lives on the Student discriminator, not the base User schema the
-    // test registers — so set it via the native driver (bypassing strict mode)
-    // with real ObjectIds, matching how production student docs store it.
-    await UserModel.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(student._id) },
+    expect(ApplicationService.updateApplicationsBulk).toHaveBeenCalledWith([
       {
-        $set: { agents: [new mongoose.Types.ObjectId(agent._id)] }
-      }
-    );
-
-    const mine = await requestWithSupertest
-      .get(
-        `/api/applications/all/active/applications/paginated?userId=${agent._id}&sortBy=program_name`
-      )
-      .set('tenantId', TENANT_ID);
-    // A user who supervises nobody sees nothing.
-    const other = await requestWithSupertest
-      .get(
-        `/api/applications/all/active/applications/paginated?userId=${student2._id}`
-      )
-      .set('tenantId', TENANT_ID);
-
-    expect(mine.status).toBe(200);
-    expect(mine.body.data.total).toBe(3);
-    expect(deadlineNames(mine)).toEqual([
-      'Alpha Program',
-      'Beta Program',
-      'Gamma Program'
-    ]);
-    expect(other.body.data.total).toBe(0);
-  });
-
-  it('excludes archived students from my-students applications (paginated)', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const UserModel = db.model('User', UserSchema);
-    const ProgramModel = db.model('Program', programSchema);
-    const ApplicationModel = db.model('Application');
-
-    // `student` is active & supervised by `agent`; `student2` is ALSO supervised
-    // by `agent` but archived — its application must not leak into the cards.
-    await UserModel.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(student._id) },
-      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
-    );
-    await UserModel.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(student2._id) },
-      {
-        $set: {
-          agents: [new mongoose.Types.ObjectId(agent._id)],
-          archiv: true
+        updateOne: {
+          filter: { _id: 'a1' },
+          update: {
+            decided: 'O',
+            closed: '-',
+            admission: '-',
+            finalEnrolment: false
+          }
         }
       }
-    );
-
-    const [archivedProg] = await ProgramModel.insertMany([
-      { ...progAlpha, _id: undefined, program_name: 'Archived Program' }
     ]);
-    await ApplicationModel.insertMany([
-      {
-        studentId: student2._id,
-        programId: archivedProg._id,
-        application_year: '2025',
-        decided: 'O',
-        closed: '-'
-      }
-    ]);
-
-    const resp = await requestWithSupertest
-      .get(
-        `/api/applications/all/active/applications/paginated?userId=${agent._id}&decided=O&closed=-`
-      )
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-    // Only the 3 active-student applications; the archived student's is dropped.
-    expect(resp.body.data.total).toBe(3);
-    expect(resp.body.data.applications).toHaveLength(3);
-    const studentIds = resp.body.data.applications.map((application) =>
-      application.studentId._id.toString()
-    );
-    expect(studentIds).not.toContain(student2._id.toString());
+    // Agent (not Admin) must NOT update applying_program_count.
+    expect(StudentService.updateStudentById).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.applications).toBe(newApplications);
   });
 
-  it('returns the deadline distribution (active vs potentials) computed in the DB', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/applications/distribution')
-      .set('tenantId', TENANT_ID);
+  it('201: Admin also updates applying_program_count', async () => {
+    StudentService.getStudentById
+      .mockResolvedValueOnce({ _id: studentId })
+      .mockResolvedValueOnce({ _id: studentId });
+    ApplicationService.updateApplicationsBulk.mockResolvedValue({});
+    ApplicationService.getApplicationsByStudentId.mockResolvedValue([]);
+    const res = mockRes();
 
-    expect(resp.status).toBe(200);
-    // 3 open applications, all decided 'O' -> one active per deadline bucket.
-    // Deadlines (application_year 2025): Beta 2024/05/01, Gamma 2024/11/30,
-    // Alpha 2025/01/15 — sorted ascending by the deadline string.
-    expect(resp.body.data).toEqual([
-      { name: '2024/05/01', active: 1, potentials: 0 },
-      { name: '2024/11/30', active: 1, potentials: 0 },
-      { name: '2025/01/15', active: 1, potentials: 0 }
-    ]);
-  });
-
-  it('scopes the distribution to a supervising user via ?userId', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const UserModel = db.model('User', UserSchema);
-    await UserModel.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(student._id) },
-      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
+    await updateStudentApplications(
+      mockReq({
+        user: admin,
+        params: { studentId },
+        body: { applications: [], applying_program_count: '7' }
+      }),
+      res,
+      jest.fn()
     );
 
-    const mine = await requestWithSupertest
-      .get(`/api/applications/distribution?userId=${agent._id}`)
-      .set('tenantId', TENANT_ID);
-    const other = await requestWithSupertest
-      .get(`/api/applications/distribution?userId=${student2._id}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(mine.status).toBe(200);
-    expect(mine.body.data).toHaveLength(3);
-    // A user who supervises nobody gets an empty distribution.
-    expect(other.body.data).toEqual([]);
-  });
-
-  it('returns distinct programs for the update-status tabs', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/applications/program-update-status')
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-    // 3 distinct programs, sorted by school (Aalto, Berlin, Cologne).
-    expect(resp.body.data.map((p) => p.program_name)).toEqual([
-      'Alpha Program',
-      'Beta Program',
-      'Gamma Program'
-    ]);
-    expect(resp.body.data[0]).toMatchObject({
-      school: 'Aalto University',
-      semester: 'WS'
+    expect(StudentService.updateStudentById).toHaveBeenCalledWith(studentId, {
+      applying_program_count: 7
     });
-
-    // decided=O matches all three (all apps are decided 'O'); decided=X none.
-    const decided = await requestWithSupertest
-      .get('/api/applications/program-update-status?decided=O')
-      .set('tenantId', TENANT_ID);
-    const none = await requestWithSupertest
-      .get('/api/applications/program-update-status?decided=X')
-      .set('tenantId', TENANT_ID);
-
-    expect(decided.body.data).toHaveLength(3);
-    expect(none.body.data).toEqual([]);
+    expect(res.status).toHaveBeenCalledWith(201);
   });
+});
 
-  it('returns aggregated application stats for a supervising user', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const UserModel = db.model('User', UserSchema);
-    await UserModel.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(student._id) },
-      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
+describe('updateApplication', () => {
+  it('200: forwards the application id filter + payload and returns the updated application', async () => {
+    const application = { _id: 'app1', decided: 'O' };
+    ApplicationService.updateApplication.mockResolvedValue(application);
+    const res = mockRes();
+
+    await updateApplication(
+      mockReq({ params: { application_id: 'app1' }, body: { decided: 'O' } }),
+      res,
+      jest.fn()
     );
 
-    const resp = await requestWithSupertest
-      .get(`/api/applications/taiger-user/${agent._id}/stats`)
-      .set('tenantId', TENANT_ID);
+    expect(ApplicationService.updateApplication).toHaveBeenCalledWith(
+      { _id: 'app1' },
+      { decided: 'O' }
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: application });
+  });
+});
 
-    expect(resp.status).toBe(200);
-    // student owns 3 apps, all decided 'O', closed '-'.
-    expect(resp.body.data.stats).toMatchObject({
-      totalStudents: 1,
-      totalApplications: 3,
-      decidedYesApplications: 3,
-      decidedNoApplications: 0,
-      undecidedApplications: 0,
-      submittedApplications: 0,
-      pendingApplications: 3
-    });
-    expect(resp.body.data.user._id.toString()).toBe(agent._id.toString());
+describe('deleteApplication', () => {
+  it('200: forwards the application id and reports success', async () => {
+    ApplicationService.deleteApplication.mockResolvedValue(undefined);
+    const res = mockRes();
+
+    await deleteApplication(
+      mockReq({ params: { application_id: 'app1' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(ApplicationService.deleteApplication).toHaveBeenCalledWith('app1');
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('thread not empty');
+    ApplicationService.deleteApplication.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await deleteApplication(
+      mockReq({ params: { application_id: 'app1' } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
+  });
+});
+
+describe('refreshApplication', () => {
+  it('200: unlocks the application and returns it via res.json', async () => {
+    const updated = { _id: 'app1', isLocked: false };
+    ApplicationService.unlockApplication.mockResolvedValue(updated);
+    const res = mockRes();
+
+    await refreshApplication(
+      mockReq({ params: { applicationId: 'app1' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(ApplicationService.unlockApplication).toHaveBeenCalledWith('app1');
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: updated });
+  });
+
+  it('404: responds not found (via res.json) when the application is missing', async () => {
+    ApplicationService.unlockApplication.mockResolvedValue(null);
+    const res = mockRes();
+
+    await refreshApplication(
+      mockReq({ params: { applicationId: 'missing' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
   });
 });

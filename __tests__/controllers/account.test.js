@@ -1,627 +1,270 @@
-const request = require('supertest');
+// Controller UNIT test for controllers/account.
+//
+// The account handlers are plain (req, res, next) functions (wrapped by
+// asyncHandler), so we call them DIRECTLY with fake req/res/next and a mocked
+// UserService + mocked email side-effect. No route, no middleware, no database.
+// We assert ONLY the controller's own work: the args it forwards to the
+// service, the status + body it writes, and that a service error is forwarded
+// to next(). Route + middleware wiring (and the real Mongoose document
+// manipulation in updateAcademicBackground / updateLanguageSkill) is covered by
+// __tests__/integration/account.test.js.
 
-const { connect, closeDatabase, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { programSchema } = require('../../models/Program');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { program1 } = require('../mock/programs');
-const { users, student } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
+jest.mock('../../services/users');
+jest.mock('../../services/email');
 
-const requestWithSupertest = request(app);
+const UserService = require('../../services/users');
+const { updateCredentialsEmail } = require('../../services/email');
+const {
+  updateOfficehours,
+  updateCredentials,
+  updateAcademicBackground,
+  updateLanguageSkill,
+  updateApplicationPreferenceSkill,
+  updatePersonalData
+} = require('../../controllers/account');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { student, agent } = require('../mock/user');
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
+const studentId = student._id.toString();
 
+// A minimal Mongoose-document double for the handlers that mutate a student doc
+// (academic background / language). `profile` is a real array (so find/push
+// work) augmented with a `.create()` factory and the doc carries a `.save()`.
+const makeStudentDoc = (overrides = {}) => {
+  const profile = [];
+  profile.create = (fields) => ({ ...fields });
   return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
+    profile,
+    academic_background: {
+      university: { isGraduated: 'No', high_school_isGraduated: 'pending' },
+      language: {
+        german_isPassed: '-',
+        english_isPassed: '-',
+        gre_isPassed: '-',
+        gmat_isPassed: '-'
+      }
+    },
+    save: jest.fn().mockResolvedValue(undefined),
+    ...overrides
   };
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    localAuth: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const ProgramModel = db.model('Program', programSchema);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-  await ProgramModel.deleteMany();
-  await ProgramModel.create(program1);
-
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = student;
-    next();
-  });
-});
-
-describe('updateCredentials Controller', () => {
-  it('should update the user password and send an email', async () => {
-    const resp = await requestWithSupertest
-      .post('/api/account/credentials')
-      .set('tenantId', TENANT_ID)
-      .send({
-        credentials: {
-          new_password: 'somepassword'
-        }
-      });
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toEqual(true);
-  });
-
-  it('should return an error if the user is not found', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = { _id: '012345678901234567891234' };
-      next();
+describe('updateCredentials', () => {
+  it('updates the user password and responds 200 (then sends the email)', async () => {
+    UserService.updateUser.mockResolvedValue({ _id: studentId });
+    updateCredentialsEmail.mockResolvedValue(undefined);
+    const req = mockReq({
+      user: student,
+      body: { credentials: { new_password: 'somepassword' } }
     });
-    const resp = await requestWithSupertest
-      .post('/api/account/credentials')
-      .set('tenantId', TENANT_ID)
-      .send({
-        credentials: {
-          new_password: 'somepassword'
-        }
-      });
+    const res = mockRes();
 
-    expect(resp.status).toBe(400);
-    expect(resp.body.success).toEqual(false);
+    await updateCredentials(req, res, jest.fn());
+
+    expect(UserService.updateUser).toHaveBeenCalledWith(studentId, {
+      password: 'somepassword'
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+    expect(updateCredentialsEmail).toHaveBeenCalledTimes(1);
   });
-});
 
-// user: Editor
-// describe('POST /api/account/files/programspecific/upload/:studentId/:applicationId/:fileCategory', () => {
-//   const { _id: studentId } = student;
-//   var docName = requiredDocuments[0];
-//   const filename = 'my-file.pdf'; // will be overwrite to docName
-//   const fileCategory = 'ML';
-//   var whoupdate = 'Editor';
-//   let version_number_max = 0;
-//   let temp_name;
-//   let db_file_name;
-//   var applicationIds;
-//   var applicationId;
-//   var file_name_inDB;
-//   var r = /\d+/; //number pattern
-//   beforeEach(async () => {
-//     protect.mockImplementation(async (req, res, next) => {
-//       req.user = await User.findById(editor._id);
-//       next();
-//     });
-
-//     const resp = await requestWithSupertest
-//       .post(`/api/students/${studentId}/applications`)
-//       .send({ program_id_set: [program._id] });
-
-//     applicationIds = resp.body.data;
-//     applicationId = applicationIds[0];
-//   });
-
-// it.each([
-//   ['my-file.exe', 400, false],
-//   ['my-file.pdf', 201, true]
-// ])(
-//   'should return 400 when program specific file type not .pdf .png, .jpg and .jpeg .docx %p %p %p',
-//   async (File_Name, status, success) => {
-//     const buffer_1MB_exe = Buffer.alloc(1024 * 1024 * 1); // 1 MB
-//     const resp2 = await requestWithSupertest
-//       .post(
-//         `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
-//       )
-//       .attach('file', buffer_1MB_exe, File_Name);
-
-//     expect(resp2.status).toBe(status);
-//     expect(resp2.body.success).toBe(success);
-//   }
-// );
-
-// it('should return 400 when program specific file size (ML, Essay) over 5 MB', async () => {
-//   const buffer_6MB = Buffer.alloc(1024 * 1024 * 6); // 6 MB
-//   const resp2 = await requestWithSupertest
-//     .post(
-//       `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
-//     )
-//     .attach('file', buffer_6MB, filename);
-
-//   expect(resp2.status).toBe(400);
-//   expect(resp2.body.success).toBe(false);
-// });
-
-// it('should save the uploaded program specific file and store the path in db', async () => {
-//   const resp = await requestWithSupertest
-//     .post(
-//       `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
-//     )
-//     .attach('file', Buffer.from('Lorem ipsum'), filename);
-
-//   const { status, body } = resp;
-//   expect(status).toBe(201);
-//   expect(body.success).toBe(true);
-
-// const resp_dup = await requestWithSupertest
-//   .post(
-//     `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
-//   )
-//   .attach("file", Buffer.from("Lorem ipsum"), filename);
-// expect(resp_dup.status).toBe(201);
-// expect(resp_dup.body.success).toBe(true);
-
-// // test delete first
-// const resp4 = await requestWithSupertest.delete(
-//   `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
-// );
-// expect(resp4.status).toBe(200);
-// expect(resp4.body.success).toBe(true);
-
-// var updatedStudent = await Student.findById(studentId)
-//   .lean()
-//   .exec();
-// var application = updatedStudent.applications.find(
-//   ({ programId }) => programId._id == applicationId
-// );
-
-// application.documents.forEach((editoroutput) => {
-//   if (editoroutput.name.includes(fileCategory)) {
-//     if (
-//       editoroutput.name.match(r) !== null &&
-//       editoroutput.name.match(r)[0] > version_number_max
-//     ) {
-//       version_number_max = editoroutput.name.match(r)[0]; // get the max version number
-//     }
-//   }
-// });
-
-// let version_number = version_number_max;
-// var same_file_name = true;
-// while (same_file_name) {
-//   temp_name =
-//     student.lastname +
-//     '_' +
-//     student.firstname +
-//     '_' +
-//     application.programId.school +
-//     '_' +
-//     application.programId.program_name +
-//     '_' +
-//     fileCategory +
-//     '_v' +
-//     version_number +
-//     `${path.extname(filename)}`;
-//   temp_name = temp_name.replace(/ /g, '_');
-
-// }
-
-//     const doc_idx = application.documents.findIndex(({ name }) =>
-//       // name.includes(version_number.toString())
-//       name.includes(db_file_name)
-//     );
-
-//     file_name_inDB = path.basename(application.documents[doc_idx].path);
-//     expect(file_name_inDB).toBe(db_file_name);
-
-//     // Test Download:
-//     const resp2 = await requestWithSupertest
-//       .get(
-//         `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
-//       )
-//       .buffer();
-
-//     expect(resp2.status).toBe(200);
-//     expect(resp2.headers['content-disposition']).toEqual(
-//       `attachment; filename="${temp_name}"`
-//     );
-
-//     // Mark as final documents
-//     const resp6 = await requestWithSupertest.put(
-//       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
-//     );
-//     expect(resp6.status).toBe(201);
-//     expect(resp6.body.success).toBe(true);
-
-//     // test download: should return 400 with invalid applicationId
-//     const invalidApplicationId = 'invalidapplicationID';
-//     const resp3 = await requestWithSupertest
-//       .get(
-//         `/api/account/files/programspecific/${studentId}/${invalidApplicationId}/${whoupdate}/${temp_name}`
-//       )
-//       .buffer();
-
-//     expect(resp3.status).toBe(400);
-//     expect(resp3.body.success).toBe(false);
-
-//     // test delete
-//     const resp4 = await requestWithSupertest.delete(
-//       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
-//     );
-//     expect(resp4.status).toBe(200);
-//     expect(resp4.body.success).toBe(true);
-//   });
-// });
-
-// user: Student
-// describe('POST /api/account/files/programspecific/upload/:studentId/:applicationId/:fileCategory', () => {
-//   const { _id: studentId } = student;
-//   const { _id: student2Id } = student2;
-//   var docName = requiredDocuments[0];
-//   const filename = 'my-file.pdf'; // will be overwrite to docName
-//   const fileCategory = 'ML';
-//   let version_number_max = 0;
-//   var r = /\d+/; //number pattern
-//   var whoupdate = 'Student';
-//   let temp_name;
-//   let db_file_name;
-//   var applicationIds;
-//   var applicationId;
-//   var file_name_inDB;
-//   beforeEach(async () => {
-//     protect.mockImplementation(async (req, res, next) => {
-//       req.user = await User.findById(student._id);
-//       next();
-//     });
-
-//     const resp = await requestWithSupertest
-//       .post(`/api/students/${studentId}/applications`)
-//       .send({ program_id_set: [program._id] });
-
-//     applicationIds = resp.body.data;
-//     applicationId = applicationIds[0];
-//   });
-
-// it.each([
-//   ['my-file.exe', 400, false],
-//   ['my-file.pdf', 201, true]
-// ])(
-//   'should return 400 when program specific file type not .pdf .png, .jpg and .jpeg .docx %p %p %p',
-//   async (File_Name, status, success) => {
-//     const buffer_1MB_exe = Buffer.alloc(1024 * 1024 * 1); // 1 MB
-//     const resp2 = await requestWithSupertest
-//       .post(
-//         `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
-//       )
-//       .attach('file', buffer_1MB_exe, File_Name);
-
-//     expect(resp2.status).toBe(status);
-//     expect(resp2.body.success).toBe(success);
-//   }
-// );
-
-// it('should return 400 when program specific file size (ML, Essay) over 5 MB', async () => {
-//   const buffer_6MB = Buffer.alloc(1024 * 1024 * 6); // 6 MB
-//   const resp2 = await requestWithSupertest
-//     .post(
-//       `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
-//     )
-//     .attach('file', buffer_6MB, filename);
-
-//   expect(resp2.status).toBe(400);
-//   expect(resp2.body.success).toBe(false);
-// });
-
-//   it('should save the uploaded program specific file and store the path in db', async () => {
-//     const resp = await requestWithSupertest
-//       .post(
-//         `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
-//       )
-//       .attach('file', Buffer.from('Lorem ipsum'), filename);
-
-//     const { status, body } = resp;
-//     expect(status).toBe(201);
-//     expect(body.success).toBe(true);
-
-//     // const resp_dup = await requestWithSupertest
-//     //   .post(
-//     //     `/api/account/files/programspecific/upload/${studentId}/${applicationId}/${fileCategory}`
-//     //   )
-//     //   .attach("file", Buffer.from("Lorem ipsum"), filename);
-
-//     // expect(resp_dup.status).toBe(201);
-//     // expect(resp_dup.body.success).toBe(true);
-
-//     var updatedStudent = await Student.findById(studentId)
-//       .lean()
-//       .exec();
-//     var application = updatedStudent.applications.find(
-//       ({ programId }) => programId._id == applicationId
-//     );
-
-//     let version_number = version_number_max;
-//     var same_file_name = true;
-//     while (same_file_name) {
-//       temp_name =
-//         student.lastname +
-//         '_' +
-//         student.firstname +
-//         '_' +
-//         application.programId.school +
-//         '_' +
-//         application.programId.program_name +
-//         '_' +
-//         fileCategory +
-//         '_v' +
-//         version_number +
-//         `${path.extname(filename)}`;
-//       temp_name = temp_name.replace(/ /g, '_');
-
-//     }
-
-//     // Test Download:
-//     const resp2 = await requestWithSupertest
-//       .get(
-//         `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
-//       )
-//       .buffer();
-//     expect(resp2.status).toBe(200);
-//     expect(resp2.headers['content-disposition']).toEqual(
-//       `attachment; filename="${temp_name}"`
-//     );
-
-//     // test download: should return 400 with invalid applicationId
-//     const invalidApplicationId = 'invalidapplicationID';
-//     const resp3 = await requestWithSupertest
-//       .get(
-//         `/api/account/files/programspecific/${studentId}/${invalidApplicationId}/${whoupdate}/${temp_name}`
-//       )
-//       .buffer();
-
-//     expect(resp3.status).toBe(400);
-//     expect(resp3.body.success).toBe(false);
-
-//     // Mark as final documents (Invalid operation for student)
-//     const resp6 = await requestWithSupertest.put(
-//       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
-//     );
-//     expect(resp6.status).toBe(401);
-//     expect(resp6.body.success).toBe(false);
-
-//     // test delete
-//     const resp4 = await requestWithSupertest.delete(
-//       `/api/account/files/programspecific/${studentId}/${applicationId}/${whoupdate}/${temp_name}`
-//     );
-//     expect(resp4.status).toBe(200);
-//     expect(resp4.body.success).toBe(true);
-
-//     // test delete: student can not delete other student's file
-//     const resp5 = await requestWithSupertest.delete(
-//       `/api/account/files/programspecific/${student2Id}/${applicationId}/${whoupdate}/${temp_name}`
-//     );
-//     expect(resp5.status).toBe(401);
-//     expect(resp5.body.success).toBe(false);
-//   });
-// });
-
-// uploading edutir general files like CV, RL_1, RL_2, by Editor (Admin, Agent)
-// describe('POST /api/account/files/general/upload/:studentId/:fileCategory', () => {
-//   const { _id: studentId } = student;
-//   var docName = requiredDocuments[0];
-//   const filename = 'my-file.pdf'; // will be overwrite to docName
-//   const filename_invalid_ext = 'invalid_extension.exe'; // will be overwrite to docName
-//   const fileCategory = 'CV';
-//   var whoupdate = 'Editor';
-//   var temp_name;
-//   var file_name_inDB;
-//   var messagesThreadId;
-//   var student_1;
-//   beforeEach(async () => {
-//     protect.mockImplementation(async (req, res, next) => {
-//       req.user = await User.findById(editor._id);
-//       next();
-//     });
-//     const resp22 = await requestWithSupertest.post(
-//       `/api/document-threads/init/general/${studentId}/${document_category}`
-//     );
-//     student_1 = resp22.body.data;
-//     messagesThreadId = student_1.generaldocs_threads[0].doc_thread_id;
-//   });
-
-//   it.each([
-//     ['my-file.exe', 400, false],
-//     ['my-file.pdf', 201, true]
-//   ])(
-//     'should return 400 when program specific file type not .pdf .png, .jpg and .jpeg .docx %p %p %p',
-//     async (File_Name, status, success) => {
-//       const buffer_1MB_exe = Buffer.alloc(1024 * 1024 * 1); // 1 MB
-//       const resp2 = await requestWithSupertest
-//         .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
-//         .attach('file', buffer_1MB_exe, File_Name);
-
-//       expect(resp2.status).toBe(status);
-//       expect(resp2.body.success).toBe(success);
-//     }
-//   );
-//   it('should return 400 when editor general file (CV, RL) size over 5 MB', async () => {
-//     const buffer_6MB = Buffer.alloc(1024 * 1024 * 6); // 6 MB
-//     const resp2 = await requestWithSupertest
-//       .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
-//       .attach('file', buffer_6MB, filename);
-
-//     expect(resp2.status).toBe(400);
-//     expect(resp2.body.success).toBe(false);
-//   });
-
-//   it('should save the uploaded general CV,RL files and store the path in db', async () => {
-//     const resp = await requestWithSupertest
-//       .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
-//       .attach('file', Buffer.from('Lorem ipsum'), filename);
-
-//     const { status, body } = resp;
-//     expect(status).toBe(201);
-//     expect(body.success).toBe(true);
-
-//     var updatedStudent = await Student.findById(studentId)
-//       .lean()
-//       .exec();
-
-//     // Test Download:
-
-//     const resp3 = await requestWithSupertest
-//       .get(`/api/account/files/general/${studentId}/${whoupdate}/${temp_name}`)
-//       .buffer();
-
-//     expect(resp3.status).toBe(200);
-//     expect(resp3.headers['content-disposition']).toEqual(
-//       `attachment; filename="${temp_name}"`
-//     );
-
-//     var updated2Student = await Student.findById(studentId)
-//       .lean()
-//       .exec();
-
-//     // Mark as final documents
-//     const resp6 = await requestWithSupertest.put(
-//       `/api/account/files/general/${studentId}/${whoupdate}/${temp_name}`
-//     );
-//     expect(resp6.status).toBe(201);
-//     expect(resp6.body.success).toBe(true);
-//     //TODO: check if it is really flagged with final: true
-
-//     // test delete
-//     const resp4 = await requestWithSupertest.delete(
-//       `/api/account/files/general/${studentId}/${whoupdate}/${temp_name}`
-//     );
-//     expect(resp4.status).toBe(200);
-//     expect(resp4.body.success).toBe(true);
-//   });
-// });
-
-describe('POST /api/account/profile/:user_id', () => {
-  const personaldata = { firstname: 'New_FirstName', lastname: 'New_LastName' };
-
-  it('should update personal data', async () => {
-    const resp = await requestWithSupertest
-      .post(`/api/account/profile/${student._id.toString()}`)
-      .set('tenantId', TENANT_ID)
-      .send({ personaldata });
-    const { status, body } = resp;
-    expect(status).toBe(200);
-    expect(body.success).toBe(true);
-    // expect(body.data).toMatchObject({
-    //   firstname: 'New_FirstName',
-    //   lastname: 'New_LastName'
-    // });
-  });
-});
-
-describe('POST /api/account/survey/language', () => {
-  const language = {
-    english_certificate: 'TOEFL',
-    english_score: '95',
-    english_test_date: '',
-    german_certificate: '',
-    german_score: '',
-    german_test_date: ''
-  };
-
-  it('should update language status', async () => {
-    const resp = await requestWithSupertest
-      .post(`/api/account/survey/language/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({ language });
-    const { status, body } = resp;
-    expect(status).toBe(200);
-    expect(body.success).toBe(true);
-    // expect(body.data).toMatchObject(language_obj);
-    expect(body.data.english_certificate).toBe(language.english_certificate);
-    expect(body.data.english_score).toBe(language.english_score);
-    expect(body.data.english_test_date).toBe(language.english_test_date);
-    expect(body.data.german_certificate).toBe(language.german_certificate);
-    expect(body.data.german_score).toBe(language.german_score);
-    expect(body.data.german_test_date).toBe(language.german_test_date);
-  });
-});
-
-describe('POST /api/account/survey/university', () => {
-  const university = {
-    attended_university: 'National Chiao Tung University',
-    attended_university_program: 'Electronics Engineering',
-    isGraduated: 'No'
-  };
-
-  it('should update university (academic background) ', async () => {
-    const resp = await requestWithSupertest
-      .post(`/api/account/survey/university/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({ university });
-    const { status, body } = resp;
-
-    expect(status).toBe(200);
-
-    expect(body.success).toBe(true);
-    expect(body.data.attended_university).toBe(university.attended_university);
-    expect(body.data.attended_university_program).toBe(
-      university.attended_university_program
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    UserService.updateUser.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await updateCredentials(
+      mockReq({
+        user: student,
+        body: { credentials: { new_password: 'x' } }
+      }),
+      mockRes(),
+      next
     );
-    expect(body.data.isGraduated).toBe(university.isGraduated);
 
-    const resp2 = await requestWithSupertest
-      .get('/api/account/survey')
-      .set('tenantId', TENANT_ID);
-    const university_body = resp2.body.data;
-    expect(
-      university_body.academic_background.university.attended_university
-    ).toBe(university.attended_university);
-    expect(
-      university_body.academic_background.university.attended_university_program
-    ).toBe(university.attended_university_program);
-    expect(university_body.academic_background.university.isGraduated).toBe(
-      university.isGraduated
+    expect(next).toHaveBeenCalledWith(err);
+  });
+});
+
+describe('updateOfficehours', () => {
+  it('updates officehours + timezone and responds 200', async () => {
+    UserService.updateUser.mockResolvedValue({ _id: agent._id.toString() });
+    const req = mockReq({
+      user: agent,
+      body: { officehours: { mon: '9-5' }, timezone: 'UTC' }
+    });
+    const res = mockRes();
+
+    await updateOfficehours(req, res, jest.fn());
+
+    expect(UserService.updateUser).toHaveBeenCalledWith(agent._id.toString(), {
+      officehours: { mon: '9-5' },
+      timezone: 'UTC'
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    UserService.updateUser.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await updateOfficehours(
+      mockReq({ user: agent, body: { officehours: {}, timezone: 'UTC' } }),
+      mockRes(),
+      next
     );
+
+    expect(next).toHaveBeenCalledWith(err);
+  });
+});
+
+describe('updateApplicationPreferenceSkill', () => {
+  it('updates application_preference and responds 200 with the saved preference', async () => {
+    const application_preference = { target_degree: 'MSc' };
+    UserService.updateUser.mockResolvedValue({ application_preference });
+    const req = mockReq({
+      params: { studentId },
+      body: { application_preference }
+    });
+    const res = mockRes();
+
+    await updateApplicationPreferenceSkill(req, res, jest.fn());
+
+    expect(UserService.updateUser).toHaveBeenCalledWith(
+      studentId,
+      expect.objectContaining({
+        application_preference: expect.objectContaining({
+          target_degree: 'MSc'
+        })
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: application_preference
+    });
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    UserService.updateUser.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await updateApplicationPreferenceSkill(
+      mockReq({ params: { studentId }, body: { application_preference: {} } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
+  });
+});
+
+describe('updatePersonalData', () => {
+  it('updates the user and responds 200 with the whitelisted profile fields', async () => {
+    const updated = {
+      firstname: 'New_FirstName',
+      firstname_chinese: '',
+      lastname: 'New_LastName',
+      lastname_chinese: '',
+      birthday: '',
+      linkedIn: '',
+      lineId: '',
+      slackId: '',
+      // a field the controller must NOT echo back
+      password: 'secret'
+    };
+    UserService.updateUser.mockResolvedValue(updated);
+    const req = mockReq({
+      params: { user_id: studentId },
+      body: { personaldata: { firstname: 'New_FirstName' } }
+    });
+    const res = mockRes();
+
+    await updatePersonalData(req, res, jest.fn());
+
+    expect(UserService.updateUser).toHaveBeenCalledWith(studentId, {
+      firstname: 'New_FirstName'
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.firstname).toBe('New_FirstName');
+    expect(body.data.lastname).toBe('New_LastName');
+    expect(body.data).not.toHaveProperty('password');
+  });
+});
+
+describe('updateAcademicBackground', () => {
+  it('persists the university block and responds 200 with the university data', async () => {
+    const doc = makeStudentDoc();
+    UserService.updateUserDoc.mockResolvedValue(doc);
+    const university = { attended_university: '  National   Chiao Tung  ' };
+    const req = mockReq({ params: { studentId }, body: { university } });
+    const res = mockRes();
+
+    await updateAcademicBackground(req, res, jest.fn());
+
+    // updateUserDoc is called with the nested academic_background path.
+    expect(UserService.updateUserDoc).toHaveBeenCalledWith(
+      studentId,
+      expect.objectContaining({
+        'academic_background.university': expect.any(Object)
+      }),
+      { new: true }
+    );
+    // Name is normalized (collapsed whitespace + trimmed).
+    expect(university.attended_university).toBe('National Chiao Tung');
+    expect(doc.save).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data).toBe(university);
+  });
+});
+
+describe('updateLanguageSkill', () => {
+  it('persists the language block and responds 200 with the saved language', async () => {
+    const doc = makeStudentDoc();
+    UserService.updateUserDoc.mockResolvedValue(doc);
+    const language = { english_certificate: 'TOEFL', english_score: '95' };
+    const req = mockReq({ params: { studentId }, body: { language } });
+    const res = mockRes();
+
+    await updateLanguageSkill(req, res, jest.fn());
+
+    expect(UserService.updateUserDoc).toHaveBeenCalledWith(
+      studentId,
+      expect.objectContaining({
+        'academic_background.language': expect.any(Object)
+      }),
+      { upsert: true, new: true }
+    );
+    expect(doc.save).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data).toBe(doc.academic_background.language);
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    UserService.updateUserDoc.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await updateLanguageSkill(
+      mockReq({ params: { studentId }, body: { language: {} } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });

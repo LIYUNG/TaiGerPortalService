@@ -1,209 +1,356 @@
-const request = require('supertest');
+// Controller UNIT test for controllers/users.
+//
+// users is a broad controller: list/paginate/count/overview/add/update/archive/
+// delete. The handlers are plain (req, res, next) functions (wrapped by
+// asyncHandler), so we call them DIRECTLY with fake req/res/next and a MOCKED
+// service layer (UserService + TokenService) plus the side-effect deps (email,
+// audit, S3 cleanup). No route, no middleware, no supertest, no database. We
+// assert ONLY the controller's own work: args forwarded to the services, the
+// branching it does, the status + body written to res, and error forwarding to
+// next(). Full-stack coverage (a couple of endpoints end to end) lives in
+// __tests__/integration/users.test.js.
+
+jest.mock('../../services/users');
+jest.mock('../../services/tokens');
+jest.mock('../../services/email', () => ({
+  ...jest.requireActual('../../services/email'),
+  sendInvitationEmail: jest.fn().mockResolvedValue(undefined),
+  updateNotificationEmail: jest.fn().mockResolvedValue(undefined)
+}));
+// deleteUser empties an S3 directory for student/guest deletes — stub it out so
+// no real S3 client is built.
+jest.mock('../../utils/modelHelper/versionControl', () => ({
+  ...jest.requireActual('../../utils/modelHelper/versionControl'),
+  emptyS3Directory: jest.fn().mockResolvedValue(undefined)
+}));
+
 const { Role } = require('@taiger-common/core');
+const UserService = require('../../services/users');
+const TokenService = require('../../services/tokens');
+const {
+  getUsersCount,
+  addUser,
+  getUsers,
+  getUser,
+  updateUserArchivStatus,
+  updateUser,
+  deleteUser,
+  getUsersOverview
+} = require('../../controllers/users');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { admin } = require('../mock/user');
 
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { User, UserSchema } = require('../../models/User');
-const { generateUser } = require('../fixtures/faker');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { disconnectFromDatabase } = require('../../database');
-
-const requestWithSupertest = request(app);
-
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+describe('getUsers', () => {
+  it('returns the unpaginated list when page/limit are absent', async () => {
+    const list = [{ _id: 'u1' }, { _id: 'u2' }];
+    UserService.getUsers.mockResolvedValue(list);
+    const res = mockRes();
 
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
+    await getUsers(mockReq({ user: admin, query: {} }), res, jest.fn());
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-const admins = [...Array(2)].map(() => generateUser(Role.Admin));
-const agents = [...Array(3)].map(() => generateUser(Role.Agent));
-const editors = [...Array(3)].map(() => generateUser(Role.Editor));
-const students = [...Array(5)].map(() => generateUser(Role.Student));
-const guests = [...Array(5)].map(() => generateUser(Role.Guest));
-const users = [...admins, ...agents, ...editors, ...students, ...guests];
-
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.models.User || db.model('User', UserSchema);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-describe('GET /api/users', () => {
-  protect.mockImplementation(async (req, res, next) => {
-    // req.user = await User.findById(agentId);
-    const admin = admins[0];
-    req.user = admin;
-    next();
+    expect(UserService.getUsersPaginated).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: list });
   });
 
-  it('should return all users', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/users')
-      .set('tenantId', TENANT_ID);
-    const { success, data } = resp.body;
+  it('forwards the role filter to the service', async () => {
+    UserService.getUsers.mockResolvedValue([]);
 
-    expect(resp.status).toBe(200);
-    expect(success).toBe(true);
-    expect(data).toEqual(expect.any(Array));
-    expect(data.length).toBe(users.length);
+    await getUsers(
+      mockReq({ user: admin, query: { role: 'Agent' } }),
+      mockRes(),
+      jest.fn()
+    );
+
+    const [filter] = UserService.getUsers.mock.calls[0];
+    expect(filter).toMatchObject({ role: 'Agent' });
   });
 
-  it('should return paginated users', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/users?page=1&limit=5')
-      .set('tenantId', TENANT_ID);
-    const { success, data, total, page, limit } = resp.body;
-
-    expect(resp.status).toBe(200);
-    expect(success).toBe(true);
-    expect(data.length).toBe(5);
-    expect(total).toBe(users.length);
-    expect(page).toBe(1);
-    expect(limit).toBe(5);
-  });
-
-  it('should filter paginated users by search', async () => {
-    const targetUser = agents[0];
-    const resp = await requestWithSupertest
-      .get(
-        `/api/users?page=1&limit=20&search=${encodeURIComponent(
-          targetUser.firstname
-        )}`
-      )
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.total).toBeGreaterThanOrEqual(1);
-    expect(
-      resp.body.data.some(
-        (user) => user._id.toString() === targetUser._id.toString()
-      )
-    ).toBe(true);
-  });
-});
-
-// TODO: move below to their own files?
-describe('GET /api/users?role=Agent', () => {
-  it('should return all agents', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/users?role=Agent')
-      .set('tenantId', TENANT_ID);
-    const { success, data } = resp.body;
-
-    const agentIds = agents.map(({ _id }) => _id).sort();
-    const receivedIds = data.map(({ _id }) => _id).sort();
-
-    expect(resp.status).toBe(200);
-    expect(success).toBe(true);
-    expect(receivedIds).toEqual(agentIds);
-  });
-});
-
-describe('GET /api/users?role=Editor', () => {
-  it('should return all editor users', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/users?role=Editor')
-      .set('tenantId', TENANT_ID);
-    const { success, data } = resp.body;
-
-    const editorIds = editors.map(({ _id }) => _id).sort();
-    const receivedIds = data.map(({ _id }) => _id).sort();
-
-    expect(resp.status).toBe(200);
-    expect(success).toBe(true);
-    expect(receivedIds).toEqual(editorIds);
-  });
-});
-
-describe('POST /api/users/:id', () => {
-  it('should update user role', async () => {
-    const { _id } = users[3];
-    const { email, role } = generateUser(Role.Editor);
-
-    const resp = await requestWithSupertest
-      .post(`/api/users/${_id}`)
-      .set('tenantId', TENANT_ID)
-      .send({ email, role });
-    const { success, data } = resp.body;
-
-    expect(resp.status).toBe(200);
-    expect(success).toBe(true);
-    expect(data).toMatchObject({
-      role: Role.Editor,
-      email
+  it('returns a paginated payload when page/limit are present', async () => {
+    UserService.parseUsersPaginationQuery.mockReturnValue({
+      page: 1,
+      limit: 5
     });
+    UserService.getUsersPaginated.mockResolvedValue({
+      users: [{ _id: 'u1' }],
+      total: 11,
+      page: 1,
+      limit: 5
+    });
+    const res = mockRes();
 
-    const updatedUser = await User.findById(_id);
-    expect(updatedUser).toMatchObject({
-      role: Role.Editor,
-      email
+    await getUsers(
+      mockReq({ user: admin, query: { page: '1', limit: '5' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(UserService.getUsersPaginated).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [{ _id: 'u1' }],
+      total: 11,
+      page: 1,
+      limit: 5
     });
   });
 
-  it('should not update Admin role', async () => {
-    const { _id } = users[5];
-    const { email, role } = generateUser(Role.Admin);
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    UserService.getUsers.mockRejectedValue(err);
+    const next = jest.fn();
 
-    const resp = await requestWithSupertest
-      .post(`/api/users/${_id}`)
-      .set('tenantId', TENANT_ID)
-      .send({ email, role });
-    const { success } = resp.body;
+    await getUsers(mockReq({ user: admin, query: {} }), mockRes(), next);
 
-    expect(resp.status).toBe(409);
-    expect(success).toBe(false);
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('DELETE /api/users/:id', () => {
-  it('should delete a user', async () => {
-    const { _id } = users[0];
+describe('getUsersCount', () => {
+  it('responds 200 with the role counts from the service', async () => {
+    const counts = { Admin: 2, Agent: 3 };
+    UserService.getUserRoleCounts.mockResolvedValue(counts);
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .delete(`/api/users/${_id}`)
-      .set('tenantId', TENANT_ID);
+    await getUsersCount(mockReq(), res, jest.fn());
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: counts });
+  });
+});
 
-    const deletedUser = await User.findById(_id);
-    expect(deletedUser).toBe(null);
+describe('getUser', () => {
+  it('responds 200 with the requested user and forwards req.params.user_id', async () => {
+    const found = { _id: 'u7', firstname: 'Joe' };
+    UserService.getUserById.mockResolvedValue(found);
+    const res = mockRes();
+
+    await getUser(mockReq({ params: { user_id: 'u7' } }), res, jest.fn());
+
+    expect(UserService.getUserById).toHaveBeenCalledWith('u7');
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: found });
+  });
+});
+
+describe('getUsersOverview', () => {
+  it('filters out null/missing keys and renames byUniversityProgram -> byUniversity', async () => {
+    UserService.getUsersOverview.mockResolvedValue({
+      byTargetDegree: [{ degree: 'MSc' }, { degree: null }],
+      byApplicationSemester: [{ semester: 'WS24' }, {}],
+      byTargetField: [{ field: 'CS' }],
+      byProgramLanguage: [{ language: 'English' }],
+      byUniversityProgram: [{ university: 'TUM' }]
+    });
+    const res = mockRes();
+
+    await getUsersOverview(mockReq(), res, jest.fn());
+
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.byTargetDegree).toEqual([{ degree: 'MSc' }]);
+    expect(body.data.byApplicationSemester).toEqual([{ semester: 'WS24' }]);
+    expect(body.data.byUniversity).toEqual([{ university: 'TUM' }]);
+  });
+});
+
+describe('addUser', () => {
+  it('creates a user + activation token and responds 201, then calls next() for the audit log', async () => {
+    UserService.getUserByEmail.mockResolvedValue(null);
+    UserService.createUser.mockResolvedValue({
+      _id: 'newId',
+      firstname: 'New',
+      lastname: 'User',
+      email: 'new@example.com'
+    });
+    TokenService.createToken.mockResolvedValue({});
+    UserService.getUsers.mockResolvedValue([{ _id: 'newId' }]);
+    const res = mockRes();
+    const next = jest.fn();
+
+    await addUser(
+      mockReq({
+        user: admin,
+        body: {
+          firstname: 'New',
+          lastname: 'User',
+          email: 'new@example.com',
+          role: Role.Editor
+        }
+      }),
+      res,
+      next
+    );
+
+    const [role] = UserService.createUser.mock.calls[0];
+    expect(role).toBe(Role.Editor);
+    expect(TokenService.createToken).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(201);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.newUser).toBe('newId');
+    // addUser hands off to the auditLog middleware via next().
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it('rejects (409) when the email already exists and never creates a user', async () => {
+    UserService.getUserByEmail.mockResolvedValue({ _id: 'exists' });
+    const next = jest.fn();
+
+    await addUser(
+      mockReq({
+        user: admin,
+        body: {
+          firstname: 'Dup',
+          lastname: 'User',
+          email: 'dup@example.com',
+          role: Role.Editor
+        }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(UserService.createUser).not.toHaveBeenCalled();
+    const err = next.mock.calls[0][0];
+    expect(err).toBeInstanceOf(Error);
+    expect(err.statusCode).toBe(409);
+  });
+
+  it('rejects (409) creating an Admin', async () => {
+    UserService.getUserByEmail.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await addUser(
+      mockReq({
+        user: admin,
+        body: {
+          firstname: 'Adm',
+          lastname: 'In',
+          email: 'admin2@example.com',
+          role: Role.Admin
+        }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(UserService.createUser).not.toHaveBeenCalled();
+    const err = next.mock.calls[0][0];
+    expect(err.statusCode).toBe(409);
+  });
+});
+
+describe('updateUser', () => {
+  it('updates role/email and responds 200 with the updated user', async () => {
+    UserService.updateUserWithOptions.mockResolvedValue({
+      _id: 'u3',
+      role: Role.Editor,
+      email: 'e@example.com'
+    });
+    UserService.getUserById.mockResolvedValue({
+      _id: 'u3',
+      firstname: 'E',
+      lastname: 'D',
+      email: 'e@example.com'
+    });
+    const res = mockRes();
+
+    await updateUser(
+      mockReq({
+        params: { user_id: 'u3' },
+        body: { email: 'e@example.com', role: Role.Editor }
+      }),
+      res,
+      jest.fn()
+    );
+
+    const [id, fields] = UserService.updateUserWithOptions.mock.calls[0];
+    expect(id).toBe('u3');
+    expect(fields).toEqual({ email: 'e@example.com', role: Role.Editor });
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.data).toMatchObject({ role: Role.Editor });
+  });
+
+  it('refuses (409) to promote a user to Admin and never touches the service', async () => {
+    const next = jest.fn();
+
+    await updateUser(
+      mockReq({
+        params: { user_id: 'u4' },
+        body: { email: 'a@example.com', role: Role.Admin }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(UserService.updateUserWithOptions).not.toHaveBeenCalled();
+    const err = next.mock.calls[0][0];
+    expect(err.statusCode).toBe(409);
+  });
+});
+
+describe('updateUserArchivStatus', () => {
+  it('archives the user and responds 200 with the refreshed list', async () => {
+    UserService.updateUserArchiv.mockResolvedValue({});
+    UserService.getUsers.mockResolvedValue([{ _id: 'u1' }]);
+    const res = mockRes();
+
+    await updateUserArchivStatus(
+      mockReq({ params: { user_id: 'u1' }, body: { isArchived: true } }),
+      res,
+      jest.fn()
+    );
+
+    expect(UserService.updateUserArchiv).toHaveBeenCalledWith('u1', true);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [{ _id: 'u1' }]
+    });
+  });
+});
+
+describe('deleteUser', () => {
+  it('Admin: deletes via deleteUserById', async () => {
+    UserService.getUserById.mockResolvedValue({ role: Role.Admin });
+    UserService.deleteUserById.mockResolvedValue({});
+    const res = mockRes();
+
+    await deleteUser(mockReq({ params: { user_id: 'u1' } }), res, jest.fn());
+
+    expect(UserService.deleteUserById).toHaveBeenCalledWith('u1');
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('Agent: pulls the staff member from students, then deletes', async () => {
+    UserService.getUserById.mockResolvedValue({ role: Role.Agent });
+    UserService.pullStaffFromStudents.mockResolvedValue([]);
+    UserService.deleteUserById.mockResolvedValue({});
+    const res = mockRes();
+
+    await deleteUser(mockReq({ params: { user_id: 'u2' } }), res, jest.fn());
+
+    expect(UserService.pullStaffFromStudents).toHaveBeenCalledWith('u2');
+    expect(UserService.deleteUserById).toHaveBeenCalledWith('u2');
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('Student: cascades the student delete', async () => {
+    UserService.getUserById.mockResolvedValue({ role: Role.Student });
+    UserService.deleteStudentCascade.mockResolvedValue({});
+    const res = mockRes();
+
+    await deleteUser(mockReq({ params: { user_id: 'u3' } }), res, jest.fn());
+
+    expect(UserService.deleteStudentCascade).toHaveBeenCalledWith('u3');
+    expect(res.status).toHaveBeenCalledWith(200);
   });
 });

@@ -1,69 +1,100 @@
-// DAO-level integration test for AllcourseDAO against the in-memory MongoDB.
-const { connect, clearDatabase } = require('../fixtures/db');
-const { Allcourse, User } = require('../../models');
+// AllcourseDAO unit tests — the DAO is a thin query-building layer over the
+// Allcourse model, so we mock the model entirely (NO database, in-memory or
+// otherwise). These assert that each DAO method forwards the right args to the
+// model and returns the model's result. Real query behaviour is covered by the
+// integration suite (__tests__/integration).
+jest.mock('../../models', () => {
+  const model = () => ({
+    find: jest.fn(),
+    findById: jest.fn(),
+    findByIdAndDelete: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
+    create: jest.fn()
+  });
+  return {
+    Allcourse: model()
+  };
+});
+
+const { Allcourse } = require('../../models');
 const AllcourseDAO = require('../../dao/allcourse.dao');
-const { disconnectFromDatabase } = require('../../database');
-const { TENANT_ID } = require('../fixtures/constants');
-const { users, admin } = require('../mock/user');
-const { generateAllCourse } = require('../fixtures/faker');
 
-beforeAll(async () => {
-  await connect();
+// A query chain whose terminal `.lean()` resolves to `value`. Intermediate
+// builder calls (populate) return the same chain so they compose.
+const leanChain = (value) => {
+  const chain = {
+    populate: jest.fn(() => chain),
+    lean: jest.fn().mockResolvedValue(value)
+  };
+  return chain;
+};
+
+// A chain that resolves directly via populate (no terminal `.lean()`); the
+// populate-returned thenable carries the value.
+const populateChain = (value) => {
+  const chain = {
+    populate: jest.fn(() => Promise.resolve(value))
+  };
+  return chain;
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+describe('AllcourseDAO (mocked models)', () => {
+  it('getAllcourses finds all, populates updatedBy and returns the lean docs', async () => {
+    const docs = [{ _id: 'c1' }];
+    Allcourse.find.mockReturnValue(leanChain(docs));
 
-beforeEach(async () => {
-  await Allcourse.deleteMany({});
-  await User.deleteMany({});
-  await User.insertMany(users);
-});
+    const result = await AllcourseDAO.getAllcourses();
 
-describe('AllcourseDAO (in-memory)', () => {
-  it('createAllcourse inserts and getAllcourses returns it', async () => {
-    await AllcourseDAO.createAllcourse(generateAllCourse());
-
-    const courses = await AllcourseDAO.getAllcourses();
-
-    expect(courses).toHaveLength(1);
+    expect(Allcourse.find).toHaveBeenCalledWith();
+    expect(result).toBe(docs);
   });
 
-  it('getAllcourseById returns the matching course', async () => {
-    const created = await AllcourseDAO.createAllcourse(generateAllCourse());
+  it('getAllcourseById queries by id and populates updatedBy', async () => {
+    const doc = { _id: 'c1' };
+    Allcourse.findById.mockReturnValue(populateChain(doc));
 
-    const found = await AllcourseDAO.getAllcourseById(created._id);
+    const found = await AllcourseDAO.getAllcourseById('c1');
 
-    expect(found._id.toString()).toBe(created._id.toString());
+    expect(Allcourse.findById).toHaveBeenCalledWith('c1');
+    expect(found).toBe(doc);
   });
 
-  it('updateAllcourseById applies the update and populates updatedBy', async () => {
-    const created = await AllcourseDAO.createAllcourse(generateAllCourse());
+  it('deleteAllcourseById deletes by id and returns the model result', async () => {
+    const deleted = { _id: 'c1' };
+    Allcourse.findByIdAndDelete.mockResolvedValue(deleted);
 
-    const updated = await AllcourseDAO.updateAllcourseById(created._id, {
-      all_course_english: 'Updated Name',
-      updatedBy: admin._id.toString()
+    const result = await AllcourseDAO.deleteAllcourseById('c1');
+
+    expect(Allcourse.findByIdAndDelete).toHaveBeenCalledWith('c1');
+    expect(result).toBe(deleted);
+  });
+
+  it('updateAllcourseById updates with new+runValidators and populates updatedBy', async () => {
+    const updated = { _id: 'c1', all_course_english: 'Updated Name' };
+    Allcourse.findByIdAndUpdate.mockReturnValue(populateChain(updated));
+
+    const payload = { all_course_english: 'Updated Name' };
+    const result = await AllcourseDAO.updateAllcourseById('c1', payload);
+
+    expect(Allcourse.findByIdAndUpdate).toHaveBeenCalledWith('c1', payload, {
+      new: true,
+      runValidators: true
     });
-
-    expect(updated.all_course_english).toBe('Updated Name');
-    expect(updated.updatedBy.firstname).toBe(admin.firstname);
+    expect(result).toBe(updated);
   });
 
-  it('deleteAllcourseById removes the record', async () => {
-    const created = await AllcourseDAO.createAllcourse(generateAllCourse());
+  it('createAllcourse forwards the payload to create and returns the doc', async () => {
+    const created = { _id: 'c1' };
+    Allcourse.create.mockResolvedValue(created);
 
-    await AllcourseDAO.deleteAllcourseById(created._id);
+    const payload = { all_course_english: 'New' };
+    const result = await AllcourseDAO.createAllcourse(payload);
 
-    expect(await Allcourse.countDocuments({})).toBe(0);
-  });
-
-  it('getAllcourseById returns null for a missing id', async () => {
-    const { ObjectId } = require('mongoose').Types;
-    const found = await AllcourseDAO.getAllcourseById(
-      new ObjectId().toHexString()
-    );
-    expect(found).toBeNull();
+    expect(Allcourse.create).toHaveBeenCalledWith(payload);
+    expect(result).toBe(created);
   });
 });

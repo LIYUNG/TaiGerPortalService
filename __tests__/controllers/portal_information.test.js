@@ -1,130 +1,142 @@
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough),
-    prohibit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
+// Controller UNIT test for controllers/portal_informations.
+//
+// The handlers are plain (req, res, next) functions (wrapped by asyncHandler),
+// so we call them DIRECTLY with fake req/res/next and the service layer
+// (StudentService/ApplicationService) mocked. No route, no middleware, no DB —
+// only the controller's own work: the args it forwards, the way it reshapes the
+// body into nested portal_credentials, the status + body it writes, and that a
+// service error / not-found is forwarded to next(). Full-stack coverage (route ->
+// service -> dao -> in-memory Mongo) lives in __tests__/integration/portal_information.test.js.
+
+jest.mock('../../services/students');
+jest.mock('../../services/applications');
+
+const StudentService = require('../../services/students');
+const ApplicationService = require('../../services/applications');
+const {
+  getPortalCredentials,
+  createPortalCredentials
+} = require('../../controllers/portal_informations');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { student } = require('../mock/user');
+
+const studentId = student._id.toString();
+const applicationId = '5f9f1b9b9c9d440000d1d1d1';
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-const request = require('supertest');
-const { ObjectId } = require('mongoose').Types;
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { applicationSchema } = require('../../models/Application');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, student } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
+describe('getPortalCredentials', () => {
+  it('responds 200 with the student projection + applications and forwards the studentId', async () => {
+    const theStudent = {
+      _id: student._id,
+      firstname: 'Stu',
+      lastname: 'Dent',
+      agents: ['a1'],
+      editors: ['e1'],
+      secret: 'should-not-leak'
+    };
+    StudentService.getStudentById.mockResolvedValue(theStudent);
+    const apps = [{ _id: applicationId, portal_credentials: {} }];
+    ApplicationService.getApplicationsWithCredentialsByStudentId.mockResolvedValue(
+      apps
+    );
+    const res = mockRes();
 
-const requestWithSupertest = request(app);
-let dbUri;
+    await getPortalCredentials(
+      mockReq({ params: { studentId } }),
+      res,
+      jest.fn()
+    );
 
-const applicationId = new ObjectId().toHexString();
-const testApplication = {
-  _id: applicationId,
-  studentId: student._id,
-  programId: new ObjectId().toHexString(),
-  decided: '-',
-  closed: '-',
-  doc_modification_thread: []
-};
+    expect(StudentService.getStudentById).toHaveBeenCalledWith(studentId);
+    expect(
+      ApplicationService.getApplicationsWithCredentialsByStudentId
+    ).toHaveBeenCalledWith(studentId);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.applications).toEqual(apps);
+    // Only the whitelisted student fields are returned.
+    expect(body.data.student).toEqual({
+      _id: student._id,
+      firstname: 'Stu',
+      lastname: 'Dent',
+      agents: ['a1'],
+      editors: ['e1']
+    });
+    expect(body.data.student.secret).toBeUndefined();
+  });
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const ApplicationModel = db.model('Application', applicationSchema);
-  await UserModel.deleteMany();
-  await ApplicationModel.deleteMany();
-  await UserModel.insertMany(users);
-  await ApplicationModel.insertMany([testApplication]);
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    StudentService.getStudentById.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getPortalCredentials(
+      mockReq({ params: { studentId } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('GET /api/portal-informations/:studentId', () => {
-  it('should respond without crash', async () => {
-    const resp = await requestWithSupertest
-      .get(`/api/portal-informations/${student._id}`)
-      .set('tenantId', TENANT_ID);
+describe('createPortalCredentials', () => {
+  it('maps the flat body into nested portal_credentials and responds with the updated application', async () => {
+    const updated = {
+      _id: applicationId,
+      portal_credentials: {
+        application_portal_a: { account: 'a', password: 'pa' },
+        application_portal_b: { account: 'b', password: 'pb' }
+      }
+    };
+    ApplicationService.updateApplication.mockResolvedValue(updated);
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
+    await createPortalCredentials(
+      mockReq({
+        params: { studentId, applicationId },
+        body: {
+          account_portal_a: 'a',
+          password_portal_a: 'pa',
+          account_portal_b: 'b',
+          password_portal_b: 'pb'
+        }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(ApplicationService.updateApplication).toHaveBeenCalledWith(
+      { _id: applicationId },
+      {
+        portal_credentials: {
+          application_portal_a: { account: 'a', password: 'pa' },
+          application_portal_b: { account: 'b', password: 'pb' }
+        }
+      }
+    );
+    // This handler uses res.send(...) without a preceding res.status().
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: updated });
   });
-});
 
-describe('POST /api/portal-informations/:studentId/:applicationId', () => {
-  it('should respond without crash', async () => {
-    const resp = await requestWithSupertest
-      .post(`/api/portal-informations/${student._id}/${applicationId}`)
-      .set('tenantId', TENANT_ID)
-      .send({
-        account_portal_a: 'test_account_a',
-        password_portal_a: 'test_password_a',
-        account_portal_b: 'test_account_b',
-        password_portal_b: 'test_password_b'
-      });
+  it('forwards a 400 ErrorResponse to next() when the application is not found', async () => {
+    ApplicationService.updateApplication.mockResolvedValue(null);
+    const next = jest.fn();
 
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
+    await createPortalCredentials(
+      mockReq({
+        params: { studentId, applicationId },
+        body: { account_portal_a: 'a', password_portal_a: 'pa' }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0].statusCode).toBe(400);
   });
 });

@@ -1,113 +1,50 @@
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
+// Controller UNIT test for controllers/student_applications.
+//
+// This controller owns a single handler, getApplicationConflicts, a plain
+// (req, res, next) function. We call it DIRECTLY with fake req/res/next and
+// ApplicationService mocked, and assert ONLY the controller's own work: the
+// status it sets, the body shape, and that it forwards a service error to
+// next(). No route, no middleware, no DB.
+//
+// NOTE: the sibling route /deltas is served by controllers/teams.getApplicationDeltas
+// (covered in __tests__/controllers/teams.test.js), so it is intentionally not
+// re-tested here. The real aggregation runs against an in-memory DB in
+// __tests__/integration/student_applications.test.js.
+
+jest.mock('../../services/applications');
+
+const ApplicationService = require('../../services/applications');
+const {
+  getApplicationConflicts
+} = require('../../controllers/student_applications');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { applicationSchema } = require('../../models/Application');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
+describe('getApplicationConflicts', () => {
+  it('responds 200 with the conflicts the service resolves', async () => {
+    const conflicts = [
+      { _id: 'p1', applicationCount: 2, students: [{ _id: 's1' }] }
+    ];
+    ApplicationService.getApplicationConflicts.mockResolvedValue(conflicts);
+    const res = mockRes();
 
-const requestWithSupertest = request(app);
-let dbUri;
+    await getApplicationConflicts(mockReq(), res, jest.fn());
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const ApplicationModel = db.model('Application', applicationSchema);
-  await UserModel.deleteMany();
-  await ApplicationModel.deleteMany();
-  await UserModel.insertMany(users);
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
+    expect(ApplicationService.getApplicationConflicts).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: conflicts });
   });
-});
 
-describe('GET /api/student-applications/conflicts', () => {
-  it('should respond without crash', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/student-applications/conflicts')
-      .set('tenantId', TENANT_ID);
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    ApplicationService.getApplicationConflicts.mockRejectedValue(err);
+    const next = jest.fn();
 
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
-  });
-});
+    await getApplicationConflicts(mockReq(), mockRes(), next);
 
-describe('GET /api/student-applications/deltas', () => {
-  it('should respond without crash', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/student-applications/deltas')
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
+    expect(next).toHaveBeenCalledWith(err);
   });
 });

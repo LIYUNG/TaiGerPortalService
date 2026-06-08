@@ -1,119 +1,161 @@
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
+// Controller UNIT test for controllers/expenses.
+//
+// The handlers are plain (req, res, next) functions (wrapped by asyncHandler),
+// so we call them DIRECTLY with fake req/res/next and the service layer
+// (StudentService/UserService) mocked. No route, no middleware, no DB — only the
+// controller's own work: the args it forwards, the role branching/merging it
+// performs, the status + body it writes, and that a service error is forwarded
+// to next(). Full-stack coverage (route -> service -> dao -> in-memory Mongo)
+// lives in __tests__/integration/expenses.test.js.
+
+jest.mock('../../services/students');
+jest.mock('../../services/users');
+
+const { Role } = require('@taiger-common/core');
+const StudentService = require('../../services/students');
+const UserService = require('../../services/users');
+const {
+  getExpenses,
+  getExpense,
+  syncExpense
+} = require('../../controllers/expenses');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { admin, agent, editor, student } = require('../mock/user');
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { expensesSchema } = require('../../models/Expense');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, agent, student } = require('../mock/user');
-const { generateExpense } = require('../mock/expenses');
-const { disconnectFromDatabase } = require('../../database');
+describe('getExpenses', () => {
+  it('responds 200 with the taiger users with expenses the service resolves', async () => {
+    const data = [{ _id: 'u1', total: 10 }];
+    StudentService.getTaigerUsersWithExpenses.mockResolvedValue(data);
+    const res = mockRes();
 
-const requestWithSupertest = request(app);
-let dbUri;
+    await getExpenses(mockReq(), res, jest.fn());
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const ExpenseModel = db.model('Expense', expensesSchema);
-  await UserModel.deleteMany();
-  await ExpenseModel.deleteMany();
-  await UserModel.insertMany(users);
-  await ExpenseModel.insertMany([
-    generateExpense({
-      studentId: student._id.toString(),
-      receiverId: agent._id.toString()
-    })
-  ]);
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
+    expect(StudentService.getTaigerUsersWithExpenses).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data });
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    StudentService.getTaigerUsersWithExpenses.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getExpenses(mockReq(), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('GET /api/expenses/', () => {
-  it('should respond without crash', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/expenses/')
-      .set('tenantId', TENANT_ID);
+describe('getExpense', () => {
+  it('agent branch: queries students by the agents field and merges the aggregate totals', async () => {
+    const targetId = agent._id.toString();
+    const theUser = { _id: agent._id, role: Role.Agent };
+    UserService.getUserById.mockResolvedValue(theUser);
+    StudentService.getStudentsWithExpenses.mockResolvedValue([
+      { _id: student._id, total: 42 }
+    ]);
+    StudentService.getStudentsForExpenses.mockResolvedValue([
+      { _id: student._id, firstname: 'S' }
+    ]);
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
+    await getExpense(
+      mockReq({ params: { taiger_user_id: targetId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(UserService.getUserById).toHaveBeenCalledWith(targetId);
+    expect(StudentService.getStudentsForExpenses).toHaveBeenCalledWith({
+      agents: agent._id.toString(),
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    // Aggregate (total) merged with the student doc.
+    expect(body.data.students[0]).toMatchObject({ total: 42, firstname: 'S' });
+    expect(body.data.the_user).toBe(theUser);
+  });
+
+  it('editor branch: queries students by the editors field', async () => {
+    const targetId = editor._id.toString();
+    UserService.getUserById.mockResolvedValue({
+      _id: editor._id,
+      role: Role.Editor
+    });
+    StudentService.getStudentsWithExpenses.mockResolvedValue([]);
+    StudentService.getStudentsForExpenses.mockResolvedValue([]);
+    const res = mockRes();
+
+    await getExpense(
+      mockReq({ params: { taiger_user_id: targetId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.getStudentsForExpenses).toHaveBeenCalledWith({
+      editors: editor._id.toString(),
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send.mock.calls[0][0].success).toBe(true);
+  });
+
+  it('admin branch: returns an empty students list (admin is neither agent nor editor)', async () => {
+    const theUser = { _id: admin._id, role: Role.Admin };
+    UserService.getUserById.mockResolvedValue(theUser);
+    StudentService.getStudentsWithExpenses.mockResolvedValue([]);
+    const res = mockRes();
+
+    await getExpense(
+      mockReq({ params: { taiger_user_id: admin._id.toString() } }),
+      res,
+      jest.fn()
+    );
+
+    expect(StudentService.getStudentsForExpenses).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: { students: [], the_user: theUser }
+    });
+  });
+
+  it('forwards a 401 ErrorResponse to next() when the target user is not TaiGer staff', async () => {
+    UserService.getUserById.mockResolvedValue({
+      _id: student._id,
+      role: Role.Student
+    });
+    const next = jest.fn();
+
+    await getExpense(
+      mockReq({ params: { taiger_user_id: student._id.toString() } }),
+      mockRes(),
+      next
+    );
+
+    expect(StudentService.getStudentsForExpenses).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(1);
+    const err = next.mock.calls[0][0];
+    expect(err.statusCode).toBe(401);
   });
 });
 
-describe('GET /api/expenses/users/:taiger_user_id', () => {
-  it('should respond without crash', async () => {
-    const resp = await requestWithSupertest
-      .get(`/api/expenses/users/${agent._id}`)
-      .set('tenantId', TENANT_ID);
+describe('syncExpense', () => {
+  it('responds 200 with all users from the service', async () => {
+    const users = [{ _id: 'u1' }, { _id: 'u2' }];
+    UserService.getUsers.mockResolvedValue(users);
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
-    expect(resp.body.success).toBe(true);
+    await syncExpense(mockReq(), res, jest.fn());
+
+    expect(UserService.getUsers).toHaveBeenCalledWith({});
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: users });
   });
 });

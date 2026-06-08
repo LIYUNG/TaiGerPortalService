@@ -1,164 +1,102 @@
-// DAO-level integration test: exercises the active-applications aggregation
-// (sort by derived deadlineDate, pagination, search, filters, studentId
-// scoping) against the in-memory MongoDB. This is where the query coverage
-// lives now that the controller test mocks the DAO.
-const { connect, clearDatabase } = require('../fixtures/db');
-const { Application, Program, User } = require('../../models');
+// ApplicationDAO unit tests for getActiveStudentsApplicationsPaginated — the
+// active-applications read is a thin orchestration over the Application model
+// (an aggregation that returns the page of ids + a total, then a populated
+// hydrate of those ids). We mock the model entirely (NO database). The
+// aggregation pipeline logic itself is validated by the integration suite
+// (__tests__/integration); here we only assert the DAO wires the aggregation
+// result into the hydrate + return shape.
+jest.mock('../../models', () => {
+  const model = () => ({
+    aggregate: jest.fn(),
+    find: jest.fn(),
+    create: jest.fn()
+  });
+  return {
+    Application: model(),
+    Documentthread: model()
+  };
+});
+
+const { Application } = require('../../models');
 const ApplicationDAO = require('../../dao/application.dao');
-const { disconnectFromDatabase } = require('../../database');
-const { TENANT_ID } = require('../fixtures/constants');
-const { users, student } = require('../mock/user');
-const { program1 } = require('../mock/programs');
 
-// Deterministic string deadlines + semesters so the derived deadlineDate is
-// predictable. With application_year 2025: Alpha WS 01-15 -> 2025/01/15,
-// Beta SS 05-01 -> 2024/05/01, Gamma WS 11-30 -> 2024/11/30. So deadline-asc
-// order is Beta, Gamma, Alpha.
-const progAlpha = {
-  ...program1,
-  _id: undefined,
-  program_name: 'Alpha Program',
-  school: 'Aalto University',
-  country: 'Finland',
-  semester: 'WS',
-  application_deadline: '01-15'
-};
-const progBeta = {
-  ...program1,
-  _id: undefined,
-  program_name: 'Beta Program',
-  school: 'Berlin University',
-  country: 'Germany',
-  semester: 'SS',
-  application_deadline: '05-01'
-};
-const progGamma = {
-  ...program1,
-  _id: undefined,
-  program_name: 'Gamma Program',
-  school: 'Cologne University',
-  country: 'Germany',
-  semester: 'WS',
-  application_deadline: '11-30'
-};
-
-let studentIds;
-
-beforeAll(async () => {
-  await connect();
+// The aggregation is called as `Application.aggregate(pipeline).allowDiskUse(true)`
+// and awaited, so allowDiskUse must return a promise resolving to the rows.
+const aggResultChain = (value) => ({
+  allowDiskUse: jest.fn().mockResolvedValue(value)
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
+// populateActiveApplications chains four .populate() calls and ends in .lean().
+const leanChain = (value) => {
+  const chain = {
+    populate: jest.fn(() => chain),
+    lean: jest.fn().mockResolvedValue(value)
+  };
+  return chain;
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-beforeEach(async () => {
-  await Application.deleteMany({});
-  await Program.deleteMany({});
-  await User.deleteMany({});
-
-  await User.insertMany(users);
-  studentIds = [student._id.toString()];
-
-  const [alpha, beta, gamma] = await Program.insertMany([
-    progAlpha,
-    progBeta,
-    progGamma
-  ]);
-  await Application.insertMany(
-    [alpha, beta, gamma].map((prog) => ({
-      studentId: student._id,
-      programId: prog._id,
-      application_year: '2025',
-      decided: 'O',
-      closed: '-'
-    }))
-  );
-});
-
-const names = (res) =>
-  res.applications.map((application) => application.programId.program_name);
-
-describe('ApplicationDAO.getActiveStudentsApplicationsPaginated (in-memory)', () => {
-  it('orders by the derived deadlineDate ascending with a total count', async () => {
+describe('ApplicationDAO.getActiveStudentsApplicationsPaginated (mocked models)', () => {
+  it('returns the empty page without touching the model when studentIds is empty', async () => {
     const res = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
-      studentIds,
+      studentIds: [],
+      query: { page: 1, limit: 20 }
+    });
+
+    expect(res).toEqual({ applications: [], total: 0, page: 1, limit: 20 });
+    expect(Application.aggregate).not.toHaveBeenCalled();
+    expect(Application.find).not.toHaveBeenCalled();
+  });
+
+  it('runs the aggregation, hydrates the page ids and returns applications + total', async () => {
+    // Aggregation returns the page of ids (in sorted order) + a total count.
+    const aggResult = {
+      rows: [{ _id: 'id2' }, { _id: 'id1' }],
+      total: [{ count: 5 }]
+    };
+    Application.aggregate.mockReturnValue(aggResultChain([aggResult]));
+
+    // Hydrate returns the same docs but unordered relative to the ids; the DAO
+    // restores the aggregation order afterwards.
+    const docs = [
+      { _id: { toString: () => 'id1' } },
+      { _id: { toString: () => 'id2' } }
+    ];
+    Application.find.mockReturnValue(leanChain(docs));
+
+    const res = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
+      studentIds: ['64b000000000000000000001'],
       query: { page: 1, limit: 20, sortBy: 'deadline', sortOrder: 'asc' }
     });
 
-    expect(res.total).toBe(3);
-    expect(names(res)).toEqual([
-      'Beta Program',
-      'Gamma Program',
-      'Alpha Program'
+    expect(Application.aggregate).toHaveBeenCalledTimes(1);
+    expect(Application.find).toHaveBeenCalledWith({
+      _id: { $in: ['id2', 'id1'] }
+    });
+    expect(res.total).toBe(5);
+    expect(res.page).toBe(1);
+    expect(res.limit).toBe(20);
+    // Order restored to match the aggregation's id ordering (id2 then id1).
+    expect(res.applications.map((d) => d._id.toString())).toEqual([
+      'id2',
+      'id1'
     ]);
   });
 
-  it('paginates: limit caps the page while total stays the full count', async () => {
-    const page1 = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
-      studentIds,
-      query: { page: 1, limit: 2, sortBy: 'deadline', sortOrder: 'asc' }
-    });
-    const page2 = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
-      studentIds,
-      query: { page: 2, limit: 2, sortBy: 'deadline', sortOrder: 'asc' }
-    });
+  it('short-circuits the hydrate when the aggregation yields no ids', async () => {
+    const aggResult = { rows: [], total: [] };
+    Application.aggregate.mockReturnValue(aggResultChain([aggResult]));
 
-    expect(page1.applications).toHaveLength(2);
-    expect(page1.total).toBe(3);
-    expect(page2.applications).toHaveLength(1);
-    expect(names(page2)).toEqual(['Alpha Program']);
-  });
-
-  it('searches across joined program fields', async () => {
     const res = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
-      studentIds,
-      query: { search: 'Berlin' }
-    });
-
-    expect(res.total).toBe(1);
-    expect(names(res)).toEqual(['Beta Program']);
-  });
-
-  it('filters country via $in (comma-separated multi-select)', async () => {
-    const germany = await ApplicationDAO.getActiveStudentsApplicationsPaginated(
-      {
-        studentIds,
-        query: { country: 'Germany' }
-      }
-    );
-    const both = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
-      studentIds,
-      query: { country: 'Finland,Germany' }
-    });
-
-    expect(germany.total).toBe(2);
-    expect(both.total).toBe(3);
-  });
-
-  it('filters by exact decided/closed status', async () => {
-    const decided = await ApplicationDAO.getActiveStudentsApplicationsPaginated(
-      {
-        studentIds,
-        query: { decided: 'O' }
-      }
-    );
-    const none = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
-      studentIds,
-      query: { decided: 'X' }
-    });
-
-    expect(decided.total).toBe(3);
-    expect(none.total).toBe(0);
-  });
-
-  it('scopes to studentIds (empty scope returns nothing)', async () => {
-    const res = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
-      studentIds: [],
+      studentIds: ['64b000000000000000000001'],
       query: {}
     });
 
+    expect(res.applications).toEqual([]);
     expect(res.total).toBe(0);
+    expect(Application.find).not.toHaveBeenCalled();
   });
 });

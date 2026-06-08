@@ -1,212 +1,193 @@
-// ── Mock declarations (must be at top, before any require()) ─────────────────
+// Controller UNIT test for controllers/admissions.
+//
+// The admissions handlers are plain (req, res, next) functions (wrapped by
+// asyncHandler), so we call them DIRECTLY with fake req/res/next, a mocked
+// ApplicationService / StudentService and a mocked S3 helper. No route, no
+// middleware, no database. We assert ONLY the controller's own work: the filter
+// it builds (via the real ApplicationQueryBuilder) and forwards to the service,
+// the status + body it writes, the streaming headers, and that a service error
+// is forwarded to next(). Full-stack wiring lives in
+// __tests__/integration/admissions.test.js.
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
+jest.mock('../../services/applications');
+jest.mock('../../services/students');
+jest.mock('../../aws/s3');
+
+const ApplicationService = require('../../services/applications');
+const StudentService = require('../../services/students');
+const { getS3Object } = require('../../aws/s3');
+const {
+  getAdmissionsOverview,
+  getAdmissions,
+  getAdmissionLetter,
+  getAdmissionsYear
+} = require('../../controllers/admissions');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { student } = require('../mock/user');
+
+const studentId = student._id.toString();
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
+describe('getAdmissionsOverview', () => {
+  it('responds 200 with the admission status counts from the service', async () => {
+    const counts = { admission: 2, rejection: 1, pending: 4 };
+    ApplicationService.getAdmissionsStatusCounts.mockResolvedValue(counts);
+    const res = mockRes();
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
+    await getAdmissionsOverview(mockReq(), res, jest.fn());
 
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
+    expect(ApplicationService.getAdmissionsStatusCounts).toHaveBeenCalledTimes(
+      1
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: counts });
+  });
 
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    ApplicationService.getAdmissionsStatusCounts.mockRejectedValue(err);
+    const next = jest.fn();
 
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
+    await getAdmissionsOverview(mockReq(), mockRes(), next);
 
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-// ── Imports ───────────────────────────────────────────────────────────────────
-
-const request = require('supertest');
-const { mockClient } = require('aws-sdk-client-mock');
-const { GetObjectCommand } = require('@aws-sdk/client-s3');
-const { ObjectId } = require('mongoose').Types;
-
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { applicationSchema } = require('../../models/Application');
-const { protect } = require('../../middlewares/auth');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { disconnectFromDatabase } = require('../../database');
-const { s3Client } = require('../../aws');
-const { TENANT_ID } = require('../fixtures/constants');
-const { users, admin, student } = require('../mock/user');
-
-const requestWithSupertest = request(app);
-const s3ClientMock = mockClient(s3Client);
-
-// ── Lifecycle ─────────────────────────────────────────────────────────────────
-
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-
-  // Mock S3 GetObject: return a minimal binary response so getAdmissionLetter
-  // can call transformToByteArray() and res.end() the buffer.
-  s3ClientMock.on(GetObjectCommand).callsFake(async () => ({
-    Body: {
-      transformToByteArray: async () => Buffer.from('mock pdf content'),
-      pipe: jest.fn()
-    },
-    ContentType: 'application/pdf'
-  }));
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-  s3ClientMock.restore();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
+    // The controller re-wraps non-ErrorResponse errors into a 500 ErrorResponse,
+    // so next() receives an ErrorResponse (status 500), not the raw error.
+    const passed = next.mock.calls[0][0];
+    expect(passed).toBeInstanceOf(Error);
+    expect(passed.statusCode).toBe(500);
   });
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+describe('getAdmissions', () => {
+  it('200: forwards the admission filter and returns applications + counts', async () => {
+    const applications = [{ _id: 'app1', studentId }];
+    const result = [{ programId: 'p1', count: 3 }];
+    ApplicationService.getProgramApplicationCounts.mockResolvedValue(result);
+    ApplicationService.getApplicationsWithStudentDetails.mockResolvedValue(
+      applications
+    );
+    const req = mockReq({ query: { admission: 'O' } });
+    const res = mockRes();
 
-/**
- * Seed Application documents for a given student into the in-memory DB.
- * Returns the seeded application objects.
- */
-async function seedApplications(studentId) {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const ApplicationModel = db.model('Application', applicationSchema);
-  await ApplicationModel.deleteMany();
+    await getAdmissions(req, res, jest.fn());
 
-  const apps = await ApplicationModel.insertMany([
-    {
-      studentId,
-      decided: 'O',
-      closed: 'O',
-      admission: 'O',
-      programId: new ObjectId()
-    },
-    {
-      studentId,
-      decided: 'O',
-      closed: 'O',
-      admission: 'X',
-      programId: new ObjectId()
-    }
-  ]);
-  return apps;
-}
+    // ApplicationQueryBuilder.withAdmission('O') -> filter { admission: 'O' }.
+    expect(
+      ApplicationService.getApplicationsWithStudentDetails
+    ).toHaveBeenCalledWith({ admission: 'O' });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: applications,
+      result
+    });
+  });
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+  it('200: defaults data to [] when getApplicationsWithStudentDetails resolves nullish', async () => {
+    // getProgramApplicationCounts must resolve an array — the internal helper
+    // logs result.length, so undefined would throw before res.send.
+    ApplicationService.getProgramApplicationCounts.mockResolvedValue([]);
+    ApplicationService.getApplicationsWithStudentDetails.mockResolvedValue(
+      null
+    );
+    const res = mockRes();
 
-describe('GET /api/admissions', () => {
-  it('should return admissions list with status 200', async () => {
-    const { _id: studentId } = student;
-    await seedApplications(studentId);
+    await getAdmissions(mockReq({ query: {} }), res, jest.fn());
 
-    const resp = await requestWithSupertest
-      .get('/api/admissions')
-      .set('tenantId', TENANT_ID);
+    expect(
+      ApplicationService.getApplicationsWithStudentDetails
+    ).toHaveBeenCalledWith({});
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [],
+      result: []
+    });
+  });
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
-    expect(Array.isArray(resp.body.result)).toBe(true);
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    ApplicationService.getProgramApplicationCounts.mockResolvedValue([]);
+    ApplicationService.getApplicationsWithStudentDetails.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getAdmissions(mockReq({ query: {} }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('GET /api/admissions/overview', () => {
-  it('should return admissions overview with status 200', async () => {
-    const { _id: studentId } = student;
-    await seedApplications(studentId);
+describe('getAdmissionsYear', () => {
+  it('200: forwards student_id = applications_year to findStudents', async () => {
+    const tasks = [{ _id: 's1', student_id: '2024' }];
+    StudentService.findStudents.mockResolvedValue(tasks);
+    const req = mockReq({ params: { applications_year: '2024' } });
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .get('/api/admissions/overview')
-      .set('tenantId', TENANT_ID);
+    await getAdmissionsYear(req, res, jest.fn());
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(resp.body.data).toBeDefined();
+    expect(StudentService.findStudents).toHaveBeenCalledWith({
+      student_id: '2024'
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: tasks });
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    StudentService.findStudents.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getAdmissionsYear(
+      mockReq({ params: { applications_year: '2024' } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('GET /api/admissions/:applications_year', () => {
-  it('should return admissions for a given year with status 200', async () => {
-    // getAdmissionsYear queries the Student model by student_id = applications_year.
-    // No Student docs with student_id = '2024' are seeded, so the result is an empty array.
-    const resp = await requestWithSupertest
-      .get('/api/admissions/2024')
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
-  });
-});
-
-describe('GET /api/admissions/:studentId/admission/:fileName', () => {
-  it('should stream the admission letter from S3 with status 200', async () => {
-    const { _id: studentId } = student;
+describe('getAdmissionLetter', () => {
+  it('streams the S3 object as an attachment with the right key', async () => {
+    const buffer = Buffer.from('pdf bytes');
+    getS3Object.mockResolvedValue(buffer);
     const fileName = 'offer_letter.pdf';
+    const req = mockReq({ params: { studentId, fileName } });
+    const res = mockRes();
+    res.attachment = jest.fn(() => res);
+    res.setHeader = jest.fn(() => res);
 
-    const resp = await requestWithSupertest
-      .get(`/api/admissions/${studentId}/admission/${fileName}`)
-      .set('tenantId', TENANT_ID)
-      .buffer(); // collect the streamed binary body
+    await getAdmissionLetter(req, res, jest.fn());
 
-    expect(resp.status).toBe(200);
-    // The controller sets Content-Disposition to attachment
-    expect(resp.headers['content-disposition']).toMatch(/attachment/);
+    expect(getS3Object).toHaveBeenCalledWith(
+      expect.any(String),
+      `${studentId}/admission/${fileName}`
+    );
+    expect(res.attachment).toHaveBeenCalledWith(encodeURIComponent(fileName));
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Disposition',
+      expect.stringContaining('attachment')
+    );
+    expect(res.end).toHaveBeenCalledWith(buffer);
+  });
+
+  it('forwards an S3 error to next()', async () => {
+    const err = new Error('s3 down');
+    getS3Object.mockRejectedValue(err);
+    const res = mockRes();
+    res.attachment = jest.fn(() => res);
+    res.setHeader = jest.fn(() => res);
+    const next = jest.fn();
+
+    await getAdmissionLetter(
+      mockReq({ params: { studentId, fileName: 'x.pdf' } }),
+      res,
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });

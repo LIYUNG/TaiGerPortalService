@@ -1,119 +1,203 @@
-const request = require('supertest');
-const { keywordSetSchema } = require('@taiger-common/model');
+// Controller UNIT test for controllers/coursekeywords.
+//
+// The handlers are plain (req, res, next) functions, so we call them DIRECTLY
+// with fake req/res/next and a mocked KeywordSetService. No route, no
+// middleware, no database — only the controller's own responsibilities:
+//   - what it pulls off req (params/body),
+//   - the args it forwards to the service,
+//   - the status + body it writes to res,
+//   - that it forwards a service error to next().
+// Route + middleware wiring is covered by __tests__/integration/coursekeywords.test.js.
 
-const { protect } = require('../../middlewares/auth');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { TENANT_ID } = require('../fixtures/constants');
-const { subjects, subject1, subject2 } = require('../mock/allcourses');
-const { agent } = require('../mock/user');
-const { app } = require('../../app');
-const { disconnectFromDatabase } = require('../../database');
+jest.mock('../../services/keywordsets');
 
-const requestWithSupertest = request(app);
+const KeywordSetService = require('../../services/keywordsets');
+const {
+  getKeywordSets,
+  getKeywordSet,
+  createKeywordSet,
+  updateKeywordSet,
+  deleteKeywordSet
+} = require('../../controllers/coursekeywords');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
+const keywordsSetId = '5f9f1b9b9b9b9b9b9b9b9b9b';
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
+describe('getKeywordSets', () => {
+  it('responds with the keyword sets from the service', async () => {
+    const sets = [{ _id: 'k1', categoryName: 'Math' }];
+    KeywordSetService.getKeywordSets.mockResolvedValue(sets);
+    const res = mockRes();
+
+    await getKeywordSets(mockReq(), res, jest.fn());
+
+    expect(KeywordSetService.getKeywordSets).toHaveBeenCalledTimes(1);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: sets });
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    KeywordSetService.getKeywordSets.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getKeywordSets(mockReq(), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
+  });
+});
+
+describe('getKeywordSet', () => {
+  it('responds with the set and forwards req.params.keywordsSetId', async () => {
+    const set = { _id: keywordsSetId, categoryName: 'Physics' };
+    KeywordSetService.getKeywordSetById.mockResolvedValue(set);
+    const res = mockRes();
+
+    await getKeywordSet(mockReq({ params: { keywordsSetId } }), res, jest.fn());
+
+    expect(KeywordSetService.getKeywordSetById).toHaveBeenCalledWith(
+      keywordsSetId
+    );
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: set });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the set is not found', async () => {
+    KeywordSetService.getKeywordSetById.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await getKeywordSet(
+      mockReq({ params: { keywordsSetId } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('createKeywordSet', () => {
+  const body = {
+    categoryName: 'categoryName_new',
+    description: 'desc',
+    keywords: { zh: ['123'], en: ['abc'] },
+    antiKeywords: { zh: ['123'], en: ['abc'] }
   };
 
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
+  it('creates a set when there is no duplicate and responds 201 with it', async () => {
+    KeywordSetService.findKeywordSet.mockResolvedValue(null);
+    const created = { _id: 'new1', categoryName: 'categoryName_new' };
+    KeywordSetService.createKeywordSet.mockResolvedValue(created);
+    const res = mockRes();
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+    await createKeywordSet(
+      mockReq({ params: { keywordsSetId }, body }),
+      res,
+      jest.fn()
+    );
 
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
+    expect(KeywordSetService.createKeywordSet).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryName: 'categoryName_new' })
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: created });
+  });
 
-let dbUri;
+  it('forwards a 423 ErrorResponse to next() when a duplicate exists', async () => {
+    KeywordSetService.findKeywordSet.mockResolvedValue({
+      keywords: { zh: ['123'], en: ['abc'] },
+      antiKeywords: { zh: ['123'], en: ['abc'] }
+    });
+    const next = jest.fn();
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
+    await createKeywordSet(
+      mockReq({ params: { keywordsSetId }, body }),
+      mockRes(),
+      next
+    );
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const keywordSetModel = db.model('KeywordSet', keywordSetSchema);
-
-  await keywordSetModel.deleteMany();
-  await keywordSetModel.insertMany(subjects);
-
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 423 });
+    expect(KeywordSetService.createKeywordSet).not.toHaveBeenCalled();
   });
 });
 
-describe('GET /api/course-keywords', () => {
-  it('getKeywordSets', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/course-keywords/')
-      .set('tenantId', TENANT_ID);
+describe('updateKeywordSet', () => {
+  it('forwards id + fields (stamped with updatedAt) and responds 200 with the result', async () => {
+    const updated = {
+      _id: keywordsSetId,
+      categoryName: 'categoryName_updated'
+    };
+    KeywordSetService.updateKeywordSetById.mockResolvedValue(updated);
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
+    await updateKeywordSet(
+      mockReq({
+        params: { keywordsSetId },
+        body: { categoryName: 'categoryName_updated' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(KeywordSetService.updateKeywordSetById).toHaveBeenCalledWith(
+      keywordsSetId,
+      expect.objectContaining({
+        categoryName: 'categoryName_updated',
+        updatedAt: expect.any(Date)
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: updated });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the set is not found', async () => {
+    KeywordSetService.updateKeywordSetById.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await updateKeywordSet(
+      mockReq({ params: { keywordsSetId }, body: { categoryName: 'x' } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
   });
 });
 
-describe('GET /api/course-keywords/:keywordsSetId', () => {
-  it('getKeywordSet', async () => {
-    const resp = await requestWithSupertest
-      .get(`/api/course-keywords/${subject1._id}`)
-      .set('tenantId', TENANT_ID);
+describe('deleteKeywordSet', () => {
+  it('deletes the set, forwards the id and responds 200', async () => {
+    KeywordSetService.deleteKeywordSet.mockResolvedValue(undefined);
+    const res = mockRes();
 
-    expect(resp.status).toEqual(200);
+    await deleteKeywordSet(
+      mockReq({ params: { keywordsSetId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(KeywordSetService.deleteKeywordSet).toHaveBeenCalledWith(
+      keywordsSetId
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
   });
-});
 
-describe('POST /api/course-keywords/:keywordsSetId', () => {
-  it('createKeywordSet', async () => {
-    const resp = await requestWithSupertest
-      .post(`/api/course-keywords/${subject1._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({
-        categoryName: 'categoryName_new',
-        description: 'keyowrd_description',
-        keywords: { zh: ['123'], en: ['abc'] },
-        antiKeywords: { zh: ['123'], en: ['abc'] }
-      });
+  it('forwards a service error to next()', async () => {
+    const err = new Error('boom');
+    KeywordSetService.deleteKeywordSet.mockRejectedValue(err);
+    const next = jest.fn();
 
-    expect(resp.status).toEqual(201);
-  });
-});
+    await deleteKeywordSet(
+      mockReq({ params: { keywordsSetId } }),
+      mockRes(),
+      next
+    );
 
-describe('PUT /api/course-keywords/:keywordsSetId', () => {
-  it('updateKeywordSet', async () => {
-    const resp = await requestWithSupertest
-      .put(`/api/course-keywords/${subject1._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({
-        categoryName: 'categoryName_updated'
-      });
-
-    expect(resp.status).toEqual(200);
-  });
-});
-
-describe('DELETE /api/course-keywords/:keywordsSetId', () => {
-  it('deleteKeywordSet', async () => {
-    const resp = await requestWithSupertest
-      .delete(`/api/course-keywords/${subject2._id}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toEqual(200);
+    expect(next).toHaveBeenCalledWith(err);
   });
 });

@@ -1,268 +1,290 @@
-const request = require('supertest');
+// Controller UNIT test for controllers/programs.
+//
+// The handlers are plain (req, res, next) functions (wrapped by asyncHandler),
+// so we call them DIRECTLY with fake req/res/next and the service layer mocked.
+// We assert ONLY the controller's own work: the args it forwards to each
+// service, the status + body it writes to res, and that it forwards a service
+// error to next(). No route, no middleware, no DB. The real
+// aggregation/persistence is covered against an in-memory DB in
+// __tests__/integration/programs.test.js and the service/dao suites.
 
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { programSchema } = require('../../models/Program');
-const { versionControlSchema } = require('../../models/VersionControl');
-const { generateProgram } = require('../fixtures/faker');
-const { protect } = require('../../middlewares/auth');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { TENANT_ID } = require('../fixtures/constants');
+jest.mock('../../services/programs');
+jest.mock('../../services/applications');
+jest.mock('../../services/vs');
+jest.mock('../../services/programRequirements');
+jest.mock('../../services/tickets');
+
+const ProgramService = require('../../services/programs');
+const ApplicationService = require('../../services/applications');
+const VCService = require('../../services/vs');
+const ProgramRequirementService = require('../../services/programRequirements');
+const TicketService = require('../../services/tickets');
+const {
+  getPrograms,
+  getSameProgramStudents,
+  getProgram,
+  createProgram,
+  updateProgram,
+  deleteProgram,
+  refreshProgram
+} = require('../../controllers/programs');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 const { admin } = require('../mock/user');
-const { programs } = require('../mock/programs');
-const { disconnectFromDatabase } = require('../../database');
 
-const requestWithSupertest = request(app);
-
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation(() => passthrough)
-  };
-});
-
-let dbUri;
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const ProgramModel = db.model('Program', programSchema);
-
-  await ProgramModel.deleteMany();
-  await ProgramModel.insertMany(programs);
-});
-
-describe('GET /api/programs', () => {
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
-  });
-  it('should return paginated programs', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/programs')
-      .set('tenantId', TENANT_ID);
-    const { success, data, total, page, limit } = resp.body;
-
-    expect(resp.status).toBe(200);
-    expect(success).toBe(true);
-    expect(data).toEqual(expect.any(Array));
-    expect(total).toBe(programs.length);
-    expect(page).toBe(1);
-    expect(limit).toBe(20);
-    expect(data.length).toBe(programs.length);
-  });
-
-  it('should respect page and limit query params', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/programs?page=1&limit=2')
-      .set('tenantId', TENANT_ID);
-    const { data, total, page, limit } = resp.body;
-
-    expect(resp.status).toBe(200);
-    expect(data.length).toBe(2);
-    expect(total).toBe(programs.length);
-    expect(page).toBe(1);
-    expect(limit).toBe(2);
-  });
-
-  it('should filter programs by global search', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramModel = db.model('Program', programSchema);
-    const targetSchool = 'UniqueSearchableSchoolXYZ';
-
-    await ProgramModel.create({
-      ...generateProgram(),
-      school: targetSchool,
-      program_name: 'Searchable Program',
-      isArchiv: false
+describe('getPrograms', () => {
+  it('forwards req.query to the service and echoes its pagination envelope', async () => {
+    ProgramService.getProgramsPaginated.mockResolvedValue({
+      programs: [{ _id: 'p1' }],
+      total: 1,
+      page: 1,
+      limit: 20
     });
+    const query = { page: '1', limit: '20', search: 'mit' };
+    const req = mockReq({ query });
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .get('/api/programs?search=UniqueSearchableSchool')
-      .set('tenantId', TENANT_ID);
+    await getPrograms(req, res, jest.fn());
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.total).toBeGreaterThanOrEqual(1);
-    expect(
-      resp.body.data.some((program) => program.school === targetSchool)
-    ).toBe(true);
+    expect(ProgramService.getProgramsPaginated).toHaveBeenCalledWith(query);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [{ _id: 'p1' }],
+      total: 1,
+      page: 1,
+      limit: 20
+    });
   });
 
-  it('should filter programs by column filters', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramModel = db.model('Program', programSchema);
-    const targetSchool = 'ColumnFilterSchoolXYZ';
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    ProgramService.getProgramsPaginated.mockRejectedValue(err);
+    const next = jest.fn();
 
-    await ProgramModel.create({
-      ...generateProgram(),
-      school: targetSchool,
-      country: 'de',
-      isArchiv: false
-    });
+    await getPrograms(mockReq({ query: {} }), mockRes(), next);
 
-    const resp = await requestWithSupertest
-      .get(
-        `/api/programs?school=${encodeURIComponent(
-          'ColumnFilterSchool'
-        )}&country=de`
-      )
-      .set('tenantId', TENANT_ID);
+    expect(next).toHaveBeenCalledWith(err);
+  });
+});
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.total).toBeGreaterThanOrEqual(1);
-    expect(resp.body.data.every((program) => program.country === 'de')).toBe(
-      true
+describe('getSameProgramStudents', () => {
+  it('responds 200 with the de-duplicated students sharing the program', async () => {
+    ApplicationService.getDecidedApplicationsByProgramPopulated.mockResolvedValue(
+      [
+        {
+          studentId: { _id: 's1', agents: ['a1'] },
+          application_year: '2026',
+          closed: 'O',
+          admission: 'O'
+        }
+      ]
     );
+    const req = mockReq({ params: { programId: 'prog-1' } });
+    const res = mockRes();
+
+    await getSameProgramStudents(req, res, jest.fn());
+
     expect(
-      resp.body.data.some((program) => program.school === targetSchool)
-    ).toBe(true);
+      ApplicationService.getDecidedApplicationsByProgramPopulated
+    ).toHaveBeenCalledWith('prog-1');
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: expect.any(Array)
+    });
+    const body = res.send.mock.calls[0][0];
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]).toMatchObject({ _id: 's1', application_year: '2026' });
   });
 });
 
-describe('POST /api/programs', () => {
-  it('should create a program', async () => {
-    const { _id, ...fields } = generateProgram();
-    const resp = await requestWithSupertest.post('/api/programs').send(fields);
-    const { success, data } = resp.body;
+describe('getProgram', () => {
+  it('responds 200 with the program and its version-control entry for staff', async () => {
+    const program = { _id: 'prog-1', school: 'MIT' };
+    const vc = { docId: 'prog-1', changes: [] };
+    ProgramService.getProgramById.mockResolvedValue(program);
+    VCService.getVC.mockResolvedValue(vc);
+    const req = mockReq({ params: { programId: 'prog-1' }, user: admin });
+    const res = mockRes();
 
-    expect(resp.status).toBe(201);
-    expect(success).toBe(true);
+    await getProgram(req, res, jest.fn());
+
+    expect(ProgramService.getProgramById).toHaveBeenCalledWith('prog-1');
+    expect(VCService.getVC).toHaveBeenCalledWith({
+      docId: 'prog-1',
+      collectionName: 'Program'
+    });
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: program, vc });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the program is missing', async () => {
+    ProgramService.getProgramById.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await getProgram(
+      mockReq({ params: { programId: 'missing' }, user: admin }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
   });
 });
 
-describe('PUT /api/programs/:id', () => {
-  it('should update a program', async () => {
-    const { _id } = programs[0];
-    const { _id: _, ...fields } = generateProgram();
+describe('createProgram', () => {
+  it('responds 201 with the created program when no duplicate exists', async () => {
+    const created = { _id: 'new', school: 'MIT', program_name: 'CS' };
+    ProgramService.getPrograms.mockResolvedValue([]);
+    ProgramService.createProgram.mockResolvedValue(created);
+    const req = mockReq({
+      user: admin,
+      body: { school: '  MIT  ', program_name: '  CS  ', degree: 'Master' }
+    });
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .put(`/api/programs/${_id}`)
-      .send(fields);
-    const { success } = resp.body;
+    await createProgram(req, res, jest.fn());
 
-    expect(resp.status).toBe(200);
-    expect(success).toBe(true);
+    // trims and stamps whoupdated before persisting
+    expect(ProgramService.createProgram).toHaveBeenCalledWith(
+      expect.objectContaining({
+        school: 'MIT',
+        program_name: 'CS',
+        whoupdated: `${admin.firstname} ${admin.lastname}`,
+        updatedAt: expect.any(Date)
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: created });
   });
 
-  it('records a version-control entry when a program is updated', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const VCModel = db.model('VC', versionControlSchema);
-    await VCModel.deleteMany();
+  it('forwards a 403 ErrorResponse to next() when the program already exists', async () => {
+    ProgramService.getPrograms.mockResolvedValue([{ _id: 'dup' }]);
+    const next = jest.fn();
 
-    const { _id } = programs[0];
-    const resp = await requestWithSupertest
-      .put(`/api/programs/${_id}`)
-      .send({
-        program_name: 'VC Characterization Program',
-        ml_required: 'yes'
-      });
-    expect(resp.status).toBe(200);
+    await createProgram(
+      mockReq({
+        user: admin,
+        body: { school: 'MIT', program_name: 'CS', degree: 'Master' }
+      }),
+      mockRes(),
+      next
+    );
 
-    const vcs = await VCModel.find({ collectionName: 'Program' }).lean();
-    const vc = vcs.find((v) => v.docId?.toString() === _id.toString());
-    expect(vc).toBeTruthy();
-    expect(vc.changes.length).toBeGreaterThan(0);
-  });
-});
-
-describe('DELETE /api/programs/:id', () => {
-  it('should delete a program', async () => {
-    const { _id } = programs[0];
-
-    const resp = await requestWithSupertest.delete(`/api/programs/${_id}`);
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
+    expect(ProgramService.createProgram).not.toHaveBeenCalled();
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
   });
 });
 
-describe('GET /api/programs/:programId', () => {
-  it('should return a single program by id', async () => {
-    const { _id } = programs[0];
+describe('updateProgram', () => {
+  it('updates the program, fans the common fields to siblings, and returns vc', async () => {
+    const program = {
+      _id: 'prog-1',
+      school: 'MIT',
+      program_name: 'CS',
+      degree: 'Master'
+    };
+    const vc = { docId: 'prog-1', changes: [{ field: 'ml_required' }] };
+    ProgramService.updateProgramOne.mockResolvedValue(program);
+    ProgramService.updateManyPrograms.mockResolvedValue({});
+    VCService.getVC.mockResolvedValue(vc);
+    const req = mockReq({
+      user: admin,
+      params: { programId: 'prog-1' },
+      body: { ml_required: 'yes', semester: 'WS' }
+    });
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .get(`/api/programs/${_id}`)
-      .set('tenantId', TENANT_ID);
+    await updateProgram(req, res, jest.fn());
 
-    expect(resp.status).toBeLessThan(600);
+    expect(ProgramService.updateProgramOne).toHaveBeenCalledWith(
+      { _id: 'prog-1' },
+      expect.objectContaining({
+        ml_required: 'yes',
+        whoupdated: `${admin.firstname} ${admin.lastname}`
+      })
+    );
+    expect(ProgramService.updateManyPrograms).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: program, vc });
   });
 });
 
-describe('GET /api/programs/overview', () => {
-  it('should return programs overview', async () => {
-    const resp = await requestWithSupertest
-      .get('/api/programs/overview')
-      .set('tenantId', TENANT_ID);
+describe('deleteProgram', () => {
+  it('archives the program and cascades when nothing applied to it', async () => {
+    ApplicationService.getApplicationsByProgramId.mockResolvedValue([]);
+    ProgramService.archiveProgramById.mockResolvedValue({});
+    ProgramRequirementService.deleteOneByProgramIds.mockResolvedValue({});
+    TicketService.deleteTicketsByProgramId.mockResolvedValue({});
+    const req = mockReq({ params: { programId: 'prog-1' } });
+    const res = mockRes();
 
-    expect(resp.status).toBeLessThan(600);
+    await deleteProgram(req, res, jest.fn());
+
+    expect(ProgramService.archiveProgramById).toHaveBeenCalledWith('prog-1');
+    expect(
+      ProgramRequirementService.deleteOneByProgramIds
+    ).toHaveBeenCalledWith(['prog-1']);
+    expect(TicketService.deleteTicketsByProgramId).toHaveBeenCalledWith(
+      'prog-1'
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('forwards a 403 ErrorResponse to next() when applications still reference it', async () => {
+    ApplicationService.getApplicationsByProgramId.mockResolvedValue([
+      { studentId: 's1' }
+    ]);
+    const next = jest.fn();
+
+    await deleteProgram(
+      mockReq({ params: { programId: 'prog-1' } }),
+      mockRes(),
+      next
+    );
+
+    expect(ProgramService.archiveProgramById).not.toHaveBeenCalled();
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
   });
 });
 
-describe('GET /api/programs/:programId/change-requests', () => {
-  it('should return change requests for a program', async () => {
-    const { _id } = programs[0];
+describe('refreshProgram', () => {
+  it('stamps updatedAt/whoupdated, pushes a vc change, and returns 200', async () => {
+    const program = { _id: 'prog-1', school: 'MIT' };
+    const vc = { docId: 'prog-1', changes: [{ field: 'none' }] };
+    ProgramService.updateProgramById.mockResolvedValue(program);
+    VCService.pushChange.mockResolvedValue({});
+    VCService.getVC.mockResolvedValue(vc);
+    const req = mockReq({ user: admin, params: { programId: 'prog-1' } });
+    const res = mockRes();
 
-    const resp = await requestWithSupertest
-      .get(`/api/programs/${_id}/change-requests`)
-      .set('tenantId', TENANT_ID);
+    await refreshProgram(req, res, jest.fn());
 
-    expect(resp.status).toBeLessThan(600);
+    expect(ProgramService.updateProgramById).toHaveBeenCalledWith(
+      'prog-1',
+      expect.objectContaining({
+        whoupdated: `${admin.firstname} ${admin.lastname}`,
+        updatedAt: expect.any(Date)
+      })
+    );
+    expect(VCService.pushChange).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: program, vc });
   });
-});
 
-describe('POST /api/programs/:programId/change-requests', () => {
-  it('should submit a change request for a program', async () => {
-    const { _id } = programs[0];
+  it('forwards a 404 ErrorResponse to next() when the program is missing', async () => {
+    ProgramService.updateProgramById.mockResolvedValue(null);
+    const next = jest.fn();
 
-    const resp = await requestWithSupertest
-      .post(`/api/programs/${_id}/change-requests`)
-      .set('tenantId', TENANT_ID)
-      .send({ description: 'deadline is wrong', type: 'program' });
+    await refreshProgram(
+      mockReq({ user: admin, params: { programId: 'missing' } }),
+      mockRes(),
+      next
+    );
 
-    expect([200, 201, 400, 409]).toContain(resp.status);
-  });
-});
-
-describe('GET /api/programs/same-program-students/:programId', () => {
-  it('should return students sharing the same program', async () => {
-    const { _id } = programs[0];
-
-    const resp = await requestWithSupertest
-      .get(`/api/programs/same-program-students/${_id}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBeLessThan(600);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
   });
 });

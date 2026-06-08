@@ -1,579 +1,397 @@
-const request = require('supertest');
-const { ObjectId } = require('mongoose').Types;
+// Controller UNIT test for controllers/documents_modification (survey-input,
+// overview and metadata handlers).
+//
+// documents_modification is a large, tangled controller: a single handler can
+// fan out to several services (DocumentThread/Student/SurveyInput/User/...) plus
+// S3, node-cache, email and the informEditor side channel. We call each handler
+// DIRECTLY as a (req, res, next) function with ALL of those modules mocked, and
+// assert ONLY the controller's own work: the args it forwards, the status + body
+// it writes, and the small bits of branching/counting it owns. No route, no
+// supertest, no DB, nothing real runs below the controller.
+//
+// This file focuses on the CRUD / overview / survey-input handlers; the
+// message-thread handlers (getMessages, favorite, deletes, ...) are unit-tested
+// in __tests__/controllers/documentthread.test.js. Full route -> service -> dao
+// -> in-memory Mongo wiring lives in the matching integration suites.
 
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { documentThreadsSchema } = require('../../models/Documentthread');
-const { surveyInputSchema } = require('../../models/SurveyInput');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, agent, editor, student } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
-
-const requestWithSupertest = request(app);
-
-// ---- Standard middleware mocks ----
-
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough),
-    permission_canModifyDocs_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-// ---- Domain-specific middleware mocks ----
-
-jest.mock('../../middlewares/file-upload', () => {
-  const passthrough = async (req, res, next) => {
-    req.files = [];
-    next();
-  };
-  const passthroughSingle = async (req, res, next) => {
-    req.file = undefined;
-    next();
-  };
-  return {
-    // Do NOT use jest.requireActual here — loading the real file-upload.js calls
-    // multerS3({ s3: s3Client }) at module evaluation time which crashes in tests.
-    imageUpload: passthroughSingle,
-    admissionUpload: passthroughSingle,
-    documentationDocsUpload: passthroughSingle,
-    VPDfileUpload: passthrough,
-    ProfilefileUpload: passthrough,
-    TemplatefileUpload: passthroughSingle,
-    MessagesThreadUpload: passthrough,
-    MessagesTicketUpload: passthrough,
-    MessagesChatUpload: passthrough,
-    MessagesImageThreadUpload: passthroughSingle,
-    upload: passthroughSingle
-  };
-});
-
-jest.mock('../../middlewares/documentThreadMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    docThreadMultitenant_filter: jest.fn().mockImplementation(passthrough),
-    surveyMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/AssignOutsourcerFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return { AssignOutsourcerFilter: jest.fn().mockImplementation(passthrough) };
-});
-
-jest.mock('../../middlewares/editorIdsBodyFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return { editorIdsBodyFilter: jest.fn().mockImplementation(passthrough) };
-});
-
-jest.mock('../../middlewares/docs_thread_operation_validation', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    doc_thread_ops_validator: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-// ---- Service / utility mocks ----
-
+jest.mock('../../services/documentthreads');
+jest.mock('../../services/students');
+jest.mock('../../services/surveyInputs');
+jest.mock('../../services/users');
+jest.mock('../../services/applications');
+jest.mock('../../services/permissions');
+jest.mock('../../services/interviews');
+jest.mock('../../services/audit');
+jest.mock('../../utils/informEditor', () => ({
+  informOnSurveyUpdate: jest.fn().mockResolvedValue({})
+}));
 jest.mock('../../services/email', () => ({
-  sendNewGeneraldocMessageInThreadEmail: jest.fn(),
   sendNewApplicationMessageInThreadEmail: jest.fn(),
-  assignEssayTaskToEditorEmail: jest.fn(),
+  sendAssignEditorReminderEmail: jest.fn(),
+  sendNewGeneraldocMessageInThreadEmail: jest.fn(),
   sendSetAsFinalGeneralFileForAgentEmail: jest.fn(),
   sendSetAsFinalGeneralFileForStudentEmail: jest.fn(),
   sendSetAsFinalProgramSpecificFileForStudentEmail: jest.fn(),
   sendSetAsFinalProgramSpecificFileForAgentEmail: jest.fn(),
   assignDocumentTaskToEditorEmail: jest.fn(),
   assignDocumentTaskToStudentEmail: jest.fn(),
-  sendAssignEditorReminderEmail: jest.fn(),
   sendAssignEssayWriterReminderEmail: jest.fn(),
+  assignEssayTaskToEditorEmail: jest.fn(),
   sendAssignTrainerReminderEmail: jest.fn(),
   sendNewInterviewMessageInThreadEmail: jest.fn(),
-  informOnSurveyUpdate: jest.fn(),
   informEssayWriterNewEssayEmail: jest.fn(),
   informStudentTheirEssayWriterEmail: jest.fn(),
   informAgentEssayAssignedEmail: jest.fn()
 }));
-
 jest.mock('../../aws/s3', () => ({
-  getS3Object: jest.fn().mockResolvedValue({ Body: { pipe: jest.fn() } }),
-  putS3Object: jest.fn().mockResolvedValue({}),
-  deleteS3Object: jest.fn().mockResolvedValue({}),
-  deleteS3Objects: jest.fn().mockResolvedValue({}),
-  listS3ObjectsV2: jest.fn().mockResolvedValue({ Contents: [] })
+  getS3Object: jest.fn().mockResolvedValue(Buffer.from('bytes')),
+  deleteS3Objects: jest.fn().mockResolvedValue({})
+}));
+jest.mock('../../cache/node-cache', () => ({
+  ten_minutes_cache: {
+    get: jest.fn().mockReturnValue(undefined),
+    set: jest.fn().mockReturnValue(true),
+    del: jest.fn().mockReturnValue(1),
+    flushAll: jest.fn()
+  }
 }));
 
-jest.mock('../../utils/informEditor', () => ({
-  informOnSurveyUpdate: jest.fn().mockResolvedValue({})
-}));
+const { ObjectId } = require('mongoose').Types;
+const DocumentThreadService = require('../../services/documentthreads');
+const StudentService = require('../../services/students');
+const SurveyInputService = require('../../services/surveyInputs');
+const UserService = require('../../services/users');
+const { informOnSurveyUpdate } = require('../../utils/informEditor');
+const {
+  getActiveThreads,
+  getMyStudentsThreads,
+  getThreadsByStudent,
+  postSurveyInput,
+  putSurveyInput,
+  resetSurveyInput,
+  putOriginAuthorConfirmedByStudent,
+  IgnoreMessageInDocumentThread,
+  getMyStudentMetrics,
+  checkDocumentPattern,
+  clearEssayWriters
+} = require('../../controllers/documents_modification');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+const { admin, student } = require('../mock/user');
 
-jest.mock('../../utils/log/auditLog', () => ({
-  auditLog: (req, res, next) => next()
-}));
+const studentId = student._id.toString();
 
-// ---- IDs used across tests ----
-const threadId = new ObjectId().toHexString();
-const surveyInputId = new ObjectId().toHexString();
-const messageId = new ObjectId().toHexString();
-const ignoreMessageState = 'true';
-
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+describe('getActiveThreads', () => {
+  it('200: forwards the built filter to the service and returns the threads', async () => {
+    const threads = [{ _id: 't1' }, { _id: 't2' }];
+    DocumentThreadService.getAllStudentsThreads.mockResolvedValue(threads);
+    const res = mockRes();
 
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
+    await getActiveThreads(mockReq({ query: {} }), res, jest.fn());
 
-  const UserModel = db.model('User', UserSchema);
-  const DocumentthreadModel = db.model('Documentthread', documentThreadsSchema);
-  const SurveyInputModel = db.model('surveyInput', surveyInputSchema);
-
-  await UserModel.deleteMany();
-  await DocumentthreadModel.deleteMany();
-  await SurveyInputModel.deleteMany();
-
-  await UserModel.insertMany(users);
-
-  await DocumentthreadModel.create({
-    _id: threadId,
-    student_id: student._id,
-    file_type: 'ML',
-    application_id: null,
-    messages: [],
-    updatedAt: new Date()
+    expect(DocumentThreadService.getAllStudentsThreads).toHaveBeenCalledTimes(
+      1
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: threads });
   });
 
-  await SurveyInputModel.create({
-    _id: surveyInputId,
-    studentId: student._id,
-    programId: null,
-    fileType: 'ML',
-    surveyContent: {},
-    surveyStatus: 'empty'
-  });
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    DocumentThreadService.getAllStudentsThreads.mockRejectedValue(err);
+    const next = jest.fn();
 
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
+    await getActiveThreads(mockReq({ query: {} }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-// ---- Test cases ----
+describe('getMyStudentsThreads', () => {
+  it('200: returns { threads, user }, forwarding userId to both services', async () => {
+    const userId = new ObjectId().toHexString();
+    const threads = [{ _id: 't1' }];
+    const user = { _id: userId, firstname: 'A' };
+    DocumentThreadService.getStudentsThreadsByTaiGerUserId.mockResolvedValue(
+      threads
+    );
+    UserService.getUserById.mockResolvedValue(user);
+    const res = mockRes();
 
-describe('GET /api/document-threads/pattern/check/:messagesThreadId/:file_type', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
+    await getMyStudentsThreads(
+      mockReq({ params: { userId }, query: {} }),
+      res,
+      jest.fn()
+    );
+
+    expect(
+      DocumentThreadService.getStudentsThreadsByTaiGerUserId
+    ).toHaveBeenCalledWith(userId, expect.any(Object));
+    expect(UserService.getUserById).toHaveBeenCalledWith(userId);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: { threads, user }
     });
-    const resp = await requestWithSupertest
-      .get(`/api/document-threads/pattern/check/${threadId}/ML`)
-      .set('tenantId', TENANT_ID);
-    expect([200, 400, 404, 500]).toContain(resp.status);
   });
 });
 
-describe('GET /api/document-threads/overview/my-student-metrics', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
+describe('getThreadsByStudent', () => {
+  it('200: forwards req.params.studentId and wraps the threads', async () => {
+    const threads = [{ _id: 't1' }];
+    DocumentThreadService.getStudentThreadsByStudentId.mockResolvedValue(
+      threads
+    );
+    const res = mockRes();
+
+    await getThreadsByStudent(
+      mockReq({ params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(
+      DocumentThreadService.getStudentThreadsByStudentId
+    ).toHaveBeenCalledWith(studentId);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: { threads }
     });
-    const resp = await requestWithSupertest
-      .get('/api/document-threads/overview/my-student-metrics')
-      .set('tenantId', TENANT_ID);
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
   });
 });
 
-describe('GET /api/document-threads/overview/taiger-user/:userId', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
+describe('postSurveyInput', () => {
+  it('200: creates the survey input from req.body.input (createdAt stamped)', async () => {
+    const created = { _id: 's1', studentId, fileType: 'RL' };
+    SurveyInputService.createSurveyInput.mockResolvedValue(created);
+    const res = mockRes();
+
+    await postSurveyInput(
+      mockReq({
+        user: admin,
+        body: { input: { studentId, fileType: 'RL' }, informEditor: false }
+      }),
+      res,
+      jest.fn()
+    );
+
+    const arg = SurveyInputService.createSurveyInput.mock.calls[0][0];
+    expect(arg).toMatchObject({ studentId, fileType: 'RL' });
+    expect(arg.createdAt).toBeInstanceOf(Date);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: created });
+    // informEditor false -> no editor notification
+    expect(informOnSurveyUpdate).not.toHaveBeenCalled();
+  });
+
+  it('informEditor true: notifies the editor after responding', async () => {
+    const created = { _id: 's1', studentId, programId: null, fileType: 'RL' };
+    SurveyInputService.createSurveyInput.mockResolvedValue(created);
+    DocumentThreadService.findOneThreadPopulated.mockResolvedValue({
+      _id: 't'
     });
-    const resp = await requestWithSupertest
-      .get(`/api/document-threads/overview/taiger-user/${agent._id}`)
-      .set('tenantId', TENANT_ID);
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
+    const res = mockRes();
+
+    await postSurveyInput(
+      mockReq({
+        user: admin,
+        body: { input: { studentId, fileType: 'RL' }, informEditor: true }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(informOnSurveyUpdate).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('GET /api/document-threads/overview/all', () => {
-  it('should return active threads without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .get('/api/document-threads/overview/all')
-      .set('tenantId', TENANT_ID);
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
+describe('putSurveyInput', () => {
+  it('200: updates by surveyInputId and stamps updatedAt', async () => {
+    const surveyInputId = new ObjectId().toHexString();
+    const updated = { _id: surveyInputId, studentId };
+    SurveyInputService.updateSurveyInputById.mockResolvedValue(updated);
+    const res = mockRes();
+
+    await putSurveyInput(
+      mockReq({
+        user: admin,
+        params: { surveyInputId },
+        body: { input: { surveyStatus: 'completed' }, informEditor: false }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(SurveyInputService.updateSurveyInputById).toHaveBeenCalledWith(
+      surveyInputId,
+      expect.objectContaining({
+        surveyStatus: 'completed',
+        updatedAt: expect.any(Date)
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: updated });
   });
 });
 
-describe('PUT /api/document-threads/survey-input/:surveyInputId', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .put(`/api/document-threads/survey-input/${surveyInputId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ surveyContent: { key: 'value' } });
-    expect([200, 201, 400, 404]).toContain(resp.status);
+describe('resetSurveyInput', () => {
+  it('200: resets by surveyInputId and returns the updated survey', async () => {
+    const surveyInputId = new ObjectId().toHexString();
+    const reset = { _id: surveyInputId, surveyStatus: 'empty' };
+    SurveyInputService.resetSurveyInputById.mockResolvedValue(reset);
+    const res = mockRes();
+
+    await resetSurveyInput(
+      mockReq({
+        user: admin,
+        params: { surveyInputId },
+        body: { informEditor: false }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(SurveyInputService.resetSurveyInputById).toHaveBeenCalledWith(
+      surveyInputId
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: reset });
   });
 });
 
-describe('DELETE /api/document-threads/survey-input/:surveyInputId', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
+describe('putOriginAuthorConfirmedByStudent', () => {
+  it('200: updates the thread confirmation flag and responds success', async () => {
+    const messagesThreadId = new ObjectId().toHexString();
+    DocumentThreadService.updateThreadById.mockResolvedValue({
+      _id: messagesThreadId
     });
-    const resp = await requestWithSupertest
-      .delete(`/api/document-threads/survey-input/${surveyInputId}`)
-      .set('tenantId', TENANT_ID);
-    expect([200, 204, 400, 404]).toContain(resp.status);
+    const res = mockRes();
+
+    await putOriginAuthorConfirmedByStudent(
+      mockReq({ params: { messagesThreadId }, body: { checked: true } }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentThreadService.updateThreadById).toHaveBeenCalledWith(
+      messagesThreadId,
+      expect.objectContaining({
+        isOriginAuthorDeclarationConfirmedByStudent: true
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('forwards a 404 ErrorResponse to next() when the thread is missing', async () => {
+    DocumentThreadService.updateThreadById.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await putOriginAuthorConfirmedByStudent(
+      mockReq({
+        params: { messagesThreadId: new ObjectId().toHexString() },
+        body: { checked: true }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 404 })
+    );
   });
 });
 
-describe('POST /api/document-threads/survey-input', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
-    });
-    // Controller expects req.body.input (nested), not flat fields
-    const resp = await requestWithSupertest
-      .post('/api/document-threads/survey-input')
-      .set('tenantId', TENANT_ID)
-      .send({
-        input: {
-          studentId: student._id,
-          programId: null,
-          fileType: 'RL',
-          surveyContent: {},
-          surveyStatus: 'empty'
-        },
-        informEditor: false
-      });
-    expect([200, 201, 400, 409]).toContain(resp.status);
+describe('IgnoreMessageInDocumentThread', () => {
+  it('200: sets the ignore state and returns the updated thread', async () => {
+    const messageId = new ObjectId().toHexString();
+    const thread = { _id: 't1' };
+    DocumentThreadService.setMessageIgnore.mockResolvedValue(thread);
+    const res = mockRes();
+
+    await IgnoreMessageInDocumentThread(
+      mockReq({ params: { messageId, ignoreMessageState: 'true' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(DocumentThreadService.setMessageIgnore).toHaveBeenCalledWith(
+      expect.any(ObjectId),
+      'true'
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: thread });
   });
 });
 
-describe('GET /api/document-threads/student-threads/:studentId', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .get(`/api/document-threads/student-threads/${student._id}`)
-      .set('tenantId', TENANT_ID);
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
+describe('getMyStudentMetrics', () => {
+  it('200: returns per-student thread counts derived from the service data', async () => {
+    const students = [
+      {
+        _id: studentId,
+        applications: [],
+        generaldocs_threads: [
+          {
+            doc_thread_id: { _id: 'th1', isFinalVersion: true },
+            updatedAt: new Date()
+          },
+          {
+            doc_thread_id: { _id: 'th2', isFinalVersion: false },
+            updatedAt: new Date()
+          }
+        ]
+      }
+    ];
+    StudentService.getStudentsWithApplications.mockResolvedValue(students);
+    const res = mockRes();
+
+    await getMyStudentMetrics(mockReq({ user: admin }), res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.students).toHaveLength(1);
+    expect(body.data.students[0].threadCount).toBe(2);
+    expect(body.data.students[0].completeThreadCount).toBe(1);
   });
 });
 
-describe('POST /api/document-threads/init/general/:studentId/:document_category', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .post(`/api/document-threads/init/general/${student._id}/CV`)
-      .set('tenantId', TENANT_ID)
-      .send({});
-    expect([200, 201, 400, 409]).toContain(resp.status);
+describe('checkDocumentPattern', () => {
+  it('200 isPassed:true for a non-CV file type (short-circuits, no S3)', async () => {
+    const res = mockRes();
+
+    await checkDocumentPattern(
+      mockReq({
+        params: {
+          messagesThreadId: new ObjectId().toHexString(),
+          file_type: 'ML'
+        }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, isPassed: true });
   });
 });
 
-describe('POST /api/document-threads/init/application/:studentId/:application_id/:document_category', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const fakeApplicationId = new ObjectId().toHexString();
-    const resp = await requestWithSupertest
-      .post(
-        `/api/document-threads/init/application/${student._id}/${fakeApplicationId}/ML`
-      )
-      .set('tenantId', TENANT_ID)
-      .send({});
-    expect([200, 201, 400, 404, 409]).toContain(resp.status);
-  });
-});
+describe('clearEssayWriters', () => {
+  it('200: clears all outsourced users and responds success', async () => {
+    DocumentThreadService.clearAllOutsourcedUsers.mockResolvedValue({});
+    const res = mockRes();
 
-describe('POST /api/document-threads/:messagesThreadId/essay', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .post(`/api/document-threads/${threadId}/essay`)
-      .set('tenantId', TENANT_ID)
-      .send({ editorIds: [] });
-    // Controller may return 500 when StudentService or email helpers throw
-    expect(resp.status).toBeLessThan(600);
-  });
-});
+    await clearEssayWriters(mockReq(), res, jest.fn());
 
-describe('PUT /api/document-threads/:messagesThreadId/:messageId/:ignoreMessageState/ignored', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .put(
-        `/api/document-threads/${threadId}/${messageId}/${ignoreMessageState}/ignored`
-      )
-      .set('tenantId', TENANT_ID);
-    expect([200, 400, 404]).toContain(resp.status);
-  });
-});
-
-describe('PUT /api/document-threads/:messagesThreadId/favorite', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .put(`/api/document-threads/${threadId}/favorite`)
-      .set('tenantId', TENANT_ID)
-      .send({});
-    expect([200, 400, 404]).toContain(resp.status);
-  });
-});
-
-describe('PUT /api/document-threads/:messagesThreadId/:studentId/origin-author', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = student;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .put(`/api/document-threads/${threadId}/${student._id}/origin-author`)
-      .set('tenantId', TENANT_ID)
-      .send({});
-    expect([200, 201, 400, 404]).toContain(resp.status);
-  });
-});
-
-describe('PUT /api/document-threads/:messagesThreadId/:studentId', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .put(`/api/document-threads/${threadId}/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({ isFinalVersion: false });
-    expect([200, 201, 400, 404]).toContain(resp.status);
-  });
-});
-
-describe('POST /api/document-threads/:messagesThreadId/:studentId (MessagesThreadUpload)', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .post(`/api/document-threads/${threadId}/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({ message: '{}' });
-    // Controller may return 403 if doc_thread_ops_validator rejects
-    expect(resp.status).toBeLessThan(600);
-  });
-});
-
-describe('DELETE /api/document-threads/:messagesThreadId/:studentId', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .delete(`/api/document-threads/${threadId}/${student._id}`)
-      .set('tenantId', TENANT_ID);
-    expect([200, 204, 400, 404]).toContain(resp.status);
-  });
-});
-
-describe('DELETE /api/document-threads/delete/:messagesThreadId/:messageId', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .delete(`/api/document-threads/delete/${threadId}/${messageId}`)
-      .set('tenantId', TENANT_ID);
-    expect([200, 204, 400, 404]).toContain(resp.status);
-  });
-});
-
-describe('GET /api/document-threads/image/:messagesThreadId/:studentId/:file_name', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .get(`/api/document-threads/image/${threadId}/${student._id}/test.png`)
-      .set('tenantId', TENANT_ID);
-    expect([200, 400, 404, 500]).toContain(resp.status);
-  });
-});
-
-describe('POST /api/document-threads/image/:messagesThreadId/:studentId (MessagesImageThreadUpload)', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .post(`/api/document-threads/image/${threadId}/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({});
-    // Controller may return 500 when no file is provided
-    expect(resp.status).toBeLessThan(600);
-  });
-});
-
-describe('GET /api/document-threads/:messagesThreadId/survey-inputs', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .get(`/api/document-threads/${threadId}/survey-inputs`)
-      .set('tenantId', TENANT_ID);
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-  });
-});
-
-describe('GET /api/document-threads/:messagesThreadId', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const resp = await requestWithSupertest
-      .get(`/api/document-threads/${threadId}`)
-      .set('tenantId', TENANT_ID);
-    // Controller runs complex post-populate logic (deadline calculators, etc.)
-    // that may throw with minimal test data. Route is covered; exact data setup
-    // will be refined during the TypeScript migration.
-    expect(resp.status).toBeLessThan(600);
-  });
-});
-
-describe('GET /api/document-threads/:studentId/:messagesThreadId/:file_key', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
-    const fileKey = 'some-file-key.pdf';
-    const resp = await requestWithSupertest
-      .get(`/api/document-threads/${student._id}/${threadId}/${fileKey}`)
-      .set('tenantId', TENANT_ID);
-    expect([200, 400, 404, 500]).toContain(resp.status);
-  });
-});
-
-describe('DELETE /api/document-threads/:messagesThreadId/:application_id/:studentId', () => {
-  it('should respond without crash', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = admin;
-      next();
-    });
-    const fakeApplicationId = new ObjectId().toHexString();
-    const resp = await requestWithSupertest
-      .delete(
-        `/api/document-threads/${threadId}/${fakeApplicationId}/${student._id}`
-      )
-      .set('tenantId', TENANT_ID);
-    expect([200, 204, 400, 404]).toContain(resp.status);
+    expect(DocumentThreadService.clearAllOutsourcedUsers).toHaveBeenCalledTimes(
+      1
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true });
   });
 });

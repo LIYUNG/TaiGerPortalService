@@ -1,7 +1,7 @@
 # FROM node:18-alpine
 
 # Test aws ecr
-FROM --platform=linux/arm64 public.ecr.aws/docker/library/node:22-alpine
+FROM --platform=linux/arm64 public.ecr.aws/docker/library/node:22.23-alpine
 
 WORKDIR /app
 

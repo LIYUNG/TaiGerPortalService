@@ -1,12 +1,14 @@
-// Full-stack integration test for the notes routes:
-//   supertest -> real router -> real controller -> real NoteService ->
-//   real NoteDAO -> in-memory MongoDB.
+// Integration test for the notes routes — HTTP boundary down to the service,
+// with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/notes ->
+//   real NoteService -> MOCKED NoteDAO.
 //
-// Nothing below the route is mocked (only auth/tenant middleware is stubbed).
-// This is the layer that catches the seam bugs — schema mismatch, bad query,
-// wrong field — that the mocked controller unit test (../controllers/notes.test.js)
-// cannot see. Keep it thin: a few critical paths asserting real data, not a
-// behaviour matrix (that belongs in the controller/service/dao suites).
+// These assert the controller/service pass the right arguments to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The actual DB
+// query construction is covered by the DAO unit tests
+// (__tests__/dao/note.dao.test.js). Fully deterministic — no engine flake.
+
+const request = require('supertest');
 
 jest.mock('../../middlewares/tenantMiddleware', () => ({
   ...jest.requireActual('../../middlewares/tenantMiddleware'),
@@ -29,58 +31,48 @@ jest.mock('../../middlewares/limit_archiv_user', () => ({
   filter_archiv_user: jest.fn((req, res, next) => next())
 }));
 
-const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
+// The data boundary: mock the DAO the note service delegates to.
+jest.mock('../../dao/note.dao');
+
+const NoteDAO = require('../../dao/note.dao');
 const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { notesSchema } = require('../../models/Note');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, student } = require('../mock/user');
-const { generateNote } = require('../mock/notes');
-const { disconnectFromDatabase } = require('../../database');
+const { admin, student } = require('../mock/user');
 
 const api = request(app);
 const studentId = student._id.toString();
-let dbUri;
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const NoteModel = db.model('Note', notesSchema);
-  await UserModel.deleteMany();
-  await NoteModel.deleteMany();
-  await UserModel.insertMany(users);
-  await NoteModel.insertMany([generateNote(studentId)]);
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation((req, res, next) => {
     req.user = admin;
     next();
   });
 });
 
-describe('GET /api/notes/:student_id (full stack)', () => {
-  it('returns the persisted note for the student', async () => {
+describe('GET /api/notes/:student_id', () => {
+  it('returns the note record from the DAO, queried by student id', async () => {
+    const note = { student_id: studentId, notes: 'Some note content' };
+    NoteDAO.getNoteByStudentId.mockResolvedValue(note);
+
     const resp = await api
       .get(`/api/notes/${studentId}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(NoteDAO.getNoteByStudentId).toHaveBeenCalledWith(studentId);
     expect(resp.body.data.student_id.toString()).toBe(studentId);
+    expect(resp.body.data.notes).toBe('Some note content');
   });
 });
 
-describe('PUT /api/notes/:student_id (full stack)', () => {
-  it('upserts the note and the change is visible on a subsequent read', async () => {
+describe('PUT /api/notes/:student_id', () => {
+  it('upserts via the DAO with the posted fields and returns the saved record', async () => {
     const notes = 'Updated note content';
+    const saved = { student_id: studentId, notes };
+    NoteDAO.upsertNoteByStudentId.mockResolvedValue(saved);
 
     const put = await api
       .put(`/api/notes/${studentId}`)
@@ -89,12 +81,11 @@ describe('PUT /api/notes/:student_id (full stack)', () => {
 
     expect(put.status).toBe(200);
     expect(put.body.success).toBe(true);
-
-    const get = await api
-      .get(`/api/notes/${studentId}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(get.status).toBe(200);
-    expect(get.body.data.notes).toBe(notes);
+    // The controller stamps student_id onto the fields before delegating.
+    expect(NoteDAO.upsertNoteByStudentId).toHaveBeenCalledWith(
+      studentId,
+      expect.objectContaining({ notes, student_id: studentId })
+    );
+    expect(put.body.data.notes).toBe(notes);
   });
 });

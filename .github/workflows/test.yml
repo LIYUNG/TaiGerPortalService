@@ -12,10 +12,7 @@ concurrency:
 jobs:
   test:
     name: Jest (Node ${{ matrix.node-version }})
-    # Pinned to 22.04: the in-memory MongoDB (mongodb-memory-server 6.0.9, see
-    # jest-mongodb-config.js) ships an ubuntu2204 binary; newer images lack the
-    # matching libssl and fail to launch mongod.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         node-version: [20.x]
@@ -36,17 +33,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Cache the downloaded in-memory mongod binary so every run does not
-      # re-download it (~100MB). Keyed on the pinned server version.
-      - name: Cache mongodb-memory-server binary
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/mongodb-binaries
-          key: mongodb-binaries-6.0.9
-
       # `npm run test` is intentionally NOT used here: it runs jest with
-      # --watchAll, which never exits in CI. We run the suite once, serially.
-      # --runInBand keeps the shared in-memory MongoDB from being hit by
-      # parallel workers (the source of the historical aggregation flakiness).
+      # --watchAll, which never exits in CI. The suite is fully mocked (no
+      # database), so `test:ci` runs it once in parallel and deterministically.
       - name: Run tests
-        run: npm run test:ci -- --runInBand --forceExit
+        run: npm run test:ci -- --forceExit

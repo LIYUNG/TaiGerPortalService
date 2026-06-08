@@ -1,29 +1,20 @@
-// Full-stack integration test for the communications (chat) routes:
-//   supertest -> real router -> real controllers/communications -> real
-//   CommunicationService/StudentService -> real DAOs -> in-memory MongoDB.
+// Integration test for the communications (chat) routes — HTTP boundary down to
+// the service, with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/communications
+//   -> real CommunicationService / StudentService -> MOCKED CommunicationDAO /
+//   StudentDAO / PermissionDAO.
 //
-// Nothing below the route is mocked (only auth/tenant/permission middleware is
-// stubbed). This is the layer that catches the seam bugs — schema mismatch, bad
-// query, wrong field — that the mocked controller unit test
-// (../controllers/communications.test.js) cannot see. Ported from the original
-// __tests__/controllers/communications.test.js with the deterministic reads
-// strengthened. The write paths fan out to email/S3 (fire-and-forget) so they
-// keep a status-set assertion. Keep it thin: happy paths only.
+// These assert the controller/service pass the right arguments to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The actual DB
+// query construction is covered by the DAO unit tests. Fully deterministic —
+// no engine flake.
 
 const request = require('supertest');
 
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
 const { generateCommunicationMessage } = require('../fixtures/faker');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { communicationsSchema } = require('../../models/Communication');
-const { users, admin, agent, student } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
-
-const requestWithSupertest = request(app);
+const { admin, agent, student } = require('../mock/user');
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -86,43 +77,56 @@ jest.mock('../../middlewares/auth', () => {
   };
 });
 
+// Posting a message notifies the agent/student by email (fire-and-forget after
+// the response is sent); stub just those senders so no SMTP connection opens.
+jest.mock('../../services/email', () => ({
+  ...jest.requireActual('../../services/email'),
+  sendAgentNewMessageReminderEmail: jest.fn(),
+  sendStudentNewMessageReminderEmail: jest.fn()
+}));
+
+// The data boundary: mock the DAOs the communication/student services delegate
+// to. PermissionDAO is touched by the cached getPermission() helper.
+jest.mock('../../dao/communication.dao');
+jest.mock('../../dao/student.dao');
+jest.mock('../../dao/permission.dao');
+
+const CommunicationDAO = require('../../dao/communication.dao');
+const StudentDAO = require('../../dao/student.dao');
+const PermissionDAO = require('../../dao/permission.dao');
+const { app } = require('../../app');
+
+const requestWithSupertest = request(app);
+const studentId = student._id.toString();
+
 const messages = [...Array(3)].map(() =>
   generateCommunicationMessage({ studnet_id: student._id, user_id: agent._id })
 );
 
 const testMessage =
   '{"time":1709234667356,"blocks":[{"id":"PYUnoHKB47","type":"paragraph","data":{"text":"tes"}}],"version":"2.29.0"}';
-let dbUri;
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const CommunicationModel = db.model('Communication', communicationsSchema);
-
-  await CommunicationModel.deleteMany();
-  await CommunicationModel.insertMany([...messages]);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
-    req.user = await UserModel.findById(admin._id);
+    req.user = admin;
     next();
+  });
+  // getPermission() reads the permission DAO (cached); default to all-access.
+  PermissionDAO.getPermissionByUserId.mockResolvedValue({
+    canAccessAllChat: true
   });
 });
 
-describe('GET /api/communications/ping/all (full stack)', () => {
+describe('GET /api/communications/ping/all', () => {
   it('returns a numeric unread-count for the user', async () => {
+    StudentDAO.findStudentsSelect.mockResolvedValue([
+      { _id: student._id, firstname: 'F', lastname: 'L' }
+    ]);
+    StudentDAO.getUnreadCommunicationStudents.mockResolvedValue([
+      { _id: student._id }
+    ]);
+
     const resp = await requestWithSupertest
       .get('/api/communications/ping/all')
       .set('tenantId', TENANT_ID);
@@ -130,84 +134,162 @@ describe('GET /api/communications/ping/all (full stack)', () => {
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(typeof resp.body.data).toBe('number');
+    expect(resp.body.data).toBe(1);
   });
 });
 
-describe('GET /api/communications/:studentId/pages/:pageNumber (full stack)', () => {
+describe('GET /api/communications/:studentId/pages/:pageNumber', () => {
   it('returns the thread page as an array plus the student', async () => {
+    StudentDAO.getStudentByIdSelectPopulated.mockResolvedValue({
+      _id: student._id,
+      firstname: 'F',
+      lastname: 'L',
+      agents: []
+    });
+    CommunicationDAO.findThreadPopulated.mockResolvedValue([...messages]);
+
     const resp = await requestWithSupertest
-      .get(`/api/communications/${student._id.toString()}/pages/1`)
+      .get(`/api/communications/${studentId}/pages/1`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
-    expect(resp.body.student._id.toString()).toBe(student._id.toString());
+    expect(resp.body.student._id.toString()).toBe(studentId);
+    expect(StudentDAO.getStudentByIdSelectPopulated).toHaveBeenCalled();
+    expect(CommunicationDAO.findThreadPopulated).toHaveBeenCalled();
+  });
+
+  it('404s when the student does not exist', async () => {
+    StudentDAO.getStudentByIdSelectPopulated.mockResolvedValue(null);
+
+    const resp = await requestWithSupertest
+      .get(`/api/communications/${studentId}/pages/1`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(404);
   });
 });
 
-describe('GET /api/communications/:studentId (full stack)', () => {
-  it('returns the persisted thread for the student', async () => {
+describe('GET /api/communications/:studentId', () => {
+  it('returns the thread for the student', async () => {
+    StudentDAO.getStudentByIdSelectPopulated.mockResolvedValue({
+      _id: student._id,
+      firstname: 'F',
+      lastname: 'L',
+      agents: []
+    });
+    // Live docs with readBy so the mark-as-read branch is exercised. The newest
+    // doc already has the admin in readBy => no .save() needed.
+    const thread = messages.map((msg) => ({
+      ...msg,
+      readBy: [{ _id: admin._id }],
+      save: jest.fn()
+    }));
+    CommunicationDAO.findThreadPopulated.mockResolvedValue(thread);
+
     const resp = await requestWithSupertest
-      .get(`/api/communications/${student._id.toString()}`)
+      .get(`/api/communications/${studentId}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
-    // The 3 seeded messages all belong to this student's thread.
     expect(resp.body.data.length).toBe(messages.length);
   });
 });
 
-describe('PUT /api/communications/:studentId/:messageId (full stack)', () => {
-  it('updates a message and the change is reflected in the response', async () => {
+describe('PUT /api/communications/:studentId/:messageId', () => {
+  it('updates a message and returns the DAO result', async () => {
     const messageId = messages[0]._id.toString();
+    CommunicationDAO.updateCommunication.mockResolvedValue({
+      _id: messageId,
+      message: 'new information'
+    });
+
     const resp = await requestWithSupertest
-      .put(`/api/communications/${student._id.toString()}/${messageId}`)
+      .put(`/api/communications/${studentId}/${messageId}`)
       .set('tenantId', TENANT_ID)
       .send({ message: 'new information' });
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data.message).toContain('new information');
+    expect(CommunicationDAO.updateCommunication).toHaveBeenCalledWith(
+      messageId,
+      expect.objectContaining({ message: 'new information' })
+    );
   });
 });
 
-describe('POST /api/communications/:studentId (full stack)', () => {
-  it('accepts a new message (write fans out to email/S3 fire-and-forget)', async () => {
+describe('POST /api/communications/:studentId', () => {
+  it('creates a message then returns the latest thread entry', async () => {
+    CommunicationDAO.createCommunication.mockResolvedValue({ _id: 'new' });
+    CommunicationDAO.findThreadPopulated.mockResolvedValue([
+      { _id: 'new', message: testMessage }
+    ]);
+    // Post-response email fan-out reads the student.
+    StudentDAO.getStudentById.mockResolvedValue({
+      _id: student._id,
+      firstname: 'F',
+      lastname: 'L',
+      email: 'f@l.com',
+      agents: [],
+      archiv: false
+    });
+
     const resp = await requestWithSupertest
-      .post(`/api/communications/${student._id.toString()}`)
+      .post(`/api/communications/${studentId}`)
       .set('tenantId', TENANT_ID)
       .send({ message: testMessage });
 
-    expect([200, 201, 400]).toContain(resp.status);
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    expect(CommunicationDAO.createCommunication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        student_id: studentId,
+        message: testMessage
+      })
+    );
   });
 });
 
-describe('DELETE /api/communications/:studentId/:messageId (full stack)', () => {
+describe('DELETE /api/communications/:studentId/:messageId', () => {
   it('deletes a message in the thread', async () => {
     const messageId = messages[0]._id.toString();
+    // deleteAMessageInCommunicationThread first loads the message (for the file
+    // cache/S3 cleanup), then deletes it.
+    CommunicationDAO.getCommunicationById.mockResolvedValue({
+      _id: messageId,
+      student_id: student._id,
+      files: []
+    });
+    CommunicationDAO.deleteById.mockResolvedValue({ deletedCount: 1 });
+
     const resp = await requestWithSupertest
-      .delete(`/api/communications/${student._id.toString()}/${messageId}`)
+      .delete(`/api/communications/${studentId}/${messageId}`)
       .set('tenantId', TENANT_ID);
 
-    expect([200, 204, 404]).toContain(resp.status);
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    expect(CommunicationDAO.deleteById).toHaveBeenCalledWith(messageId);
   });
 });
 
-describe('PUT /api/communications/:studentId/:messageId/:state/ignore (full stack)', () => {
+describe('PUT /api/communications/:studentId/:messageId/:state/ignore', () => {
   it('marks a message as ignored', async () => {
     const messageId = messages[0]._id.toString();
+    CommunicationDAO.updateCommunication.mockResolvedValue({ _id: messageId });
+
     const resp = await requestWithSupertest
-      .put(
-        `/api/communications/${student._id.toString()}/${messageId}/true/ignore`
-      )
+      .put(`/api/communications/${studentId}/${messageId}/true/ignore`)
       .set('tenantId', TENANT_ID);
 
-    expect([200, 404]).toContain(resp.status);
-    if (resp.status === 200) {
-      expect(resp.body.success).toBe(true);
-    }
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    expect(CommunicationDAO.updateCommunication).toHaveBeenCalledWith(
+      messageId,
+      expect.objectContaining({ ignore_message: 'true' })
+    );
   });
 });

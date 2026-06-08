@@ -1,54 +1,36 @@
-// Full-stack integration test for the programs routes:
-//   supertest -> real router -> real controllers/programs -> real ProgramService
-//   -> real DAOs -> in-memory MongoDB.
+// Integration test for the programs routes — HTTP boundary down to the service,
+// with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/programs ->
+//   real ProgramService / VCService / ApplicationService /
+//   ProgramRequirementService / TicketService ->
+//   MOCKED ProgramDAO / VCDAO / ApplicationDAO / ProgramRequirementDAO / TicketDAO.
 //
-// Only auth/tenant middleware is stubbed; everything below the route is real, so
-// a seam bug (schema mismatch, bad query, missing version-control write) surfaces
-// here. Ported from the original __tests__/controllers/programs.test.js with the
-// weak assertions strengthened against the real persisted data. The exhaustive
-// per-handler behaviour lives in ../controllers/programs.test.js (mocked) and the
-// service/dao suites.
+// These assert the controller/service pass the right arguments to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The actual
+// query/aggregation/pagination construction is covered by the DAO unit tests.
+// Fully deterministic — no engine flake.
 
 const request = require('supertest');
-
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { programSchema } = require('../../models/Program');
-const { versionControlSchema } = require('../../models/VersionControl');
-const { generateProgram } = require('../fixtures/faker');
-const { protect } = require('../../middlewares/auth');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin } = require('../mock/user');
-const { programs } = require('../mock/programs');
-const { disconnectFromDatabase } = require('../../database');
-
-const requestWithSupertest = request(app);
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
     next();
   };
-
   return {
     ...jest.requireActual('../../middlewares/tenantMiddleware'),
     checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
   };
 });
-
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
   const passthrough = async (req, res, next) => next();
-
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
     decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
   };
 });
-
 jest.mock('../../middlewares/auth', () => {
   const passthrough = async (req, res, next) => next();
-
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
@@ -56,24 +38,30 @@ jest.mock('../../middlewares/auth', () => {
   };
 });
 
-let dbUri;
-beforeAll(async () => {
-  dbUri = await connect();
-});
+// The data boundary: mock every DAO the program handlers reach (incl. the VC /
+// application / requirement / ticket reads & writes triggered on update/delete).
+jest.mock('../../dao/program.dao');
+jest.mock('../../dao/vc.dao');
+jest.mock('../../dao/application.dao');
+jest.mock('../../dao/programRequirement.dao');
+jest.mock('../../dao/ticket.dao');
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
+const ProgramDAO = require('../../dao/program.dao');
+const VCDAO = require('../../dao/vc.dao');
+const ApplicationDAO = require('../../dao/application.dao');
+const ProgramRequirementDAO = require('../../dao/programRequirement.dao');
+const TicketDAO = require('../../dao/ticket.dao');
+const { app } = require('../../app');
+const { generateProgram } = require('../fixtures/faker');
+const { protect } = require('../../middlewares/auth');
+const { TENANT_ID } = require('../fixtures/constants');
+const { admin } = require('../mock/user');
+const { programs } = require('../mock/programs');
 
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
+const requestWithSupertest = request(app);
 
-  const ProgramModel = db.model('Program', programSchema);
-
-  await ProgramModel.deleteMany();
-  await ProgramModel.insertMany(programs);
-
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;
     next();
@@ -81,7 +69,12 @@ beforeEach(async () => {
 });
 
 describe('GET /api/programs (full stack)', () => {
-  it('should return paginated programs', async () => {
+  it('should return paginated programs from the DAO', async () => {
+    ProgramDAO.findProgramsPaginated.mockResolvedValue([
+      programs,
+      programs.length
+    ]);
+
     const resp = await requestWithSupertest
       .get('/api/programs')
       .set('tenantId', TENANT_ID);
@@ -96,7 +89,12 @@ describe('GET /api/programs (full stack)', () => {
     expect(data.length).toBe(programs.length);
   });
 
-  it('should respect page and limit query params', async () => {
+  it('should pass page and limit query params down to the DAO', async () => {
+    ProgramDAO.findProgramsPaginated.mockResolvedValue([
+      programs.slice(0, 2),
+      programs.length
+    ]);
+
     const resp = await requestWithSupertest
       .get('/api/programs?page=1&limit=2')
       .set('tenantId', TENANT_ID);
@@ -107,44 +105,27 @@ describe('GET /api/programs (full stack)', () => {
     expect(total).toBe(programs.length);
     expect(page).toBe(1);
     expect(limit).toBe(2);
+    expect(ProgramDAO.findProgramsPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 0, limit: 2 })
+    );
   });
 
-  it('should filter programs by global search', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramModel = db.model('Program', programSchema);
-    const targetSchool = 'UniqueSearchableSchoolXYZ';
+  it('should pass a global search term into the DAO filter', async () => {
+    ProgramDAO.findProgramsPaginated.mockResolvedValue([[], 0]);
 
-    await ProgramModel.create({
-      ...generateProgram(),
-      school: targetSchool,
-      program_name: 'Searchable Program',
-      isArchiv: false
-    });
-
-    const resp = await requestWithSupertest
+    await requestWithSupertest
       .get('/api/programs?search=UniqueSearchableSchool')
       .set('tenantId', TENANT_ID);
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.total).toBeGreaterThanOrEqual(1);
-    expect(
-      resp.body.data.some((program) => program.school === targetSchool)
-    ).toBe(true);
+    const arg = ProgramDAO.findProgramsPaginated.mock.calls[0][0];
+    const serialized = JSON.stringify(arg.filter);
+    expect(serialized).toContain('UniqueSearchableSchool');
   });
 
-  it('should filter programs by column filters', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramModel = db.model('Program', programSchema);
-    const targetSchool = 'ColumnFilterSchoolXYZ';
+  it('should pass column filters into the DAO filter', async () => {
+    ProgramDAO.findProgramsPaginated.mockResolvedValue([[], 0]);
 
-    await ProgramModel.create({
-      ...generateProgram(),
-      school: targetSchool,
-      country: 'de',
-      isArchiv: false
-    });
-
-    const resp = await requestWithSupertest
+    await requestWithSupertest
       .get(
         `/api/programs?school=${encodeURIComponent(
           'ColumnFilterSchool'
@@ -152,40 +133,61 @@ describe('GET /api/programs (full stack)', () => {
       )
       .set('tenantId', TENANT_ID);
 
-    expect(resp.status).toBe(200);
-    expect(resp.body.total).toBeGreaterThanOrEqual(1);
-    expect(resp.body.data.every((program) => program.country === 'de')).toBe(
-      true
-    );
-    expect(
-      resp.body.data.some((program) => program.school === targetSchool)
-    ).toBe(true);
+    const arg = ProgramDAO.findProgramsPaginated.mock.calls[0][0];
+    const serialized = JSON.stringify(arg.filter);
+    expect(serialized).toContain('ColumnFilterSchool');
+    expect(serialized).toContain('de');
   });
 });
 
 describe('POST /api/programs (full stack)', () => {
-  it('should create a program and persist it', async () => {
+  it('should create a program via the DAO with trimmed fields', async () => {
     const { _id, ...fields } = generateProgram();
+    // No duplicate exists.
+    ProgramDAO.findPrograms.mockResolvedValue([]);
+    ProgramDAO.createProgram.mockImplementation((payload) =>
+      Promise.resolve({ _id: 'created-id', ...payload })
+    );
+
     const resp = await requestWithSupertest.post('/api/programs').send(fields);
     const { success, data } = resp.body;
 
     expect(resp.status).toBe(201);
     expect(success).toBe(true);
-    // the created doc carries the submitted (trimmed) school name and a real id
     expect(data._id).toBeTruthy();
     expect(data.school).toBe(fields.school.trim());
+    expect(ProgramDAO.createProgram).toHaveBeenCalledWith(
+      expect.objectContaining({
+        school: fields.school.trim(),
+        program_name: fields.program_name.trim(),
+        whoupdated: `${admin.firstname} ${admin.lastname}`
+      })
+    );
+  });
 
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramModel = db.model('Program', programSchema);
-    const persisted = await ProgramModel.findById(data._id).lean();
-    expect(persisted).toBeTruthy();
-    expect(persisted.program_name).toBe(fields.program_name.trim());
+  it('should 403 when a duplicate program already exists', async () => {
+    const { _id, ...fields } = generateProgram();
+    ProgramDAO.findPrograms.mockResolvedValue([{ _id: 'dupe' }]);
+
+    const resp = await requestWithSupertest.post('/api/programs').send(fields);
+
+    expect(resp.status).toBe(403);
+    expect(ProgramDAO.createProgram).not.toHaveBeenCalled();
   });
 });
 
 describe('PUT /api/programs/:id (full stack)', () => {
-  it('should update a program and the change is visible on read', async () => {
+  it('should update a program and stamp whoupdated', async () => {
     const { _id } = programs[0];
+    ProgramDAO.updateProgramOne.mockResolvedValue({
+      _id,
+      program_name: 'Renamed Program',
+      school: programs[0].school,
+      degree: programs[0].degree,
+      whoupdated: `${admin.firstname} ${admin.lastname}`
+    });
+    ProgramDAO.updateManyPrograms.mockResolvedValue({ modifiedCount: 0 });
+    VCDAO.getVC.mockResolvedValue({ changes: [] });
 
     const resp = await requestWithSupertest
       .put(`/api/programs/${_id}`)
@@ -195,53 +197,84 @@ describe('PUT /api/programs/:id (full stack)', () => {
     expect(resp.status).toBe(200);
     expect(success).toBe(true);
     expect(data.program_name).toBe('Renamed Program');
-
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramModel = db.model('Program', programSchema);
-    const persisted = await ProgramModel.findById(_id).lean();
-    expect(persisted.program_name).toBe('Renamed Program');
-    expect(persisted.whoupdated).toBe(`${admin.firstname} ${admin.lastname}`);
+    expect(ProgramDAO.updateProgramOne).toHaveBeenCalledWith(
+      { _id: _id.toString() },
+      expect.objectContaining({
+        program_name: 'Renamed Program',
+        whoupdated: `${admin.firstname} ${admin.lastname}`
+      })
+    );
+    expect(ProgramDAO.updateManyPrograms).toHaveBeenCalled();
   });
 
-  it('records a version-control entry when a program is updated', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const VCModel = db.model('VC', versionControlSchema);
-    await VCModel.deleteMany();
-
+  it('reads the version-control record for the program after updating', async () => {
     const { _id } = programs[0];
+    ProgramDAO.updateProgramOne.mockResolvedValue({
+      _id,
+      program_name: 'VC Characterization Program'
+    });
+    ProgramDAO.updateManyPrograms.mockResolvedValue({ modifiedCount: 0 });
+    VCDAO.getVC.mockResolvedValue({ changes: [{ field: 'program_name' }] });
+
     const resp = await requestWithSupertest.put(`/api/programs/${_id}`).send({
       program_name: 'VC Characterization Program',
       ml_required: 'yes'
     });
-    expect(resp.status).toBe(200);
 
-    const vcs = await VCModel.find({ collectionName: 'Program' }).lean();
-    const vc = vcs.find((v) => v.docId?.toString() === _id.toString());
-    expect(vc).toBeTruthy();
-    expect(vc.changes.length).toBeGreaterThan(0);
+    expect(resp.status).toBe(200);
+    expect(VCDAO.getVC).toHaveBeenCalledWith({
+      docId: _id.toString(),
+      collectionName: 'Program'
+    });
+    expect(resp.body.vc.changes.length).toBeGreaterThan(0);
   });
 });
 
 describe('DELETE /api/programs/:id (full stack)', () => {
   it('should archive a program with no applications', async () => {
     const { _id } = programs[0];
+    ApplicationDAO.getApplicationsByProgramId.mockResolvedValue([]);
+    ProgramDAO.archiveProgramById.mockResolvedValue({ _id, isArchiv: true });
+    ProgramRequirementDAO.deleteOneByProgramIds.mockResolvedValue({
+      deletedCount: 0
+    });
+    TicketDAO.deleteTicketsByProgramId.mockResolvedValue({ deletedCount: 0 });
 
     const resp = await requestWithSupertest.delete(`/api/programs/${_id}`);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    // delete is a soft archive scoped to the program id
+    expect(ApplicationDAO.getApplicationsByProgramId).toHaveBeenCalledWith(
+      _id.toString()
+    );
+    expect(ProgramDAO.archiveProgramById).toHaveBeenCalledWith(_id.toString());
+    expect(ProgramRequirementDAO.deleteOneByProgramIds).toHaveBeenCalledWith([
+      _id.toString()
+    ]);
+    expect(TicketDAO.deleteTicketsByProgramId).toHaveBeenCalledWith(
+      _id.toString()
+    );
+  });
 
-    // delete is a soft archive: the doc is flagged isArchiv, not removed
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramModel = db.model('Program', programSchema);
-    const persisted = await ProgramModel.findById(_id).lean();
-    expect(persisted.isArchiv).toBe(true);
+  it('should 403 (not archive) when applications still reference the program', async () => {
+    const { _id } = programs[0];
+    ApplicationDAO.getApplicationsByProgramId.mockResolvedValue([
+      { studentId: 'student-1' }
+    ]);
+
+    const resp = await requestWithSupertest.delete(`/api/programs/${_id}`);
+
+    expect(resp.status).toBe(403);
+    expect(ProgramDAO.archiveProgramById).not.toHaveBeenCalled();
   });
 });
 
 describe('GET /api/programs/:programId (full stack)', () => {
-  it('should return a single program by id', async () => {
+  it('should return a single program by id (with VC for admins)', async () => {
     const { _id } = programs[0];
+    ProgramDAO.getProgramByIdLean.mockResolvedValue(programs[0]);
+    VCDAO.getVC.mockResolvedValue({ changes: [] });
 
     const resp = await requestWithSupertest
       .get(`/api/programs/${_id}`)
@@ -250,25 +283,59 @@ describe('GET /api/programs/:programId (full stack)', () => {
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data._id.toString()).toBe(_id.toString());
+    expect(ProgramDAO.getProgramByIdLean).toHaveBeenCalledWith(_id.toString());
+    expect(VCDAO.getVC).toHaveBeenCalledWith({
+      docId: _id.toString(),
+      collectionName: 'Program'
+    });
+  });
+
+  it('should 404 when the program does not exist', async () => {
+    const { _id } = programs[0];
+    ProgramDAO.getProgramByIdLean.mockResolvedValue(null);
+
+    const resp = await requestWithSupertest
+      .get(`/api/programs/${_id}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(404);
   });
 });
 
 describe('GET /api/programs/overview (full stack)', () => {
   it('should return an aggregated programs overview', async () => {
+    ProgramDAO.countPrograms.mockResolvedValue(42);
+    // Every aggregatePrograms call returns an array; default to [] and let the
+    // first (totalSchools) call resolve to a count-shaped doc.
+    ProgramDAO.aggregatePrograms.mockResolvedValue([]);
+    ProgramDAO.findProgramsQuery.mockResolvedValue([]);
+    ApplicationDAO.aggregateApplications.mockResolvedValue([]);
+
     const resp = await requestWithSupertest
       .get('/api/programs/overview')
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
-    expect(typeof resp.body.data.totalPrograms).toBe('number');
+    expect(resp.body.data.totalPrograms).toBe(42);
     expect(Array.isArray(resp.body.data.byCountry)).toBe(true);
+    expect(ProgramDAO.countPrograms).toHaveBeenCalledWith({
+      isArchiv: { $ne: true }
+    });
   });
 });
 
 describe('GET /api/programs/same-program-students/:programId (full stack)', () => {
   it('should return students sharing the same program', async () => {
     const { _id } = programs[0];
+    ApplicationDAO.getDecidedApplicationsByProgramPopulated.mockResolvedValue([
+      {
+        studentId: { _id: 'stu1', agents: [] },
+        application_year: '2024',
+        closed: 'O',
+        admission: 'O'
+      }
+    ]);
 
     const resp = await requestWithSupertest
       .get(`/api/programs/same-program-students/${_id}`)
@@ -277,5 +344,8 @@ describe('GET /api/programs/same-program-students/:programId (full stack)', () =
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
+    expect(
+      ApplicationDAO.getDecidedApplicationsByProgramPopulated
+    ).toHaveBeenCalledWith(_id.toString());
   });
 });

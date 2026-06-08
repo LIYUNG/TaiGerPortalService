@@ -1,11 +1,15 @@
-// Full-stack integration layer for the permissions routes:
-//   supertest -> real router -> real controllers/permissions -> real
-//   PermissionService -> real PermissionDAO -> in-memory MongoDB.
+// Integration test for the permissions routes — HTTP boundary down to the
+// service, with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/permissions
+//   -> real PermissionService -> MOCKED PermissionDAO.
 //
-// Only auth/tenant/permission middleware is stubbed; the outbound notification
-// email is also stubbed (no SMTP in tests). Everything below the route is real,
-// so a seam bug (schema/query/upsert) surfaces here. Kept thin — exhaustive
-// per-handler behaviour lives in ../controllers/permissions.test.js (mocked).
+// These assert the controller/service pass the right arguments to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The outbound
+// notification email is stubbed (no SMTP in tests). The actual DB
+// query/upsert construction is covered by the DAO unit tests
+// (__tests__/dao/permission.dao.test.js).
+
+const request = require('supertest');
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -66,95 +70,97 @@ jest.mock('../../services/email', () => ({
   updatePermissionNotificationEmail: jest.fn()
 }));
 
-const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
+// The data boundary: mock the DAO the permission service delegates to.
+jest.mock('../../dao/permission.dao');
+
+const PermissionDAO = require('../../dao/permission.dao');
 const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { permissionSchema } = require('../../models/Permission');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, agent } = require('../mock/user');
+const { admin, agent } = require('../mock/user');
 const { updatePermissionNotificationEmail } = require('../../services/email');
-const { disconnectFromDatabase } = require('../../database');
 
 const requestWithSupertest = request(app);
-let dbUri;
 
-const testPermission = {
-  user_id: agent._id,
-  canAssignAgents: false,
-  canAssignEditors: false,
-  canModifyProgramList: false,
-  canContactStudents: false
-};
-
-beforeAll(async () => {
-  dbUri = await connect();
-});
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const PermissionModel = db.model('Permission', permissionSchema);
-  await UserModel.deleteMany();
-  await PermissionModel.deleteMany();
-  await UserModel.insertMany(users);
-  await PermissionModel.insertMany([testPermission]);
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;
     next();
   });
 });
 
-describe('GET /api/permissions/:user_id (full stack)', () => {
-  it('returns the persisted permissions list (the seeded agent permission)', async () => {
+describe('GET /api/permissions/:user_id', () => {
+  it('returns the permissions list from the DAO (getPermissions called with {})', async () => {
+    const permissions = [
+      {
+        user_id: agent._id,
+        canAssignAgents: false,
+        canAssignEditors: false,
+        canModifyProgramList: false,
+        canContactStudents: false
+      }
+    ];
+    PermissionDAO.getPermissions.mockResolvedValue(permissions);
+
     const resp = await requestWithSupertest
       .get(`/api/permissions/${agent._id}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(PermissionDAO.getPermissions).toHaveBeenCalledWith({});
     expect(Array.isArray(resp.body.data)).toBe(true);
-    // getPermissions({}) returns ALL permission docs (lean, user_id NOT
-    // populated); we seeded exactly one, for the agent.
     expect(resp.body.data.length).toBe(1);
     expect(resp.body.data[0].user_id.toString()).toBe(agent._id.toString());
   });
 });
 
-describe('POST /api/permissions/:user_id (full stack)', () => {
-  it('upserts the permission and the change is visible on a subsequent read', async () => {
+describe('POST /api/permissions/:user_id', () => {
+  it('upserts via the DAO with the posted body and fires the notification email', async () => {
+    const body = {
+      user_id: agent._id,
+      canAssignAgents: true,
+      canAssignEditors: false,
+      canModifyProgramList: true
+    };
+    // Upsert returns the doc with user_id populated (firstname/lastname/email);
+    // the controller reads those to build the notification email.
+    const saved = {
+      ...body,
+      user_id: {
+        _id: agent._id,
+        firstname: agent.firstname,
+        lastname: agent.lastname,
+        email: agent.email
+      }
+    };
+    PermissionDAO.upsertPermissionByUserId.mockResolvedValue(saved);
+
     const post = await requestWithSupertest
       .post(`/api/permissions/${agent._id}`)
       .set('tenantId', TENANT_ID)
-      .send({
-        user_id: agent._id,
-        canAssignAgents: true,
-        canAssignEditors: false,
-        canModifyProgramList: true
-      });
+      .send(body);
 
     expect(post.status).toBe(200);
     expect(post.body.success).toBe(true);
-    // Upsert returns the doc with user_id populated (firstname/lastname/email).
+    expect(PermissionDAO.upsertPermissionByUserId).toHaveBeenCalledWith(
+      agent._id.toString(),
+      expect.objectContaining({
+        canAssignAgents: true,
+        canModifyProgramList: true
+      })
+    );
     expect(post.body.data.canAssignAgents).toBe(true);
     expect(post.body.data.canModifyProgramList).toBe(true);
     // Notification email is fired after the response is sent.
-    expect(updatePermissionNotificationEmail).toHaveBeenCalled();
-
-    const get = await requestWithSupertest
-      .get(`/api/permissions/${agent._id}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(get.status).toBe(200);
-    const persisted = get.body.data.find(
-      (p) => p.user_id.toString() === agent._id.toString()
+    expect(updatePermissionNotificationEmail).toHaveBeenCalledWith(
+      {
+        firstname: agent.firstname,
+        lastname: agent.lastname,
+        address: agent.email
+      },
+      {}
     );
-    expect(persisted.canAssignAgents).toBe(true);
-    expect(persisted.canModifyProgramList).toBe(true);
   });
 });

@@ -1,24 +1,21 @@
-// Full-stack integration test for the auth routes:
+// Integration test for the auth routes — HTTP boundary down to the service,
+// with the DAO layer MOCKED (no database, in-memory or otherwise):
 //   supertest -> real router -> real localAuth/passport (jwt+local strategies)
-//   -> real controllers/auth -> real UserService/TokenService -> real DAOs ->
-//   in-memory MongoDB.
+//   -> real controllers/auth -> real UserService/TokenService -> MOCKED
+//   UserDAO / TokenDAO.
 //
-// Only the email module and the tenant/cookie middleware are stubbed; the
-// passport authentication and the service/dao layers run for real so a seam bug
-// (password compare, token lookup, user projection) surfaces here. Ported from
-// the original __tests__/controllers/auth.test.js with the login assertions
-// strengthened against the deterministic seed. Keep it thin: happy paths only.
+// The passport authentication and the service layers run for real; only the
+// email module, the tenant/cookie middleware and the DAOs are stubbed. The
+// password compare runs against a mocked user document exposing verifyPassword,
+// and token lookups are driven by the mocked TokenDAO. Fully deterministic — no
+// database engine, no seeding.
 
 const request = require('supertest');
 
-const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, student, admin } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
+const { student, admin } = require('../mock/user');
 
 const requestWithSupertest = request(app);
 
@@ -47,7 +44,7 @@ jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
   const passthrough = async (req, res, next) => next();
 
   return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
+    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
     InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
   };
 });
@@ -58,7 +55,7 @@ jest.mock('../../middlewares/auth', () => {
   return {
     ...jest.requireActual('../../middlewares/auth'),
     // protect is stubbed (the verify route is not under test here); localAuth is
-    // kept REAL so the login password compare runs against the seeded user.
+    // kept REAL so the login password compare runs against the mocked user.
     protect: jest.fn().mockImplementation(passthrough),
     permit: jest.fn().mockImplementation((...roles) => passthrough)
   };
@@ -71,33 +68,29 @@ jest.mock('../../services/email', () => ({
   sendAccountActivationConfirmationEmail: jest.fn().mockResolvedValue(undefined)
 }));
 
-let dbUri;
+// The data boundary: mock the DAOs the user/token services delegate to. The
+// passport local strategy fetches the user (with password) through UserDAO.
+jest.mock('../../dao/user.dao');
+jest.mock('../../dao/token.dao');
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
+const UserDAO = require('../../dao/user.dao');
+const TokenDAO = require('../../dao/token.dao');
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
-    req.user = await UserModel.findById(student._id);
+    req.user = student;
     next();
   });
 });
 
-describe('POST /auth/login (full stack)', () => {
+describe('POST /auth/login', () => {
   it('401: rejects a wrong password', async () => {
+    UserDAO.getUserDocWithPasswordByEmail.mockResolvedValue({
+      ...student,
+      verifyPassword: jest.fn().mockResolvedValue(false)
+    });
+
     const resp = await requestWithSupertest
       .post('/auth/login')
       .set('tenantId', TENANT_ID)
@@ -105,9 +98,22 @@ describe('POST /auth/login (full stack)', () => {
 
     expect(resp.status).toBe(401);
     expect(resp.body.success).toBe(false);
+    expect(UserDAO.getUserDocWithPasswordByEmail).toHaveBeenCalledWith(
+      student.email
+    );
   });
 
   it('200: authenticates a correct password and returns the user + cookie', async () => {
+    UserDAO.getUserDocWithPasswordByEmail.mockResolvedValue({
+      _id: student._id,
+      email: student.email,
+      firstname: student.firstname,
+      lastname: student.lastname,
+      isAccountActivated: true,
+      verifyPassword: jest.fn().mockResolvedValue(true)
+    });
+    UserDAO.touchLastLoginByEmail.mockResolvedValue(undefined);
+
     const resp = await requestWithSupertest
       .post('/auth/login')
       .set('tenantId', TENANT_ID)
@@ -117,10 +123,11 @@ describe('POST /auth/login (full stack)', () => {
     expect(resp.body.success).toBe(true);
     expect(resp.body.data.email).toBe(student.email);
     expect(resp.headers['set-cookie'].join(';')).toContain('x-auth');
+    expect(UserDAO.touchLastLoginByEmail).toHaveBeenCalledWith(student.email);
   });
 });
 
-describe('GET /auth/logout (full stack)', () => {
+describe('GET /auth/logout', () => {
   it('200: clears the auth cookie and returns success', async () => {
     const resp = await requestWithSupertest
       .get('/auth/logout')
@@ -131,8 +138,16 @@ describe('GET /auth/logout (full stack)', () => {
   });
 });
 
-describe('POST /auth/forgot-password (full stack)', () => {
+describe('POST /auth/forgot-password', () => {
   it('200: issues a reset token + email for a known user', async () => {
+    UserDAO.getUserByEmail.mockResolvedValue({
+      _id: admin._id,
+      email: admin.email,
+      firstname: admin.firstname,
+      lastname: admin.lastname
+    });
+    TokenDAO.createToken.mockResolvedValue({ _id: 'token-id' });
+
     const resp = await requestWithSupertest
       .post('/auth/forgot-password')
       .set('tenantId', TENANT_ID)
@@ -140,9 +155,15 @@ describe('POST /auth/forgot-password (full stack)', () => {
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(UserDAO.getUserByEmail).toHaveBeenCalledWith(admin.email);
+    expect(TokenDAO.createToken).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: admin._id })
+    );
   });
 
   it('400: Email not found for an unknown user', async () => {
+    UserDAO.getUserByEmail.mockResolvedValue(null);
+
     const resp = await requestWithSupertest
       .post('/auth/forgot-password')
       .set('tenantId', TENANT_ID)
@@ -150,11 +171,14 @@ describe('POST /auth/forgot-password (full stack)', () => {
 
     expect(resp.status).toBe(400);
     expect(resp.body.success).toBe(false);
+    expect(TokenDAO.createToken).not.toHaveBeenCalled();
   });
 });
 
-describe('POST /auth/reset-password (full stack)', () => {
+describe('POST /auth/reset-password', () => {
   it('400: rejects an invalid reset token', async () => {
+    TokenDAO.findOneToken.mockResolvedValue(null);
+
     const resp = await requestWithSupertest
       .post('/auth/reset-password')
       .set('tenantId', TENANT_ID)
@@ -166,12 +190,18 @@ describe('POST /auth/reset-password (full stack)', () => {
 
     expect(resp.status).toBe(400);
     expect(resp.body.success).toBe(false);
+    expect(TokenDAO.findOneToken).toHaveBeenCalled();
   });
 });
 
-describe('POST /auth/resend-activation (full stack)', () => {
+describe('POST /auth/resend-activation', () => {
   it('400: already-activated known user is rejected', async () => {
-    // Seeded users are isAccountActivated: true.
+    UserDAO.getUserByEmail.mockResolvedValue({
+      _id: admin._id,
+      email: admin.email,
+      isAccountActivated: true
+    });
+
     const resp = await requestWithSupertest
       .post('/auth/resend-activation')
       .set('tenantId', TENANT_ID)
@@ -182,6 +212,8 @@ describe('POST /auth/resend-activation (full stack)', () => {
   });
 
   it('400: unknown email is rejected', async () => {
+    UserDAO.getUserByEmail.mockResolvedValue(null);
+
     const resp = await requestWithSupertest
       .post('/auth/resend-activation')
       .set('tenantId', TENANT_ID)

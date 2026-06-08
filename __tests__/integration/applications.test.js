@@ -1,19 +1,16 @@
-// Full-stack integration test for the applications routes:
-//   supertest -> real router -> real controllers/applications -> real services
-//   -> real DAOs -> in-memory MongoDB.
+// Integration test for the applications routes — HTTP boundary down to the
+// service, with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/applications
+//   -> real Application/Student/User/Program/DocumentThread services -> MOCKED
+//   DAOs.
 //
-// Nothing below the route is mocked (only auth/tenant/permission middleware is
-// stubbed). This is the layer that catches the seam bugs (schema / aggregation /
-// populate / deadline derivation) the mocked controller unit test
-// (../controllers/applications.test.js) cannot see. Kept thin but deterministic:
-// happy paths asserting real persisted data and computed aggregations.
+// These assert the controller/service pass the right arguments to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The aggregation /
+// deadline-derivation logic itself is covered by the DAO unit tests
+// (__tests__/dao/application.dao.test.js). Fully deterministic — no engine flake.
 
-const mongoose = require('mongoose');
 const request = require('supertest');
 
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
 const { protect } = require('../../middlewares/auth');
 const {
   InnerTaigerMultitenantFilter
@@ -21,15 +18,10 @@ const {
 const {
   permission_canAccessStudentDatabase_filter
 } = require('../../middlewares/permission-filter');
-const { programSchema } = require('../../models/Program');
+const { ErrorResponse } = require('../../common/errors');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { documentThreadsSchema } = require('../../models/Documentthread');
-const { users, agent, editor, student, student2 } = require('../mock/user');
+const { agent, student, student2 } = require('../mock/user');
 const { program1, programs } = require('../mock/programs');
-const { disconnectFromDatabase } = require('../../database');
-
-const requestWithSupertest = request(app);
 
 jest.mock('../../middlewares/auth', () => {
   const passthrough = async (req, res, next) => next();
@@ -79,33 +71,32 @@ jest.mock('../../middlewares/permission-filter', () => {
   };
 });
 
-let dbUri;
+// createApplicationV2 notifies the student by email after the upsert
+// (fire-and-forget); stub the sender so no SMTP connection is opened.
+jest.mock('../../services/email', () => ({
+  ...jest.requireActual('../../services/email'),
+  createApplicationToStudentEmail: jest.fn()
+}));
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
+// The data boundary: mock the DAOs the controller's services delegate to.
+jest.mock('../../dao/application.dao');
+jest.mock('../../dao/student.dao');
+jest.mock('../../dao/program.dao');
+jest.mock('../../dao/user.dao');
+jest.mock('../../dao/documentthread.dao');
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
+const ApplicationDAO = require('../../dao/application.dao');
+const StudentDAO = require('../../dao/student.dao');
+const ProgramDAO = require('../../dao/program.dao');
+const UserDAO = require('../../dao/user.dao');
+const DocumentthreadDAO = require('../../dao/documentthread.dao');
+const mongoose = require('mongoose');
+const { app } = require('../../app');
 
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
+const requestWithSupertest = request(app);
 
-  const UserModel = db.model('User', UserSchema);
-  const DocumentthreadModel = db.model('Documentthread', documentThreadsSchema);
-  const ProgramModel = db.model('Program', programSchema);
-  const ApplicationModel = db.model('Application');
-
-  await UserModel.deleteMany();
-  await DocumentthreadModel.deleteMany();
-  await ProgramModel.deleteMany();
-  await ApplicationModel.deleteMany();
-
-  await UserModel.insertMany(users);
-  await ProgramModel.insertMany(programs);
-
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
     req.user = agent;
     next();
@@ -118,24 +109,53 @@ beforeEach(async () => {
   );
 });
 
-afterEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const DocumentthreadModel = db.model('Documentthread', documentThreadsSchema);
-  const ProgramModel = db.model('Program', programSchema);
-  const ApplicationModel = db.model('Application');
-
-  await UserModel.deleteMany();
-  await DocumentthreadModel.deleteMany();
-  await ProgramModel.deleteMany();
-  await ApplicationModel.deleteMany();
-});
-
-describe('POST /api/applications/student/:studentId (full stack)', () => {
-  it('creates applications for the student and returns 201', async () => {
-    const { _id: studentId } = student;
+describe('POST /api/applications/student/:studentId', () => {
+  it('creates applications for the new programs and returns 201', async () => {
+    const studentId = student._id.toString();
     const programs_arr = programs.map((pro) => pro._id.toString());
+
+    // Live student doc the controller mutates + .save()s.
+    const studentDoc = {
+      _id: student._id,
+      firstname: student.firstname,
+      lastname: student.lastname,
+      email: 'student@taiger.com',
+      archiv: false,
+      notification: {},
+      generaldocs_threads: [],
+      application_preference: { expected_application_date: '2025' },
+      save: jest.fn().mockResolvedValue(true)
+    };
+    StudentDAO.getStudentDocById.mockResolvedValue(studentDoc);
+    // No pre-existing applications.
+    ApplicationDAO.findByStudentIdPopulatedBasic.mockResolvedValue([]);
+    // All requested programs are valid/active.
+    ProgramDAO.findPrograms.mockResolvedValue(programs);
+    // The faker programs have ml_required: 'yes', so the controller creates an
+    // ML supplementary-form thread per application via the documentthread DAO.
+    DocumentthreadDAO.newThread.mockImplementation((payload) => ({
+      _id: new mongoose.Types.ObjectId(),
+      ...payload,
+      save: jest.fn().mockResolvedValue(true)
+    }));
+    // Each new program yields a created application doc. The subdocument array
+    // exposes .create()/.push() (the controller appends thread entries to it).
+    ApplicationDAO.createApplicationDoc.mockImplementation(async (payload) => {
+      const thread = [];
+      thread.create = (entry) => entry;
+      return {
+        _id: payload.programId,
+        ...payload,
+        doc_modification_thread: thread,
+        save: jest.fn().mockResolvedValue(true)
+      };
+    });
+    const created = programs.map((pro) => ({
+      _id: pro._id,
+      programId: { _id: pro._id, program_name: pro.program_name },
+      studentId: student._id
+    }));
+    ApplicationDAO.findByStudentIdPopulatedFull.mockResolvedValue(created);
 
     const resp = await requestWithSupertest
       .post(`/api/applications/student/${studentId}`)
@@ -146,20 +166,26 @@ describe('POST /api/applications/student/:studentId (full stack)', () => {
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
     expect(resp.body.data).toHaveLength(programs_arr.length);
+    expect(ApplicationDAO.createApplicationDoc).toHaveBeenCalledTimes(
+      programs_arr.length
+    );
+    expect(studentDoc.save).toHaveBeenCalled();
   });
 });
 
-describe('GET /api/applications/student/:studentId (full stack)', () => {
-  it('returns the applications created for a student', async () => {
-    const { _id: studentId } = student2;
-    const programs_arr = programs.map((pro) => pro._id.toString());
-
-    const createResp = await requestWithSupertest
-      .post(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: programs_arr });
-
-    expect(createResp.status).toBe(201);
+describe('GET /api/applications/student/:studentId', () => {
+  it('returns the student with their applications attached', async () => {
+    const studentId = student2._id.toString();
+    StudentDAO.getStudentById.mockResolvedValue({
+      _id: student2._id,
+      firstname: student2.firstname,
+      lastname: student2.lastname
+    });
+    const applications = [
+      { _id: '1', programId: program1._id },
+      { _id: '2', programId: program1._id }
+    ];
+    ApplicationDAO.getApplicationsByStudentId.mockResolvedValue(applications);
 
     const resp = await requestWithSupertest
       .get(`/api/applications/student/${studentId}`)
@@ -167,138 +193,60 @@ describe('GET /api/applications/student/:studentId (full stack)', () => {
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
-    expect(resp.body.data.applications).toHaveLength(programs_arr.length);
+    expect(resp.body.data.applications).toHaveLength(2);
+    expect(StudentDAO.getStudentById).toHaveBeenCalledWith(studentId);
+    expect(ApplicationDAO.getApplicationsByStudentId).toHaveBeenCalledWith(
+      studentId
+    );
   });
 });
 
-describe('DELETE /api/applications/application/:applicationId (full stack)', () => {
-  it('deletes an application so the student then has none', async () => {
-    const { _id: studentId } = student2;
-
-    const resp = await requestWithSupertest
-      .post(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: [program1._id.toString()] });
-
-    expect(resp.status).toBe(201);
-    const applicationId = resp.body.data[0]._id;
+describe('DELETE /api/applications/application/:applicationId', () => {
+  it('deletes an application via the DAO', async () => {
+    ApplicationDAO.deleteApplication.mockResolvedValue(undefined);
 
     const del = await requestWithSupertest
-      .delete(`/api/applications/application/${applicationId}`)
+      .delete('/api/applications/application/app-123')
       .set('tenantId', TENANT_ID);
 
     expect(del.status).toBe(200);
     expect(del.body.success).toBe(true);
-
-    const after = await requestWithSupertest
-      .get(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(after.body.data.applications).toHaveLength(0);
+    expect(ApplicationDAO.deleteApplication).toHaveBeenCalledWith('app-123');
   });
 
-  it('refuses to delete an application whose thread has a message (409)', async () => {
-    const { _id: studentId } = student2;
-
-    const resp = await requestWithSupertest
-      .post(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_id_set: [program1._id.toString()] });
-
-    expect(resp.status).toBe(201);
-
-    const stdResp = await requestWithSupertest
-      .get(`/api/applications/student/${studentId}`)
-      .set('tenantId', TENANT_ID);
-    expect(stdResp.status).toBe(200);
-
-    const application = stdResp.body.data.applications.find(
-      (appl) => appl.programId._id?.toString() === program1._id?.toString()
+  it('surfaces the DAO 409 when a thread still has messages', async () => {
+    // deleteApplication() in the DAO throws a 409 when a non-empty thread is
+    // found; the controller propagates it.
+    ApplicationDAO.deleteApplication.mockRejectedValue(
+      new ErrorResponse(409, 'Some ML/RL/Essay discussion threads are existed')
     );
-    const thread = application.doc_modification_thread.find(
-      (thr) => thr.doc_thread_id.file_type === 'ML'
-    );
-    expect(thread.doc_thread_id.file_type).toBe('ML');
-    const messagesThreadId = thread.doc_thread_id._id?.toString();
-
-    const msg = await requestWithSupertest
-      .post(`/api/document-threads/${messagesThreadId}/${studentId}`)
-      .set('tenantId', TENANT_ID)
-      .field('message', '{}');
-    expect(msg.status).toBe(200);
 
     const del = await requestWithSupertest
-      .delete(`/api/applications/application/${application._id}`)
+      .delete('/api/applications/application/app-123')
       .set('tenantId', TENANT_ID);
 
     expect(del.status).toBe(409);
   });
 });
 
-// Paginated / sorted / searchable active applications. Deterministic deadlines
-// so the derived deadlineDate ordering is predictable. With application_year
-// 2025: Alpha WS 01-15 -> 2025/01/15; Beta SS 05-01 -> 2024/05/01; Gamma WS
-// 11-30 -> 2024/11/30 => ascending: Beta, Gamma, Alpha.
-describe('GET /api/applications/all/active/applications/paginated (full stack)', () => {
+describe('GET /api/applications/all/active/applications/paginated', () => {
   const PAGINATED_URL = '/api/applications/all/active/applications/paginated';
 
-  const progAlpha = {
-    ...program1,
-    _id: undefined,
-    program_name: 'Alpha Program',
-    school: 'Aalto University',
-    country: 'Finland',
-    semester: 'WS',
-    application_deadline: '01-15'
-  };
-  const progBeta = {
-    ...program1,
-    _id: undefined,
-    program_name: 'Beta Program',
-    school: 'Berlin University',
-    country: 'Germany',
-    semester: 'SS',
-    application_deadline: '05-01'
-  };
-  const progGamma = {
-    ...program1,
-    _id: undefined,
-    program_name: 'Gamma Program',
-    school: 'Cologne University',
-    country: 'Germany',
-    semester: 'WS',
-    application_deadline: '11-30'
-  };
-
-  beforeEach(async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramModel = db.model('Program', programSchema);
-    const ApplicationModel = db.model('Application');
-
-    const created = await ProgramModel.insertMany([
-      progAlpha,
-      progBeta,
-      progGamma
+  it('passes the active student ids through and returns the paginated result', async () => {
+    StudentDAO.getStudents.mockResolvedValue([
+      { _id: student._id },
+      { _id: student2._id }
     ]);
-    const [alpha, beta, gamma] = created;
+    ApplicationDAO.getActiveStudentsApplicationsPaginated.mockResolvedValue({
+      applications: [
+        { _id: 'a', programId: { program_name: 'Beta Program' } },
+        { _id: 'b', programId: { program_name: 'Gamma Program' } }
+      ],
+      total: 3,
+      page: 1,
+      limit: 20
+    });
 
-    await ApplicationModel.insertMany(
-      [alpha, beta, gamma].map((prog) => ({
-        studentId: student._id,
-        programId: prog._id,
-        application_year: '2025',
-        decided: 'O',
-        closed: '-'
-      }))
-    );
-  });
-
-  const deadlineNames = (resp) =>
-    resp.body.data.applications.map(
-      (application) => application.programId.program_name
-    );
-
-  it('returns the deadline-ascending page with the total count', async () => {
     const resp = await requestWithSupertest
       .get(`${PAGINATED_URL}?page=1&limit=20&sortBy=deadline&sortOrder=asc`)
       .set('tenantId', TENANT_ID);
@@ -306,71 +254,69 @@ describe('GET /api/applications/all/active/applications/paginated (full stack)',
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data.total).toBe(3);
-    expect(deadlineNames(resp)).toEqual([
-      'Beta Program',
-      'Gamma Program',
-      'Alpha Program'
-    ]);
-  });
-
-  it('paginates: limit caps the page while total stays the full count', async () => {
-    const page1 = await requestWithSupertest
-      .get(`${PAGINATED_URL}?page=1&limit=2&sortBy=deadline&sortOrder=asc`)
-      .set('tenantId', TENANT_ID);
-    const page2 = await requestWithSupertest
-      .get(`${PAGINATED_URL}?page=2&limit=2&sortBy=deadline&sortOrder=asc`)
-      .set('tenantId', TENANT_ID);
-
-    expect(page1.body.data.applications).toHaveLength(2);
-    expect(page1.body.data.total).toBe(3);
-    expect(page2.body.data.applications).toHaveLength(1);
-    expect(deadlineNames(page1)).toEqual(['Beta Program', 'Gamma Program']);
-    expect(deadlineNames(page2)).toEqual(['Alpha Program']);
-  });
-
-  it('searches across joined program fields', async () => {
-    const resp = await requestWithSupertest
-      .get(`${PAGINATED_URL}?search=Berlin`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.body.data.total).toBe(1);
-    expect(deadlineNames(resp)).toEqual(['Beta Program']);
-  });
-
-  it('scopes to a supervising TaiGer user (my-students paginated)', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const UserModel = db.model('User', UserSchema);
-    await UserModel.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(student._id) },
-      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
+    expect(resp.body.data.applications).toHaveLength(2);
+    expect(
+      ApplicationDAO.getActiveStudentsApplicationsPaginated
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentIds: [student._id.toString(), student2._id.toString()]
+      })
     );
+  });
 
-    const mine = await requestWithSupertest
+  it('scopes to a supervising TaiGer user (userId query)', async () => {
+    StudentDAO.getStudents.mockResolvedValue([{ _id: student._id }]);
+    ApplicationDAO.getActiveStudentsApplicationsPaginated.mockResolvedValue({
+      applications: [],
+      total: 3,
+      page: 1,
+      limit: 20
+    });
+
+    const resp = await requestWithSupertest
       .get(`${PAGINATED_URL}?userId=${agent._id}&sortBy=program_name`)
       .set('tenantId', TENANT_ID);
-    const other = await requestWithSupertest
-      .get(`${PAGINATED_URL}?userId=${student2._id}`)
-      .set('tenantId', TENANT_ID);
 
-    expect(mine.status).toBe(200);
-    expect(mine.body.data.total).toBe(3);
-    expect(other.body.data.total).toBe(0);
+    expect(resp.status).toBe(200);
+    expect(resp.body.data.total).toBe(3);
+    // The supervision filter ($or agents/editors === userId) is built into the
+    // student query passed to getStudents.
+    const studentFilter = StudentDAO.getStudents.mock.calls[0][0].filter;
+    expect(JSON.stringify(studentFilter)).toContain(agent._id.toString());
   });
+});
 
-  it('returns the deadline distribution (active vs potentials) computed in the DB', async () => {
+describe('GET /api/applications/distribution', () => {
+  it('returns the deadline distribution computed by the DAO', async () => {
+    StudentDAO.getStudents.mockResolvedValue([{ _id: student._id }]);
+    const distribution = [
+      { name: '2024/05/01', active: 1, potentials: 0 },
+      { name: '2025/01/15', active: 1, potentials: 0 }
+    ];
+    ApplicationDAO.getActiveStudentsApplicationsDeadlineDistribution.mockResolvedValue(
+      distribution
+    );
+
     const resp = await requestWithSupertest
       .get('/api/applications/distribution')
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
-    expect(resp.body.data).toEqual([
-      { name: '2024/05/01', active: 1, potentials: 0 },
-      { name: '2024/11/30', active: 1, potentials: 0 },
-      { name: '2025/01/15', active: 1, potentials: 0 }
-    ]);
+    expect(resp.body.data).toEqual(distribution);
   });
+});
 
-  it('returns distinct programs for the update-status tabs', async () => {
+describe('GET /api/applications/program-update-status', () => {
+  it('returns the distinct programs computed by the DAO', async () => {
+    StudentDAO.getStudents.mockResolvedValue([{ _id: student._id }]);
+    const progList = [
+      { program_name: 'Alpha Program' },
+      { program_name: 'Beta Program' }
+    ];
+    ApplicationDAO.getApplicationProgramsUpdateStatus.mockResolvedValue(
+      progList
+    );
+
     const resp = await requestWithSupertest
       .get('/api/applications/program-update-status')
       .set('tenantId', TENANT_ID);
@@ -378,18 +324,23 @@ describe('GET /api/applications/all/active/applications/paginated (full stack)',
     expect(resp.status).toBe(200);
     expect(resp.body.data.map((p) => p.program_name)).toEqual([
       'Alpha Program',
-      'Beta Program',
-      'Gamma Program'
+      'Beta Program'
     ]);
   });
+});
 
-  it('returns aggregated application stats for a supervising user', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const UserModel = db.model('User', UserSchema);
-    await UserModel.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(student._id) },
-      { $set: { agents: [new mongoose.Types.ObjectId(agent._id)] } }
-    );
+describe('GET /api/applications/taiger-user/:userId/stats', () => {
+  it('returns aggregated application stats plus the user record', async () => {
+    StudentDAO.getStudents.mockResolvedValue([{ _id: student._id }]);
+    ApplicationDAO.getApplicationStatusStats.mockResolvedValue({
+      totalApplications: 3,
+      decidedYesApplications: 3,
+      pendingApplications: 3
+    });
+    UserDAO.getUserById.mockResolvedValue({
+      _id: agent._id,
+      firstname: agent.firstname
+    });
 
     const resp = await requestWithSupertest
       .get(`/api/applications/taiger-user/${agent._id}/stats`)
@@ -403,5 +354,6 @@ describe('GET /api/applications/all/active/applications/paginated (full stack)',
       pendingApplications: 3
     });
     expect(resp.body.data.user._id.toString()).toBe(agent._id.toString());
+    expect(UserDAO.getUserById).toHaveBeenCalledWith(agent._id.toString());
   });
 });

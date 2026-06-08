@@ -1,12 +1,13 @@
-// Full-stack integration test for the admissions routes:
-//   supertest -> real router -> real controllers/admissions -> real
-//   ApplicationService / StudentService -> real DAOs -> in-memory MongoDB.
+// Integration test for the admissions routes — HTTP boundary down to the
+// service, with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/admissions
+//   -> real ApplicationService / StudentService -> MOCKED ApplicationDAO /
+//   StudentDAO. The S3 access in getAdmissionLetter is mocked at aws/s3.
 //
-// Nothing below the route is mocked except auth/tenant/permission middleware and
-// the S3 client (getAdmissionLetter streams a file from S3 — there is no real
-// bucket in tests). This is the layer that catches the seam bugs the mocked
-// controller unit test (../controllers/admissions.test.js) cannot see. Kept
-// thin: happy paths only, asserting real persisted data where deterministic.
+// These assert the controller/service pass the right filter/args to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The actual aggregation
+// construction is covered by the DAO unit tests. Fully deterministic — no
+// database engine, no seeding.
 
 // ── Mock declarations (must be at top, before any require()) ─────────────────
 
@@ -72,102 +73,60 @@ jest.mock('../../middlewares/limit_archiv_user', () => {
   };
 });
 
+// getAdmissionLetter streams a file from S3 — mock the S3 accessor so no AWS
+// client is exercised.
+jest.mock('../../aws/s3', () => ({
+  ...jest.requireActual('../../aws/s3'),
+  getS3Object: jest.fn()
+}));
+
+// The data boundary: mock the DAOs the application/student services delegate to.
+jest.mock('../../dao/application.dao');
+jest.mock('../../dao/student.dao');
+
 // ── Imports ───────────────────────────────────────────────────────────────────
 
 const request = require('supertest');
-const { mockClient } = require('aws-sdk-client-mock');
-const { GetObjectCommand } = require('@aws-sdk/client-s3');
-const { ObjectId } = require('mongoose').Types;
 
-const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { applicationSchema } = require('../../models/Application');
 const { protect } = require('../../middlewares/auth');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { disconnectFromDatabase } = require('../../database');
-const { s3Client } = require('../../aws');
+const { getS3Object } = require('../../aws/s3');
+const ApplicationDAO = require('../../dao/application.dao');
+const StudentDAO = require('../../dao/student.dao');
 const { TENANT_ID } = require('../fixtures/constants');
-const { users, admin, student } = require('../mock/user');
+const { admin, student } = require('../mock/user');
 
 const requestWithSupertest = request(app);
-const s3ClientMock = mockClient(s3Client);
+const studentId = student._id.toString();
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-
-  // Mock S3 GetObject: return a minimal binary response so getAdmissionLetter
-  // can call transformToByteArray() and res.end() the buffer.
-  s3ClientMock.on(GetObjectCommand).callsFake(async () => ({
-    Body: {
-      transformToByteArray: async () => Buffer.from('mock pdf content'),
-      pipe: jest.fn()
-    },
-    ContentType: 'application/pdf'
-  }));
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-  s3ClientMock.restore();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;
     next();
   });
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Seed Application documents for a given student into the in-memory DB.
- * Returns the seeded application objects.
- */
-async function seedApplications(studentId) {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const ApplicationModel = db.model('Application', applicationSchema);
-  await ApplicationModel.deleteMany();
-
-  const apps = await ApplicationModel.insertMany([
-    {
-      studentId,
-      decided: 'O',
-      closed: 'O',
-      admission: 'O',
-      programId: new ObjectId()
-    },
-    {
-      studentId,
-      decided: 'O',
-      closed: 'O',
-      admission: 'X',
-      programId: new ObjectId()
-    }
-  ]);
-  return apps;
-}
-
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('GET /api/admissions (full stack)', () => {
+describe('GET /api/admissions', () => {
   it('returns the admitted applications and the program-counts result', async () => {
-    const { _id: studentId } = student;
-    await seedApplications(studentId);
+    const applications = [
+      {
+        _id: 'app-1',
+        admission: 'O',
+        studentId: { _id: studentId, firstname: student.firstname }
+      }
+    ];
+    const programCounts = [{ programId: 'p1', count: 3 }];
 
-    // Filter on admission='O' so the seeded admission:'X' application is
-    // excluded — without the query param the builder produces an empty filter
-    // and BOTH seeded applications come back.
+    ApplicationDAO.getApplicationsWithStudentDetails.mockResolvedValue(
+      applications
+    );
+    ApplicationDAO.getProgramApplicationCounts.mockResolvedValue(programCounts);
+
     const resp = await requestWithSupertest
       .get('/api/admissions?admission=O')
       .set('tenantId', TENANT_ID);
@@ -176,19 +135,25 @@ describe('GET /api/admissions (full stack)', () => {
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
     expect(Array.isArray(resp.body.result)).toBe(true);
-    // Only the admission:'O' application is admitted -> exactly one row, owned
-    // by the seeded student.
     expect(resp.body.data).toHaveLength(1);
-    expect(resp.body.data[0].studentId._id.toString()).toBe(
-      studentId.toString()
-    );
+    expect(resp.body.data[0].studentId._id.toString()).toBe(studentId);
+    // The admission=O query param flows into the filter the builder produces.
+    expect(
+      ApplicationDAO.getApplicationsWithStudentDetails
+    ).toHaveBeenCalledWith(expect.objectContaining({ admission: 'O' }));
+    expect(ApplicationDAO.getProgramApplicationCounts).toHaveBeenCalled();
   });
 });
 
-describe('GET /api/admissions/overview (full stack)', () => {
+describe('GET /api/admissions/overview', () => {
   it('returns the admission status counts object', async () => {
-    const { _id: studentId } = student;
-    await seedApplications(studentId);
+    const counts = {
+      admission: 5,
+      rejection: 2,
+      pending: 1,
+      notYetSubmitted: 0
+    };
+    ApplicationDAO.getAdmissionsStatusCounts.mockResolvedValue(counts);
 
     const resp = await requestWithSupertest
       .get('/api/admissions/overview')
@@ -196,15 +161,16 @@ describe('GET /api/admissions/overview (full stack)', () => {
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
-    expect(resp.body.data).toBeDefined();
     expect(typeof resp.body.data).toBe('object');
+    expect(resp.body.data).toEqual(counts);
+    expect(ApplicationDAO.getAdmissionsStatusCounts).toHaveBeenCalled();
   });
 });
 
-describe('GET /api/admissions/:applications_year (full stack)', () => {
-  it('returns an empty array when no students match the requested year', async () => {
-    // getAdmissionsYear queries the Student model by student_id = applications_year.
-    // No Student docs with student_id = '2024' are seeded, so the result is empty.
+describe('GET /api/admissions/:applications_year', () => {
+  it('queries students by student_id = applications_year and returns them', async () => {
+    StudentDAO.findStudents.mockResolvedValue([]);
+
     const resp = await requestWithSupertest
       .get('/api/admissions/2024')
       .set('tenantId', TENANT_ID);
@@ -213,13 +179,16 @@ describe('GET /api/admissions/:applications_year (full stack)', () => {
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
     expect(resp.body.data).toHaveLength(0);
+    expect(StudentDAO.findStudents).toHaveBeenCalledWith({
+      student_id: '2024'
+    });
   });
 });
 
-describe('GET /api/admissions/:studentId/admission/:fileName (full stack)', () => {
+describe('GET /api/admissions/:studentId/admission/:fileName', () => {
   it('streams the admission letter from S3 as an attachment', async () => {
-    const { _id: studentId } = student;
     const fileName = 'offer_letter.pdf';
+    getS3Object.mockResolvedValue(Buffer.from('mock pdf content'));
 
     const resp = await requestWithSupertest
       .get(`/api/admissions/${studentId}/admission/${fileName}`)
@@ -227,7 +196,11 @@ describe('GET /api/admissions/:studentId/admission/:fileName (full stack)', () =
       .buffer(); // collect the streamed binary body
 
     expect(resp.status).toBe(200);
-    // The controller sets Content-Disposition to attachment
     expect(resp.headers['content-disposition']).toMatch(/attachment/);
+    // The controller builds the S3 key from the params.
+    expect(getS3Object).toHaveBeenCalledWith(
+      expect.anything(),
+      `${studentId}/admission/${fileName}`
+    );
   });
 });

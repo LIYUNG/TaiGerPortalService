@@ -1,33 +1,25 @@
-// Full-stack integration test for the complaints (customer-center) routes:
-//   supertest -> real router -> real controllers/complaints -> real
-//   ComplaintService -> real ComplaintDAO -> in-memory MongoDB.
+// Integration test for the complaints (customer-center) routes — HTTP boundary
+// down to the service, with the DAO layer MOCKED (no database, in-memory or
+// otherwise):
+//   supertest -> real router -> real middleware -> real controllers/complaints
+//   -> real ComplaintService -> MOCKED ComplaintDAO.
 //
-// Nothing below the route is mocked (only auth/tenant/permission middleware is
-// stubbed). This is the layer that catches the seam bugs — schema mismatch, bad
-// query, wrong field — that the mocked controller unit test
-// (../controllers/complaints.test.js) cannot see. Ported from the original
-// __tests__/controllers/complaints.test.js with the weak assertions
-// strengthened against the deterministic seed. Keep it thin: happy paths only.
+// These assert the controller/service pass the right arguments to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The actual DB
+// query construction is covered by the DAO unit tests. Fully deterministic —
+// no engine flake.
 
 const request = require('supertest');
 
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { complaintSchema } = require('../../models/Complaint');
-const { users, student } = require('../mock/user');
+const { student } = require('../mock/user');
 const {
   tickets,
   ticket,
   ticketNew,
   ticketWithMessage
 } = require('../mock/complaintTickets');
-const { disconnectFromDatabase } = require('../../database');
-
-const requestWithSupertest = request(app);
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -90,36 +82,59 @@ jest.mock('../../middlewares/auth', () => {
   };
 });
 
-let dbUri;
+// Write paths fan out to email/S3 (fire-and-forget after the response is sent).
+// Stub the senders + the S3 garbage collector so no SMTP/S3 connection is
+// opened. The create/update/persist path under test stays real.
+jest.mock('../../services/email/complaints', () => ({
+  newCustomerCenterTicketEmail: jest.fn(),
+  newCustomerCenterTicketSubmitConfirmationEmail: jest.fn(),
+  complaintResolvedRequesterReminderEmail: jest.fn(),
+  newCustomerCenterTicketMessageEmail: jest.fn()
+}));
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
+jest.mock('../../utils/utils_function', () => ({
+  ...jest.requireActual('../../utils/utils_function'),
+  threadS3GarbageCollector: jest.fn()
+}));
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
+jest.mock('../../utils/modelHelper/versionControl', () => ({
+  ...jest.requireActual('../../utils/modelHelper/versionControl'),
+  emptyS3Directory: jest.fn()
+}));
 
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
+// The data boundary: mock the DAOs the complaint controller delegates to. The
+// permission/student DAOs are only touched on the post-response email fan-out.
+jest.mock('../../dao/complaint.dao');
+jest.mock('../../dao/permission.dao');
+jest.mock('../../dao/student.dao');
 
-  const UserModel = db.model('User', UserSchema);
-  const ComplaintSchema = db.model('Complaint', complaintSchema);
+const ComplaintDAO = require('../../dao/complaint.dao');
+const PermissionDAO = require('../../dao/permission.dao');
+const StudentDAO = require('../../dao/student.dao');
+const { app } = require('../../app');
 
-  await ComplaintSchema.deleteMany();
-  await ComplaintSchema.insertMany(tickets);
+const requestWithSupertest = request(app);
+const studentId = student._id.toString();
 
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
-    req.user = await UserModel.findById(student._id);
+    req.user = student;
     next();
+  });
+  // Defaults for the fire-and-forget email fan-out (post-response).
+  PermissionDAO.getManagers.mockResolvedValue([]);
+  StudentDAO.getStudentByIdWithTeam.mockResolvedValue({
+    firstname: 'F',
+    lastname: 'L',
+    archiv: false
   });
 });
 
-describe('GET /api/complaints (full stack)', () => {
-  it('returns the requesting student tickets as an array', async () => {
+describe('GET /api/complaints', () => {
+  it('returns the requesting student tickets from the DAO', async () => {
+    ComplaintDAO.getComplaintsByRequester.mockResolvedValue(tickets);
+
     const resp = await requestWithSupertest
       .get('/api/complaints')
       .set('tenantId', TENANT_ID);
@@ -127,26 +142,38 @@ describe('GET /api/complaints (full stack)', () => {
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
-    // The student is the requester on every seeded ticket.
     expect(resp.body.data.length).toBe(tickets.length);
+    expect(ComplaintDAO.getComplaintsByRequester).toHaveBeenCalledWith(
+      student._id
+    );
   });
 });
 
-describe('POST /api/complaints (full stack)', () => {
+describe('POST /api/complaints', () => {
   it('creates a ticket stamped with the requester id', async () => {
+    ComplaintDAO.createComplaint.mockImplementation(async (t) => ({
+      _id: ticketNew._id,
+      ...t
+    }));
+
     const resp = await requestWithSupertest
       .post('/api/complaints')
       .set('tenantId', TENANT_ID)
-      .send({ ticket: ticketNew });
+      .send({ ticket: { ...ticketNew } });
 
     expect(resp.status).toBe(201);
     expect(resp.body.success).toBe(true);
-    expect(resp.body.data.requester_id.toString()).toBe(student._id.toString());
+    expect(resp.body.data.requester_id.toString()).toBe(studentId);
+    expect(ComplaintDAO.createComplaint).toHaveBeenCalledWith(
+      expect.objectContaining({ requester_id: studentId })
+    );
   });
 });
 
-describe('GET /api/complaints/:ticketId (full stack)', () => {
-  it('returns the persisted ticket by id', async () => {
+describe('GET /api/complaints/:ticketId', () => {
+  it('returns the ticket from the DAO, queried by id', async () => {
+    ComplaintDAO.getComplaintByIdPopulated.mockResolvedValue(ticket);
+
     const resp = await requestWithSupertest
       .get(`/api/complaints/${ticket._id.toString()}`)
       .set('tenantId', TENANT_ID);
@@ -154,15 +181,50 @@ describe('GET /api/complaints/:ticketId (full stack)', () => {
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data._id.toString()).toBe(ticket._id.toString());
+    expect(ComplaintDAO.getComplaintByIdPopulated).toHaveBeenCalledWith(
+      ticket._id.toString()
+    );
+  });
+
+  it('404s when the DAO finds no ticket', async () => {
+    ComplaintDAO.getComplaintByIdPopulated.mockResolvedValue(null);
+
+    const resp = await requestWithSupertest
+      .get(`/api/complaints/${ticket._id.toString()}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(404);
   });
 });
 
-describe('POST /api/complaints/new-message/:ticketId/:studentId (full stack)', () => {
+describe('POST /api/complaints/new-message/:ticketId/:studentId', () => {
   it('appends a message that is visible on the refreshed ticket', async () => {
+    // The handler loads a live doc (mutates messages + .save()), then re-reads
+    // the populated ticket for the response.
+    const messages = [];
+    const liveTicket = {
+      _id: ticket._id,
+      title: ticket.title,
+      status: 'open',
+      requester_id: { _id: student._id },
+      messages,
+      save: jest.fn().mockResolvedValue(true)
+    };
+    ComplaintDAO.getComplaintDocByIdWithRequester.mockResolvedValue(liveTicket);
+    ComplaintDAO.getComplaintByIdWithMessages.mockImplementation(async () => ({
+      _id: ticket._id,
+      title: ticket.title,
+      requester_id: {
+        _id: student._id,
+        firstname: 'F',
+        lastname: 'L',
+        email: 'f@l.com'
+      },
+      messages: liveTicket.messages
+    }));
+
     const resp = await requestWithSupertest
-      .post(
-        `/api/complaints/new-message/${ticket._id.toString()}/${student._id}`
-      )
+      .post(`/api/complaints/new-message/${ticket._id.toString()}/${studentId}`)
       .set('tenantId', TENANT_ID)
       .send({
         message:
@@ -170,18 +232,27 @@ describe('POST /api/complaints/new-message/:ticketId/:studentId (full stack)', (
       });
 
     expect(resp.status).toBe(201);
+    expect(liveTicket.save).toHaveBeenCalled();
     expect(resp.body.data.messages[0].message).toContain('New message');
+    expect(ComplaintDAO.getComplaintDocByIdWithRequester).toHaveBeenCalledWith(
+      ticket._id.toString()
+    );
   });
 });
 
-describe('PUT /api/complaints/:ticketId/:messageId (full stack)', () => {
+describe('PUT /api/complaints/:ticketId/:messageId', () => {
   it('updates an existing message in a ticket', async () => {
+    const messageId = ticketWithMessage.messages[0]._id.toString();
+    // getComplaintDocById returns a live doc with the owned message.
+    ComplaintDAO.getComplaintDocById.mockResolvedValue({
+      _id: ticketWithMessage._id,
+      status: 'open',
+      messages: [{ _id: messageId, user_id: student._id }]
+    });
+    ComplaintDAO.updateComplaintRaw.mockResolvedValue({});
+
     const resp = await requestWithSupertest
-      .put(
-        `/api/complaints/${ticketWithMessage._id.toString()}/${
-          ticketWithMessage.messages[0]._id
-        }`
-      )
+      .put(`/api/complaints/${ticketWithMessage._id.toString()}/${messageId}`)
       .set('tenantId', TENANT_ID)
       .send({
         message:
@@ -190,11 +261,21 @@ describe('PUT /api/complaints/:ticketId/:messageId (full stack)', () => {
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(ComplaintDAO.updateComplaintRaw).toHaveBeenCalledWith(
+      ticketWithMessage._id.toString(),
+      expect.objectContaining({ message: expect.any(String) })
+    );
   });
 });
 
-describe('PUT /api/complaints/:ticketId (full stack)', () => {
-  it('persists the updated ticket fields', async () => {
+describe('PUT /api/complaints/:ticketId', () => {
+  it('persists the updated ticket fields via the DAO', async () => {
+    ComplaintDAO.updateComplaintById.mockResolvedValue({
+      _id: ticket._id,
+      description: 'new information',
+      requester_id: { firstname: 'F', lastname: 'L', email: 'f@l.com' }
+    });
+
     const resp = await requestWithSupertest
       .put(`/api/complaints/${ticket._id.toString()}`)
       .set('tenantId', TENANT_ID)
@@ -203,22 +284,45 @@ describe('PUT /api/complaints/:ticketId (full stack)', () => {
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data.description).toBe('new information');
+    expect(ComplaintDAO.updateComplaintById).toHaveBeenCalledWith(
+      ticket._id.toString(),
+      expect.objectContaining({ description: 'new information' })
+    );
+  });
+
+  it('404s when the DAO updates no ticket', async () => {
+    ComplaintDAO.updateComplaintById.mockResolvedValue(null);
+
+    const resp = await requestWithSupertest
+      .put(`/api/complaints/${ticket._id.toString()}`)
+      .set('tenantId', TENANT_ID)
+      .send({ description: 'new information' });
+
+    expect(resp.status).toBe(404);
   });
 });
 
-describe('DELETE /api/complaints/:ticketId (full stack)', () => {
-  it('deletes the ticket so a subsequent read 404s', async () => {
+describe('DELETE /api/complaints/:ticketId', () => {
+  it('deletes the ticket via the DAO (after an existence read)', async () => {
+    // deleteComplaint first reads the doc (for the requester id used in S3
+    // cleanup), then deletes.
+    ComplaintDAO.getComplaintDocById.mockResolvedValue({
+      _id: ticket._id,
+      requester_id: student._id
+    });
+    ComplaintDAO.deleteComplaintById.mockResolvedValue({ deletedCount: 1 });
+
     const del = await requestWithSupertest
       .delete(`/api/complaints/${ticket._id.toString()}`)
       .set('tenantId', TENANT_ID);
 
     expect(del.status).toBe(200);
     expect(del.body.success).toBe(true);
-
-    const get = await requestWithSupertest
-      .get(`/api/complaints/${ticket._id.toString()}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(get.status).toBe(404);
+    expect(ComplaintDAO.getComplaintDocById).toHaveBeenCalledWith(
+      ticket._id.toString()
+    );
+    expect(ComplaintDAO.deleteComplaintById).toHaveBeenCalledWith(
+      ticket._id.toString()
+    );
   });
 });

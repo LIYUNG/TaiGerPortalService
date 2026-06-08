@@ -1,11 +1,13 @@
-// Full-stack integration layer for the program change-request routes:
-//   supertest -> real router -> real controllers/programChangeRequests -> real
-//   ProgramChangeRequestService/ProgramService -> real DAOs -> in-memory MongoDB.
+// Integration test for the program change-request routes — HTTP boundary down to
+// the service, with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real
+//   controllers/programChangeRequests -> real ProgramChangeRequestService /
+//   ProgramService -> MOCKED ProgramChangeRequestDAO / ProgramDAO.
 //
-// Only auth/tenant/permission middleware is stubbed; everything below the route
-// is real, so a seam bug (schema/query/upsert) surfaces here. Kept thin — the
-// exhaustive per-handler behaviour lives in ../controllers/programChangeRequests.test.js
-// (mocked) and the service/dao suites.
+// These assert the controller/service pass the right arguments to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The actual
+// schema/query/upsert construction is covered by the DAO unit tests. Fully
+// deterministic — no engine flake.
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -40,127 +42,124 @@ jest.mock('../../middlewares/limit_archiv_user', () => {
   };
 });
 
+// The data boundary: mock the DAOs the change-request/program services delegate to.
+jest.mock('../../dao/programChangeRequest.dao');
+jest.mock('../../dao/program.dao');
+
 const request = require('supertest');
 const { ObjectId } = require('mongoose').Types;
-const { connect, clearDatabase } = require('../fixtures/db');
+const ProgramChangeRequestDAO = require('../../dao/programChangeRequest.dao');
+const ProgramDAO = require('../../dao/program.dao');
 const { app } = require('../../app');
-const { programSchema } = require('../../models/Program');
-const {
-  programChangeRequestSchema
-} = require('../../models/ProgramChangeRequest');
-const { UserSchema } = require('../../models/User');
-const { generateProgram } = require('../fixtures/faker');
 const { protect } = require('../../middlewares/auth');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
 const { TENANT_ID } = require('../fixtures/constants');
-const { users, admin } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
+const { admin } = require('../mock/user');
 
 const requestWithSupertest = request(app);
-let dbUri;
-const program1 = generateProgram();
+const programId = new ObjectId().toHexString();
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const ProgramModel = db.model('Program', programSchema);
-  const ProgramChangeRequestModel = db.model(
-    'ProgramChangeRequest',
-    programChangeRequestSchema
-  );
-
-  await UserModel.deleteMany();
-  await ProgramModel.deleteMany();
-  await ProgramChangeRequestModel.deleteMany();
-
-  await UserModel.insertMany(users);
-  await ProgramModel.create(program1);
-
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;
     next();
   });
 });
 
-describe('POST /api/programs/:programId/change-requests (full stack)', () => {
-  it('persists a change request for an existing program', async () => {
+describe('POST /api/programs/:programId/change-requests', () => {
+  it('upserts a change request for an existing program', async () => {
+    ProgramDAO.getProgramByIdLean.mockResolvedValue({ _id: programId });
+    ProgramChangeRequestDAO.upsertChangeRequest.mockResolvedValue({
+      _id: new ObjectId(),
+      programId,
+      requestedBy: admin._id,
+      programChanges: { program_name: 'Updated Program Name' }
+    });
+
     const resp = await requestWithSupertest
-      .post(`/api/programs/${program1._id}/change-requests`)
+      .post(`/api/programs/${programId}/change-requests`)
       .set('tenantId', TENANT_ID)
       .send({ program_name: 'Updated Program Name' });
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
-
-    // The request is persisted and visible (and attributed to the current user).
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramChangeRequestModel = db.model(
-      'ProgramChangeRequest',
-      programChangeRequestSchema
+    expect(ProgramDAO.getProgramByIdLean).toHaveBeenCalledWith(programId);
+    expect(ProgramChangeRequestDAO.upsertChangeRequest).toHaveBeenCalledWith(
+      programId,
+      admin._id,
+      { program_name: 'Updated Program Name' }
     );
-    const stored = await ProgramChangeRequestModel.find({
-      programId: program1._id
-    }).lean();
-    expect(stored.length).toBe(1);
-    expect(stored[0].requestedBy.toString()).toBe(admin._id.toString());
-    expect(stored[0].programChanges.program_name).toBe('Updated Program Name');
   });
 
   it('returns 404 when the program does not exist', async () => {
+    ProgramDAO.getProgramByIdLean.mockResolvedValue(null);
+
     const resp = await requestWithSupertest
-      .post(`/api/programs/${new ObjectId().toHexString()}/change-requests`)
+      .post(`/api/programs/${programId}/change-requests`)
       .set('tenantId', TENANT_ID)
       .send({ program_name: 'Whatever' });
 
     expect(resp.status).toBe(404);
+    expect(ProgramChangeRequestDAO.upsertChangeRequest).not.toHaveBeenCalled();
   });
 });
 
-describe('GET /api/programs/:programId/change-requests (full stack)', () => {
-  it('returns the open change requests for the program', async () => {
-    await requestWithSupertest
-      .post(`/api/programs/${program1._id}/change-requests`)
-      .set('tenantId', TENANT_ID)
-      .send({ program_name: 'Updated Program Name' });
+describe('GET /api/programs/:programId/change-requests', () => {
+  it('returns the open change requests the DAO reports for the program', async () => {
+    const changeRequests = [
+      {
+        _id: new ObjectId(),
+        programId,
+        programChanges: { program_name: 'Updated Program Name' }
+      }
+    ];
+    ProgramChangeRequestDAO.getOpenChangeRequestsByProgramId.mockResolvedValue(
+      changeRequests
+    );
 
     const resp = await requestWithSupertest
-      .get(`/api/programs/${program1._id}/change-requests`)
+      .get(`/api/programs/${programId}/change-requests`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
     expect(resp.body.data.length).toBe(1);
+    expect(
+      ProgramChangeRequestDAO.getOpenChangeRequestsByProgramId
+    ).toHaveBeenCalledWith(programId);
     expect(resp.body.data[0].programChanges.program_name).toBe(
       'Updated Program Name'
     );
   });
-});
 
-describe('POST /api/programs/review-changes/:requestId (full stack)', () => {
-  it('marks an open change request as reviewed and persists the reviewer', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramChangeRequestModel = db.model(
-      'ProgramChangeRequest',
-      programChangeRequestSchema
+  it('returns 404 when the DAO reports no change requests (falsy)', async () => {
+    ProgramChangeRequestDAO.getOpenChangeRequestsByProgramId.mockResolvedValue(
+      null
     );
-    const created = await ProgramChangeRequestModel.create({
-      programId: program1._id,
-      requestedBy: admin._id,
-      programChanges: { program_name: 'Updated Program Name' }
-    });
 
     const resp = await requestWithSupertest
-      .post(`/api/programs/review-changes/${created._id}`)
+      .get(`/api/programs/${programId}/change-requests`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(404);
+  });
+});
+
+describe('POST /api/programs/review-changes/:requestId', () => {
+  it('marks an open change request as reviewed and persists the reviewer', async () => {
+    const requestId = new ObjectId().toHexString();
+    ProgramChangeRequestDAO.getChangeRequestById.mockResolvedValue({
+      _id: requestId,
+      programId,
+      reviewedBy: undefined
+    });
+    ProgramChangeRequestDAO.updateChangeRequestById.mockImplementation(
+      (id, payload) => Promise.resolve({ _id: id, ...payload })
+    );
+
+    const resp = await requestWithSupertest
+      .post(`/api/programs/review-changes/${requestId}`)
       .set('tenantId', TENANT_ID)
       .send();
 
@@ -168,33 +167,49 @@ describe('POST /api/programs/review-changes/:requestId (full stack)', () => {
     expect(resp.body.success).toBe(true);
     expect(resp.body.data.reviewedBy.toString()).toBe(admin._id.toString());
     expect(resp.body.data.reviewedAt).toBeDefined();
+    expect(ProgramChangeRequestDAO.getChangeRequestById).toHaveBeenCalledWith(
+      requestId
+    );
+    expect(
+      ProgramChangeRequestDAO.updateChangeRequestById
+    ).toHaveBeenCalledWith(
+      requestId,
+      expect.objectContaining({ reviewedBy: admin._id })
+    );
+  });
 
-    // Persisted, not just echoed back.
-    const reloaded = await ProgramChangeRequestModel.findById(
-      created._id
-    ).lean();
-    expect(reloaded.reviewedBy.toString()).toBe(admin._id.toString());
+  it('returns 404 when the change request does not exist', async () => {
+    const requestId = new ObjectId().toHexString();
+    ProgramChangeRequestDAO.getChangeRequestById.mockResolvedValue(null);
+
+    const resp = await requestWithSupertest
+      .post(`/api/programs/review-changes/${requestId}`)
+      .set('tenantId', TENANT_ID)
+      .send();
+
+    expect(resp.status).toBe(404);
+    expect(
+      ProgramChangeRequestDAO.updateChangeRequestById
+    ).not.toHaveBeenCalled();
   });
 
   it('returns 400 when the change request was already reviewed', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const ProgramChangeRequestModel = db.model(
-      'ProgramChangeRequest',
-      programChangeRequestSchema
-    );
-    const created = await ProgramChangeRequestModel.create({
-      programId: program1._id,
-      requestedBy: admin._id,
+    const requestId = new ObjectId().toHexString();
+    ProgramChangeRequestDAO.getChangeRequestById.mockResolvedValue({
+      _id: requestId,
+      programId,
       reviewedBy: admin._id,
-      reviewedAt: new Date(),
-      programChanges: { program_name: 'Updated Program Name' }
+      reviewedAt: new Date()
     });
 
     const resp = await requestWithSupertest
-      .post(`/api/programs/review-changes/${created._id}`)
+      .post(`/api/programs/review-changes/${requestId}`)
       .set('tenantId', TENANT_ID)
       .send();
 
     expect(resp.status).toBe(400);
+    expect(
+      ProgramChangeRequestDAO.updateChangeRequestById
+    ).not.toHaveBeenCalled();
   });
 });

@@ -1,14 +1,15 @@
-// Full-stack integration test for the TaiGer AI routes:
-//   supertest -> real router -> real controllers/taigerais -> real services ->
-//   real DAOs -> in-memory MongoDB.
+// Integration test for the TaiGer AI routes — HTTP boundary down to the service,
+// with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/taigerais ->
+//   real ProgramService / ProgramAIService / CommunicationService /
+//   ApplicationService / StudentService / PermissionService -> MOCKED DAOs.
 //
 // The AI controller streams from OpenAI and (for the program route) spawns a
 // Python crawler — neither is a seam we own, so the OpenAI client and
-// child_process.spawn are stubbed. Everything ELSE below the route (routing,
-// auth/permission wiring, the program/communication DB reads) runs for real, so
-// a seam bug surfaces here. Kept thin; the per-handler behaviour matrix lives in
-// ../controllers/taigerais.test.js (fully mocked). The assertion for the
-// streaming routes is "did NOT 500" because the body is a stream, not JSON.
+// child_process.spawn are stubbed. The data boundary (program/communication/
+// application/student/permission reads) is mocked at the DAO layer. The assertion
+// for the streaming routes is "did NOT 500" plus the streamed body, because the
+// body is a stream, not JSON. Fully deterministic — no engine flake, no DB.
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -101,24 +102,19 @@ jest.mock('../../services/openai', () => ({
   OpenAiModel: { GPT_3_5_TURBO: 'gpt-3.5-turbo', GPT_4_o: 'gpt-4o' }
 }));
 
-// processProgramListAi spawns a Python crawler; mock spawn so MongoMemoryServer's
-// own mongod still launches but the crawler does not — it "closes" with code 0.
+// processProgramListAi spawns a Python crawler; mock spawn so the crawler does
+// not actually run — it "closes" with code 0.
 jest.mock('child_process', () => {
   const actual = jest.requireActual('child_process');
   return {
     ...actual,
-    spawn: jest.fn().mockImplementation((command, args, options) => {
-      if (typeof command === 'string' && command.includes('mongod')) {
-        return actual.spawn(command, args, options);
-      }
-      return {
-        stdout: { on: jest.fn() },
-        stderr: { on: jest.fn() },
-        on: jest.fn((event, cb) => {
-          if (event === 'close') cb(0);
-        })
-      };
-    })
+    spawn: jest.fn().mockImplementation(() => ({
+      stdout: { on: jest.fn() },
+      stderr: { on: jest.fn() },
+      on: jest.fn((event, cb) => {
+        if (event === 'close') cb(0);
+      })
+    }))
   };
 });
 
@@ -126,72 +122,50 @@ jest.mock('../../services/email', () => ({
   sendSomeReminderEmail: jest.fn()
 }));
 
-// ProgramAI now resolves through the model registry / DAO (the model export was
-// fixed), so processProgramListAi runs full-stack against the in-memory DB —
-// no model mock needed.
+// The data boundary: mock the DAOs the AI services delegate to.
+jest.mock('../../dao/program.dao');
+jest.mock('../../dao/programAI.dao');
+jest.mock('../../dao/communication.dao');
+jest.mock('../../dao/application.dao');
+jest.mock('../../dao/student.dao');
+jest.mock('../../dao/permission.dao');
 
 const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
+const ProgramDAO = require('../../dao/program.dao');
+const ProgramAIDAO = require('../../dao/programAI.dao');
+const CommunicationDAO = require('../../dao/communication.dao');
+const ApplicationDAO = require('../../dao/application.dao');
+const StudentDAO = require('../../dao/student.dao');
+const PermissionDAO = require('../../dao/permission.dao');
 const { protect } = require('../../middlewares/auth');
+const { app } = require('../../app');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, agent, student } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
-const { permissionSchema } = require('../../models/Permission');
-const { communicationsSchema } = require('../../models/Communication');
-const { applicationSchema } = require('../../models/Application');
-const { programSchema } = require('../../models/Program');
+const { admin, agent, student } = require('../mock/user');
 const { ObjectId } = require('mongoose').Types;
-const {
-  generateProgram,
-  generateCommunicationMessage
-} = require('../fixtures/faker');
+const { generateProgram } = require('../fixtures/faker');
 
 const requestWithSupertest = request(app);
-let dbUri;
 
 const program1 = generateProgram();
 
-const adminPermission = {
-  _id: new ObjectId().toHexString(),
-  user_id: admin._id,
-  taigerAiQuota: 10,
-  canUseTaiGerAI: true,
-  canModifyProgramList: true
-};
-
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const PermissionModel = db.model('Permission', permissionSchema);
-  const CommunicationModel = db.model('Communication', communicationsSchema);
-  const ApplicationModel = db.model('Application', applicationSchema);
-  const ProgramModel = db.model('Program', programSchema);
-
-  await UserModel.deleteMany();
-  await PermissionModel.deleteMany();
-  await CommunicationModel.deleteMany();
-  await ApplicationModel.deleteMany();
-  await ProgramModel.deleteMany();
-
-  await UserModel.insertMany(users);
-  await PermissionModel.insertMany([adminPermission]);
-  await ProgramModel.insertMany([program1]);
+beforeEach(() => {
+  jest.clearAllMocks();
 
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;
     next();
+  });
+
+  // Sensible defaults; individual tests override as needed.
+  ProgramDAO.getProgramByIdLean.mockResolvedValue(null);
+  ProgramAIDAO.getByProgramId.mockResolvedValue(null);
+  CommunicationDAO.getRecentByStudentId.mockResolvedValue([]);
+  ApplicationDAO.getApplicationsByStudentId.mockResolvedValue([]);
+  StudentDAO.getStudentByIdLean.mockResolvedValue(null);
+  // decrementTaigerAiQuota reads the permission doc then .save()s it.
+  PermissionDAO.getPermissionDocByUserId.mockResolvedValue({
+    taigerAiQuota: 10,
+    save: jest.fn().mockResolvedValue(undefined)
   });
 });
 
@@ -212,20 +186,17 @@ describe('TaiGerAiGeneral Controller (full stack)', () => {
 });
 
 describe('TaiGerAiChat Controller (full stack)', () => {
-  it('POST /api/taigerai/chat/:studentId streams a response built from the seeded thread', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const CommunicationModel = db.model('Communication', communicationsSchema);
-    const messages = [
-      generateCommunicationMessage({
-        studnet_id: student._id,
-        user_id: agent._id
-      }),
-      generateCommunicationMessage({
-        studnet_id: student._id,
-        user_id: student._id
-      })
-    ];
-    await CommunicationModel.insertMany(messages);
+  it('POST /api/taigerai/chat/:studentId streams a response built from the DAO reads', async () => {
+    CommunicationDAO.getRecentByStudentId.mockResolvedValue([
+      {
+        createdAt: new Date(),
+        user_id: { firstname: agent.firstname, role: agent.role },
+        message: JSON.stringify({
+          blocks: [{ type: 'paragraph', data: { text: 'hello' } }]
+        })
+      }
+    ]);
+    ApplicationDAO.getApplicationsByStudentId.mockResolvedValue([]);
 
     const resp = await requestWithSupertest
       .post(`/api/taigerai/chat/${student._id}`)
@@ -234,11 +205,25 @@ describe('TaiGerAiChat Controller (full stack)', () => {
 
     expect(resp.status).not.toBe(500);
     expect(resp.text).toContain('mocked AI response');
+    expect(CommunicationDAO.getRecentByStudentId).toHaveBeenCalledWith(
+      student._id.toString(),
+      3
+    );
+    expect(ApplicationDAO.getApplicationsByStudentId).toHaveBeenCalledWith(
+      student._id.toString()
+    );
   });
 });
 
 describe('cvmlrlAi Controller (full stack)', () => {
   it('POST /api/taigerai/cvmlrl streams a generated document without a server error', async () => {
+    StudentDAO.getStudentByIdLean.mockResolvedValue({
+      firstname: student.firstname,
+      lastname: student.lastname,
+      email: student.email,
+      academic_background: {}
+    });
+
     const resp = await requestWithSupertest
       .post('/api/taigerai/cvmlrl')
       .set('tenantId', TENANT_ID)
@@ -253,20 +238,36 @@ describe('cvmlrlAi Controller (full stack)', () => {
 
     expect(resp.status).not.toBe(500);
     expect(resp.text).toContain('mocked AI response');
+    expect(StudentDAO.getStudentByIdLean).toHaveBeenCalledWith(
+      student._id.toString()
+    );
   });
 });
 
 describe('processProgramListAi Controller (full stack)', () => {
   it('GET /api/taigerai/program/:programId returns 200 when the program exists', async () => {
+    ProgramDAO.getProgramByIdLean.mockResolvedValue({
+      _id: program1._id,
+      school: program1.school,
+      program_name: program1.program_name,
+      degree: program1.degree
+    });
+    ProgramAIDAO.getByProgramId.mockResolvedValue(null);
+
     const resp = await requestWithSupertest
       .get(`/api/taigerai/program/${program1._id}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(ProgramDAO.getProgramByIdLean).toHaveBeenCalledWith(
+      program1._id.toString()
+    );
   });
 
   it('GET /api/taigerai/program/:programId returns an empty data object for a missing program', async () => {
+    ProgramDAO.getProgramByIdLean.mockResolvedValue(null);
+
     const resp = await requestWithSupertest
       .get(`/api/taigerai/program/${new ObjectId().toHexString()}`)
       .set('tenantId', TENANT_ID);

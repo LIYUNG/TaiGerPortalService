@@ -1,34 +1,24 @@
-// Full-stack integration test for the document-thread routes:
+// HTTP-stack integration test for the document-thread routes with the DAO layer
+// MOCKED (no database, in-memory or otherwise):
 //   supertest -> real router (routes/documents_modification) ->
-//   real controllers/documents_modification -> real services -> real DAOs ->
-//   in-memory MongoDB.
+//   real middleware -> real controllers/documents_modification ->
+//   real services (DocumentThread/Student/User/Application/SurveyInput/Audit) ->
+//   MOCKED DAOs.
 //
 // Only the auth/tenant/permission/upload middleware and the S3 + email side
-// channels are stubbed; everything from the route down to the DB runs for real.
-// This is the layer that catches seam bugs — schema mismatch, bad query, wrong
-// populate — that the mocked controller unit tests
-// (../controllers/documentthread.test.js and
-//  ../controllers/documents_modification.test.js) cannot see.
-//
-// Ported from the previous __tests__/controllers/documentthread.test.js (which
-// was really a full-stack suite) and kept thin: the deterministic-from-seed
-// endpoints assert real persisted data; the heavy fan-out endpoints (that run
-// deadline calculators / populate chains needing rich fixtures) are smoke-tested
-// for "does not 5xx", as the original did.
+// channels are stubbed as before; in addition every DAO the exercised handlers
+// reach is mocked, so each test asserts the controller/service forwards the
+// right arguments to the DAO and shapes the HTTP response from the DAO's
+// (mocked) return. The real DB query/aggregation construction is covered by the
+// DAO unit tests. Fully deterministic — no engine, no seed.
 
 const request = require('supertest');
 const { ObjectId } = require('mongoose').Types;
 
-const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { documentThreadsSchema } = require('../../models/Documentthread');
-const { surveyInputSchema } = require('../../models/SurveyInput');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, agent, student } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
+const { admin, agent, student } = require('../mock/user');
 
 const requestWithSupertest = request(app);
 
@@ -188,61 +178,46 @@ jest.mock('../../utils/log/auditLog', () => ({
   auditLog: (req, res, next) => next()
 }));
 
+// ---- The data boundary: mock every DAO the exercised handlers reach ----
+
+jest.mock('../../dao/documentthread.dao');
+jest.mock('../../dao/student.dao');
+jest.mock('../../dao/user.dao');
+jest.mock('../../dao/surveyInput.dao');
+jest.mock('../../dao/application.dao');
+jest.mock('../../dao/audit.dao');
+
+const DocumentthreadDAO = require('../../dao/documentthread.dao');
+const StudentDAO = require('../../dao/student.dao');
+const UserDAO = require('../../dao/user.dao');
+const SurveyInputDAO = require('../../dao/surveyInput.dao');
+const ApplicationDAO = require('../../dao/application.dao');
+const AuditDAO = require('../../dao/audit.dao');
+
 // ---- IDs used across tests ----
 const threadId = new ObjectId().toHexString();
 const surveyInputId = new ObjectId().toHexString();
 const messageId = new ObjectId().toHexString();
 
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const DocumentthreadModel = db.model('Documentthread', documentThreadsSchema);
-  const SurveyInputModel = db.model('surveyInput', surveyInputSchema);
-
-  await UserModel.deleteMany();
-  await DocumentthreadModel.deleteMany();
-  await SurveyInputModel.deleteMany();
-
-  await UserModel.insertMany(users);
-
-  await DocumentthreadModel.create({
-    _id: threadId,
-    student_id: student._id,
-    file_type: 'ML',
-    application_id: null,
-    messages: [],
-    updatedAt: new Date()
-  });
-
-  await SurveyInputModel.create({
-    _id: surveyInputId,
-    studentId: student._id,
-    programId: null,
-    fileType: 'ML',
-    surveyContent: {},
-    surveyStatus: 'empty'
-  });
-
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;
     next();
   });
+  // Sensible global defaults; individual tests override the relevant ones.
+  StudentDAO.fetchSimpleStudents.mockResolvedValue([{ _id: student._id }]);
 });
 
-describe('GET /api/document-threads/overview/all (full stack)', () => {
-  it('returns the active threads as a success array', async () => {
+describe('GET /api/document-threads/overview/all', () => {
+  it('returns the active threads (filtered) as a success array', async () => {
+    // getAllStudentsThreads: fetchSimpleStudents -> findAllStudentsThreadsPopulated,
+    // then filters to decided/non-Interview threads.
+    DocumentthreadDAO.findAllStudentsThreadsPopulated.mockResolvedValue([
+      { _id: threadId, file_type: 'ML', application_id: null },
+      { _id: new ObjectId(), file_type: 'Interview', application_id: null }
+    ]);
+
     const resp = await requestWithSupertest
       .get('/api/document-threads/overview/all')
       .set('tenantId', TENANT_ID);
@@ -250,11 +225,26 @@ describe('GET /api/document-threads/overview/all (full stack)', () => {
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
+    // Interview threads are filtered out by the service.
+    expect(resp.body.data).toHaveLength(1);
+    expect(resp.body.data[0]._id).toBe(threadId);
+    expect(StudentDAO.fetchSimpleStudents).toHaveBeenCalled();
+    expect(
+      DocumentthreadDAO.findAllStudentsThreadsPopulated
+    ).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('GET /api/document-threads/overview/my-student-metrics (full stack)', () => {
-  it('returns a students array', async () => {
+describe('GET /api/document-threads/overview/my-student-metrics', () => {
+  it('returns a students array shaped from getStudentsWithApplications', async () => {
+    StudentDAO.getStudentsWithApplications.mockResolvedValue([
+      {
+        _id: student._id,
+        applications: [],
+        generaldocs_threads: []
+      }
+    ]);
+
     const resp = await requestWithSupertest
       .get('/api/document-threads/overview/my-student-metrics')
       .set('tenantId', TENANT_ID);
@@ -262,11 +252,34 @@ describe('GET /api/document-threads/overview/my-student-metrics (full stack)', (
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data.students)).toBe(true);
+    expect(resp.body.data.students).toHaveLength(1);
+    expect(StudentDAO.getStudentsWithApplications).toHaveBeenCalledWith({
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    });
   });
 });
 
-describe('GET /api/document-threads/overview/taiger-user/:userId (full stack)', () => {
+describe('GET /api/document-threads/overview/taiger-user/:userId', () => {
   it('returns { threads, user } for the requested TaiGer user', async () => {
+    DocumentthreadDAO.findThreadsForTaiGerUserPopulated.mockResolvedValue([
+      {
+        _id: threadId,
+        file_type: 'ML',
+        application_id: null,
+        student_id: {
+          agents: [{ _id: agent._id }],
+          editors: [],
+          archiv: false
+        },
+        outsourced_user_id: []
+      }
+    ]);
+    UserDAO.getUserById.mockResolvedValue({
+      _id: agent._id,
+      firstname: agent.firstname,
+      lastname: agent.lastname
+    });
+
     const resp = await requestWithSupertest
       .get(`/api/document-threads/overview/taiger-user/${agent._id}`)
       .set('tenantId', TENANT_ID);
@@ -274,16 +287,22 @@ describe('GET /api/document-threads/overview/taiger-user/:userId (full stack)', 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data.threads)).toBe(true);
+    expect(resp.body.data.threads).toHaveLength(1);
     expect(resp.body.data.user._id.toString()).toBe(agent._id.toString());
+    expect(UserDAO.getUserById).toHaveBeenCalledWith(agent._id.toString());
   });
 });
 
-describe('GET /api/document-threads/student-threads/:studentId (full stack)', () => {
-  it('returns the student thread payload', async () => {
+describe('GET /api/document-threads/student-threads/:studentId', () => {
+  it('returns the student thread payload from findThreadsByStudentIdPopulated', async () => {
     protect.mockImplementation(async (req, res, next) => {
       req.user = agent;
       next();
     });
+    DocumentthreadDAO.findThreadsByStudentIdPopulated.mockResolvedValue([
+      { _id: threadId, file_type: 'ML', application_id: null }
+    ]);
+
     const resp = await requestWithSupertest
       .get(`/api/document-threads/student-threads/${student._id}`)
       .set('tenantId', TENANT_ID);
@@ -291,15 +310,27 @@ describe('GET /api/document-threads/student-threads/:studentId (full stack)', ()
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data).toHaveProperty('threads');
+    expect(resp.body.data.threads).toHaveLength(1);
+    expect(
+      DocumentthreadDAO.findThreadsByStudentIdPopulated
+    ).toHaveBeenCalledWith(student._id.toString());
   });
 });
 
-describe('GET /api/document-threads/:messagesThreadId/survey-inputs (full stack)', () => {
-  it('returns the seeded thread merged with its survey inputs', async () => {
+describe('GET /api/document-threads/:messagesThreadId/survey-inputs', () => {
+  it('returns the thread merged with its resolved survey inputs', async () => {
     protect.mockImplementation(async (req, res, next) => {
       req.user = agent;
       next();
     });
+    DocumentthreadDAO.findThreadByIdFullyPopulated.mockResolvedValue({
+      _id: threadId,
+      student_id: { _id: student._id },
+      program_id: null,
+      file_type: 'ML'
+    });
+    SurveyInputDAO.findSurveyInputs.mockResolvedValue([]);
+
     const resp = await requestWithSupertest
       .get(`/api/document-threads/${threadId}/survey-inputs`)
       .set('tenantId', TENANT_ID);
@@ -308,11 +339,43 @@ describe('GET /api/document-threads/:messagesThreadId/survey-inputs (full stack)
     expect(resp.body.success).toBe(true);
     expect(resp.body.data._id.toString()).toBe(threadId);
     expect(resp.body.data).toHaveProperty('surveyInputs');
+    expect(DocumentthreadDAO.findThreadByIdFullyPopulated).toHaveBeenCalledWith(
+      threadId
+    );
+    expect(SurveyInputDAO.findSurveyInputs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentId: student._id.toString(),
+        fileType: 'ML'
+      })
+    );
+  });
+
+  it('404s when the thread does not exist', async () => {
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = agent;
+      next();
+    });
+    DocumentthreadDAO.findThreadByIdFullyPopulated.mockResolvedValue(null);
+
+    const resp = await requestWithSupertest
+      .get(`/api/document-threads/${threadId}/survey-inputs`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(404);
+    expect(SurveyInputDAO.findSurveyInputs).not.toHaveBeenCalled();
   });
 });
 
-describe('PUT /api/document-threads/survey-input/:surveyInputId (full stack)', () => {
-  it('updates the survey input and the change persists', async () => {
+describe('PUT /api/document-threads/survey-input/:surveyInputId', () => {
+  it('updates the survey input via the DAO and returns it', async () => {
+    SurveyInputDAO.updateSurveyInputById.mockResolvedValue({
+      _id: surveyInputId,
+      surveyStatus: 'provided',
+      studentId: student._id,
+      programId: null,
+      fileType: 'ML'
+    });
+
     const resp = await requestWithSupertest
       .put(`/api/document-threads/survey-input/${surveyInputId}`)
       .set('tenantId', TENANT_ID)
@@ -321,11 +384,25 @@ describe('PUT /api/document-threads/survey-input/:surveyInputId (full stack)', (
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data.surveyStatus).toBe('provided');
+    expect(SurveyInputDAO.updateSurveyInputById).toHaveBeenCalledWith(
+      surveyInputId,
+      expect.objectContaining({ surveyStatus: 'provided' })
+    );
   });
 });
 
-describe('POST /api/document-threads/survey-input (full stack)', () => {
-  it('creates a new survey input and returns it', async () => {
+describe('POST /api/document-threads/survey-input', () => {
+  it('creates a new survey input via the DAO and returns it', async () => {
+    const newId = new ObjectId().toHexString();
+    SurveyInputDAO.createSurveyInput.mockResolvedValue({
+      _id: newId,
+      studentId: student._id,
+      programId: null,
+      fileType: 'RL',
+      surveyContent: {},
+      surveyStatus: 'empty'
+    });
+
     const resp = await requestWithSupertest
       .post('/api/document-threads/survey-input')
       .set('tenantId', TENANT_ID)
@@ -344,15 +421,28 @@ describe('POST /api/document-threads/survey-input (full stack)', () => {
     expect(resp.body.success).toBe(true);
     expect(resp.body.data.fileType).toBe('RL');
     expect(resp.body.data._id).toBeDefined();
+    expect(SurveyInputDAO.createSurveyInput).toHaveBeenCalledWith(
+      expect.objectContaining({ fileType: 'RL' })
+    );
   });
 });
 
-describe('PUT /api/document-threads/:messagesThreadId/favorite (full stack)', () => {
-  it('toggles the favourite flag for the user', async () => {
+describe('PUT /api/document-threads/:messagesThreadId/favorite', () => {
+  it('toggles the favourite flag for the user via the DAO', async () => {
     protect.mockImplementation(async (req, res, next) => {
       req.user = agent;
       next();
     });
+    // putThreadFavorite: getThreadById (existence + current flags) -> updateThreadById.
+    DocumentthreadDAO.findThreadByIdFullyPopulated.mockResolvedValue({
+      _id: threadId,
+      flag_by_user_id: []
+    });
+    DocumentthreadDAO.updateThreadByIdReturnNew.mockResolvedValue({
+      _id: threadId,
+      flag_by_user_id: [agent._id]
+    });
+
     const resp = await requestWithSupertest
       .put(`/api/document-threads/${threadId}/favorite`)
       .set('tenantId', TENANT_ID)
@@ -360,44 +450,111 @@ describe('PUT /api/document-threads/:messagesThreadId/favorite (full stack)', ()
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
-    expect(typeof resp.body.data.isFlagged).toBe('boolean');
+    // Not flagged before -> add to favourites -> new state is true.
+    expect(resp.body.data.isFlagged).toBe(true);
+    expect(DocumentthreadDAO.updateThreadByIdReturnNew).toHaveBeenCalledWith(
+      threadId,
+      { $addToSet: { flag_by_user_id: agent._id } }
+    );
+  });
+
+  it('404s when the thread does not exist', async () => {
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = agent;
+      next();
+    });
+    DocumentthreadDAO.findThreadByIdFullyPopulated.mockResolvedValue(null);
+
+    const resp = await requestWithSupertest
+      .put(`/api/document-threads/${threadId}/favorite`)
+      .set('tenantId', TENANT_ID)
+      .send({});
+
+    expect(resp.status).toBe(404);
+    expect(DocumentthreadDAO.updateThreadByIdReturnNew).not.toHaveBeenCalled();
   });
 });
 
-describe('DELETE /api/document-threads/:messagesThreadId/:studentId (full stack)', () => {
+describe('DELETE /api/document-threads/:messagesThreadId/:studentId', () => {
   it('deletes the (general) thread and reports success', async () => {
+    // handleDeleteGeneralThread: getThreadDocById + getStudentDocById guards,
+    // then deleteGeneralThread -> emptyS3Directory (S3) + deleteThreadById +
+    // updateStudentByIdRaw.
+    DocumentthreadDAO.getThreadDocById.mockResolvedValue({
+      _id: threadId,
+      student_id: student._id
+    });
+    StudentDAO.getStudentDocById.mockResolvedValue({ _id: student._id });
+    DocumentthreadDAO.deleteThreadById.mockResolvedValue({ _id: threadId });
+    StudentDAO.updateStudentByIdRaw.mockResolvedValue({});
+
     const resp = await requestWithSupertest
       .delete(`/api/document-threads/${threadId}/${student._id}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(DocumentthreadDAO.deleteThreadById).toHaveBeenCalledWith(threadId);
+    expect(StudentDAO.updateStudentByIdRaw).toHaveBeenCalledWith(
+      student._id.toString(),
+      {
+        $pull: { generaldocs_threads: { doc_thread_id: { _id: threadId } } }
+      }
+    );
+  });
+
+  it('404s when the thread does not exist', async () => {
+    DocumentthreadDAO.getThreadDocById.mockResolvedValue(null);
+    StudentDAO.getStudentDocById.mockResolvedValue({ _id: student._id });
+
+    const resp = await requestWithSupertest
+      .delete(`/api/document-threads/${threadId}/${student._id}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(404);
+    expect(DocumentthreadDAO.deleteThreadById).not.toHaveBeenCalled();
   });
 });
 
-// Heavy fan-out endpoints (deadline calculators / rich populate chains): the
-// route is exercised end to end but, with the minimal seed, exact data shaping
-// is not asserted — only that nothing 5xx-crashes. Matches the original suite's
-// "respond without crash" intent.
-describe('document-thread smoke routes (full stack)', () => {
-  it('GET /:messagesThreadId reaches the controller and responds', async () => {
+describe('GET /api/document-threads/:messagesThreadId (getMessages)', () => {
+  it('returns the thread with agents/editors/deadline assembled from the DAOs', async () => {
     protect.mockImplementation(async (req, res, next) => {
       req.user = agent;
       next();
     });
+    // CV is a General_Docs file_type, so the deadline path is CVDeadline_Calculator
+    // (safe on an empty applications array) — no application_deadline lookup.
+    DocumentthreadDAO.findThreadByIdFullyPopulated.mockResolvedValue({
+      _id: threadId,
+      file_type: 'CV',
+      program_id: null,
+      application_id: null,
+      student_id: { _id: student._id, agents: [], editors: [] },
+      messages: []
+    });
+    AuditDAO.getAuditLogs.mockResolvedValue([]);
+    UserDAO.findAgents.mockResolvedValue([]);
+    UserDAO.findEditors.mockResolvedValue([]);
+    ApplicationDAO.findByStudentIdWithProgram.mockResolvedValue([]);
+
     const resp = await requestWithSupertest
       .get(`/api/document-threads/${threadId}`)
       .set('tenantId', TENANT_ID);
-    // getMessages runs deadline calculators + populate chains on the thread.
-    // With the minimal ML/no-application seed those post-populate calculators
-    // throw, so the route maps to 500 (handled, not a hang). The integration
-    // value here is that the route -> controller wiring is exercised; exact data
-    // shaping needs a far richer application/program fixture and is asserted in
-    // the controller unit test instead. Keep the original suite's contract.
-    expect(resp.status).toBeLessThan(600);
-  });
 
-  it('GET /pattern/check/:messagesThreadId/:file_type does not 5xx', async () => {
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    expect(resp.body.data._id.toString()).toBe(threadId);
+    expect(DocumentthreadDAO.findThreadByIdFullyPopulated).toHaveBeenCalledWith(
+      threadId
+    );
+    expect(ApplicationDAO.findByStudentIdWithProgram).toHaveBeenCalledWith(
+      student._id.toString()
+    );
+  });
+});
+
+describe('GET /api/document-threads/pattern/check/:messagesThreadId/:file_type', () => {
+  it('short-circuits to isPassed:true for non-CV checks without touching the DAO', async () => {
     protect.mockImplementation(async (req, res, next) => {
       req.user = agent;
       next();
@@ -405,18 +562,34 @@ describe('document-thread smoke routes (full stack)', () => {
     const resp = await requestWithSupertest
       .get(`/api/document-threads/pattern/check/${threadId}/ML`)
       .set('tenantId', TENANT_ID);
+
     expect(resp.status).toBe(200);
     expect(resp.body.isPassed).toBe(true);
+    // The controller returns early before any thread read for non-CV types.
+    expect(DocumentthreadDAO.getThreadByIdLean).not.toHaveBeenCalled();
   });
+});
 
-  it('PUT /:messagesThreadId/:messageId/:ignoreMessageState/ignored does not 5xx', async () => {
+describe('PUT /api/document-threads/:messagesThreadId/:messageId/:ignoreMessageState/ignored', () => {
+  it('flips the message ignored flag via the DAO', async () => {
     protect.mockImplementation(async (req, res, next) => {
       req.user = agent;
       next();
     });
+    DocumentthreadDAO.setMessageIgnore.mockResolvedValue({
+      _id: threadId,
+      messages: [{ _id: messageId, ignored: true }]
+    });
+
     const resp = await requestWithSupertest
       .put(`/api/document-threads/${threadId}/${messageId}/true/ignored`)
       .set('tenantId', TENANT_ID);
-    expect(resp.status).toBeLessThan(500);
+
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    expect(DocumentthreadDAO.setMessageIgnore).toHaveBeenCalledWith(
+      expect.anything(),
+      'true'
+    );
   });
 });

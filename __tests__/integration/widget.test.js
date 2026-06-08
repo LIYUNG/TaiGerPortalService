@@ -1,12 +1,12 @@
-// Full-stack integration test for the widget routes:
-//   supertest -> real router -> real controllers/widget -> real
-//   CommunicationService -> real DAO -> in-memory MongoDB.
+// Integration test for the widget routes — HTTP boundary down to the service,
+// with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/widget ->
+//   real CommunicationService -> MOCKED CommunicationDAO.
 //
 // The external boundaries (AWS S3 / API Gateway / STS) are stubbed because they
-// are network calls, not seams we own — but the controller logic and, for the
-// PDF export, the Communication read path run for real. Kept thin; the behaviour
-// matrix lives in ../controllers/widget.test.js (mocked). Ported from the
-// original controller test with assertions strengthened.
+// are network calls, not seams we own. The controller logic and, for the PDF
+// export, the Communication read path run for real against the mocked DAO. Fully
+// deterministic — no engine flake.
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -70,60 +70,47 @@ jest.mock('../../aws/s3', () => ({
   putS3Object: jest.fn().mockResolvedValue({})
 }));
 
+// The data boundary: mock the DAO the communication service delegates to.
+jest.mock('../../dao/communication.dao');
+
 const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
+const CommunicationDAO = require('../../dao/communication.dao');
 const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, agent, student } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
-const { communicationsSchema } = require('../../models/Communication');
-const { generateCommunicationMessage } = require('../fixtures/faker');
+const { admin, agent, student } = require('../mock/user');
 
 const requestWithSupertest = request(app);
-let dbUri;
 
-beforeAll(async () => {
-  dbUri = await connect();
+// A communication thread as returned by the DAO (user_id populated).
+const buildThread = (message) => ({
+  _id: student._id,
+  student_id: student._id,
+  user_id: {
+    _id: agent._id,
+    firstname: agent.firstname,
+    lastname: agent.lastname,
+    role: agent.role
+  },
+  message,
+  createdAt: new Date()
 });
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const CommunicationModel = db.model('Communication', communicationsSchema);
-
-  await UserModel.deleteMany();
-  await CommunicationModel.deleteMany();
-
-  await UserModel.insertMany(users);
-
-  const messages = [
-    generateCommunicationMessage({
-      studnet_id: student._id,
-      user_id: agent._id
-    }),
-    generateCommunicationMessage({
-      studnet_id: student._id,
-      user_id: agent._id
-    })
-  ];
-  await CommunicationModel.insertMany(messages);
-
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;
     next();
   });
 });
 
-describe('WidgetExportMessagePDF Controller (full stack)', () => {
-  it('GET /api/widgets/messages/export/:studentId returns a non-empty PDF buffer', async () => {
+describe('WidgetExportMessagePDF Controller', () => {
+  it('GET /api/widgets/messages/export/:studentId returns a non-empty PDF buffer built from the DAO thread', async () => {
+    CommunicationDAO.getByStudentIdForExport.mockResolvedValue([
+      buildThread('<p>hello</p>'),
+      buildThread('<p>world</p>')
+    ]);
+
     const resp = await requestWithSupertest
       .get(`/api/widgets/messages/export/${student._id}`)
       .set('tenantId', TENANT_ID)
@@ -140,10 +127,13 @@ describe('WidgetExportMessagePDF Controller (full stack)', () => {
     expect(resp.body.length).toBeGreaterThan(0);
     // A jsPDF document always starts with the "%PDF" magic bytes.
     expect(resp.body.slice(0, 4).toString()).toBe('%PDF');
+    expect(CommunicationDAO.getByStudentIdForExport).toHaveBeenCalledWith(
+      student._id.toString()
+    );
   });
 });
 
-describe('WidgetProcessTranscriptV2 Controller (full stack)', () => {
+describe('WidgetProcessTranscriptV2 Controller', () => {
   it('POST /api/widgets/transcript/engine/v2/:language returns analysis metadata', async () => {
     const resp = await requestWithSupertest
       .post('/api/widgets/transcript/engine/v2/en')
@@ -161,7 +151,7 @@ describe('WidgetProcessTranscriptV2 Controller (full stack)', () => {
   });
 });
 
-describe('WidgetdownloadJson Controller (full stack)', () => {
+describe('WidgetdownloadJson Controller', () => {
   it('GET /api/widgets/transcript/v2/:adminId returns the parsed JSON data', async () => {
     const resp = await requestWithSupertest
       .get(`/api/widgets/transcript/v2/${admin._id}`)

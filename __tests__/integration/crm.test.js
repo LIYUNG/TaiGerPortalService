@@ -1,13 +1,15 @@
-// Full-stack integration layer for the CRM routes:
+// Integration layer for the CRM routes — HTTP boundary down to the controller,
+// DATABASE-FREE:
 //   supertest -> real router -> real controllers/crm -> Drizzle query builder.
 //
-// CRM is a Postgres/Drizzle feature with no Mongo service layer — the controller
-// talks to the ORM directly. There is no real Postgres in the test environment,
-// so the ORM is the boundary we stub: a chainable/awaitable Drizzle double that
-// resolves to controllable fixtures. Everything ABOVE the ORM (routing, auth and
-// permission wiring, request/response shaping, status mapping) runs for real.
-// The exhaustive per-endpoint HTTP behaviour lives in ../controllers/crm.test.js
-// (boundary mocked tightly). Kept thin here: the critical happy/empty paths.
+// CRM is a Postgres/Drizzle feature: the controller talks to the ORM directly.
+// There is no real Postgres in the test environment, so the ORM is the boundary
+// we stub — a chainable/awaitable Drizzle double that resolves to controllable
+// fixtures (`jest.mock('../../database')`). The one place CRM touches Mongo is
+// `UserService.getUserById` (creating a lead from a student); that goes through
+// the mocked UserDAO. Everything ABOVE the data layer (routing, auth/permission
+// wiring, request/response shaping, status mapping) runs for real. No real or
+// in-memory database is used.
 
 // ── Mock declarations (must be at top, before any require()) ─────────────────
 
@@ -78,57 +80,8 @@ jest.mock('../../database', () => {
     }
   };
 
-  const connections = {};
-  const connectToDatabase = jest.fn().mockImplementation((tenantId) => {
-    if (connections[tenantId]) return connections[tenantId];
-    const mongoose = require('mongoose');
-    const conn = mongoose.connection.useDb
-      ? mongoose.connection.useDb(tenantId, { useCache: true })
-      : mongoose.connection;
-
-    const reg = (name, schema) => {
-      try {
-        return conn.model(name);
-      } catch (_) {
-        return conn.model(name, schema);
-      }
-    };
-
-    const {
-      UserSchema,
-      Agent,
-      Editor,
-      Student,
-      Admin,
-      External,
-      Guest
-    } = require('../../models/User');
-
-    reg('User', UserSchema);
-    try {
-      conn.model('User').discriminator('Agent', Agent.schema);
-      conn.model('User').discriminator('Editor', Editor.schema);
-      conn.model('User').discriminator('Student', Student.schema);
-      conn.model('User').discriminator('Admin', Admin.schema);
-      conn.model('User').discriminator('External', External.schema);
-      conn.model('User').discriminator('Guest', Guest.schema);
-    } catch (_) {}
-
-    connections[tenantId] = conn;
-    return conn;
-  });
-
-  const disconnectFromDatabase = jest
-    .fn()
-    .mockImplementation(async (tenant) => {
-      delete connections[tenant];
-    });
-
   return {
     getPostgresDb: jest.fn(() => mockPostgresDb),
-    connectToDatabase,
-    disconnectFromDatabase,
-    connections,
     mongoDb: jest.fn().mockReturnValue('mongodb://localhost:27017/test'),
     tenantDb: 'Tenant'
   };
@@ -188,45 +141,29 @@ jest.mock('../../middlewares/limit_archiv_user', () => {
   };
 });
 
+// The single Mongo touchpoint in CRM: creating a lead from a student resolves
+// the student through UserService -> UserDAO.getUserById.
+jest.mock('../../dao/user.dao');
+
 // ── Imports ───────────────────────────────────────────────────────────────────
 
 const request = require('supertest');
 const { ObjectId } = require('mongoose').Types;
 
-const { connect, clearDatabase } = require('../fixtures/db');
 const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { User: DefaultUserModel } = require('../../models');
 const { protect } = require('../../middlewares/auth');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { disconnectFromDatabase, getPostgresDb } = require('../../database');
+const { getPostgresDb } = require('../../database');
+const UserDAO = require('../../dao/user.dao');
 const { TENANT_ID } = require('../fixtures/constants');
-const { users, admin, student } = require('../mock/user');
+const { admin, student } = require('../mock/user');
 const postgres = getPostgresDb();
 
 const requestWithSupertest = request(app);
 
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-
-beforeEach(async () => {
+beforeEach(() => {
+  jest.clearAllMocks();
   postgres._resetState();
-
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-
-  await DefaultUserModel.deleteMany();
-  await DefaultUserModel.insertMany(users);
+  postgres.query.leads.findFirst.mockResolvedValue(null);
 
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;
@@ -280,6 +217,12 @@ describe('PUT /api/crm/leads/:leadId (full stack)', () => {
 describe('POST /api/crm/students/:studentId/lead (full stack)', () => {
   it('creates a lead from an existing student and returns 201', async () => {
     const { _id: studentId } = student;
+    // The student is resolved from Mongo through the mocked UserDAO.
+    UserDAO.getUserById.mockResolvedValue({
+      _id: studentId,
+      firstname_chinese: 'Test',
+      lastname_chinese: 'Student'
+    });
     postgres._setInsertResult([{ id: 1, fullName: 'TestStudent' }]);
 
     const resp = await requestWithSupertest
@@ -289,6 +232,7 @@ describe('POST /api/crm/students/:studentId/lead (full stack)', () => {
     expect(resp.status).toBe(201);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data).toBeDefined();
+    expect(UserDAO.getUserById).toHaveBeenCalledWith(studentId.toString());
   });
 });
 

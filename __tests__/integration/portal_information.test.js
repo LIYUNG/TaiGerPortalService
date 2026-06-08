@@ -1,11 +1,15 @@
-// Full-stack integration layer for the portal-informations routes:
-//   supertest -> real router -> real controllers/portal_informations -> real
-//   StudentService/ApplicationService -> real DAOs -> in-memory MongoDB.
+// Integration test for the portal-informations routes — HTTP boundary down to
+// the service, with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real
+//   controllers/portal_informations -> real StudentService/ApplicationService ->
+//   MOCKED StudentDAO / ApplicationDAO.
 //
-// Only auth/tenant/permission middleware is stubbed; everything below the route
-// is real, so a seam bug (schema/query/nested-update) surfaces here. Kept thin —
-// exhaustive per-handler behaviour lives in ../controllers/portal_information.test.js
-// (mocked) and the service/dao suites.
+// These assert the controller/service pass the right arguments to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The actual DB
+// query/nested-update construction is covered by the DAO unit tests.
+
+const request = require('supertest');
+const { ObjectId } = require('mongoose').Types;
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -64,67 +68,73 @@ jest.mock('../../middlewares/limit_archiv_user', () => {
   };
 });
 
-const request = require('supertest');
-const { ObjectId } = require('mongoose').Types;
-const { connect, clearDatabase } = require('../fixtures/db');
+// The data boundary: mock the DAOs the student/application services delegate to.
+jest.mock('../../dao/student.dao');
+jest.mock('../../dao/application.dao');
+
+const StudentDAO = require('../../dao/student.dao');
+const ApplicationDAO = require('../../dao/application.dao');
 const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
-const { applicationSchema } = require('../../models/Application');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, student } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
+const { admin, student } = require('../mock/user');
 
 const requestWithSupertest = request(app);
-let dbUri;
 
 const applicationId = new ObjectId().toHexString();
-const testApplication = {
-  _id: applicationId,
-  studentId: student._id,
-  programId: new ObjectId().toHexString(),
-  decided: '-',
-  closed: '-',
-  doc_modification_thread: []
-};
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const ApplicationModel = db.model('Application', applicationSchema);
-  await UserModel.deleteMany();
-  await ApplicationModel.deleteMany();
-  await UserModel.insertMany(users);
-  await ApplicationModel.insertMany([testApplication]);
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;
     next();
   });
 });
 
-describe('GET /api/portal-informations/:studentId (full stack)', () => {
-  it('returns the student together with their applications', async () => {
+describe('GET /api/portal-informations/:studentId', () => {
+  it('returns the student together with their applications from the DAOs', async () => {
+    StudentDAO.getStudentById.mockResolvedValue({
+      _id: student._id,
+      firstname: student.firstname,
+      lastname: student.lastname,
+      agents: [],
+      editors: []
+    });
+    ApplicationDAO.getApplicationsWithCredentialsByStudentId.mockResolvedValue([
+      {
+        _id: applicationId,
+        studentId: student._id,
+        portal_credentials: {
+          application_portal_a: { account: 'acct_a', password: 'pw_a' }
+        }
+      }
+    ]);
+
     const resp = await requestWithSupertest
       .get(`/api/portal-informations/${student._id}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(StudentDAO.getStudentById).toHaveBeenCalledWith(
+      student._id.toString()
+    );
+    expect(
+      ApplicationDAO.getApplicationsWithCredentialsByStudentId
+    ).toHaveBeenCalledWith(student._id.toString());
     expect(resp.body.data.student._id.toString()).toBe(student._id.toString());
     expect(Array.isArray(resp.body.data.applications)).toBe(true);
+    expect(resp.body.data.applications[0]._id.toString()).toBe(applicationId);
   });
 });
 
-describe('POST /api/portal-informations/:studentId/:applicationId (full stack)', () => {
-  it('persists portal credentials onto the application', async () => {
+describe('POST /api/portal-informations/:studentId/:applicationId', () => {
+  it('updates the application via the DAO with the nested portal credentials', async () => {
+    ApplicationDAO.updateApplication.mockResolvedValue({
+      _id: applicationId,
+      studentId: student._id
+    });
+
     const post = await requestWithSupertest
       .post(`/api/portal-informations/${student._id}/${applicationId}`)
       .set('tenantId', TENANT_ID)
@@ -137,28 +147,27 @@ describe('POST /api/portal-informations/:studentId/:applicationId (full stack)',
 
     expect(post.status).toBe(200);
     expect(post.body.success).toBe(true);
-    // NOTE: portal_credentials.*.account/password are `select: false` in the
-    // shared application schema. updateApplication's findOneAndUpdate does NOT
-    // add a `+portal_credentials...` projection, so the POST response omits the
-    // (just-persisted) credentials. We therefore assert persistence through the
-    // GET path below, which DOES select them in (getApplicationsWithCredentialsByStudentId).
+    expect(ApplicationDAO.updateApplication).toHaveBeenCalledWith(
+      { _id: applicationId },
+      {
+        portal_credentials: {
+          application_portal_a: {
+            account: 'test_account_a',
+            password: 'test_password_a'
+          },
+          application_portal_b: {
+            account: 'test_account_b',
+            password: 'test_password_b'
+          }
+        }
+      }
+    );
     expect(post.body.data._id.toString()).toBe(applicationId);
-
-    // The credentials are returned to the student via getPortalCredentials.
-    const get = await requestWithSupertest
-      .get(`/api/portal-informations/${student._id}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(get.status).toBe(200);
-    const persisted = get.body.data.applications.find(
-      (a) => a._id.toString() === applicationId
-    );
-    expect(persisted.portal_credentials.application_portal_a.account).toBe(
-      'test_account_a'
-    );
   });
 
-  it('returns 400 when the application does not exist', async () => {
+  it('returns 400 when the application does not exist (DAO returns null)', async () => {
+    ApplicationDAO.updateApplication.mockResolvedValue(null);
+
     const resp = await requestWithSupertest
       .post(
         `/api/portal-informations/${

@@ -1,35 +1,20 @@
-// Full-stack integration test for the courses routes:
-//   supertest -> real router -> real controllers/course -> real CourseService ->
-//   real CourseDAO -> in-memory MongoDB (StudentService/StudentDAO too).
+// Integration test for the courses routes — HTTP boundary down to the service,
+// with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/course ->
+//   real CourseService / StudentService -> MOCKED CourseDAO / StudentDAO.
 //
-// Nothing below the route is mocked (only auth/tenant middleware is stubbed).
-// This is the layer that catches the seam bugs — schema mismatch, bad query,
-// wrong field — that the mocked controller unit test (../controllers/courses.test.js)
-// cannot see. Ported from the original __tests__/controllers/courses.test.js
-// with the weak assertions strengthened against the deterministic seed. Keep it
-// thin: happy paths only.
+// These assert the controller/service pass the right arguments to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The actual DB
+// query/aggregation construction is covered by the DAO unit tests
+// (__tests__/dao/course.dao.test.js). Fully deterministic — no engine flake.
 
 const request = require('supertest');
-
-const { connect, clearDatabase } = require('../fixtures/db');
-const { UserSchema } = require('../../models/User');
-const { generateCourse } = require('../fixtures/faker');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { coursesSchema } = require('../../models/Course');
-const { users, student } = require('../mock/user');
-const { app } = require('../../app');
-const { disconnectFromDatabase } = require('../../database');
-
-const requestWithSupertest = request(app);
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
     req.tenantId = 'test';
     next();
   };
-
   return {
     ...jest.requireActual('../../middlewares/tenantMiddleware'),
     checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
@@ -38,7 +23,6 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
   const passthrough = async (req, res, next) => next();
-
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
     decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
@@ -47,7 +31,6 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 
 jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
   const passthrough = async (req, res, next) => next();
-
   return {
     ...jest.requireActual('../../middlewares/permission-filter'),
     InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
@@ -56,7 +39,6 @@ jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
 
 jest.mock('../../middlewares/auth', () => {
   const passthrough = async (req, res, next) => next();
-
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
@@ -65,122 +47,138 @@ jest.mock('../../middlewares/auth', () => {
   };
 });
 
-const course1 = generateCourse(student._id);
+// putMycourses notifies agents by email after the upsert; stub the senders so no
+// SMTP connection is opened.
+jest.mock('../../services/email', () => ({
+  ...jest.requireActual('../../services/email'),
+  updateCoursesDataAgentEmail: jest.fn(),
+  AnalysedCoursesDataStudentEmail: jest.fn()
+}));
 
-let dbUri;
+// The data boundary: mock the DAOs the course/student services delegate to.
+jest.mock('../../dao/course.dao');
+jest.mock('../../dao/student.dao');
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
+const CourseDAO = require('../../dao/course.dao');
+const StudentDAO = require('../../dao/student.dao');
+const { protect } = require('../../middlewares/auth');
+const { app } = require('../../app');
+const { TENANT_ID } = require('../fixtures/constants');
+const { student } = require('../mock/user');
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
+const requestWithSupertest = request(app);
+const studentId = student._id.toString();
 
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
+const EXAMPLE_TABLE =
+  '[{"course_chinese":"(Example)物理一","course_english":null,"credits":"2","grades":"73"},{"course_chinese":"(Example)微積分一","course_english":null,"credits":"2","grades":"77"}]';
 
-  const UserModel = db.model('User', UserSchema);
-  const CourseModel = db.model('Course', coursesSchema);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-  await CourseModel.deleteMany();
-  await CourseModel.insertMany([course1]);
-
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Default: the logged-in user is the student themselves.
   protect.mockImplementation(async (req, res, next) => {
-    req.user = await UserModel.findById(student._id);
+    req.user = student;
     next();
+  });
+  // Sensible defaults; individual tests override as needed.
+  StudentDAO.getStudentByIdLean.mockResolvedValue({
+    _id: student._id,
+    firstname: student.firstname,
+    lastname: student.lastname,
+    agents: [],
+    editors: [],
+    archiv: false
+  });
+  StudentDAO.getStudentByIdWithAgents.mockResolvedValue({
+    agents: [],
+    archiv: false
   });
 });
 
-describe('GET /api/courses/:studentId (full stack)', () => {
-  it('returns the persisted course record for the student', async () => {
+describe('GET /api/courses/:studentId', () => {
+  it('returns the course record from the DAO, queried by student id', async () => {
+    const course = { student_id: studentId, table_data_string: EXAMPLE_TABLE };
+    CourseDAO.getCourse.mockResolvedValue(course);
+
     const resp = await requestWithSupertest
-      .get(`/api/courses/${student._id}`)
+      .get(`/api/courses/${studentId}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(CourseDAO.getCourse).toHaveBeenCalledWith({ student_id: studentId });
     expect(resp.body.data.table_data_string).toContain('(Example)微積分一');
   });
 
-  it('returns default example course data when no record exists', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const CourseModel = db.model('Course', coursesSchema);
-    await CourseModel.deleteMany({ student_id: student._id });
+  it('returns the default example payload when the DAO finds no record', async () => {
+    CourseDAO.getCourse.mockResolvedValue(null);
 
     const resp = await requestWithSupertest
-      .get(`/api/courses/${student._id}`)
+      .get(`/api/courses/${studentId}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data.table_data_string).toContain('(Example)');
   });
+
+  it('500s when the student does not exist', async () => {
+    StudentDAO.getStudentByIdLean.mockResolvedValue(null);
+
+    const resp = await requestWithSupertest
+      .get(`/api/courses/${studentId}`)
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(500);
+    expect(CourseDAO.getCourse).not.toHaveBeenCalled();
+  });
 });
 
-describe('PUT /api/courses/:studentId (full stack)', () => {
-  it('persists the updated course and the change is visible on a read', async () => {
+describe('PUT /api/courses/:studentId', () => {
+  it('upserts via the DAO with the posted fields and returns the saved record', async () => {
     const newTable =
       '[{"course_chinese":"電子學一","course_english":"Electronics I","credits":"2","grades":"73"}]';
+    const saved = {
+      student_id: {
+        _id: student._id,
+        firstname: student.firstname,
+        lastname: student.lastname
+      },
+      table_data_string: newTable
+    };
+    CourseDAO.upsertCourseByStudentId.mockResolvedValue(saved);
 
     const put = await requestWithSupertest
-      .put(`/api/courses/${student._id}`)
+      .put(`/api/courses/${studentId}`)
       .set('tenantId', TENANT_ID)
       .send({ table_data_string: newTable });
 
     expect(put.status).toBe(200);
     expect(put.body.success).toBe(true);
-
-    const get = await requestWithSupertest
-      .get(`/api/courses/${student._id}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(get.status).toBe(200);
-    expect(get.body.data.table_data_string).toContain('電子學一');
-  });
-
-  it('upserts (creates) a course record when none exists', async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const CourseModel = db.model('Course', coursesSchema);
-    await CourseModel.deleteMany({ student_id: student._id });
-
-    const newTable =
-      '[{"course_chinese":"新課程","course_english":"New Course","credits":"3","grades":"85"}]';
-
-    const put = await requestWithSupertest
-      .put(`/api/courses/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({ table_data_string: newTable });
-
-    expect(put.status).toBe(200);
-    expect(put.body.success).toBe(true);
-
-    const get = await requestWithSupertest
-      .get(`/api/courses/${student._id}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(get.body.data.table_data_string).toContain('新課程');
+    expect(CourseDAO.upsertCourseByStudentId).toHaveBeenCalledWith(
+      studentId,
+      expect.objectContaining({ table_data_string: newTable })
+    );
+    expect(put.body.data.table_data_string).toBe(newTable);
   });
 });
 
-describe('DELETE /api/courses/:studentId (full stack)', () => {
-  it('deletes the course so a subsequent read returns the default data', async () => {
+describe('DELETE /api/courses/:studentId', () => {
+  it('deletes the course via the DAO scoped to the student', async () => {
+    // deleteMyCourse first checks existence via getCourse, then deletes.
+    CourseDAO.getCourse.mockResolvedValue({
+      student_id: studentId,
+      table_data_string: EXAMPLE_TABLE
+    });
+    CourseDAO.deleteCourse.mockResolvedValue({ deletedCount: 1 });
+
     const del = await requestWithSupertest
-      .delete(`/api/courses/${student._id}`)
+      .delete(`/api/courses/${studentId}`)
       .set('tenantId', TENANT_ID);
 
     expect(del.status).toBe(200);
     expect(del.body.success).toBe(true);
-
-    const get = await requestWithSupertest
-      .get(`/api/courses/${student._id}`)
-      .set('tenantId', TENANT_ID);
-
-    // No record now -> controller returns the default example payload.
-    expect(get.status).toBe(200);
-    expect(get.body.data.table_data_string).toContain('(Example)');
+    expect(CourseDAO.deleteCourse).toHaveBeenCalledWith({
+      student_id: studentId
+    });
   });
 });

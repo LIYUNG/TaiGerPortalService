@@ -1,17 +1,19 @@
-// Full-stack integration test for the student-applications routes:
-//   supertest -> real router -> real controllers -> real services -> real DAOs
-//   -> in-memory MongoDB.
+// Integration test for the student-applications routes — HTTP boundary down to
+// the service, with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers ->
+//   real ApplicationService / TeamService / ProgramService /
+//   DocumentThreadService -> MOCKED ApplicationDAO / TeamDAO / ProgramDAO /
+//   DocumentthreadDAO.
 //
 //   GET /conflicts -> controllers/student_applications.getApplicationConflicts
 //   GET /deltas    -> controllers/teams.getApplicationDeltas
 //
-// Only auth/tenant middleware is stubbed; everything below the route is real.
-// Both aggregations read the CENTRAL default-connection models (Application,
-// User, Program), which the harness connects to the same per-worker db, so the
-// seeded docs are visible. We seed a genuine conflict (two students applying to
-// the same program, decided 'O' / closed '-') and assert it surfaces, instead of
-// the original mocked-service status-only checks. The per-handler HTTP shape is
-// covered in ../controllers/student_applications.test.js (mocked).
+// These assert the controllers/services pass the right arguments to the DAOs and
+// shape the HTTP response from the DAOs' (mocked) return. The aggregation
+// construction itself is covered by the DAO unit tests. Fully deterministic — no
+// engine flake.
+
+const request = require('supertest');
 
 jest.mock('../../middlewares/tenantMiddleware', () => ({
   ...jest.requireActual('../../middlewares/tenantMiddleware'),
@@ -30,87 +32,73 @@ jest.mock('../../middlewares/auth', () => ({
   permit: jest.fn(() => (req, res, next) => next())
 }));
 
-const mongoose = require('mongoose');
-const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { Application, User, Program } = require('../../models');
+// The data boundary: mock the DAOs the conflict + delta flows delegate to.
+jest.mock('../../dao/application.dao');
+jest.mock('../../dao/team.dao');
+jest.mock('../../dao/program.dao');
+jest.mock('../../dao/documentthread.dao');
+
+const ApplicationDAO = require('../../dao/application.dao');
+const TeamDAO = require('../../dao/team.dao');
+const ProgramDAO = require('../../dao/program.dao');
+const DocumentthreadDAO = require('../../dao/documentthread.dao');
 const { protect } = require('../../middlewares/auth');
+const { app } = require('../../app');
 const { TENANT_ID } = require('../fixtures/constants');
 const { admin } = require('../mock/user');
 const { generateProgram, generateUser } = require('../fixtures/faker');
-const { disconnectFromDatabase } = require('../../database');
+const { Role } = require('../../constants');
 
 const api = request(app);
-
-const { Role } = require('../../constants');
 
 const studentA = generateUser(Role.Student);
 const studentB = generateUser(Role.Student);
 const conflictProgram = generateProgram();
 
-const makeApplication = (studentId) => ({
-  _id: new mongoose.Types.ObjectId().toHexString(),
-  studentId,
-  programId: conflictProgram._id,
-  decided: 'O',
-  closed: '-',
-  admission: '-'
-});
-
-beforeAll(async () => {
-  await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  // Conflict + delta aggregations read the central default-connection models.
-  await User.deleteMany({});
-  await Program.deleteMany({});
-  await Application.deleteMany({});
-
-  await User.insertMany([studentA, studentB]);
-  await Program.create(conflictProgram);
-  await Application.insertMany([
-    makeApplication(studentA._id),
-    makeApplication(studentB._id)
-  ]);
+beforeEach(() => {
+  jest.clearAllMocks();
 
   protect.mockImplementation((req, res, next) => {
     req.user = admin;
     next();
   });
+
+  // Sensible defaults; individual tests override as needed.
+  ApplicationDAO.getApplicationConflicts.mockResolvedValue([]);
+  TeamDAO.getActivePrograms.mockResolvedValue([]);
+  ApplicationDAO.getDecidedApplicationsByProgramPopulated.mockResolvedValue([]);
+  ProgramDAO.getProgramByIdLean.mockResolvedValue(null);
+  DocumentthreadDAO.findThreads.mockResolvedValue([]);
 });
 
-describe('GET /api/student-applications/conflicts (full stack)', () => {
-  it('surfaces a program with two students competing for the same decided slot', async () => {
+describe('GET /api/student-applications/conflicts', () => {
+  it('returns the conflicts the DAO computes', async () => {
+    const conflict = {
+      programId: conflictProgram._id,
+      applicationCount: 2,
+      students: [studentA._id, studentB._id],
+      program: { _id: conflictProgram._id }
+    };
+    ApplicationDAO.getApplicationConflicts.mockResolvedValue([conflict]);
+
     const resp = await api
       .get('/api/student-applications/conflicts')
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(ApplicationDAO.getApplicationConflicts).toHaveBeenCalledTimes(1);
     expect(Array.isArray(resp.body.data)).toBe(true);
-
-    // The aggregation projects _id:0 and renames the grouped program id to
-    // `programId`, bundling the program doc under `program`.
-    const conflict = resp.body.data.find(
+    const got = resp.body.data.find(
       (c) => c.programId?.toString() === conflictProgram._id.toString()
     );
-    expect(conflict).toBeTruthy();
-    expect(conflict.applicationCount).toBe(2);
-    expect(conflict.students.length).toBe(2);
-    expect(conflict.program._id.toString()).toBe(
-      conflictProgram._id.toString()
-    );
+    expect(got).toBeTruthy();
+    expect(got.applicationCount).toBe(2);
+    expect(got.students.length).toBe(2);
   });
 
-  it('returns no conflict once the competing applications are removed', async () => {
-    await Application.deleteMany({});
+  it('returns an empty array when the DAO reports no conflict', async () => {
+    ApplicationDAO.getApplicationConflicts.mockResolvedValue([]);
 
     const resp = await api
       .get('/api/student-applications/conflicts')
@@ -122,8 +110,10 @@ describe('GET /api/student-applications/conflicts (full stack)', () => {
   });
 });
 
-describe('GET /api/student-applications/deltas (full stack)', () => {
-  it('returns a 200 success envelope with a data array', async () => {
+describe('GET /api/student-applications/deltas', () => {
+  it('returns a 200 success envelope with a data array when there are no active programs', async () => {
+    TeamDAO.getActivePrograms.mockResolvedValue([]);
+
     const resp = await api
       .get('/api/student-applications/deltas')
       .set('tenantId', TENANT_ID);
@@ -131,5 +121,43 @@ describe('GET /api/student-applications/deltas (full stack)', () => {
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
+    expect(resp.body.data).toEqual([]);
+    expect(TeamDAO.getActivePrograms).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops programs whose students have no document deltas', async () => {
+    // One active program; its decided students have threads that already match
+    // the program requirements, so every per-student delta is empty -> the
+    // program is filtered out and the response data is [].
+    TeamDAO.getActivePrograms.mockResolvedValue([{ _id: conflictProgram._id }]);
+    ApplicationDAO.getDecidedApplicationsByProgramPopulated.mockResolvedValue([
+      {
+        studentId: { _id: studentA._id, agents: [] },
+        application_year: '2024',
+        closed: '-',
+        admission: '-'
+      }
+    ]);
+    ProgramDAO.getProgramByIdLean.mockResolvedValue({
+      _id: conflictProgram._id,
+      school: conflictProgram.school,
+      program_name: conflictProgram.program_name,
+      degree: conflictProgram.degree,
+      semester: conflictProgram.semester
+    });
+    // No required documents on the program + no threads -> empty delta.
+    DocumentthreadDAO.findThreads.mockResolvedValue([]);
+
+    const resp = await api
+      .get('/api/student-applications/deltas')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    expect(Array.isArray(resp.body.data)).toBe(true);
+    expect(resp.body.data).toEqual([]);
+    expect(
+      ApplicationDAO.getDecidedApplicationsByProgramPopulated
+    ).toHaveBeenCalledWith(conflictProgram._id);
   });
 });

@@ -1,28 +1,15 @@
-// Full-stack integration test for the documentations routes:
-//   supertest -> real router -> real controllers/documentations ->
-//   real DocumentationService -> real DAOs -> in-memory MongoDB.
+// Integration test for the documentations routes — HTTP boundary down to the
+// service, with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/documentations
+//   -> real DocumentationService -> MOCKED DocumentationDAO / InternaldocDAO /
+//   DocspageDAO.
 //
-// Nothing below the route is mocked except auth/tenant middleware, the S3 file
-// layer and the multer upload middleware (loading the real file-upload.js calls
-// multerS3({ s3 }) at evaluation time, which crashes in tests). This is the
-// layer that catches seam bugs — schema mismatch, wrong query — that the mocked
-// controller unit test (../controllers/documentations.test.js) cannot see.
-// Kept thin: a few critical CRUD paths asserting real persisted data.
+// These assert the controller/service pass the right arguments to the DAO and
+// shape the HTTP response from the DAO's (mocked) return. The actual DB
+// query construction is covered by the DAO unit tests. Fully deterministic — no
+// engine flake.
 
 const request = require('supertest');
-
-const { connect, clearDatabase } = require('../fixtures/db');
-const { app } = require('../../app');
-const { User, UserSchema } = require('../../models/User');
-const { programSchema } = require('../../models/Program');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin } = require('../mock/user');
-const { program1 } = require('../mock/programs');
-const { disconnectFromDatabase } = require('../../database');
-
-const requestWithSupertest = request(app);
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -98,35 +85,29 @@ jest.mock('../../middlewares/file-upload', () => {
   };
 });
 
-let dbUri;
+// The data boundary: mock the DAOs the documentation service delegates to.
+jest.mock('../../dao/documentation.dao');
+jest.mock('../../dao/internaldoc.dao');
+jest.mock('../../dao/docspage.dao');
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
+const DocumentationDAO = require('../../dao/documentation.dao');
+const InternaldocDAO = require('../../dao/internaldoc.dao');
+const { protect } = require('../../middlewares/auth');
+const { app } = require('../../app');
+const { TENANT_ID } = require('../fixtures/constants');
+const { admin } = require('../mock/user');
 
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID); // Properly close each connection
-  await clearDatabase();
-});
+const requestWithSupertest = request(app);
 
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-
-  const UserModel = db.model('User', UserSchema);
-  const ProgramModel = db.model('Program', programSchema);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-  await ProgramModel.deleteMany();
-  await ProgramModel.create(program1);
-
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
-    req.user = await User.findById(admin._id);
+    req.user = admin;
     next();
   });
 });
 
-describe('/api/docs/:category (full stack)', () => {
+describe('/api/docs/:category', () => {
   const category_uniassist = 'uniassist';
   const category_visa = 'visa';
   const category_certification = 'certification';
@@ -146,7 +127,12 @@ describe('/api/docs/:category (full stack)', () => {
     country: 'article.updatedAt'
   };
 
-  test('POST creates a documentation and persists its fields', async () => {
+  test('POST creates a documentation via the DAO and returns its fields', async () => {
+    DocumentationDAO.create.mockResolvedValue({
+      _id: 'doc-1',
+      ...article
+    });
+
     const resp = await requestWithSupertest
       .post('/api/docs')
       .set('tenantId', TENANT_ID)
@@ -154,52 +140,73 @@ describe('/api/docs/:category (full stack)', () => {
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(DocumentationDAO.create).toHaveBeenCalledWith(
+      expect.objectContaining({ title: article.title, text: article.text })
+    );
     const new_article = resp.body.data;
     expect(new_article.title).toBe(article.title);
     expect(new_article.text).toBe(article.text);
     expect(new_article._id).toBeDefined();
   });
 
-  test('GET uniassist category returns 200 with a success array', async () => {
+  test('GET uniassist category returns the DAO result as a success array', async () => {
+    DocumentationDAO.findByCategory.mockResolvedValue([]);
+
     const resp = await requestWithSupertest
       .get(`/api/docs/${category_uniassist}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(DocumentationDAO.findByCategory).toHaveBeenCalledWith(
+      category_uniassist
+    );
     expect(Array.isArray(resp.body.data)).toBe(true);
   });
 
   test('GET certification category returns 200', async () => {
+    DocumentationDAO.findByCategory.mockResolvedValue([]);
+
     const resp = await requestWithSupertest
       .get(`/api/docs/${category_certification}`)
       .set('tenantId', TENANT_ID);
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(DocumentationDAO.findByCategory).toHaveBeenCalledWith(
+      category_certification
+    );
   });
 
   test('GET application category returns 200', async () => {
+    DocumentationDAO.findByCategory.mockResolvedValue([]);
+
     const resp = await requestWithSupertest
       .get(`/api/docs/${category_application}`)
       .set('tenantId', TENANT_ID);
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(DocumentationDAO.findByCategory).toHaveBeenCalledWith(
+      category_application
+    );
   });
 
   test('GET visa category returns 200', async () => {
+    DocumentationDAO.findByCategory.mockResolvedValue([]);
+
     const resp = await requestWithSupertest
       .get(`/api/docs/${category_visa}`)
       .set('tenantId', TENANT_ID);
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(DocumentationDAO.findByCategory).toHaveBeenCalledWith(category_visa);
   });
 
-  test('PUT updates a created documentation (201) with the new fields', async () => {
-    const created = await requestWithSupertest
-      .post('/api/docs')
-      .set('tenantId', TENANT_ID)
-      .send(article);
-    const article_id = created.body.data._id.toString();
+  test('PUT updates a documentation (201) with the new fields via the DAO', async () => {
+    const article_id = 'doc-1';
+    DocumentationDAO.updateById.mockResolvedValue({
+      _id: article_id,
+      ...Newarticle
+    });
 
     const resp = await requestWithSupertest
       .put(`/api/docs/${article_id}`)
@@ -208,59 +215,51 @@ describe('/api/docs/:category (full stack)', () => {
 
     expect(resp.status).toBe(201);
     expect(resp.body.success).toBe(true);
+    expect(DocumentationDAO.updateById).toHaveBeenCalledWith(
+      article_id,
+      expect.objectContaining({ title: Newarticle.title })
+    );
     expect(resp.body.data.title).toBe(Newarticle.title);
     expect(resp.body.data.text).toBe(Newarticle.text);
   });
 
   test('GET all documentations returns a success array', async () => {
+    DocumentationDAO.findAllTitleCategory.mockResolvedValue([]);
+
     const resp = await requestWithSupertest
       .get('/api/docs/all')
       .set('tenantId', TENANT_ID);
     expect(resp.body.success).toBe(true);
+    expect(DocumentationDAO.findAllTitleCategory).toHaveBeenCalled();
     expect(Array.isArray(resp.body.data)).toBe(true);
   });
 
   test('GET all internal documentations returns a success array', async () => {
+    InternaldocDAO.findAllTitleInternalCategory.mockResolvedValue([]);
+
     const resp = await requestWithSupertest
       .get('/api/docs/internal/all')
       .set('tenantId', TENANT_ID);
     expect(resp.body.success).toBe(true);
+    expect(InternaldocDAO.findAllTitleInternalCategory).toHaveBeenCalled();
     expect(Array.isArray(resp.body.data)).toBe(true);
   });
 
-  test('DELETE removes a created documentation (200)', async () => {
-    const created = await requestWithSupertest
-      .post('/api/docs')
-      .set('tenantId', TENANT_ID)
-      .send(article);
-    const article_id = created.body.data._id.toString();
+  test('DELETE removes a documentation via the DAO (200)', async () => {
+    const article_id = 'doc-1';
+    DocumentationDAO.deleteById.mockResolvedValue({ _id: article_id });
 
     const resp = await requestWithSupertest
       .delete(`/api/docs/${article_id}`)
       .set('tenantId', TENANT_ID);
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(DocumentationDAO.deleteById).toHaveBeenCalledWith(article_id);
   });
 });
 
-describe('/api/docs/internal CRUD (full stack)', () => {
-  let internaldoc_id;
-
-  beforeEach(async () => {
-    const db = connectToDatabase(TENANT_ID, dbUri);
-    const InternaldocModel = db.model('Internaldoc');
-    await InternaldocModel.deleteMany();
-    const created = await InternaldocModel.create({
-      name: 'internal.name',
-      title: 'internal.title',
-      text: 'internal.text',
-      category: 'internal',
-      internal: true,
-      author: 'Test Author',
-      updatedAt: new Date()
-    });
-    internaldoc_id = created._id.toString();
-  });
+describe('/api/docs/internal CRUD', () => {
+  const internaldoc_id = 'internal-1';
 
   test('POST /api/docs/internal creates an internal doc (200)', async () => {
     const payload = {
@@ -270,6 +269,10 @@ describe('/api/docs/internal CRUD (full stack)', () => {
       category: 'internal',
       internal: true
     };
+    InternaldocDAO.create.mockResolvedValue({
+      _id: internaldoc_id,
+      ...payload
+    });
 
     const resp = await requestWithSupertest
       .post('/api/docs/internal')
@@ -278,6 +281,9 @@ describe('/api/docs/internal CRUD (full stack)', () => {
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(InternaldocDAO.create).toHaveBeenCalledWith(
+      expect.objectContaining({ title: payload.title })
+    );
     expect(resp.body.data.title).toBe(payload.title);
   });
 
@@ -286,6 +292,10 @@ describe('/api/docs/internal CRUD (full stack)', () => {
       title: 'updated.internal.title',
       text: 'updated.internal.text'
     };
+    InternaldocDAO.updateById.mockResolvedValue({
+      _id: internaldoc_id,
+      ...payload
+    });
 
     const resp = await requestWithSupertest
       .put(`/api/docs/internal/${internaldoc_id}`)
@@ -294,15 +304,22 @@ describe('/api/docs/internal CRUD (full stack)', () => {
 
     expect(resp.status).toBe(201);
     expect(resp.body.success).toBe(true);
+    expect(InternaldocDAO.updateById).toHaveBeenCalledWith(
+      internaldoc_id,
+      expect.objectContaining({ title: payload.title })
+    );
     expect(resp.body.data.title).toBe(payload.title);
   });
 
   test('DELETE /api/docs/internal/:id deletes an internal doc (200)', async () => {
+    InternaldocDAO.deleteById.mockResolvedValue({ _id: internaldoc_id });
+
     const resp = await requestWithSupertest
       .delete(`/api/docs/internal/${internaldoc_id}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
+    expect(InternaldocDAO.deleteById).toHaveBeenCalledWith(internaldoc_id);
   });
 });

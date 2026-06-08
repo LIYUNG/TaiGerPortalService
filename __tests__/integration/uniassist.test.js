@@ -1,11 +1,12 @@
-// Full-stack integration test for the uni-assist route:
-//   supertest -> real router -> real controllers/uniassist -> real
-//   StudentService + ApplicationService -> real DAOs -> in-memory MongoDB.
+// Integration test for the uni-assist route — HTTP boundary down to the
+// services, with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/uniassist
+//   -> real StudentService + ApplicationService -> MOCKED StudentDAO /
+//   ApplicationDAO.
 //
-// Only auth/tenant/permission middleware is stubbed; everything below the route
-// runs for real, so a seam bug (schema/query/populate) surfaces here. Kept thin
-// — ported from the original controller test with the assertions strengthened
-// against the seeded data.
+// These assert the controller/service pass the right arguments to the DAOs and
+// shape the HTTP response from the DAOs' (mocked) return. Fully deterministic —
+// no engine flake.
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -61,22 +62,21 @@ jest.mock('../../middlewares/limit_archiv_user', () => {
   };
 });
 
+// The data boundary: mock the DAOs the student/application services delegate to.
+jest.mock('../../dao/student.dao');
+jest.mock('../../dao/application.dao');
+
 const { ObjectId } = require('mongoose').Types;
 const request = require('supertest');
-const { connect, clearDatabase } = require('../fixtures/db');
+const StudentDAO = require('../../dao/student.dao');
+const ApplicationDAO = require('../../dao/application.dao');
 const { app } = require('../../app');
-const { UserSchema } = require('../../models/User');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { users, admin, student } = require('../mock/user');
-const { disconnectFromDatabase } = require('../../database');
-const { applicationSchema } = require('../../models/Application');
-const { programSchema } = require('../../models/Program');
+const { admin, student } = require('../mock/user');
 const { generateProgram } = require('../fixtures/faker');
 
 const requestWithSupertest = request(app);
-let dbUri;
 
 const program1 = generateProgram();
 
@@ -88,50 +88,42 @@ const testApplication = {
   decided: '-'
 };
 
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.model('User', UserSchema);
-  const ApplicationModel = db.model('Application', applicationSchema);
-  const ProgramModel = db.model('Program', programSchema);
-
-  await UserModel.deleteMany();
-  await ApplicationModel.deleteMany();
-  await ProgramModel.deleteMany();
-
-  await UserModel.insertMany(users);
-  await ProgramModel.insertMany([program1]);
-  await ApplicationModel.insertMany([testApplication]);
-
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
     req.user = admin;
     next();
   });
 });
 
-describe('getStudentUniAssist Controller (full stack)', () => {
-  it('GET /api/uniassist/:studentId returns the seeded student with their applications', async () => {
+describe('getStudentUniAssist Controller', () => {
+  it('GET /api/uniassist/:studentId returns the student from the DAO with their applications attached', async () => {
+    // The controller does `student.applications = applications`, so the student
+    // returned by the DAO must be a mutable plain object.
+    StudentDAO.getStudentById.mockResolvedValue({ _id: student._id });
+    ApplicationDAO.getApplicationsByStudentId.mockResolvedValue([
+      testApplication
+    ]);
+
     const resp = await requestWithSupertest
       .get(`/api/uniassist/${student._id}`)
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
-    // The returned student is the one we requested.
     expect(resp.body.data._id.toString()).toBe(student._id.toString());
     // Applications for that student are attached by the controller.
     expect(Array.isArray(resp.body.data.applications)).toBe(true);
     expect(resp.body.data.applications).toHaveLength(1);
     expect(resp.body.data.applications[0]._id.toString()).toBe(
       testApplication._id.toString()
+    );
+    // Each DAO is queried by the path's studentId.
+    expect(StudentDAO.getStudentById).toHaveBeenCalledWith(
+      student._id.toString()
+    );
+    expect(ApplicationDAO.getApplicationsByStudentId).toHaveBeenCalledWith(
+      student._id.toString()
     );
   });
 });

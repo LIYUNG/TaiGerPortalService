@@ -1,13 +1,12 @@
-// Full-stack integration test for the users routes:
-//   supertest -> real router -> real controllers/users -> real UserService ->
-//   real UserDAO -> in-memory MongoDB.
+// Integration test for the users routes — HTTP boundary down to the service,
+// with the DAO layer MOCKED (no database, in-memory or otherwise):
+//   supertest -> real router -> real middleware -> real controllers/users ->
+//   real UserService -> MOCKED UserDAO.
 //
-// Only auth/tenant middleware and the email/S3 side-effects are stubbed;
-// everything below the route runs for real, so a seam bug (schema/query/
-// pagination/discriminator) surfaces here. Kept thin (a few critical endpoints)
-// — the behaviour matrix lives in ../controllers/users.test.js (mocked) and the
-// service/dao suites. Ported from the original controller test with assertions
-// strengthened against the seeded data.
+// These assert the controller/service pass the right arguments to the DAO (incl.
+// the filter the UserQueryBuilder constructs and the pagination args) and shape
+// the HTTP response from the DAO's (mocked) return. Fully deterministic — no
+// engine flake.
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -53,16 +52,16 @@ jest.mock('../../services/email', () => ({
   sendInvitationEmail: jest.fn().mockResolvedValue(undefined)
 }));
 
+// The data boundary: mock the DAO the user service delegates to.
+jest.mock('../../dao/user.dao');
+
 const request = require('supertest');
 const { Role } = require('@taiger-common/core');
-const { connect, clearDatabase } = require('../fixtures/db');
+const UserDAO = require('../../dao/user.dao');
 const { app } = require('../../app');
-const { User, UserSchema } = require('../../models/User');
 const { generateUser } = require('../fixtures/faker');
 const { protect } = require('../../middlewares/auth');
 const { TENANT_ID } = require('../fixtures/constants');
-const { connectToDatabase } = require('../../middlewares/tenantMiddleware');
-const { disconnectFromDatabase } = require('../../database');
 
 const requestWithSupertest = request(app);
 
@@ -73,32 +72,18 @@ const students = [...Array(5)].map(() => generateUser(Role.Student));
 const guests = [...Array(5)].map(() => generateUser(Role.Guest));
 const users = [...admins, ...agents, ...editors, ...students, ...guests];
 
-let dbUri;
-
-beforeAll(async () => {
-  dbUri = await connect();
-});
-
-afterAll(async () => {
-  await disconnectFromDatabase(TENANT_ID);
-  await clearDatabase();
-});
-
-beforeEach(async () => {
-  const db = connectToDatabase(TENANT_ID, dbUri);
-  const UserModel = db.models.User || db.model('User', UserSchema);
-
-  await UserModel.deleteMany();
-  await UserModel.insertMany(users);
-
+beforeEach(() => {
+  jest.clearAllMocks();
   protect.mockImplementation(async (req, res, next) => {
     req.user = admins[0];
     next();
   });
 });
 
-describe('GET /api/users (full stack)', () => {
-  it('returns every seeded user', async () => {
+describe('GET /api/users', () => {
+  it('returns every user from the DAO when unpaginated', async () => {
+    UserDAO.getUsers.mockResolvedValue(users);
+
     const resp = await requestWithSupertest
       .get('/api/users')
       .set('tenantId', TENANT_ID);
@@ -107,9 +92,28 @@ describe('GET /api/users (full stack)', () => {
     expect(resp.body.success).toBe(true);
     expect(Array.isArray(resp.body.data)).toBe(true);
     expect(resp.body.data.length).toBe(users.length);
+    // No role filter -> the builder yields a filter without a role constraint.
+    expect(UserDAO.getUsers).toHaveBeenCalledTimes(1);
+    expect(UserDAO.getUsers.mock.calls[0][0].role).toBeUndefined();
   });
 
-  it('paginates the user list', async () => {
+  it('paginates the user list via the DAO', async () => {
+    // The controller shapes the pagination args via parseUsersPaginationQuery,
+    // then passes them to getUsersPaginated.
+    UserDAO.parseUsersPaginationQuery.mockReturnValue({
+      page: 1,
+      limit: 5,
+      skip: 0,
+      search: undefined,
+      sort: { createdAt: -1 }
+    });
+    UserDAO.getUsersPaginated.mockResolvedValue({
+      users: users.slice(0, 5),
+      total: users.length,
+      page: 1,
+      limit: 5
+    });
+
     const resp = await requestWithSupertest
       .get('/api/users?page=1&limit=5')
       .set('tenantId', TENANT_ID);
@@ -120,11 +124,19 @@ describe('GET /api/users (full stack)', () => {
     expect(resp.body.total).toBe(users.length);
     expect(resp.body.page).toBe(1);
     expect(resp.body.limit).toBe(5);
+    expect(UserDAO.parseUsersPaginationQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ page: '1', limit: '5' })
+    );
+    expect(UserDAO.getUsersPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, limit: 5 })
+    );
   });
 });
 
-describe('GET /api/users?role=Agent (full stack)', () => {
-  it('returns exactly the seeded agents', async () => {
+describe('GET /api/users?role=Agent', () => {
+  it('passes the role filter to the DAO and returns the agents', async () => {
+    UserDAO.getUsers.mockResolvedValue(agents);
+
     const resp = await requestWithSupertest
       .get('/api/users?role=Agent')
       .set('tenantId', TENANT_ID);
@@ -135,13 +147,22 @@ describe('GET /api/users?role=Agent (full stack)', () => {
     const agentIds = agents.map(({ _id }) => _id.toString()).sort();
     const receivedIds = resp.body.data.map(({ _id }) => _id.toString()).sort();
     expect(receivedIds).toEqual(agentIds);
+    // The UserQueryBuilder encodes the role into the DAO filter.
+    expect(UserDAO.getUsers).toHaveBeenCalledWith(
+      expect.objectContaining({ role: Role.Agent })
+    );
   });
 });
 
-describe('POST /api/users/:user_id (full stack)', () => {
-  it('updates a user role and persists it', async () => {
+describe('POST /api/users/:user_id', () => {
+  it('updates a user role via the DAO and returns the updated record', async () => {
     const target = students[0];
     const { email } = generateUser(Role.Editor);
+    const updated = { _id: target._id, role: Role.Editor, email };
+
+    UserDAO.updateUserWithOptions.mockResolvedValue(updated);
+    // updateUser re-reads the user to build the notification email.
+    UserDAO.getUserById.mockResolvedValue(updated);
 
     const resp = await requestWithSupertest
       .post(`/api/users/${target._id}`)
@@ -151,12 +172,15 @@ describe('POST /api/users/:user_id (full stack)', () => {
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data).toMatchObject({ role: Role.Editor, email });
-
-    const updated = await User.findById(target._id);
-    expect(updated).toMatchObject({ role: Role.Editor, email });
+    // Only email + role are picked from the body and forwarded to the DAO.
+    expect(UserDAO.updateUserWithOptions).toHaveBeenCalledWith(
+      target._id.toString(),
+      { email, role: Role.Editor },
+      expect.objectContaining({ new: true })
+    );
   });
 
-  it('refuses to promote a user to Admin (409)', async () => {
+  it('refuses to promote a user to Admin (409) before any DAO write', async () => {
     const target = guests[0];
     const { email } = generateUser(Role.Admin);
 
@@ -167,5 +191,6 @@ describe('POST /api/users/:user_id (full stack)', () => {
 
     expect(resp.status).toBe(409);
     expect(resp.body.success).toBe(false);
+    expect(UserDAO.updateUserWithOptions).not.toHaveBeenCalled();
   });
 });

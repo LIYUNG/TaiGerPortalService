@@ -1,34 +1,14 @@
 const { Role, is_TaiGer_Student } = require('@taiger-common/core');
 
-const { ResponseTime } = require('../models/ResponseTime');
+const ResponseTimeService = require('../services/responseTimes');
 const { asyncHandler } = require('../middlewares/error-handler');
 
 const GetResponseTimeForCommunication = asyncHandler(async () =>
-  ResponseTime.find({ student_id: { $exists: true } })
-    .populate({
-      path: 'student_id',
-      populate: [
-        { path: 'agents', model: 'User' },
-        { path: 'editors', model: 'User' }
-      ]
-    })
-    .lean()
+  ResponseTimeService.getForCommunicationPopulated()
 );
 
 const GetResponseTimeForThread = asyncHandler(async () =>
-  ResponseTime.find({ thread_id: { $exists: true } })
-    .populate({
-      path: 'thread_id',
-      populate: {
-        path: 'student_id',
-        model: 'User',
-        populate: [
-          { path: 'agents', model: 'User' },
-          { path: 'editors', model: 'User' }
-        ]
-      }
-    })
-    .lean()
+  ResponseTimeService.getForThreadPopulated()
 );
 
 const FileTypeMapping = {

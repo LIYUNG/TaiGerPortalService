@@ -44,15 +44,9 @@ jest.mock('child_process', () => {
   };
 });
 
-// models/ProgramAI.js has a typo (`model.exports`), so the real module exports {}
-// and ProgramAI is undefined. Mock it so processProgramListAi can run.
-jest.mock('../../models/ProgramAI', () => ({
-  ProgramAI: {
-    findOne: jest
-      .fn()
-      .mockReturnValue({ lean: jest.fn().mockResolvedValue(null) })
-  }
-}));
+// ProgramAI data access goes through the service (-> DAO -> model); mock the
+// service so processProgramListAi runs without a database.
+jest.mock('../../services/programAIs');
 
 jest.mock('../../services/programs');
 jest.mock('../../services/communications');

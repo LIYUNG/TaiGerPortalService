@@ -68,32 +68,12 @@ const DocumentThreadService = {
   },
 
   async getThreadById(messagesThreadId) {
-    const thread = await Documentthread.findById(messagesThreadId)
-      .populate(
-        'student_id',
-        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
-      )
-      .populate('messages.user_id', 'firstname lastname role archiv pictureUrl')
-      .populate('program_id')
-      .populate(
-        'outsourced_user_id',
-        'firstname lastname role archiv pictureUrl'
-      )
-      .lean();
-
-    return thread;
+    return DocumentthreadDAO.findThreadByIdFullyPopulated(messagesThreadId);
   },
   async getStudentThreadsByStudentId(studentId) {
-    const threads = await Documentthread.find({ student_id: studentId })
-      .populate(
-        'program_id',
-        'school program_name application_deadline degree semester lang country updatedAt'
-      )
-      .populate('student_id', 'firstname lastname pictureUrl')
-      .populate('application_id')
-      .populate('messages.user_id', 'firstname lastname role pictureUrl')
-      .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
-      .lean();
+    const threads = await DocumentthreadDAO.findThreadsByStudentIdPopulated(
+      studentId
+    );
 
     const filteredThreads = threads.filter(
       (thread) =>
@@ -104,24 +84,9 @@ const DocumentThreadService = {
     return filteredThreads;
   },
   async getStudentsThreadsByTaiGerUserId(userId, documentThreadFilter = {}) {
-    const threads = await Documentthread.find(documentThreadFilter)
-      .populate(
-        'messages.user_id outsourced_user_id',
-        'firstname lastname email pictureUrl'
-      )
-      .populate({
-        path: 'student_id',
-        populate: {
-          path: 'editors agents',
-          select: 'firstname lastname email'
-        }
-      })
-      .populate('application_id')
-      .populate(
-        'program_id',
-        'school program_name application_deadline degree semester lang application_start country updatedAt'
-      )
-      .lean();
+    const threads = await DocumentthreadDAO.findThreadsForTaiGerUserPopulated(
+      documentThreadFilter
+    );
 
     const filteredThreads = threads.filter(
       (thread) =>
@@ -151,24 +116,9 @@ const DocumentThreadService = {
     queryFilter.student_id = {
       $in: activeStudentsIds.map((student) => student._id)
     };
-    const threads = await Documentthread.find(queryFilter)
-      .populate(
-        'messages.user_id outsourced_user_id',
-        'firstname lastname email pictureUrl'
-      )
-      .populate({
-        path: 'student_id',
-        populate: {
-          path: 'editors agents',
-          select: 'firstname lastname email'
-        }
-      })
-      .populate('application_id')
-      .populate(
-        'program_id',
-        'school program_name application_deadline degree semester essay_difficulty lang country updatedAt'
-      )
-      .lean();
+    const threads = await DocumentthreadDAO.findAllStudentsThreadsPopulated(
+      queryFilter
+    );
 
     const filteredThreads = threads.filter(
       (thread) =>
@@ -190,28 +140,13 @@ const DocumentThreadService = {
   },
 
   async getThreads(filter) {
-    const threads = await Documentthread.find(filter)
-      .populate(
-        'student_id',
-        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
-      )
-      .populate('application_id')
-      .populate('messages.user_id', 'firstname lastname role pictureUrl')
-      .populate('program_id')
-      .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
-      .lean();
-
-    return threads;
+    return DocumentthreadDAO.findThreadsPopulated(filter);
   },
   async updateThreadById(threadId, payload) {
-    return Documentthread.findByIdAndUpdate(threadId, payload, {
-      new: true
-    }).lean();
+    return DocumentthreadDAO.updateThreadByIdReturnNew(threadId, payload);
   },
   async updateThread(filter, payload) {
-    return Documentthread.findOneAndUpdate(filter, payload, {
-      new: true
-    }).lean();
+    return DocumentthreadDAO.updateOneThreadReturnNew(filter, payload);
   }
 };
 

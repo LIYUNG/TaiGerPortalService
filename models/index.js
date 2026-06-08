@@ -15,6 +15,7 @@ const mongoose = require('mongoose');
 // Already compiled on the default connection.
 const userModels = require('./User'); // User, Student, Agent, Editor, Admin, ...
 const { Program } = require('./Program');
+const { ProgramAI } = require('./ProgramAI');
 
 // Schema-only models (compiled below).
 const { allCourseSchema } = require('./Allcourse');
@@ -54,8 +55,9 @@ const compile = (name, schema) =>
 const models = {
   // User + discriminators (already compiled in ./User).
   ...userModels,
-  // Already compiled in ./Program.
+  // Already compiled in ./Program / ./ProgramAI.
   Program,
+  ProgramAI,
   // Compiled here on the default connection.
   Allcourse: compile('Allcourse', allCourseSchema),
   Application: compile('Application', applicationSchema),

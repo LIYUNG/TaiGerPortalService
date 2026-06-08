@@ -1,0 +1,52 @@
+name: Tests
+
+# Runs the Jest suite on every pull request.
+on:
+  pull_request:
+
+# Cancel an in-progress run for a PR when new commits are pushed to it.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Jest (Node ${{ matrix.node-version }})
+    # Pinned to 22.04: the in-memory MongoDB (mongodb-memory-server 6.0.9, see
+    # jest-mongodb-config.js) ships an ubuntu2204 binary; newer images lack the
+    # matching libssl and fail to launch mongod.
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    env:
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Cache the downloaded in-memory mongod binary so every run does not
+      # re-download it (~100MB). Keyed on the pinned server version.
+      - name: Cache mongodb-memory-server binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-6.0.9
+
+      # `npm run test` is intentionally NOT used here: it runs jest with
+      # --watchAll, which never exits in CI. We run the suite once, serially.
+      # --runInBand keeps the shared in-memory MongoDB from being hit by
+      # parallel workers (the source of the historical aggregation flakiness).
+      - name: Run tests
+        run: npm run test:ci -- --runInBand --forceExit

@@ -11,6 +11,14 @@ const ResponseTimeService = {
 
   findByStudentId(studentId) {
     return ResponseTimeDAO.findByStudentId(studentId);
+  },
+
+  getForCommunicationPopulated() {
+    return ResponseTimeDAO.findForCommunicationPopulated();
+  },
+
+  getForThreadPopulated() {
+    return ResponseTimeDAO.findForThreadPopulated();
   }
 };
 

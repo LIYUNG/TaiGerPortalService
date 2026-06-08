@@ -241,6 +241,110 @@ const DocumentthreadDAO = {
     );
   },
 
+  // Single thread by id, fully populated (student/messages authors/program/
+  // outsourced collaborators) — the thread-detail read.
+  async findThreadByIdFullyPopulated(id) {
+    return Documentthread.findById(id)
+      .populate(
+        'student_id',
+        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
+      )
+      .populate('messages.user_id', 'firstname lastname role archiv pictureUrl')
+      .populate('program_id')
+      .populate(
+        'outsourced_user_id',
+        'firstname lastname role archiv pictureUrl'
+      )
+      .lean();
+  },
+
+  // All of a student's threads, populated for the student thread view.
+  async findThreadsByStudentIdPopulated(studentId) {
+    return Documentthread.find({ student_id: studentId })
+      .populate(
+        'program_id',
+        'school program_name application_deadline degree semester lang country updatedAt'
+      )
+      .populate('student_id', 'firstname lastname pictureUrl')
+      .populate('application_id')
+      .populate('messages.user_id', 'firstname lastname role pictureUrl')
+      .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
+      .lean();
+  },
+
+  // Threads for the "my students" / TaiGer-user view (caller supplies the
+  // filter; program select carries application_start).
+  async findThreadsForTaiGerUserPopulated(filter) {
+    return Documentthread.find(filter)
+      .populate(
+        'messages.user_id outsourced_user_id',
+        'firstname lastname email pictureUrl'
+      )
+      .populate({
+        path: 'student_id',
+        populate: {
+          path: 'editors agents',
+          select: 'firstname lastname email'
+        }
+      })
+      .populate('application_id')
+      .populate(
+        'program_id',
+        'school program_name application_deadline degree semester lang application_start country updatedAt'
+      )
+      .lean();
+  },
+
+  // Threads for the "all students" view (program select carries
+  // essay_difficulty instead of application_start).
+  async findAllStudentsThreadsPopulated(filter) {
+    return Documentthread.find(filter)
+      .populate(
+        'messages.user_id outsourced_user_id',
+        'firstname lastname email pictureUrl'
+      )
+      .populate({
+        path: 'student_id',
+        populate: {
+          path: 'editors agents',
+          select: 'firstname lastname email'
+        }
+      })
+      .populate('application_id')
+      .populate(
+        'program_id',
+        'school program_name application_deadline degree semester essay_difficulty lang country updatedAt'
+      )
+      .lean();
+  },
+
+  // Generic populated read by filter (student/application/messages authors/
+  // program/outsourced collaborators).
+  async findThreadsPopulated(filter) {
+    return Documentthread.find(filter)
+      .populate(
+        'student_id',
+        'firstname lastname firstname_chinese lastname_chinese role agents editors application_preference pictureUrl'
+      )
+      .populate('application_id')
+      .populate('messages.user_id', 'firstname lastname role pictureUrl')
+      .populate('program_id')
+      .populate('outsourced_user_id', 'firstname lastname role pictureUrl')
+      .lean();
+  },
+
+  // Update by id, returning the new lean doc.
+  async updateThreadByIdReturnNew(id, payload) {
+    return Documentthread.findByIdAndUpdate(id, payload, { new: true }).lean();
+  },
+
+  // Update one by filter, returning the new lean doc.
+  async updateOneThreadReturnNew(filter, payload) {
+    return Documentthread.findOneAndUpdate(filter, payload, {
+      new: true
+    }).lean();
+  },
+
   /**
    * Server-side paginated / sorted / filtered active document threads for the
    * CVMLRL center. All the per-row derivations (deadline, document name,

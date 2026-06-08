@@ -6,7 +6,7 @@ const { Role } = require('@taiger-common/core');
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
 const logger = require('../services/logger');
-const { ProgramAI } = require('../models/ProgramAI');
+const ProgramAIService = require('../services/programAIs');
 const { isProd } = require('../config');
 const { openAIClient, OpenAiModel } = require('../services/openai');
 const { generalMLPrompt } = require('../prompt/ml_prompt');
@@ -25,7 +25,7 @@ const processProgramListAi = asyncHandler(async (req, res, next) => {
     params: { programId }
   } = req;
   const program = await ProgramService.getProgramByIdLean(programId);
-  const programai = await ProgramAI.findOne({ program_id: programId }).lean();
+  const programai = await ProgramAIService.getByProgramId(programId);
   if (!program) {
     logger.error('no program found!');
     return res.send({ success: true, data: {} });

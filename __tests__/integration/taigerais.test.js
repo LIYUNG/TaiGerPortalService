@@ -126,16 +126,9 @@ jest.mock('../../services/email', () => ({
   sendSomeReminderEmail: jest.fn()
 }));
 
-// models/ProgramAI.js has a typo (`model.exports` instead of `module.exports`),
-// so the real module exports {} and ProgramAI is undefined, causing a TypeError.
-// Mock it so processProgramListAi can run to completion.
-jest.mock('../../models/ProgramAI', () => ({
-  ProgramAI: {
-    findOne: jest
-      .fn()
-      .mockReturnValue({ lean: jest.fn().mockResolvedValue(null) })
-  }
-}));
+// ProgramAI now resolves through the model registry / DAO (the model export was
+// fixed), so processProgramListAi runs full-stack against the in-memory DB —
+// no model mock needed.
 
 const request = require('supertest');
 const { connect, clearDatabase } = require('../fixtures/db');

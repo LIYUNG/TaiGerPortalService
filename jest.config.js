@@ -22,6 +22,7 @@ module.exports = {
   // forces --runInBand.)
   maxWorkers: '50%',
   workerIdleMemoryLimit: '512MB',
+  collectCoverage: true,
   coverageThreshold: {
     global: {
       statements: 50,

@@ -7,7 +7,7 @@
     "prod": "NODE_ENV=production node index.js",
     "dev": "cross-env NODE_ENV=development nodemon --config nodemon.json index.js",
     "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles --verbose --coverage --logHeapUsage --watchAll --no-cache --clearMocks --no-compilation-cache --bail",
-    "test:ci": "cross-env NODE_ENV=test jest --ci --verbose --watchAll=false",
+    "test:ci": "cross-env NODE_ENV=test jest --ci --verbose --watchAll=false --coverage",
     "format": "prettier --write --cache . --ignore-path .prettierignore",
     "pre-commit": "lint-staged",
     "lint": "eslint ./"

@@ -49,7 +49,7 @@ const {
 } = require('../../controllers/communications');
 const { deleteS3Objects } = require('../../aws/s3');
 const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, agent, student } = require('../mock/user');
+const { admin, agent, editor, student } = require('../mock/user');
 
 const studentId = student._id.toString();
 const messageId = '6f9f1b9b9b9b9b9b9b9b9b9b';
@@ -266,7 +266,29 @@ describe('getMyMessages', () => {
     await getMyMessages(mockReq({ user: agent }), res, jest.fn());
 
     expect(StudentService.findStudentsSelect).toHaveBeenCalledWith(
-      expect.objectContaining({ agents: agent._id.toString() }),
+      expect.objectContaining({
+        $and: [{ $or: [{ agents: agent._id.toString() }] }]
+      }),
+      expect.any(String)
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('editor: scopes the student filter to the editor field', async () => {
+    const { getPermission } = require('../../utils/queryFunctions');
+    getPermission.mockResolvedValueOnce({ canAccessAllChat: false });
+    StudentService.findStudentsSelect.mockResolvedValue([{ _id: 's1' }]);
+    StudentService.getStudentsWithLatestCommunicationSorted.mockResolvedValue(
+      []
+    );
+    const res = mockRes();
+
+    await getMyMessages(mockReq({ user: editor }), res, jest.fn());
+
+    expect(StudentService.findStudentsSelect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        $and: [{ $or: [{ editors: editor._id.toString() }] }]
+      }),
       expect.any(String)
     );
     expect(res.status).toHaveBeenCalledWith(200);
@@ -399,19 +421,8 @@ describe('getMessages', () => {
   });
 });
 
-describe('getMyMessages (invalid user)', () => {
-  it('forwards a 401 ErrorResponse for a non-staff user', async () => {
-    const next = jest.fn();
-
-    await getMyMessages(
-      mockReq({ user: { ...admin, role: 'Guest' } }),
-      mockRes(),
-      next
-    );
-
-    expect(next.mock.calls[0][0].statusCode).toBe(401);
-  });
-});
+// Role is enforced at the route by permit(Admin, Manager, Agent, Editor), so
+// getMyMessages itself no longer guards the caller role.
 
 describe('getChatFile', () => {
   it('fetches from S3 on a cache miss, then attaches + ends the response', async () => {

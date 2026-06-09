@@ -3,6 +3,7 @@ const path = require('path');
 const {
   is_TaiGer_Agent,
   is_TaiGer_Admin,
+  is_TaiGer_Editor,
   is_TaiGer_Student
 } = require('@taiger-common/core');
 const { Role } = require('@taiger-common/core');
@@ -172,15 +173,7 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
 const getMyMessages = asyncHandler(async (req, res) => {
   const { user } = req;
 
-  if (
-    user.role !== Role.Admin &&
-    user.role !== Role.Agent &&
-    user.role !== Role.Editor
-  ) {
-    logger.error(`getMyMessages: not ${TENANT_SHORT_NAME} user!`);
-    throw new ErrorResponse(401, `Invalid ${TENANT_SHORT_NAME} user`);
-  }
-
+  // Role is enforced at the route via permit(Admin, Manager, Agent, Editor).
   const permissions = await getPermission(req, user);
 
   const filter = {
@@ -189,10 +182,21 @@ const getMyMessages = asyncHandler(async (req, res) => {
   if (
     !(
       is_TaiGer_Admin(user) ||
-      (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
+      (is_TaiGer_Agent(user) && permissions?.canAccessAllChat) ||
+      (is_TaiGer_Editor(user) && permissions?.canAccessAllChat)
     )
   ) {
-    filter.agents = user._id.toString();
+    // Scope to the caller's own students: agents match the `agents` field,
+    // editors match the `editors` field (a user may hold both roles).
+    const userId = user._id.toString();
+    const ownStudentConditions = [];
+    if (is_TaiGer_Agent(user)) {
+      ownStudentConditions.push({ agents: userId });
+    }
+    if (is_TaiGer_Editor(user)) {
+      ownStudentConditions.push({ editors: userId });
+    }
+    filter.$and = [{ $or: ownStudentConditions }];
   }
 
   const students = await StudentService.findStudentsSelect(

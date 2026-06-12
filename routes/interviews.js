@@ -3,7 +3,8 @@ const { Role } = require('@taiger-common/core');
 
 const { protect, permit } = require('../middlewares/auth');
 const {
-  getAllInterviews,
+  getAllInterviewsPaginated,
+  getMyInterviewPaginated,
   getInterview,
   getMyInterview,
   createInterview,
@@ -38,11 +39,21 @@ const router = Router();
 router.use(protect);
 
 router
-  .route('/')
+  .route('/all/paginated')
   .get(
     filter_archiv_user,
+    InterviewGETRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getAllInterviews
+    getAllInterviewsPaginated
+  );
+
+router
+  .route('/my-interviews/paginated')
+  .get(
+    filter_archiv_user,
+    InterviewGETRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    getMyInterviewPaginated
   );
 
 router

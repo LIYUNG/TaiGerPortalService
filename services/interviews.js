@@ -58,6 +58,14 @@ const InterviewService = {
     return InterviewDAO.aggregateInterviews(pipeline);
   },
 
+  getInterviewsPaginated(args) {
+    return InterviewDAO.getInterviewsPaginated(args);
+  },
+
+  studentInterviewProgramIds(studentId) {
+    return InterviewDAO.studentInterviewProgramIds(studentId);
+  },
+
   // ── InterviewSurveyResponse ────────────────────────────────────────────────
   findSurveys(filter, populates) {
     return InterviewSurveyResponseDAO.findSurveys(filter, populates);

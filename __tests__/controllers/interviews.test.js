@@ -59,7 +59,8 @@ const PermissionService = require('../../services/permissions');
 const AuditService = require('../../services/audit');
 const { getPermission } = require('../../utils/queryFunctions');
 const {
-  getAllInterviews,
+  getAllInterviewsPaginated,
+  getMyInterviewPaginated,
   getMyInterview,
   getInterview,
   getInterviewSurvey,
@@ -437,51 +438,6 @@ describe('getInterviewQuestions', () => {
   });
 });
 
-describe('getAllInterviews', () => {
-  it('200 with status-annotated interviews + surveySubmitted flag', async () => {
-    InterviewService.findInterviews.mockResolvedValue([
-      { _id: interviewId, isClosed: true }
-    ]);
-    InterviewService.findSurveys.mockResolvedValue([
-      { interview_id: interviewId }
-    ]);
-    const res = mockRes();
-
-    await getAllInterviews(
-      mockReq({ query: { isClosed: 'true', trainer_id: 'tr-1' } }),
-      res,
-      jest.fn()
-    );
-
-    expect(InterviewService.findInterviews).toHaveBeenCalledWith(
-      { isClosed: 'true', trainer_id: 'tr-1' },
-      expect.any(Array)
-    );
-    expect(res.status).toHaveBeenCalledWith(200);
-    const body = res.send.mock.calls[0][0];
-    expect(body.data[0].status).toBe('Closed');
-    expect(body.data[0].surveySubmitted).toBe(true);
-  });
-
-  it('no_trainer filter => trainer_id { $size: 0 }', async () => {
-    InterviewService.findInterviews.mockResolvedValue([]);
-    InterviewService.findSurveys.mockResolvedValue([]);
-    const res = mockRes();
-
-    await getAllInterviews(
-      mockReq({ query: { no_trainer: 'true' } }),
-      res,
-      jest.fn()
-    );
-
-    expect(InterviewService.findInterviews).toHaveBeenCalledWith(
-      { trainer_id: { $size: 0 } },
-      expect.any(Array)
-    );
-    expect(res.status).toHaveBeenCalledWith(200);
-  });
-});
-
 describe('getMyInterview', () => {
   it('staff (admin): 200 with status-annotated interviews + students', async () => {
     InterviewService.findInterviews.mockResolvedValue([
@@ -541,6 +497,131 @@ describe('getMyInterview', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     const body = res.send.mock.calls[0][0];
     expect(body.student.applications).toEqual([{ _id: 'app1' }]);
+  });
+});
+
+describe('getAllInterviewsPaginated', () => {
+  it('builds the filter from query and 200s with the paginated result', async () => {
+    const paginated = {
+      interviews: [{ _id: interviewId }],
+      total: 1,
+      page: 1,
+      limit: 20
+    };
+    InterviewService.getInterviewsPaginated.mockResolvedValue(paginated);
+    const res = mockRes();
+
+    await getAllInterviewsPaginated(
+      mockReq({
+        query: { isClosed: 'true', trainer_id: 'tr-1', page: '1', limit: '20' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(InterviewService.getInterviewsPaginated).toHaveBeenCalledWith({
+      filter: { isClosed: 'true', trainer_id: 'tr-1' },
+      query: expect.objectContaining({ page: '1', limit: '20' })
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: paginated });
+  });
+
+  it('no_trainer filter => trainer_id { $size: 0 }', async () => {
+    InterviewService.getInterviewsPaginated.mockResolvedValue({
+      interviews: [],
+      total: 0,
+      page: 1,
+      limit: 20
+    });
+    const res = mockRes();
+
+    await getAllInterviewsPaginated(
+      mockReq({ query: { no_trainer: 'true' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(InterviewService.getInterviewsPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ filter: { trainer_id: { $size: 0 } } })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    InterviewService.getInterviewsPaginated.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getAllInterviewsPaginated(mockReq({ query: {} }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
+  });
+});
+
+describe('getMyInterviewPaginated', () => {
+  it('student: scopes to own interviews and attaches student + applications + existing program ids', async () => {
+    const paginated = {
+      interviews: [],
+      total: 0,
+      page: 1,
+      limit: 20
+    };
+    InterviewService.getInterviewsPaginated.mockResolvedValue(paginated);
+    StudentService.getStudentById.mockResolvedValue({ _id: student._id });
+    ApplicationService.getApplicationsByStudentId.mockResolvedValue([
+      { _id: 'app1' }
+    ]);
+    InterviewService.studentInterviewProgramIds.mockResolvedValue(['p1', 'p2']);
+    const res = mockRes();
+
+    await getMyInterviewPaginated(mockReq({ user: student }), res, jest.fn());
+
+    expect(InterviewService.getInterviewsPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filter: { student_id: student._id.toString() }
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.send.mock.calls[0][0];
+    expect(body.data).toBe(paginated);
+    expect(body.student.applications).toEqual([{ _id: 'app1' }]);
+    expect(body.existingInterviewProgramIds).toEqual(['p1', 'p2']);
+  });
+
+  it('student: forwards a 400 ErrorResponse when the student is not found', async () => {
+    InterviewService.getInterviewsPaginated.mockResolvedValue({
+      interviews: [],
+      total: 0,
+      page: 1,
+      limit: 20
+    });
+    StudentService.getStudentById.mockResolvedValue(null);
+    const next = jest.fn();
+
+    await getMyInterviewPaginated(mockReq({ user: student }), mockRes(), next);
+
+    expect(next.mock.calls[0][0].statusCode).toBe(400);
+  });
+
+  it('staff (admin): 200 with just the paginated data (no student extras)', async () => {
+    const paginated = {
+      interviews: [{ _id: interviewId }],
+      total: 1,
+      page: 1,
+      limit: 20
+    };
+    InterviewService.getInterviewsPaginated.mockResolvedValue(paginated);
+    const res = mockRes();
+
+    await getMyInterviewPaginated(mockReq({ user: admin }), res, jest.fn());
+
+    expect(InterviewService.getInterviewsPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ filter: {} })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: paginated });
+    expect(StudentService.getStudentById).not.toHaveBeenCalled();
   });
 });
 

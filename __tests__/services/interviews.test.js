@@ -203,6 +203,29 @@ describe('InterviewService — InterviewDAO delegators (mocked DAO)', () => {
     expect(InterviewDAO.aggregateInterviews).toHaveBeenCalledWith(pipeline);
     expect(result).toBe(daoResult);
   });
+
+  it('getInterviewsPaginated delegates to DAO.getInterviewsPaginated with args', async () => {
+    const args = { filter: {}, query: { page: '1' } };
+    const daoResult = { interviews: [], total: 0, page: 1, limit: 20 };
+    InterviewDAO.getInterviewsPaginated.mockResolvedValue(daoResult);
+
+    const result = await InterviewService.getInterviewsPaginated(args);
+
+    expect(InterviewDAO.getInterviewsPaginated).toHaveBeenCalledTimes(1);
+    expect(InterviewDAO.getInterviewsPaginated).toHaveBeenCalledWith(args);
+    expect(result).toBe(daoResult);
+  });
+
+  it('studentInterviewProgramIds delegates to DAO.studentInterviewProgramIds', async () => {
+    const daoResult = ['p1', 'p2'];
+    InterviewDAO.studentInterviewProgramIds.mockResolvedValue(daoResult);
+
+    const result = await InterviewService.studentInterviewProgramIds('s1');
+
+    expect(InterviewDAO.studentInterviewProgramIds).toHaveBeenCalledTimes(1);
+    expect(InterviewDAO.studentInterviewProgramIds).toHaveBeenCalledWith('s1');
+    expect(result).toBe(daoResult);
+  });
 });
 
 describe('InterviewService — InterviewSurveyResponseDAO delegators (mocked DAO)', () => {

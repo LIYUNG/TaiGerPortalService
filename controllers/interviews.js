@@ -147,7 +147,11 @@ const addInterviewStatus = async (interviews) => {
   return [...openInterviews, ...interviewsWithStatus];
 };
 
-const getAllInterviews = asyncHandler(async (req, res) => {
+// Server-side paginated / sorted / searchable all-interviews list (staff view).
+// Base scope mirrors the legacy filter (isClosed / trainer_id / no_trainer); the
+// computed status/isDuplicate/surveySubmitted columns are materialised in the
+// aggregation so they remain filterable/sortable under pagination.
+const getAllInterviewsPaginated = asyncHandler(async (req, res) => {
   const { isClosed, trainer_id, no_trainer } = req.query;
   const filter = {};
   if (isClosed) {
@@ -159,28 +163,52 @@ const getAllInterviews = asyncHandler(async (req, res) => {
     filter.trainer_id = trainer_id;
   }
 
-  let interviews = await InterviewService.findInterviews(filter, [
-    ['student_id trainer_id', 'firstname lastname email'],
-    ['program_id', 'school program_name degree semester'],
-    ['event_id']
-  ]);
-
-  const interviewSurveys = await InterviewService.findSurveys({
-    isFinal: true
+  const result = await InterviewService.getInterviewsPaginated({
+    filter,
+    query: req.query
   });
 
-  interviews = await addInterviewStatus(interviews);
-  interviews = interviews.map((interview) => {
-    const surveySubmitted = interviewSurveys.some(
-      (survey) =>
-        survey?.interview_id?.toString() === interview?._id?.toString()
+  res.status(200).send({ success: true, data: result });
+});
+
+// Server-side paginated "My Interviews" view. Students are scoped to their own
+// interviews and additionally get their applications + the program ids they
+// already have an interview for, so the FE can build the "Add interview" list
+// without loading the whole interview set.
+const getMyInterviewPaginated = asyncHandler(async (req, res) => {
+  const { user } = req;
+  const filter = {};
+  if (is_TaiGer_Student(user)) {
+    filter.student_id = user._id.toString();
+  }
+
+  const result = await InterviewService.getInterviewsPaginated({
+    filter,
+    query: req.query
+  });
+
+  if (is_TaiGer_Student(user)) {
+    const student = await StudentService.getStudentById(user._id.toString());
+    if (!student) {
+      logger.info('getMyInterviewPaginated: Student not found!');
+      throw new ErrorResponse(400, 'Student not found!');
+    }
+    const applications = await ApplicationService.getApplicationsByStudentId(
+      user._id.toString()
     );
-    return {
-      ...interview,
-      surveySubmitted: surveySubmitted
-    };
-  });
-  res.status(200).send({ success: true, data: interviews });
+    student.applications = applications;
+    const existingInterviewProgramIds =
+      await InterviewService.studentInterviewProgramIds(user._id.toString());
+
+    return res.status(200).send({
+      success: true,
+      data: result,
+      student,
+      existingInterviewProgramIds
+    });
+  }
+
+  return res.status(200).send({ success: true, data: result });
 });
 
 const getInterviewQuestions = asyncHandler(async (req, res) => {
@@ -905,7 +933,8 @@ const getInterviewsByStudentId = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  getAllInterviews,
+  getAllInterviewsPaginated,
+  getMyInterviewPaginated,
   getInterviewQuestions,
   getMyInterview,
   getInterview,

@@ -1,22 +1,3 @@
-/api/interviews:
-  get:
-    tags:
-      - Interviews
-    summary: Get all interviews
-    description: Retrieve all interviews in the system
-    operationId: getAllInterviews
-    responses:
-      '200':
-        description: Interviews retrieved successfully
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/interviews.yaml#/InterviewListResponse'
-      '401':
-        $ref: '../components/responses/common.yaml#/Unauthorized'
-      '403':
-        $ref: '../components/responses/common.yaml#/Forbidden'
-
 /api/interviews/open:
   get:
     tags:

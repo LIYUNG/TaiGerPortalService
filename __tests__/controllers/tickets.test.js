@@ -25,6 +25,7 @@ const ProgramService = require('../../services/programs');
 const StudentService = require('../../services/students');
 const {
   getTickets,
+  getTicketsOverview,
   createTicket,
   updateTicket,
   deleteTicket
@@ -78,6 +79,47 @@ describe('getTickets', () => {
     const next = jest.fn();
 
     await getTickets(mockReq({ user: admin }), mockRes(), next);
+
+    expect(next).toHaveBeenCalledWith(err);
+  });
+});
+
+describe('getTicketsOverview', () => {
+  it('forwards req.query to the service and sends the paginated envelope', async () => {
+    TicketService.getTicketsOverview.mockResolvedValue({
+      tickets: [{ _id: 't1' }],
+      total: 5,
+      page: 2,
+      limit: 10
+    });
+    const req = mockReq({
+      user: admin,
+      query: { page: '2', limit: '10', search: 'mit', type: 'program' }
+    });
+    const res = mockRes();
+
+    await getTicketsOverview(req, res, jest.fn());
+
+    expect(TicketService.getTicketsOverview).toHaveBeenCalledWith(req.query);
+    expect(res.send).toHaveBeenCalledWith({
+      success: true,
+      data: [{ _id: 't1' }],
+      total: 5,
+      page: 2,
+      limit: 10
+    });
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('agg failed');
+    TicketService.getTicketsOverview.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getTicketsOverview(
+      mockReq({ user: admin, query: {} }),
+      mockRes(),
+      next
+    );
 
     expect(next).toHaveBeenCalledWith(err);
   });

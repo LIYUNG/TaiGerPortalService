@@ -146,6 +146,37 @@ describe('UserDAO (mocked models)', () => {
     expect(result.firstname).toBe('Renamed');
   });
 
+  it('updateOfficehours casts against the Agent discriminator (not base User)', async () => {
+    const updated = { _id: 'u1', timezone: 'UTC' };
+    Agent.findByIdAndUpdate.mockReturnValue(leanChain(updated));
+    const payload = {
+      officehours: { Monday: { active: true } },
+      timezone: 'UTC'
+    };
+
+    const result = await UserDAO.updateOfficehours('u1', Role.Agent, payload);
+
+    expect(Agent.findByIdAndUpdate).toHaveBeenCalledWith('u1', payload, {
+      new: true
+    });
+    // The base User model must NOT be used — that path silently strips the
+    // discriminator-only officehours/timezone fields.
+    expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(result).toBe(updated);
+  });
+
+  it('updateOfficehours uses the Editor discriminator for editors', async () => {
+    Editor.findByIdAndUpdate.mockReturnValue(leanChain({ _id: 'e1' }));
+    const payload = { officehours: {}, timezone: 'CET' };
+
+    await UserDAO.updateOfficehours('e1', Role.Editor, payload);
+
+    expect(Editor.findByIdAndUpdate).toHaveBeenCalledWith('e1', payload, {
+      new: true
+    });
+    expect(Agent.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
   it('getUsersPaginated runs the page query + count and returns both', async () => {
     const users = [{ _id: 'a' }, { _id: 'b' }];
     User.find.mockReturnValue(leanChain(users));

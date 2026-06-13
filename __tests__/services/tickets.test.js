@@ -25,6 +25,85 @@ describe('TicketService (mocked DAO)', () => {
     expect(result).toBe(daoResult);
   });
 
+  describe('getTicketsOverview', () => {
+    it('parses page/limit/search/type/status into DAO args and echoes page/limit', async () => {
+      TicketDAO.getTicketsOverview.mockResolvedValue({
+        tickets: [{ _id: 'tk1' }],
+        total: 42
+      });
+
+      const result = await TicketService.getTicketsOverview({
+        page: '3',
+        limit: '10',
+        search: '  mit  ',
+        type: 'program',
+        status: 'open'
+      });
+
+      expect(TicketDAO.getTicketsOverview).toHaveBeenCalledWith({
+        filters: { type: 'program', status: 'open' },
+        search: 'mit',
+        skip: 20,
+        limit: 10,
+        sort: { createdAt: -1 }
+      });
+      expect(result).toEqual({
+        tickets: [{ _id: 'tk1' }],
+        total: 42,
+        page: 3,
+        limit: 10
+      });
+    });
+
+    it('falls back to defaults and omits empty filters', async () => {
+      TicketDAO.getTicketsOverview.mockResolvedValue({ tickets: [], total: 0 });
+
+      const result = await TicketService.getTicketsOverview({});
+
+      expect(TicketDAO.getTicketsOverview).toHaveBeenCalledWith({
+        filters: {},
+        search: '',
+        skip: 0,
+        limit: 20,
+        sort: { createdAt: -1 }
+      });
+      expect(result).toEqual({ tickets: [], total: 0, page: 1, limit: 20 });
+    });
+
+    it('maps a whitelisted sortBy/sortOrder to the joined field', async () => {
+      TicketDAO.getTicketsOverview.mockResolvedValue({ tickets: [], total: 0 });
+
+      await TicketService.getTicketsOverview({
+        sortBy: 'program',
+        sortOrder: 'asc'
+      });
+
+      expect(TicketDAO.getTicketsOverview).toHaveBeenCalledWith(
+        expect.objectContaining({ sort: { 'program_id.school': 1 } })
+      );
+    });
+
+    it('falls back to createdAt desc for an unknown sortBy', async () => {
+      TicketDAO.getTicketsOverview.mockResolvedValue({ tickets: [], total: 0 });
+
+      await TicketService.getTicketsOverview({ sortBy: 'evil; drop' });
+
+      expect(TicketDAO.getTicketsOverview).toHaveBeenCalledWith(
+        expect.objectContaining({ sort: { createdAt: -1 } })
+      );
+    });
+
+    it('caps limit at 100', async () => {
+      TicketDAO.getTicketsOverview.mockResolvedValue({ tickets: [], total: 0 });
+
+      await TicketService.getTicketsOverview({ limit: '5000' });
+
+      expect(TicketDAO.getTicketsOverview).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 100 })
+      );
+    });
+  });
+
   it('createTicket delegates with data and returns its result', async () => {
     const data = { title: 'Missing transcript', programId: 'p1' };
     const daoResult = { _id: 'tk1', ...data };

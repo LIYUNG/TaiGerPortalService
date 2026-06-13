@@ -12,6 +12,7 @@ const { protect, permit } = require('../middlewares/auth');
 
 const {
   getTickets,
+  getTicketsOverview,
   createTicket,
   updateTicket,
   deleteTicket
@@ -24,6 +25,17 @@ const {
 const router = Router();
 
 router.use(protect);
+
+// Paginated + searchable overview of tickets (internal tool — staff only).
+// Declared before '/' so the static segment is matched explicitly.
+router
+  .route('/overview')
+  .get(
+    filter_archiv_user,
+    GetTicketListRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getTicketsOverview
+  );
 
 router
   .route('/')

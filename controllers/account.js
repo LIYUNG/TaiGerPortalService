@@ -39,9 +39,12 @@ const updateOfficehours = asyncHandler(async (req, res) => {
     user,
     body: { officehours, timezone }
   } = req;
-  console.log(JSON.stringify(officehours));
-  // Agent or Editor — the base User model updates the discriminator document.
-  await UserService.updateUser(user._id.toString(), { officehours, timezone });
+  // officehours/timezone are Agent/Editor discriminator fields — cast against
+  // the role's model so strict-mode doesn't strip them on a base-model update.
+  await UserService.updateOfficehours(user._id.toString(), user.role, {
+    officehours,
+    timezone
+  });
 
   res.status(200).send({
     success: true

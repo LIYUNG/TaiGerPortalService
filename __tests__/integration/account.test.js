@@ -78,7 +78,7 @@ const UserDAO = require('../../dao/user.dao');
 const { protect } = require('../../middlewares/auth');
 const { app } = require('../../app');
 const { TENANT_ID } = require('../fixtures/constants');
-const { student } = require('../mock/user');
+const { student, agent } = require('../mock/user');
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();
@@ -141,6 +141,33 @@ describe('POST /api/account/credentials', () => {
 
     expect(resp.status).toBe(400);
     expect(resp.body.success).toBe(false);
+  });
+});
+
+describe('PUT /api/account/profile/officehours/:user_id', () => {
+  it('updates officehours via the role-aware DAO and reports success', async () => {
+    // This route is for Agent/Editor; authenticate as an agent.
+    protect.mockImplementation(async (req, res, next) => {
+      req.user = agent;
+      next();
+    });
+    UserDAO.updateOfficehours.mockResolvedValue({ _id: agent._id });
+    const officehours = { Monday: { active: true, time_slots: [] } };
+
+    const resp = await requestWithSupertest
+      .put(`/api/account/profile/officehours/${agent._id.toString()}`)
+      .set('tenantId', TENANT_ID)
+      .send({ officehours, timezone: 'UTC' });
+
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    // The role must be threaded through so the DAO casts against the Agent
+    // discriminator (the base User model would strip these fields).
+    expect(UserDAO.updateOfficehours).toHaveBeenCalledWith(
+      agent._id.toString(),
+      agent.role,
+      { officehours, timezone: 'UTC' }
+    );
   });
 });
 

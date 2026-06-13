@@ -73,6 +73,25 @@ describe('UserService (mocked DAO)', () => {
     expect(result).toBe(daoResult);
   });
 
+  it('updateOfficehours delegates with userId + role + payload', async () => {
+    const payload = {
+      officehours: { Monday: { active: true } },
+      timezone: 'UTC'
+    };
+    const daoResult = { _id: 'u1', timezone: 'UTC' };
+    UserDAO.updateOfficehours.mockResolvedValue(daoResult);
+
+    const result = await UserService.updateOfficehours('u1', 'Agent', payload);
+
+    expect(UserDAO.updateOfficehours).toHaveBeenCalledTimes(1);
+    expect(UserDAO.updateOfficehours).toHaveBeenCalledWith(
+      'u1',
+      'Agent',
+      payload
+    );
+    expect(result).toBe(daoResult);
+  });
+
   it('updateUserDoc delegates with userId + payload + explicit options and returns its result', async () => {
     const payload = { firstname: 'Jane' };
     const options = { new: false };

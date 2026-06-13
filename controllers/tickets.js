@@ -31,6 +31,12 @@ const getTickets = asyncHandler(async (req, res) => {
   res.send({ success: true, data: tickets });
 });
 
+const getTicketsOverview = asyncHandler(async (req, res) => {
+  const { tickets, total, page, limit } =
+    await TicketService.getTicketsOverview(req.query);
+  res.send({ success: true, data: tickets, total, page, limit });
+});
+
 const createTicket = asyncHandler(async (req, res) => {
   const { user } = req;
   const new_ticket = req.body;
@@ -102,6 +108,7 @@ const deleteTicket = asyncHandler(async (req, res) => {
 
 module.exports = {
   getTickets,
+  getTicketsOverview,
   createTicket,
   updateTicket,
   deleteTicket

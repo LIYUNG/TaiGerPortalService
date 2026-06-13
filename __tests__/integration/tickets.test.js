@@ -111,6 +111,35 @@ describe('GET /api/tickets', () => {
   });
 });
 
+describe('GET /api/tickets/overview', () => {
+  it('returns the paginated envelope from the service/DAO', async () => {
+    TicketDAO.getTicketsOverview.mockResolvedValue({
+      tickets: [seededTicket],
+      total: 1
+    });
+
+    const resp = await api
+      .get('/api/tickets/overview?page=1&limit=20&type=program&search=mit')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    expect(resp.body.data).toHaveLength(1);
+    expect(resp.body.total).toBe(1);
+    expect(resp.body.page).toBe(1);
+    expect(resp.body.limit).toBe(20);
+    // the service parses the query into DAO args (search trimmed, filters built).
+    expect(TicketDAO.getTicketsOverview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: { type: 'program' },
+        search: 'mit',
+        skip: 0,
+        limit: 20
+      })
+    );
+  });
+});
+
 describe('POST /api/tickets', () => {
   it('creates a ticket via the DAO, stamping requester_id from req.user', async () => {
     const created = {

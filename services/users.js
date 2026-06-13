@@ -26,6 +26,10 @@ const UserService = {
     return UserDAO.updateUser(userId, payload);
   },
 
+  updateOfficehours(userId, role, payload) {
+    return UserDAO.updateOfficehours(userId, role, payload);
+  },
+
   updateUserDoc(userId, payload, options = { new: true }) {
     return UserDAO.updateUserDoc(userId, payload, options);
   },

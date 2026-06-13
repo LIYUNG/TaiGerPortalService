@@ -111,8 +111,10 @@ describe('updateCredentials', () => {
 });
 
 describe('updateOfficehours', () => {
-  it('updates officehours + timezone and responds 200', async () => {
-    UserService.updateUser.mockResolvedValue({ _id: agent._id.toString() });
+  it('updates officehours + timezone via the role-aware service and responds 200', async () => {
+    UserService.updateOfficehours.mockResolvedValue({
+      _id: agent._id.toString()
+    });
     const req = mockReq({
       user: agent,
       body: { officehours: { mon: '9-5' }, timezone: 'UTC' }
@@ -121,17 +123,20 @@ describe('updateOfficehours', () => {
 
     await updateOfficehours(req, res, jest.fn());
 
-    expect(UserService.updateUser).toHaveBeenCalledWith(agent._id.toString(), {
-      officehours: { mon: '9-5' },
-      timezone: 'UTC'
-    });
+    // Must forward the role so the DAO casts against the Agent/Editor
+    // discriminator (the base User model would strip these fields).
+    expect(UserService.updateOfficehours).toHaveBeenCalledWith(
+      agent._id.toString(),
+      agent.role,
+      { officehours: { mon: '9-5' }, timezone: 'UTC' }
+    );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send).toHaveBeenCalledWith({ success: true });
   });
 
   it('forwards a service error to next()', async () => {
     const err = new Error('db down');
-    UserService.updateUser.mockRejectedValue(err);
+    UserService.updateOfficehours.mockRejectedValue(err);
     const next = jest.fn();
 
     await updateOfficehours(

@@ -146,6 +146,19 @@ const UserDAO = {
     return User.findByIdAndUpdate(userId, payload, { new: true }).lean();
   },
 
+  // `officehours` / `timezone` live ONLY on the Agent/Editor discriminator
+  // schemas, not the base User schema. Updating through the base model would let
+  // strict-mode silently strip them (a no-op write), so we cast against the
+  // role's discriminator model — mirroring the legacy `db.model(role)` path.
+  async updateOfficehours(userId, role, { officehours, timezone }) {
+    const Model = role === Role.Editor ? Editor : Agent;
+    return Model.findByIdAndUpdate(
+      userId,
+      { officehours, timezone },
+      { new: true }
+    ).lean();
+  },
+
   // Returns a live (non-lean) Mongoose document so callers can keep mutating it
   // (e.g. subdocument profile updates) and call .save(). Discriminator type is
   // preserved, so Student-only paths like `profile` remain available.

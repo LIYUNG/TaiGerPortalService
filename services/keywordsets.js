@@ -10,10 +10,6 @@ const KeywordSetService = {
     return KeywordSetDAO.getKeywordSets();
   },
 
-  getKeywordSetById(keywordsSetId) {
-    return KeywordSetDAO.getKeywordSetById(keywordsSetId);
-  },
-
   findKeywordSet(query) {
     return KeywordSetDAO.findKeywordSet(query);
   },

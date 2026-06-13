@@ -102,15 +102,11 @@ const {
   getLeadByStudentId,
   createLeadFromStudent,
   updateLead,
-  getLeadTags,
-  updateLeadTags,
   appendLeadTags,
   deleteLeadTags,
-  getLeadNotes,
   createLeadNote,
   updateLeadNote,
   deleteLeadNote,
-  replaceLeadNotes,
   getMeetings,
   getMeeting,
   updateMeeting,
@@ -616,65 +612,6 @@ describe('updateLead', () => {
 describe('lead tags', () => {
   const leadId = new ObjectId().toHexString();
 
-  describe('getLeadTags', () => {
-    it('400: when leadId is missing', async () => {
-      const res = mockRes();
-      await getLeadTags(mockReq({ params: {} }), res, jest.fn());
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('404: when the lead does not exist', async () => {
-      postgres._setSelect([]); // ensureLeadExists -> false
-      const res = mockRes();
-      await getLeadTags(mockReq({ params: { leadId } }), res, jest.fn());
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-
-    it('200: returns the tag rows when the lead exists', async () => {
-      // ensureLeadExists + the tag query both read selectResult.
-      postgres._setSelect([{ id: 't1', tag: 'vip' }]);
-      const res = mockRes();
-      await getLeadTags(mockReq({ params: { leadId } }), res, jest.fn());
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.send.mock.calls[0][0].success).toBe(true);
-    });
-  });
-
-  describe('updateLeadTags', () => {
-    it('400: when tags are not provided', async () => {
-      const res = mockRes();
-      await updateLeadTags(
-        mockReq({ params: { leadId }, body: {} }),
-        res,
-        jest.fn()
-      );
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('404: when the lead does not exist', async () => {
-      postgres._setSelect([]);
-      const res = mockRes();
-      await updateLeadTags(
-        mockReq({ params: { leadId }, body: { tags: ['a'] } }),
-        res,
-        jest.fn()
-      );
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-
-    it('200: replaces the tags within a transaction', async () => {
-      postgres._setSelect([{ id: 't1', tag: 'a' }]);
-      const res = mockRes();
-      await updateLeadTags(
-        mockReq({ user: admin, params: { leadId }, body: { tags: ['a'] } }),
-        res,
-        jest.fn()
-      );
-      expect(postgres.transaction).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-  });
-
   describe('appendLeadTags', () => {
     it('400: when tags are not provided', async () => {
       const res = mockRes();
@@ -762,22 +699,6 @@ describe('lead tags', () => {
 describe('lead notes', () => {
   const leadId = new ObjectId().toHexString();
   const noteId = new ObjectId().toHexString();
-
-  describe('getLeadNotes', () => {
-    it('404: when the lead does not exist', async () => {
-      postgres._setSelect([]);
-      const res = mockRes();
-      await getLeadNotes(mockReq({ params: { leadId } }), res, jest.fn());
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-
-    it('200: returns the note rows', async () => {
-      postgres._setSelect([{ id: noteId, note: 'hi' }]);
-      const res = mockRes();
-      await getLeadNotes(mockReq({ params: { leadId } }), res, jest.fn());
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-  });
 
   describe('createLeadNote', () => {
     it('400: when the note is empty', async () => {
@@ -891,67 +812,6 @@ describe('lead notes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
   });
-
-  describe('replaceLeadNotes', () => {
-    it('400: when leadId is missing', async () => {
-      const res = mockRes();
-      await replaceLeadNotes(
-        mockReq({ params: {}, body: { notes: ['a'] } }),
-        res,
-        jest.fn()
-      );
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('400: when notes are not provided', async () => {
-      const res = mockRes();
-      await replaceLeadNotes(
-        mockReq({ params: { leadId }, body: {} }),
-        res,
-        jest.fn()
-      );
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('404: when the lead does not exist', async () => {
-      postgres._setSelect([]);
-      const res = mockRes();
-      await replaceLeadNotes(
-        mockReq({ params: { leadId }, body: { notes: ['a'] } }),
-        res,
-        jest.fn()
-      );
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-
-    it('200: replaces all notes within a transaction', async () => {
-      postgres._setSelect([{ id: leadId }]);
-      const res = mockRes();
-      await replaceLeadNotes(
-        mockReq({ user: admin, params: { leadId }, body: { notes: ['a'] } }),
-        res,
-        jest.fn()
-      );
-      expect(postgres.transaction).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-
-    it('200: normalizes object-shaped notes (uses the .note field)', async () => {
-      postgres._setSelect([{ id: leadId }]);
-      const res = mockRes();
-      await replaceLeadNotes(
-        mockReq({
-          user: admin,
-          params: { leadId },
-          // array of objects -> normalizeNotes object branch
-          body: { notes: [{ note: 'first' }, { note: '' }] }
-        }),
-        res,
-        jest.fn()
-      );
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-  });
 });
 
 // Validation / missing-id branches that were previously uncovered. Each handler
@@ -974,16 +834,6 @@ describe('missing-id validation branches', () => {
     await createLeadFromStudent(mockReq({ params: {} }), res, jest.fn());
     expect(res.status).toHaveBeenCalledWith(400);
     expect(UserService.getUserById).not.toHaveBeenCalled();
-  });
-
-  it('updateLeadTags 400: when leadId is missing', async () => {
-    const res = mockRes();
-    await updateLeadTags(
-      mockReq({ params: {}, body: { tags: ['a'] } }),
-      res,
-      jest.fn()
-    );
-    expect(res.status).toHaveBeenCalledWith(400);
   });
 
   it('appendLeadTags 400: when leadId is missing', async () => {
@@ -1029,12 +879,6 @@ describe('missing-id validation branches', () => {
     expect(postgres.execute).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send.mock.calls[0][0].data).toEqual(['a', 'b']);
-  });
-
-  it('getLeadNotes 400: when leadId is missing', async () => {
-    const res = mockRes();
-    await getLeadNotes(mockReq({ params: {} }), res, jest.fn());
-    expect(res.status).toHaveBeenCalledWith(400);
   });
 
   it('createLeadNote 400: when leadId is missing', async () => {

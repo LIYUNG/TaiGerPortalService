@@ -46,16 +46,6 @@ describe('KeywordSetDAO (mocked models)', () => {
     expect(result).toBe(docs);
   });
 
-  it('getKeywordSetById queries by id and returns the doc', async () => {
-    const doc = { _id: 'k2' };
-    KeywordSet.findById.mockResolvedValue(doc);
-
-    const result = await KeywordSetDAO.getKeywordSetById('k2');
-
-    expect(KeywordSet.findById).toHaveBeenCalledWith('k2');
-    expect(result).toBe(doc);
-  });
-
   it('findKeywordSet forwards the query to findOne and returns the doc', async () => {
     const doc = { _id: 'k3' };
     KeywordSet.findOne.mockResolvedValue(doc);

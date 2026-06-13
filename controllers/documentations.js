@@ -94,22 +94,6 @@ const getCategoryDocumentationsPage = asyncHandler(async (req, res) => {
   return res.send({ success: true, data: !value ? {} : value });
 });
 
-const getCategoryDocumentations = asyncHandler(async (req, res) => {
-  // TODO: validate req.params.category
-  if (
-    valid_categories.findIndex(
-      (category) => category === req.params.category
-    ) === -1
-  ) {
-    logger.error('getCategoryDocumentations : invalid category');
-    throw new ErrorResponse(400, 'invalid category');
-  }
-  const documents = await DocumentationService.getDocumentationsByCategory(
-    req.params.category
-  );
-  return res.send({ success: true, data: documents });
-});
-
 const getAllDocumentations = asyncHandler(async (req, res) => {
   const document = await DocumentationService.getAllDocumentations();
   return res.send({ success: true, data: document });
@@ -247,7 +231,6 @@ module.exports = {
   getInternalDocumentationsPage,
   updateDocumentationPage,
   getCategoryDocumentationsPage,
-  getCategoryDocumentations,
   getAllDocumentations,
   getAllInternalDocumentations,
   getDocumentation,

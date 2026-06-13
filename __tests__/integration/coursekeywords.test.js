@@ -71,33 +71,6 @@ describe('GET /api/course-keywords', () => {
   });
 });
 
-describe('GET /api/course-keywords/:keywordsSetId', () => {
-  it('returns the keyword set from the DAO, queried by id', async () => {
-    KeywordSetDAO.getKeywordSetById.mockResolvedValue(subject1);
-
-    const resp = await requestWithSupertest
-      .get(`/api/course-keywords/${subject1._id}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(resp.body.data._id.toString()).toBe(subject1._id.toString());
-    expect(KeywordSetDAO.getKeywordSetById).toHaveBeenCalledWith(
-      subject1._id.toString()
-    );
-  });
-
-  it('404s when the DAO finds no record', async () => {
-    KeywordSetDAO.getKeywordSetById.mockResolvedValue(null);
-
-    const resp = await requestWithSupertest
-      .get(`/api/course-keywords/${subject1._id}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(404);
-  });
-});
-
 describe('POST /api/course-keywords/:keywordsSetId', () => {
   it('creates a new keyword set and returns it', async () => {
     const fields = {

@@ -24,17 +24,6 @@ describe('KeywordSetService — KeywordSetDAO delegators (mocked DAO)', () => {
     expect(result).toBe(daoResult);
   });
 
-  it('getKeywordSetById delegates to DAO.getKeywordSetById with id', async () => {
-    const daoResult = { _id: 'k1' };
-    KeywordSetDAO.getKeywordSetById.mockResolvedValue(daoResult);
-
-    const result = await KeywordSetService.getKeywordSetById('k1');
-
-    expect(KeywordSetDAO.getKeywordSetById).toHaveBeenCalledTimes(1);
-    expect(KeywordSetDAO.getKeywordSetById).toHaveBeenCalledWith('k1');
-    expect(result).toBe(daoResult);
-  });
-
   it('findKeywordSet delegates to DAO.findKeywordSet with query', async () => {
     const query = { name: 'math' };
     const daoResult = { _id: 'k1', name: 'math' };

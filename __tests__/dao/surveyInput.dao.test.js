@@ -80,20 +80,6 @@ describe('SurveyInputDAO (mocked models)', () => {
     expect(result).toBe(updated);
   });
 
-  it('resetSurveyInputById unsets answers and returns the live doc (no lean)', async () => {
-    const reset = { _id: 's1' };
-    surveyInput.findByIdAndUpdate.mockResolvedValue(reset);
-
-    const result = await SurveyInputDAO.resetSurveyInputById('s1');
-
-    expect(surveyInput.findByIdAndUpdate).toHaveBeenCalledWith(
-      's1',
-      { $unset: { 'surveyContent.$[].answer': 1 } },
-      { upsert: false, new: true }
-    );
-    expect(result).toBe(reset);
-  });
-
   it('deleteSurveyInput forwards the filter to deleteOne and returns the result', async () => {
     const filter = { _id: 's1' };
     const res = { deletedCount: 1 };

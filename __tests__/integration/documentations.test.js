@@ -108,10 +108,6 @@ beforeEach(() => {
 });
 
 describe('/api/docs/:category', () => {
-  const category_uniassist = 'uniassist';
-  const category_visa = 'visa';
-  const category_certification = 'certification';
-  const category_application = 'application';
   const article = {
     name: 'article.name',
     title: 'article.title',
@@ -147,58 +143,6 @@ describe('/api/docs/:category', () => {
     expect(new_article.title).toBe(article.title);
     expect(new_article.text).toBe(article.text);
     expect(new_article._id).toBeDefined();
-  });
-
-  test('GET uniassist category returns the DAO result as a success array', async () => {
-    DocumentationDAO.findByCategory.mockResolvedValue([]);
-
-    const resp = await requestWithSupertest
-      .get(`/api/docs/${category_uniassist}`)
-      .set('tenantId', TENANT_ID);
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(DocumentationDAO.findByCategory).toHaveBeenCalledWith(
-      category_uniassist
-    );
-    expect(Array.isArray(resp.body.data)).toBe(true);
-  });
-
-  test('GET certification category returns 200', async () => {
-    DocumentationDAO.findByCategory.mockResolvedValue([]);
-
-    const resp = await requestWithSupertest
-      .get(`/api/docs/${category_certification}`)
-      .set('tenantId', TENANT_ID);
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(DocumentationDAO.findByCategory).toHaveBeenCalledWith(
-      category_certification
-    );
-  });
-
-  test('GET application category returns 200', async () => {
-    DocumentationDAO.findByCategory.mockResolvedValue([]);
-
-    const resp = await requestWithSupertest
-      .get(`/api/docs/${category_application}`)
-      .set('tenantId', TENANT_ID);
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(DocumentationDAO.findByCategory).toHaveBeenCalledWith(
-      category_application
-    );
-  });
-
-  test('GET visa category returns 200', async () => {
-    DocumentationDAO.findByCategory.mockResolvedValue([]);
-
-    const resp = await requestWithSupertest
-      .get(`/api/docs/${category_visa}`)
-      .set('tenantId', TENANT_ID);
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(DocumentationDAO.findByCategory).toHaveBeenCalledWith(category_visa);
   });
 
   test('PUT updates a documentation (201) with the new fields via the DAO', async () => {

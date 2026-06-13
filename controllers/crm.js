@@ -778,93 +778,6 @@ const updateLead = asyncHandler(async (req, res) => {
   });
 });
 
-const getLeadTags = asyncHandler(async (req, res) => {
-  const { leadId } = req.params;
-
-  if (!leadId) {
-    return res
-      .status(400)
-      .send({ success: false, message: 'Lead ID is required' });
-  }
-
-  const exists = await ensureLeadExists(leadId);
-  if (!exists) {
-    return res.status(404).send({ success: false, message: 'Lead not found' });
-  }
-
-  const tagRows = await postgres
-    .select({
-      id: leadTags.id,
-      tag: leadTags.tag,
-      createdBy: leadTags.createdBy,
-      createdAt: leadTags.createdAt
-    })
-    .from(leadTags)
-    .where(eq(leadTags.leadId, leadId))
-    .orderBy(leadTags.tag);
-
-  res.status(200).send({
-    success: true,
-    data: tagRows
-  });
-});
-
-const updateLeadTags = asyncHandler(async (req, res) => {
-  const { leadId } = req.params;
-  const { tags } = req.body || {};
-  const { user } = req;
-  const createdBy = user?._id?.toString?.() ?? user?._id;
-
-  if (!leadId) {
-    return res
-      .status(400)
-      .send({ success: false, message: 'Lead ID is required' });
-  }
-
-  if (tags === undefined || tags === null) {
-    return res
-      .status(400)
-      .send({ success: false, message: 'Tags array is required' });
-  }
-
-  const exists = await ensureLeadExists(leadId);
-  if (!exists) {
-    return res.status(404).send({ success: false, message: 'Lead not found' });
-  }
-
-  const normalizedTags = normalizeTags(tags);
-
-  await postgres.transaction(async (tx) => {
-    await tx.delete(leadTags).where(eq(leadTags.leadId, leadId));
-    if (normalizedTags.length > 0) {
-      await tx.insert(leadTags).values(
-        normalizedTags.map((tag) => ({
-          id: nanoid(),
-          leadId,
-          tag,
-          createdBy
-        }))
-      );
-    }
-  });
-
-  const tagRows = await postgres
-    .select({
-      id: leadTags.id,
-      tag: leadTags.tag,
-      createdBy: leadTags.createdBy,
-      createdAt: leadTags.createdAt
-    })
-    .from(leadTags)
-    .where(eq(leadTags.leadId, leadId))
-    .orderBy(leadTags.tag);
-
-  res.status(200).send({
-    success: true,
-    data: tagRows
-  });
-});
-
 const appendLeadTags = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
   const { tags } = req.body || {};
@@ -980,37 +893,6 @@ const deleteLeadTags = asyncHandler(async (req, res) => {
   });
 });
 
-const getLeadNotes = asyncHandler(async (req, res) => {
-  const { leadId } = req.params;
-
-  if (!leadId) {
-    return res
-      .status(400)
-      .send({ success: false, message: 'Lead ID is required' });
-  }
-
-  const exists = await ensureLeadExists(leadId);
-  if (!exists) {
-    return res.status(404).send({ success: false, message: 'Lead not found' });
-  }
-
-  const noteRows = await postgres
-    .select({
-      id: leadNotes.id,
-      note: leadNotes.note,
-      createdBy: leadNotes.createdBy,
-      createdAt: leadNotes.createdAt
-    })
-    .from(leadNotes)
-    .where(eq(leadNotes.leadId, leadId))
-    .orderBy(desc(leadNotes.createdAt));
-
-  res.status(200).send({
-    success: true,
-    data: noteRows
-  });
-});
-
 const createLeadNote = asyncHandler(async (req, res) => {
   const { leadId } = req.params;
   const { note, notes } = req.body || {};
@@ -1117,62 +999,6 @@ const deleteLeadNote = asyncHandler(async (req, res) => {
   res.status(200).send({
     success: true,
     data: { id: deletedNote.id }
-  });
-});
-
-const replaceLeadNotes = asyncHandler(async (req, res) => {
-  const { leadId } = req.params;
-  const { notes } = req.body || {};
-  const { user } = req;
-  const createdBy = user?._id?.toString?.() ?? user?._id;
-
-  if (!leadId) {
-    return res
-      .status(400)
-      .send({ success: false, message: 'Lead ID is required' });
-  }
-
-  if (notes === undefined || notes === null) {
-    return res
-      .status(400)
-      .send({ success: false, message: 'Notes array or string is required' });
-  }
-
-  const exists = await ensureLeadExists(leadId);
-  if (!exists) {
-    return res.status(404).send({ success: false, message: 'Lead not found' });
-  }
-
-  const normalizedNotes = normalizeNotes(notes);
-
-  await postgres.transaction(async (tx) => {
-    await tx.delete(leadNotes).where(eq(leadNotes.leadId, leadId));
-    if (normalizedNotes.length > 0) {
-      await tx.insert(leadNotes).values(
-        normalizedNotes.map((noteItem) => ({
-          id: nanoid(),
-          leadId,
-          note: `${noteItem}`.trim(),
-          createdBy
-        }))
-      );
-    }
-  });
-
-  const noteRows = await postgres
-    .select({
-      id: leadNotes.id,
-      note: leadNotes.note,
-      createdBy: leadNotes.createdBy,
-      createdAt: leadNotes.createdAt
-    })
-    .from(leadNotes)
-    .where(eq(leadNotes.leadId, leadId))
-    .orderBy(desc(leadNotes.createdAt));
-
-  res.status(200).send({
-    success: true,
-    data: noteRows
   });
 });
 
@@ -1405,15 +1231,11 @@ module.exports = {
   getLeadByStudentId,
   createLeadFromStudent,
   updateLead,
-  getLeadTags,
-  updateLeadTags,
   appendLeadTags,
   deleteLeadTags,
-  getLeadNotes,
   createLeadNote,
   updateLeadNote,
   deleteLeadNote,
-  replaceLeadNotes,
   getMeetings,
   getMeeting,
   updateMeeting,

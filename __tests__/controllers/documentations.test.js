@@ -28,7 +28,6 @@ const DocumentationService = require('../../services/documentations');
 const { ten_minutes_cache } = require('../../cache/node-cache');
 const { getS3Object } = require('../../aws/s3');
 const {
-  getCategoryDocumentations,
   getAllDocumentations,
   getAllInternalDocumentations,
   getDocumentation,
@@ -106,42 +105,6 @@ describe('createInternalDocumentation', () => {
     expect(fields).not.toHaveProperty('_id');
     expect(fields).toMatchObject({ title: 'IT' });
     expect(res.send).toHaveBeenCalledWith({ success: true, data: created });
-  });
-});
-
-describe('getCategoryDocumentations', () => {
-  it('200: returns documentations for a valid category, forwarding it', async () => {
-    const docs = [{ _id: 'd1' }, { _id: 'd2' }];
-    DocumentationService.getDocumentationsByCategory.mockResolvedValue(docs);
-    const res = mockRes();
-
-    await getCategoryDocumentations(
-      mockReq({ params: { category: 'uniassist' } }),
-      res,
-      jest.fn()
-    );
-
-    expect(
-      DocumentationService.getDocumentationsByCategory
-    ).toHaveBeenCalledWith('uniassist');
-    expect(res.send).toHaveBeenCalledWith({ success: true, data: docs });
-  });
-
-  it('forwards a 400 ErrorResponse to next() for an invalid category (no service call)', async () => {
-    const next = jest.fn();
-
-    await getCategoryDocumentations(
-      mockReq({ params: { category: 'not-a-real-category' } }),
-      mockRes(),
-      next
-    );
-
-    expect(
-      DocumentationService.getDocumentationsByCategory
-    ).not.toHaveBeenCalled();
-    expect(next).toHaveBeenCalledWith(
-      expect.objectContaining({ statusCode: 400 })
-    );
   });
 });
 

@@ -6,7 +6,6 @@ const { protect, permit } = require('../middlewares/auth');
 const {
   processProgramListAi,
   cvmlrlAi,
-  TaiGerAiGeneral,
   TaiGerAiChat
 } = require('../controllers/taigerais');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
@@ -21,17 +20,6 @@ const {
 
 const router = Router();
 router.use(protect);
-
-router
-  .route('/general')
-  .post(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    permission_canUseTaiGerAI_filter,
-    permission_TaiGerAIRatelimiter,
-    TaiGerAiGeneral
-  );
 
 router
   .route('/chat/:studentId')

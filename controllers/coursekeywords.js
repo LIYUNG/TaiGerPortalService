@@ -8,17 +8,6 @@ const getKeywordSets = asyncHandler(async (req, res) => {
   res.send({ success: true, data: keywordsets });
 });
 
-const getKeywordSet = asyncHandler(async (req, res) => {
-  const { keywordsSetId } = req.params;
-
-  const keywordsSet = await KeywordSetService.getKeywordSetById(keywordsSetId);
-  if (!keywordsSet) {
-    logger.error('getKeywordSet: Invalid keywordsSet id');
-    throw new ErrorResponse(404, 'KeywordSet not found');
-  }
-  res.send({ success: true, data: keywordsSet });
-});
-
 const createKeywordSet = asyncHandler(async (req, res) => {
   const fields = req.body;
   const query = {
@@ -108,7 +97,6 @@ const deleteKeywordSet = asyncHandler(async (req, res) => {
 
 module.exports = {
   getKeywordSets,
-  getKeywordSet,
   createKeywordSet,
   updateKeywordSet,
   deleteKeywordSet

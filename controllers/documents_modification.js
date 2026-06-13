@@ -263,29 +263,6 @@ const putSurveyInput = asyncHandler(async (req, res) => {
   }
 });
 
-const resetSurveyInput = asyncHandler(async (req, res) => {
-  const { user } = req;
-  const {
-    params: { surveyInputId }
-  } = req;
-  const { informEditor } = req.body;
-  const updatedSurvey = await SurveyInputService.resetSurveyInputById(
-    surveyInputId
-  );
-  res.status(200).send({ success: true, data: updatedSurvey });
-  if (informEditor) {
-    const thread = await DocumentThreadService.findOneThreadPopulated(
-      {
-        student_id: updatedSurvey.studentId,
-        program_id: updatedSurvey.programId,
-        file_type: updatedSurvey.fileType
-      },
-      [['program_id']]
-    );
-    informOnSurveyUpdate(req, user, updatedSurvey, thread);
-  }
-});
-
 // (O) email inform student
 // (O) email inform editors.
 const initGeneralMessagesThread = asyncHandler(async (req, res) => {
@@ -2055,7 +2032,6 @@ module.exports = {
   getSurveyInputs,
   postSurveyInput,
   putSurveyInput,
-  resetSurveyInput,
   initGeneralMessagesThread,
   initApplicationMessagesThread,
   getMessages,

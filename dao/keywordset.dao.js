@@ -9,10 +9,6 @@ const KeywordSetDAO = {
     return KeywordSet.find({}).sort({ createdAt: -1 });
   },
 
-  async getKeywordSetById(keywordsSetId) {
-    return KeywordSet.findById(keywordsSetId);
-  },
-
   async findKeywordSet(query) {
     return KeywordSet.findOne(query);
   },

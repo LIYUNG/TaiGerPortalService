@@ -94,7 +94,6 @@ const {
   deleteAMessageInThread,
   postSurveyInput,
   putSurveyInput,
-  resetSurveyInput,
   initGeneralMessagesThread,
   initApplicationMessagesThread,
   postImageInThread,
@@ -271,31 +270,6 @@ describe('putSurveyInput', () => {
     );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send).toHaveBeenCalledWith({ success: true, data: updated });
-  });
-});
-
-describe('resetSurveyInput', () => {
-  it('200: resets by surveyInputId and returns the updated survey', async () => {
-    const surveyInputId = new ObjectId().toHexString();
-    const reset = { _id: surveyInputId, surveyStatus: 'empty' };
-    SurveyInputService.resetSurveyInputById.mockResolvedValue(reset);
-    const res = mockRes();
-
-    await resetSurveyInput(
-      mockReq({
-        user: admin,
-        params: { surveyInputId },
-        body: { informEditor: false }
-      }),
-      res,
-      jest.fn()
-    );
-
-    expect(SurveyInputService.resetSurveyInputById).toHaveBeenCalledWith(
-      surveyInputId
-    );
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.send).toHaveBeenCalledWith({ success: true, data: reset });
   });
 });
 
@@ -1677,32 +1651,6 @@ describe('postSurveyInput / putSurveyInput / resetSurveyInput (informEditor bran
         user: admin,
         params: { surveyInputId },
         body: { input: {}, informEditor: true }
-      }),
-      res,
-      jest.fn()
-    );
-
-    expect(informOnSurveyUpdate).toHaveBeenCalledTimes(1);
-  });
-
-  it('resetSurveyInput informEditor true: notifies the editor after responding', async () => {
-    const surveyInputId = new ObjectId().toHexString();
-    SurveyInputService.resetSurveyInputById.mockResolvedValue({
-      _id: surveyInputId,
-      studentId,
-      programId: null,
-      fileType: 'RL'
-    });
-    DocumentThreadService.findOneThreadPopulated.mockResolvedValue({
-      _id: 't'
-    });
-    const res = mockRes();
-
-    await resetSurveyInput(
-      mockReq({
-        user: admin,
-        params: { surveyInputId },
-        body: { informEditor: true }
       }),
       res,
       jest.fn()

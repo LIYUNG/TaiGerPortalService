@@ -62,7 +62,6 @@ const ApplicationService = require('../../services/applications');
 const PermissionService = require('../../services/permissions');
 const StudentService = require('../../services/students');
 const {
-  TaiGerAiGeneral,
   TaiGerAiChat,
   cvmlrlAi,
   processProgramListAi
@@ -82,43 +81,6 @@ const mockStreamRes = () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
-});
-
-describe('TaiGerAiGeneral', () => {
-  it('streams every chunk to res.write and ends the response', async () => {
-    openAIClient.chat.completions.create.mockResolvedValue(
-      makeStream(['Hello', ' ', 'world'])
-    );
-    const res = mockStreamRes();
-
-    await TaiGerAiGeneral(
-      mockReq({ user: admin, body: { prompt: 'hi', model: 'gpt-3.5-turbo' } }),
-      res,
-      jest.fn()
-    );
-
-    expect(openAIClient.chat.completions.create).toHaveBeenCalledTimes(1);
-    expect(res.write.mock.calls.map((c) => c[0])).toEqual([
-      'Hello',
-      ' ',
-      'world'
-    ]);
-    expect(res.end).toHaveBeenCalledTimes(1);
-  });
-
-  it('forwards an OpenAI error to next()', async () => {
-    const err = new Error('openai down');
-    openAIClient.chat.completions.create.mockRejectedValue(err);
-    const next = jest.fn();
-
-    await TaiGerAiGeneral(
-      mockReq({ user: admin, body: { prompt: 'hi' } }),
-      mockRes(),
-      next
-    );
-
-    expect(next).toHaveBeenCalledWith(err);
-  });
 });
 
 describe('TaiGerAiChat', () => {

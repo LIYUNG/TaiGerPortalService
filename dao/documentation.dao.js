@@ -5,11 +5,6 @@ const { Documentation } = require('../models');
  * (default-connection model from models/index.js). Plain params, no req.
  */
 const DocumentationDAO = {
-  async findByCategory(category) {
-    // Exclude the (large) text field from the list payload.
-    return Documentation.find({ category }, { text: 0 });
-  },
-
   async findAllTitleCategory() {
     return Documentation.find().select('title category');
   },

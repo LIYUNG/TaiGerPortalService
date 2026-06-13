@@ -169,22 +169,6 @@ beforeEach(() => {
   });
 });
 
-describe('TaiGerAiGeneral Controller (full stack)', () => {
-  it('POST /api/taigerai/general streams the AI response without a server error', async () => {
-    const resp = await requestWithSupertest
-      .post('/api/taigerai/general')
-      .set('tenantId', TENANT_ID)
-      .send({
-        prompt: 'What is the capital of Germany?',
-        model: 'gpt-3.5-turbo'
-      });
-
-    expect(resp.status).not.toBe(500);
-    // The handler streams the mocked chunk straight to the response body.
-    expect(resp.text).toContain('mocked AI response');
-  });
-});
-
 describe('TaiGerAiChat Controller (full stack)', () => {
   it('POST /api/taigerai/chat/:studentId streams a response built from the DAO reads', async () => {
     CommunicationDAO.getRecentByStudentId.mockResolvedValue([

@@ -3,14 +3,12 @@ const { Role } = require('@taiger-common/core');
 
 const {
   GeneralPOSTRequestRateLimiter,
-  GeneralGETRequestRateLimiter,
   GeneralPUTRequestRateLimiter,
   GeneralDELETERequestRateLimiter
 } = require('../middlewares/rate_limiter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
 const { protect, permit } = require('../middlewares/auth');
 const {
-  getKeywordSet,
   createKeywordSet,
   updateKeywordSet,
   deleteKeywordSet,
@@ -47,11 +45,6 @@ router
     GeneralDELETERequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.External),
     deleteKeywordSet
-  )
-  .get(
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.External),
-    getKeywordSet
   );
 
 module.exports = router;

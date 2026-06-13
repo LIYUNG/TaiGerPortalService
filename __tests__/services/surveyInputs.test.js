@@ -64,18 +64,6 @@ describe('SurveyInputService (mocked DAO)', () => {
     expect(result).toBe(daoResult);
   });
 
-  it('resetSurveyInputById delegates to DAO.resetSurveyInputById', () => {
-    const id = 'si1';
-    const daoResult = { _id: 'si1' };
-    SurveyInputDAO.resetSurveyInputById.mockReturnValue(daoResult);
-
-    const result = SurveyInputService.resetSurveyInputById(id);
-
-    expect(SurveyInputDAO.resetSurveyInputById).toHaveBeenCalledTimes(1);
-    expect(SurveyInputDAO.resetSurveyInputById).toHaveBeenCalledWith(id);
-    expect(result).toBe(daoResult);
-  });
-
   it('deleteSurveyInput delegates to DAO.deleteSurveyInput', () => {
     const filter = { student_id: 's1' };
     const daoResult = { deletedCount: 1 };

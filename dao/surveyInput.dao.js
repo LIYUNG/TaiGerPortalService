@@ -28,16 +28,6 @@ const SurveyInputDAO = {
       .lean();
   },
 
-  // Reset answers — returns the live document (matches legacy behaviour, which
-  // did not call .lean()).
-  async resetSurveyInputById(id) {
-    return surveyInput.findByIdAndUpdate(
-      id,
-      { $unset: { 'surveyContent.$[].answer': 1 } },
-      { upsert: false, new: true }
-    );
-  },
-
   async deleteSurveyInput(filter) {
     return surveyInput.deleteOne(filter);
   }

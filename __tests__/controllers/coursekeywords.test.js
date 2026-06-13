@@ -14,7 +14,6 @@ jest.mock('../../services/keywordsets');
 const KeywordSetService = require('../../services/keywordsets');
 const {
   getKeywordSets,
-  getKeywordSet,
   createKeywordSet,
   updateKeywordSet,
   deleteKeywordSet
@@ -47,35 +46,6 @@ describe('getKeywordSets', () => {
     await getKeywordSets(mockReq(), mockRes(), next);
 
     expect(next).toHaveBeenCalledWith(err);
-  });
-});
-
-describe('getKeywordSet', () => {
-  it('responds with the set and forwards req.params.keywordsSetId', async () => {
-    const set = { _id: keywordsSetId, categoryName: 'Physics' };
-    KeywordSetService.getKeywordSetById.mockResolvedValue(set);
-    const res = mockRes();
-
-    await getKeywordSet(mockReq({ params: { keywordsSetId } }), res, jest.fn());
-
-    expect(KeywordSetService.getKeywordSetById).toHaveBeenCalledWith(
-      keywordsSetId
-    );
-    expect(res.send).toHaveBeenCalledWith({ success: true, data: set });
-  });
-
-  it('forwards a 404 ErrorResponse to next() when the set is not found', async () => {
-    KeywordSetService.getKeywordSetById.mockResolvedValue(null);
-    const next = jest.fn();
-
-    await getKeywordSet(
-      mockReq({ params: { keywordsSetId } }),
-      mockRes(),
-      next
-    );
-
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 404 });
   });
 });
 

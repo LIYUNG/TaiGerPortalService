@@ -67,19 +67,6 @@ describe('DocspageDAO (mocked models)', () => {
 });
 
 describe('DocumentationDAO (mocked models)', () => {
-  it('findByCategory filters by category and excludes the text field', async () => {
-    const docs = [{ title: 'How to apply' }];
-    Documentation.find.mockResolvedValue(docs);
-
-    const res = await DocumentationDAO.findByCategory('application');
-
-    expect(Documentation.find).toHaveBeenCalledWith(
-      { category: 'application' },
-      { text: 0 }
-    );
-    expect(res).toBe(docs);
-  });
-
   it('findAllTitleCategory selects only title + category', async () => {
     const docs = [{ title: 'A', category: 'visa' }];
     Documentation.find.mockReturnValue(queryChain(docs));

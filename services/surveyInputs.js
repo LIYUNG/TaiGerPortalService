@@ -21,10 +21,6 @@ const SurveyInputService = {
     return SurveyInputDAO.updateSurveyInputById(id, payload);
   },
 
-  resetSurveyInputById(id) {
-    return SurveyInputDAO.resetSurveyInputById(id);
-  },
-
   deleteSurveyInput(filter) {
     return SurveyInputDAO.deleteSurveyInput(filter);
   }

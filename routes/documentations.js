@@ -19,7 +19,6 @@ const {
   updateInternalDocumentationPage,
   updateDocumentationPage,
   getCategoryDocumentationsPage,
-  getCategoryDocumentations,
   getAllDocumentations,
   getAllInternalDocumentations,
   getDocumentation,
@@ -165,14 +164,6 @@ router
     DocumentationGETRateLimiter,
     prohibit(Role.Guest),
     getAllDocumentations
-  );
-router
-  .route('/:category')
-  .get(
-    filter_archiv_user,
-    DocumentationGETRateLimiter,
-    prohibit(Role.Guest),
-    getCategoryDocumentations
   );
 router
   .route('/search/:doc_id')

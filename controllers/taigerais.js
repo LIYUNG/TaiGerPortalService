@@ -74,18 +74,6 @@ const generate_streaming = asyncHandler(async (input, model) =>
   })
 );
 
-const TaiGerAiGeneral = asyncHandler(async (req, res, next) => {
-  const { prompt, model } = req.body;
-  const stream = await generate_streaming(
-    prompt,
-    model || OpenAiModel.GPT_3_5_TURBO
-  );
-  for await (const part of stream) {
-    res.write(part.choices[0]?.delta.content || '');
-  }
-  res.end();
-});
-
 const TaiGerAiChat = asyncHandler(async (req, res, next) => {
   const {
     user,
@@ -275,7 +263,6 @@ const cvmlrlAi = asyncHandler(async (req, res, next) => {
 });
 
 module.exports = {
-  TaiGerAiGeneral,
   TaiGerAiChat,
   cvmlrlAi,
   processProgramListAi

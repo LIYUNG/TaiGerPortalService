@@ -167,10 +167,8 @@ jest.mock('../../dao/surveyInput.dao');
 
 const DocumentthreadDAO = require('../../dao/documentthread.dao');
 const StudentDAO = require('../../dao/student.dao');
-const SurveyInputDAO = require('../../dao/surveyInput.dao');
 
 const threadId = new ObjectId().toHexString();
-const surveyInputId = new ObjectId().toHexString();
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -235,31 +233,6 @@ describe('GET /api/document-threads/overview/taiger-user/:userId/counts', () => 
         studentIds: [student._id.toString()],
         outsourcedUserId: agent._id.toString()
       })
-    );
-  });
-});
-
-describe('DELETE /api/document-threads/survey-input/:surveyInputId', () => {
-  it('resets the survey input via the DAO and returns the document', async () => {
-    // resetSurveyInput with informEditor:false -> resetSurveyInputById only.
-    SurveyInputDAO.resetSurveyInputById.mockResolvedValue({
-      _id: surveyInputId,
-      studentId: student._id,
-      programId: null,
-      fileType: 'ML',
-      surveyStatus: 'provided'
-    });
-
-    const resp = await requestWithSupertest
-      .delete(`/api/document-threads/survey-input/${surveyInputId}`)
-      .set('tenantId', TENANT_ID)
-      .send({ informEditor: false });
-
-    expect(resp.status).toBe(200);
-    expect(resp.body.success).toBe(true);
-    expect(resp.body.data._id.toString()).toBe(surveyInputId);
-    expect(SurveyInputDAO.resetSurveyInputById).toHaveBeenCalledWith(
-      surveyInputId
     );
   });
 });

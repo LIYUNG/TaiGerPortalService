@@ -45,19 +45,6 @@ describe('DocumentationService — Docspage (mocked DAO)', () => {
 });
 
 describe('DocumentationService — Documentation (mocked DAO)', () => {
-  it('getDocumentationsByCategory delegates to DocumentationDAO.findByCategory', async () => {
-    const daoResult = [{ _id: 'd1' }];
-    DocumentationDAO.findByCategory.mockResolvedValue(daoResult);
-
-    const result = await DocumentationService.getDocumentationsByCategory(
-      'cat1'
-    );
-
-    expect(DocumentationDAO.findByCategory).toHaveBeenCalledTimes(1);
-    expect(DocumentationDAO.findByCategory).toHaveBeenCalledWith('cat1');
-    expect(result).toBe(daoResult);
-  });
-
   it('getAllDocumentations delegates to DocumentationDAO.findAllTitleCategory', async () => {
     const daoResult = [{ _id: 'd1', title: 'A' }];
     DocumentationDAO.findAllTitleCategory.mockResolvedValue(daoResult);

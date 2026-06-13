@@ -10,7 +10,6 @@ const {
   GeneralDELETERequestRateLimiter,
   getMessageFileRateLimiter,
   putThreadInputRateLimiter,
-  resetThreadInputRateLimiter,
   putMessagesRateLimiter
 } = require('../middlewares/rate_limiter');
 const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
@@ -48,7 +47,6 @@ const {
   postSurveyInput,
   putSurveyInput,
   assignEssayWritersToEssayTask,
-  resetSurveyInput,
   putOriginAuthorConfirmedByStudent,
   putThreadFavorite,
   IgnoreMessageInDocumentThread,
@@ -143,12 +141,6 @@ router
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     surveyMultitenantFilter,
     putSurveyInput
-  )
-  .delete(
-    resetThreadInputRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
-    surveyMultitenantFilter,
-    resetSurveyInput
   );
 
 router

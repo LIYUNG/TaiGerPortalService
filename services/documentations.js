@@ -18,10 +18,6 @@ const DocumentationService = {
   },
 
   // ── Documentation ─────────────────────────────────────────────────────────
-  getDocumentationsByCategory(category) {
-    return DocumentationDAO.findByCategory(category);
-  },
-
   getAllDocumentations() {
     return DocumentationDAO.findAllTitleCategory();
   },

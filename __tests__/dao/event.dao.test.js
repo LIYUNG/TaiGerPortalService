@@ -7,6 +7,7 @@ jest.mock('../../models', () => {
     findById: jest.fn(),
     findByIdAndUpdate: jest.fn(),
     findByIdAndDelete: jest.fn(),
+    countDocuments: jest.fn(),
     create: jest.fn()
   });
   return {
@@ -171,5 +172,47 @@ describe('EventDAO (mocked models)', () => {
       'firstname'
     );
     expect(result).toBe(deleted);
+  });
+
+  describe('getEventsPaginated', () => {
+    it('fetches one page (sort/skip/limit/populate, .find auto-casts) + counts total', async () => {
+      const docs = [{ _id: 'e1' }, { _id: 'e2' }];
+      const chain = queryChain(docs);
+      Event.find.mockReturnValue(chain);
+      Event.countDocuments.mockResolvedValue(42);
+
+      const filter = { requester_id: 's1', end: { $lt: new Date() } };
+      const result = await EventDAO.getEventsPaginated({
+        filter,
+        query: { page: '2', limit: '10', sortOrder: 'desc' }
+      });
+
+      // Same filter object is used for both the page query and the count.
+      expect(Event.find).toHaveBeenCalledWith(filter);
+      expect(Event.countDocuments).toHaveBeenCalledWith(filter);
+      expect(chain.sort).toHaveBeenCalledWith({ start: -1, _id: 1 });
+      expect(chain.skip).toHaveBeenCalledWith(10); // (page 2 - 1) * limit 10
+      expect(chain.limit).toHaveBeenCalledWith(10);
+      expect(chain.populate).toHaveBeenCalledWith(
+        TEAM_POPULATE_PATH,
+        'firstname lastname email pictureUrl'
+      );
+      expect(result).toEqual({ events: docs, total: 42, page: 2, limit: 10 });
+    });
+
+    it('defaults page to 1, clamps limit to the 100 max, and sorts asc when requested', async () => {
+      const chain = queryChain([]);
+      Event.find.mockReturnValue(chain);
+      Event.countDocuments.mockResolvedValue(0);
+
+      const result = await EventDAO.getEventsPaginated({
+        query: { limit: '5000', sortOrder: 'asc' }
+      });
+
+      expect(chain.sort).toHaveBeenCalledWith({ start: 1, _id: 1 });
+      expect(chain.skip).toHaveBeenCalledWith(0);
+      expect(chain.limit).toHaveBeenCalledWith(100);
+      expect(result).toEqual({ events: [], total: 0, page: 1, limit: 100 });
+    });
   });
 });

@@ -2187,16 +2187,19 @@ const MeetingCancelledReminderEmail = asyncHandler(
   async (recipient, payload) => {
     const taigerUser = `${payload.taiger_user.firstname} - ${payload.taiger_user.lastname}`;
     const subject = `[Meeting Cancelled] The booked Office hour ${payload.meeting_time} is cancelled.`;
+    const reasonBlock = payload.reason
+      ? `<p><b>原因 / Reason:</b> ${payload.reason}</p>\n\n`
+      : '';
     const message = `\
 <p>Hi,</p>
 
 <p><b>${taigerUser}</b> 取消了討論時段。</p>
 
-<p>${SPLIT_LINE}</p>
+${reasonBlock}<p>${SPLIT_LINE}</p>
 
 <p>${taigerUser} cancelled the meeting.</p>
 
-
+${reasonBlock}
 `; // should be for admin/editor/agent/student
 
     return sendEventEmail(

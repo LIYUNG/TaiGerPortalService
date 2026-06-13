@@ -39,6 +39,10 @@ const EventService = {
 
   deleteEventByIdPopulated(eventId, populateSelect) {
     return EventDAO.deleteEventByIdPopulated(eventId, populateSelect);
+  },
+
+  getEventsPaginated(args) {
+    return EventDAO.getEventsPaginated(args);
   }
 };
 

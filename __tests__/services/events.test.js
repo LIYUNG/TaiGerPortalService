@@ -138,4 +138,16 @@ describe('EventService (mocked DAO)', () => {
     );
     expect(result).toBe(daoResult);
   });
+
+  it('getEventsPaginated delegates to DAO with the { filter, query } args', async () => {
+    const args = { filter: { end: { $lt: new Date() } }, query: { page: '1' } };
+    const daoResult = { events: [], total: 0, page: 1, limit: 20 };
+    EventDAO.getEventsPaginated.mockResolvedValue(daoResult);
+
+    const result = await EventService.getEventsPaginated(args);
+
+    expect(EventDAO.getEventsPaginated).toHaveBeenCalledTimes(1);
+    expect(EventDAO.getEventsPaginated).toHaveBeenCalledWith(args);
+    expect(result).toBe(daoResult);
+  });
 });

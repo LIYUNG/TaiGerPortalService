@@ -115,6 +115,36 @@ describe('GET /api/events/ping', () => {
   });
 });
 
+describe('GET /api/events/paginated', () => {
+  it('returns the role-scoped paginated payload for the user (200)', async () => {
+    EventDAO.getEventsPaginated.mockResolvedValue({
+      events: [{ _id: 'e1' }],
+      total: 1,
+      page: 1,
+      limit: 20
+    });
+
+    const resp = await requestWithSupertest
+      .get('/api/events/paginated?page=1&limit=20')
+      .set('tenantId', TENANT_ID);
+
+    expect(resp.status).toBe(200);
+    expect(resp.body.success).toBe(true);
+    expect(resp.body.data).toEqual({
+      events: [{ _id: 'e1' }],
+      total: 1,
+      page: 1,
+      limit: 20
+    });
+    // The default user is a student => scoped to their own requested events.
+    expect(EventDAO.getEventsPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filter: expect.objectContaining({ requester_id: student._id })
+      })
+    );
+  });
+});
+
 describe('POST /api/events/', () => {
   it('rejects booking a further event when there is an upcoming one (403)', async () => {
     eventNew2.requester_id = student._id;

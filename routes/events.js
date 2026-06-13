@@ -4,6 +4,7 @@ const { Role } = require('@taiger-common/core');
 const { protect, permit } = require('../middlewares/auth');
 const {
   getEvents,
+  getEventsPaginated,
   getBookedEvents,
   showEvent,
   updateEvent,
@@ -41,6 +42,14 @@ router
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     getBookedEvents
+  );
+
+router
+  .route('/paginated')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    getEventsPaginated
   );
 
 router

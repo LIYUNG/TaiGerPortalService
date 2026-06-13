@@ -29,6 +29,8 @@ const UserService = require('../../services/users');
 const { scheduleInviteTA } = require('../../utils/meeting-assistant.service');
 const {
   getEvents,
+  getEventsPaginated,
+  buildEventScopeFilter,
   getBookedEvents,
   getActiveEventsNumber,
   showEvent,
@@ -124,6 +126,51 @@ describe('getEvents', () => {
     expect(body.hasEvents).toBe(true);
   });
 
+  it('filters on event `end` by default (unchanged for existing callers)', async () => {
+    UserService.findAgents.mockResolvedValue([]);
+    UserService.findEditors.mockResolvedValue([]);
+    EventService.findEvents.mockResolvedValue([]);
+
+    await getEvents(
+      mockReq({
+        user: studentUser,
+        query: {
+          startTime: '2025-06-01T00:00:00.000Z',
+          endTime: '2025-06-30T23:59:59.999Z'
+        }
+      }),
+      mockRes(),
+      jest.fn()
+    );
+
+    const [filter] = EventService.findEvents.mock.calls[0];
+    expect(filter).toHaveProperty('end');
+    expect(filter).not.toHaveProperty('start');
+  });
+
+  it('filters on event `start` when rangeField=start (calendar window)', async () => {
+    UserService.findAgents.mockResolvedValue([]);
+    UserService.findEditors.mockResolvedValue([]);
+    EventService.findEvents.mockResolvedValue([]);
+
+    await getEvents(
+      mockReq({
+        user: studentUser,
+        query: {
+          rangeField: 'start',
+          startTime: '2025-06-01T00:00:00.000Z',
+          endTime: '2025-06-30T23:59:59.999Z'
+        }
+      }),
+      mockRes(),
+      jest.fn()
+    );
+
+    const [filter] = EventService.findEvents.mock.calls[0];
+    expect(filter).toHaveProperty('start');
+    expect(filter).not.toHaveProperty('end');
+  });
+
   it('hasEvents is false when no events are returned', async () => {
     UserService.findAgents.mockResolvedValue([]);
     UserService.findEditors.mockResolvedValue([]);
@@ -135,6 +182,92 @@ describe('getEvents', () => {
     const body = res.send.mock.calls[0][0];
     expect(body.hasEvents).toBe(false);
     expect(body.data).toEqual([]);
+  });
+});
+
+describe('buildEventScopeFilter', () => {
+  it('scopes a student to their own requested events, ignoring client filters', () => {
+    const filter = buildEventScopeFilter(studentUser, {
+      receiver_id: 'hack-receiver',
+      requester_id: 'hack-requester'
+    });
+    expect(filter).toEqual({ requester_id: studentUser._id });
+  });
+
+  it('does not hard-restrict staff, but honors optional receiver_id/requester_id', () => {
+    expect(buildEventScopeFilter(agentUser, {})).toEqual({});
+    expect(buildEventScopeFilter(agentUser, { receiver_id: 'rc1' })).toEqual({
+      receiver_id: 'rc1'
+    });
+    expect(buildEventScopeFilter(admin, { requester_id: 'r1' })).toEqual({
+      requester_id: 'r1'
+    });
+  });
+});
+
+describe('getEventsPaginated', () => {
+  it('student: scopes to own past events (ignoring client filters) and 200s with the page', async () => {
+    const paginated = { events: [{ _id: 'e1' }], total: 1, page: 1, limit: 20 };
+    EventService.getEventsPaginated.mockResolvedValue(paginated);
+    const res = mockRes();
+
+    await getEventsPaginated(
+      mockReq({
+        user: studentUser,
+        query: { page: '1', limit: '20', receiver_id: 'hack' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(EventService.getEventsPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filter: expect.objectContaining({
+          requester_id: studentUser._id,
+          end: expect.objectContaining({ $lt: expect.any(Date) })
+        }),
+        query: expect.objectContaining({ page: '1', limit: '20' })
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: paginated });
+  });
+
+  it('staff: no hard scope but honors the receiver_id filter', async () => {
+    EventService.getEventsPaginated.mockResolvedValue({
+      events: [],
+      total: 0,
+      page: 1,
+      limit: 20
+    });
+    const res = mockRes();
+
+    await getEventsPaginated(
+      mockReq({ user: agentUser, query: { receiver_id: 'rc1' } }),
+      res,
+      jest.fn()
+    );
+
+    expect(EventService.getEventsPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filter: expect.objectContaining({ receiver_id: 'rc1' })
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('db down');
+    EventService.getEventsPaginated.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await getEventsPaginated(
+      mockReq({ user: agentUser, query: {} }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
@@ -209,6 +342,66 @@ describe('postEvent (student branch)', () => {
     expect(EventService.createEvent).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 403 })
+    );
+  });
+
+  it('one-total: the future-conflict clause is scoped to the student only (any agent), not the agent', async () => {
+    // No conflict -> creation proceeds; we inspect the conflict query that ran.
+    EventService.findEvents.mockResolvedValue([]);
+    EventService.createEvent.mockResolvedValue({
+      _id: new ObjectId().toHexString()
+    });
+    EventService.getEventByIdPopulated.mockResolvedValue({
+      _id: 'x',
+      start: new Date().toISOString(),
+      receiver_id: []
+    });
+    UserService.findAgents.mockResolvedValue([]);
+
+    await postEvent(
+      mockReq({
+        user: studentUser,
+        body: {
+          start: new Date().toISOString(),
+          requester_id: studentUser._id,
+          receiver_id: agent._id
+        }
+      }),
+      mockRes(),
+      jest.fn()
+    );
+
+    const conflictQuery = EventService.findEvents.mock.calls[0][0];
+    const futureClause = conflictQuery.$or.find((c) => c.start && c.start.$gt);
+    expect(futureClause).toBeDefined();
+    expect(futureClause.requester_id).toBeDefined();
+    // One appointment at a time across ALL agents -> the future clause must NOT
+    // narrow to the chosen agent.
+    expect(futureClause.receiver_id).toBeUndefined();
+  });
+
+  it('responds 409 (next) when the slot was just booked under a race (duplicate-key)', async () => {
+    EventService.findEvents.mockResolvedValue([]); // passes the app-level check
+    EventService.createEvent.mockRejectedValue(
+      Object.assign(new Error('E11000 duplicate key'), { code: 11000 })
+    );
+    const next = jest.fn();
+
+    await postEvent(
+      mockReq({
+        user: studentUser,
+        body: {
+          start: new Date().toISOString(),
+          requester_id: studentUser._id,
+          receiver_id: agent._id
+        }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 409 })
     );
   });
 
@@ -362,6 +555,38 @@ describe('deleteEvent (student branch)', () => {
     const body = res.send.mock.calls[0][0];
     expect(body.success).toBe(true);
     expect(body.data).toEqual([]);
+  });
+
+  it('forwards the cancellation reason from the request body into the email', async () => {
+    const eventId = new ObjectId().toHexString();
+    EventService.getEventByIdPopulated.mockResolvedValue({
+      _id: eventId,
+      requester_id: [
+        { _id: studentUser._id, firstname: 'S', lastname: 'T', email: 's@t.c' }
+      ],
+      receiver_id: [
+        { _id: agentUser._id, firstname: 'A', lastname: 'B', email: 'a@b.c' }
+      ]
+    });
+    EventService.deleteEventById.mockResolvedValue({});
+    EventService.findEvents.mockResolvedValue([]);
+    UserService.findAgents.mockResolvedValue([]);
+    const { MeetingCancelledReminderEmail } = require('../../services/email');
+
+    await deleteEvent(
+      mockReq({
+        user: studentUser,
+        params: { event_id: eventId },
+        body: { reason: 'Schedule conflict' }
+      }),
+      mockRes(),
+      jest.fn()
+    );
+
+    expect(MeetingCancelledReminderEmail).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ reason: 'Schedule conflict' })
+    );
   });
 
   it('agent branch: 200 with the refreshed (non-empty) list', async () => {

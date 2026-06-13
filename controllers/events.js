@@ -78,7 +78,7 @@ const MeetingAdjustReminder = (receiver, user, meeting_event) => {
   );
 };
 
-const MeetingCancelledReminder = (user, meeting_event) => {
+const MeetingCancelledReminder = (user, meeting_event, reason) => {
   MeetingCancelledReminderEmail(
     is_TaiGer_Student(user)
       ? {
@@ -102,7 +102,10 @@ const MeetingCancelledReminder = (user, meeting_event) => {
       event_title: is_TaiGer_Student(user)
         ? `${user.firstname} ${user.lastname}`
         : `${meeting_event.receiver_id[0].firstname} ${meeting_event.receiver_id[0].lastname}`,
-      isUpdatingEvent: false
+      isUpdatingEvent: false,
+      // Free-text comment the canceller/rejecter gives the other party so they
+      // understand why the meeting was rejected/cancelled.
+      reason: reason || ''
     }
   );
 };
@@ -186,20 +189,24 @@ const getBookedEvents = asyncHandler(async (req, res, next) => {
 
 const getEvents = asyncHandler(async (req, res, next) => {
   const { user } = req;
-  const { startTime, endTime, requester_id, receiver_id } = req.query;
-  // const { filter: startTimeEventQuery } = new EventQueryBuilder()
-  //   .withStartTimeStart(startTime)
-  //   .withStartTimeEnd(endTime)
-  //   .withRequesterId(requester_id)
-  //   .withReceiverId(receiver_id)
-  //   .build();
+  const { startTime, endTime, requester_id, receiver_id, rangeField } =
+    req.query;
 
-  const { filter: endTimeEventQuery } = new EventQueryBuilder()
-    .withEndTimeStart(startTime)
-    .withEndTimeEnd(endTime)
+  // The [startTime, endTime] window can match either the event `start` or `end`.
+  // Calendars must match on `start` (a required field) — matching on `end`
+  // (optional in the schema) silently drops events that have no `end`, and is
+  // the wrong semantic for "events that begin in the visible month". The default
+  // stays `end` so existing callers (student/taiger office-hours pages) are
+  // unchanged; the calendar passes `rangeField=start`.
+  const builder = new EventQueryBuilder()
     .withRequesterId(requester_id)
-    .withReceiverId(receiver_id)
-    .build();
+    .withReceiverId(receiver_id);
+  if (rangeField === 'start') {
+    builder.withStartTimeStart(startTime).withStartTimeEnd(endTime);
+  } else {
+    builder.withEndTimeStart(startTime).withEndTimeEnd(endTime);
+  }
+  const { filter: eventQuery } = builder.build();
 
   // Common response structure
   const response = {
@@ -221,7 +228,7 @@ const getEvents = asyncHandler(async (req, res, next) => {
 
   response.agents = agents;
   response.editors = editors;
-  const events = await EventService.findEvents(endTimeEventQuery, {
+  const events = await EventService.findEvents(eventQuery, {
     populate: {
       path: 'receiver_id requester_id',
       select: 'firstname lastname email pictureUrl'
@@ -232,6 +239,49 @@ const getEvents = asyncHandler(async (req, res, next) => {
   response.hasEvents = events.length > 0;
 
   res.status(200).send(response);
+});
+
+// Role-based read scope for the events list. Students are HARD-limited to the
+// events they requested (client-supplied requester_id/receiver_id are ignored).
+// Staff (agent/editor/admin/manager) are NOT hard-restricted — they are the
+// team — but may narrow by receiver_id/requester_id.
+// NOTE: the legacy getEvents read is intentionally left un-scoped for now (the
+// sibling/student office-hours pages still depend on its current behaviour);
+// scoping it is a deferred follow-up tied to migrating those pages.
+const buildEventScopeFilter = (user, { receiver_id, requester_id } = {}) => {
+  if (is_TaiGer_Student(user)) {
+    return { requester_id: user._id };
+  }
+  const filter = {};
+  if (receiver_id) {
+    filter.receiver_id = receiver_id;
+  }
+  if (requester_id) {
+    filter.requester_id = requester_id;
+  }
+  return filter;
+};
+
+// Server-side paginated events, role-scoped. Defaults to the "Past" window
+// (end < now) for the office-hours list tab; `before`/`after` (ISO) override the
+// window, page/limit/sortOrder drive pagination.
+const getEventsPaginated = asyncHandler(async (req, res) => {
+  const { user } = req;
+  const { receiver_id, requester_id, before, after } = req.query;
+
+  const filter = buildEventScopeFilter(user, { receiver_id, requester_id });
+  const endWindow = { $lt: before ? new Date(before) : new Date() };
+  if (after) {
+    endWindow.$gte = new Date(after);
+  }
+  filter.end = endWindow;
+
+  const result = await EventService.getEventsPaginated({
+    filter,
+    query: req.query
+  });
+
+  res.status(200).send({ success: true, data: result });
 });
 
 const getActiveEventsNumber = asyncHandler(async (req, res) => {
@@ -274,14 +324,12 @@ const postEvent = asyncHandler(async (req, res) => {
               receiver_id: {
                 $in: [new Types.ObjectId(newEvent.receiver_id)]
               }
-            }, // Start date is the same as the provided date
+            }, // The exact slot is already taken (with this agent/editor)
             {
-              start: { $gt: currentDate }, // Start date is in the future
+              start: { $gt: currentDate }, // Any future appointment for this
               requester_id: {
+                // student, with ANY agent/editor — one appointment at a time.
                 $in: [new Types.ObjectId(newEvent.requester_id)]
-              },
-              receiver_id: {
-                $in: [new Types.ObjectId(newEvent.receiver_id)]
               }
             }
           ]
@@ -299,13 +347,25 @@ const postEvent = asyncHandler(async (req, res) => {
 
     // Check if there is already booked upcoming events
     if (events.length === 0) {
-      // TODO: additional check if the timeslot is in agent office hour?
-      write_NewEvent = await EventService.createEvent(newEvent);
+      try {
+        // The unique (receiver_id, start) index is the race backstop: if another
+        // student booked this exact slot between the check above and now, the
+        // insert fails with a duplicate-key error (code 11000).
+        write_NewEvent = await EventService.createEvent(newEvent);
+      } catch (err) {
+        if (err && err.code === 11000) {
+          throw new ErrorResponse(
+            409,
+            'This timeslot was just booked by someone else. Please pick another.'
+          );
+        }
+        throw err;
+      }
     } else {
       logger.error('Student book a conflicting event in this time slot.');
       throw new ErrorResponse(
         403,
-        'You are not allowed to book further timeslot, if you have already an upcoming timeslot of the agent or editor.'
+        'You can only have one upcoming appointment at a time. Please attend or cancel it before booking another.'
       );
     }
     events = await EventService.findEvents(
@@ -561,6 +621,9 @@ const updateEvent = asyncHandler(async (req, res) => {
 const deleteEvent = asyncHandler(async (req, res) => {
   const { event_id } = req.params;
   const { user } = req;
+  // Reject (pending) / cancel (confirmed) carry a free-text comment so the other
+  // party learns why; the frontend requires it.
+  const { reason } = req.body || {};
   try {
     const toBeDeletedEvent = await EventService.getEventByIdPopulated(
       event_id,
@@ -589,7 +652,7 @@ const deleteEvent = asyncHandler(async (req, res) => {
         data: events.length === 0 ? [] : events,
         hasEvents: events.length !== 0
       });
-      MeetingCancelledReminder(user, toBeDeletedEvent);
+      MeetingCancelledReminder(user, toBeDeletedEvent, reason);
     } else if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       events = await EventService.findEvents(
         {
@@ -615,7 +678,7 @@ const deleteEvent = asyncHandler(async (req, res) => {
         data: events.length === 0 ? [] : events,
         hasEvents: events.length !== 0
       });
-      MeetingCancelledReminder(user, toBeDeletedEvent);
+      MeetingCancelledReminder(user, toBeDeletedEvent, reason);
     } else {
       res.status(200).send({ success: true, hasEvents: false });
     }
@@ -627,6 +690,8 @@ const deleteEvent = asyncHandler(async (req, res) => {
 
 module.exports = {
   getEvents,
+  getEventsPaginated,
+  buildEventScopeFilter,
   getBookedEvents,
   getActiveEventsNumber,
   showEvent,

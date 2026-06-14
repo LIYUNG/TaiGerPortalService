@@ -155,7 +155,7 @@ async function sendSlackMessageToWinChannel(student, application) {
  * Posts a copy of a staff DM notification to the notifications log channel,
  * so agent/editor managers can audit what was sent and to whom.
  */
-async function logStaffNotificationToManagers(editor, message) {
+async function logStaffNotificationToManagers(editor, message, note) {
   if (!SLACK_NOTIFICATIONS_LOG_CHANNEL_ID) {
     return;
   }
@@ -171,9 +171,11 @@ async function logStaffNotificationToManagers(editor, message) {
     .map((line) => `> ${line}`)
     .join('\n');
 
+  const noteLine = note ? `${note}\n` : '';
+
   try {
     await sendSlackMessage(
-      `Message sent to ${recipient}:\n${quotedMessage}`,
+      `Message sent to ${recipient}:\n${noteLine}${quotedMessage}`,
       SLACK_NOTIFICATIONS_LOG_CHANNEL_ID,
       undefined,
       {
@@ -223,7 +225,9 @@ async function sendApplicationWithdrawNotificationToEditors(
 
   for (const editor of editors) {
     let channel = editor.slackId;
+    let messageToSend = slackMessage;
     let skipSend = false;
+    let devRedirectNote;
 
     if (isDev()) {
       if (!SLACK_DEVELOPER_ID) {
@@ -233,12 +237,14 @@ async function sendApplicationWithdrawNotificationToEditors(
         );
       } else {
         channel = SLACK_DEVELOPER_ID;
+        devRedirectNote = `[dev] This message was redirected to <@${SLACK_DEVELOPER_ID}>`;
+        messageToSend = `${devRedirectNote}\n\n${slackMessage}`;
       }
     }
 
     if (!skipSend) {
       try {
-        await sendSlackMessage(slackMessage, channel, undefined, {
+        await sendSlackMessage(messageToSend, channel, undefined, {
           unfurl_links: false,
           unfurl_media: false
         });
@@ -251,7 +257,7 @@ async function sendApplicationWithdrawNotificationToEditors(
       }
     }
 
-    await logStaffNotificationToManagers(editor, slackMessage);
+    await logStaffNotificationToManagers(editor, slackMessage, devRedirectNote);
   }
 }
 

@@ -3,7 +3,8 @@ const {
   isDev,
   SLACK_BOT_TOKEN,
   SLACK_TAIGER_WIN_CHANNEL_ID,
-  SLACK_DEVELOPER_ID
+  SLACK_DEVELOPER_ID,
+  SLACK_NOTIFICATIONS_LOG_CHANNEL_ID
 } = require('../config');
 
 const {
@@ -151,6 +152,38 @@ async function sendSlackMessageToWinChannel(student, application) {
 }
 
 /**
+ * Posts a copy of a staff DM notification to the notifications log channel,
+ * so agent/editor managers can audit what was sent and to whom.
+ */
+async function logStaffNotificationToManagers(editor, message) {
+  if (!SLACK_NOTIFICATIONS_LOG_CHANNEL_ID) {
+    return;
+  }
+
+  const recipient =
+    typeof editor?.slackId === 'string' && editor.slackId
+      ? `<@${editor.slackId}>`
+      : `${editor?.firstname || ''} ${editor?.lastname || ''}`.trim() ||
+        'a TaiGer contributor';
+
+  try {
+    await sendSlackMessage(
+      `Message sent to ${recipient}:\n${message}`,
+      SLACK_NOTIFICATIONS_LOG_CHANNEL_ID,
+      undefined,
+      {
+        unfurl_links: false,
+        unfurl_media: false
+      }
+    );
+  } catch (error) {
+    logger.error(
+      `Failed to log Slack notification to managers: ${error.message || error}`
+    );
+  }
+}
+
+/**
  * Notifies a student's editors via Slack DM that an application has been
  * withdrawn or re-activated, so they know whether it still needs work.
  */
@@ -160,7 +193,8 @@ async function sendApplicationWithdrawNotificationToEditors(
   isWithdrawn
 ) {
   const editors = (student.editors || []).filter(
-    (editor) => !editor.archiv && typeof editor?.slackId === 'string' && editor.slackId
+    (editor) =>
+      !editor.archiv && typeof editor?.slackId === 'string' && editor.slackId
   );
 
   if (editors.length === 0) {
@@ -184,29 +218,35 @@ async function sendApplicationWithdrawNotificationToEditors(
 
   for (const editor of editors) {
     let channel = editor.slackId;
+    let skipSend = false;
 
     if (isDev()) {
       if (!SLACK_DEVELOPER_ID) {
+        skipSend = true;
         logger.info(
           `[dev] Slack application withdraw notification to editor ${editor._id} (${editor.slackId}) skipped, no SLACK_DEVELOPER_ID set:\n${slackMessage}`
         );
-        continue;
+      } else {
+        channel = SLACK_DEVELOPER_ID;
       }
-      channel = SLACK_DEVELOPER_ID;
     }
 
-    try {
-      await sendSlackMessage(slackMessage, channel, undefined, {
-        unfurl_links: false,
-        unfurl_media: false
-      });
-    } catch (error) {
-      logger.error(
-        `Failed to send Slack application withdraw notification to editor ${editor._id}: ${
-          error.message || error
-        }`
-      );
+    if (!skipSend) {
+      try {
+        await sendSlackMessage(slackMessage, channel, undefined, {
+          unfurl_links: false,
+          unfurl_media: false
+        });
+      } catch (error) {
+        logger.error(
+          `Failed to send Slack application withdraw notification to editor ${
+            editor._id
+          }: ${error.message || error}`
+        );
+      }
     }
+
+    await logStaffNotificationToManagers(editor, slackMessage);
   }
 }
 

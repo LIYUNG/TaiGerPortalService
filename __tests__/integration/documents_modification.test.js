@@ -176,7 +176,7 @@ beforeEach(() => {
     req.user = admin;
     next();
   });
-  StudentDAO.fetchSimpleStudents.mockResolvedValue([{ _id: student._id }]);
+  StudentDAO.fetchStudentIds.mockResolvedValue([{ _id: student._id }]);
 });
 
 describe('GET /api/document-threads/overview/all/counts', () => {
@@ -192,7 +192,7 @@ describe('GET /api/document-threads/overview/all/counts', () => {
     expect(resp.body.success).toBe(true);
     expect(typeof resp.body.data).toBe('object');
     expect(resp.body.data).toEqual(counts);
-    expect(StudentDAO.fetchSimpleStudents).toHaveBeenCalledWith({
+    expect(StudentDAO.fetchStudentIds).toHaveBeenCalledWith({
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     });
     expect(DocumentthreadDAO.countActiveThreads).toHaveBeenCalledWith(
@@ -217,7 +217,7 @@ describe('GET /api/document-threads/overview/taiger-user/:userId/counts', () => 
     expect(typeof resp.body.data).toBe('object');
     expect(resp.body.data).toEqual(counts);
     // supervisedActiveStudentIds queries non-archived students agented/edited by user.
-    expect(StudentDAO.fetchSimpleStudents).toHaveBeenCalledWith({
+    expect(StudentDAO.fetchStudentIds).toHaveBeenCalledWith({
       $and: [
         { $or: [{ archiv: { $exists: false } }, { archiv: false }] },
         {

@@ -17,6 +17,11 @@ const StudentService = {
     return StudentDAO.fetchSimpleStudents(filter);
   },
 
+  // Lean id-only variant for callers that only need the matching student ids.
+  fetchStudentIds(filter) {
+    return StudentDAO.fetchStudentIds(filter);
+  },
+
   getStudentsPaginated({ filter = {}, query = {} }) {
     return StudentDAO.getStudentsPaginated({ filter, query });
   },

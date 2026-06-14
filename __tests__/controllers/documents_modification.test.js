@@ -65,6 +65,12 @@ jest.mock('../../cache/node-cache', () => ({
     set: jest.fn().mockReturnValue(true),
     del: jest.fn().mockReturnValue(1),
     flushAll: jest.fn()
+  },
+  two_minutes_cache: {
+    get: jest.fn().mockReturnValue(undefined),
+    set: jest.fn().mockReturnValue(true),
+    del: jest.fn().mockReturnValue(1),
+    flushAll: jest.fn()
   }
 }));
 
@@ -407,9 +413,7 @@ describe('clearEssayWriters', () => {
 
 describe('getActiveThreadsPaginated', () => {
   it('200: fetches active students then forwards their ids to the service', async () => {
-    StudentService.fetchSimpleStudents.mockResolvedValue([
-      { _id: new ObjectId() }
-    ]);
+    StudentService.fetchStudentIds.mockResolvedValue([{ _id: new ObjectId() }]);
     DocumentThreadService.getActiveThreadsPaginated.mockResolvedValue({
       data: [],
       total: 0
@@ -424,13 +428,31 @@ describe('getActiveThreadsPaginated', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send.mock.calls[0][0].success).toBe(true);
   });
+
+  it('cache hit: skips the student query and forwards the cached ids', async () => {
+    const { two_minutes_cache } = require('../../cache/node-cache');
+    const cachedIds = [new ObjectId().toString()];
+    two_minutes_cache.get.mockReturnValueOnce(cachedIds);
+    DocumentThreadService.getActiveThreadsPaginated.mockResolvedValue({
+      data: [],
+      total: 0
+    });
+    const res = mockRes();
+
+    await getActiveThreadsPaginated(mockReq({ query: {} }), res, jest.fn());
+
+    expect(StudentService.fetchStudentIds).not.toHaveBeenCalled();
+    expect(
+      DocumentThreadService.getActiveThreadsPaginated.mock.calls[0][0]
+        .studentIds
+    ).toBe(cachedIds);
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
 });
 
 describe('getActiveThreadsCounts', () => {
   it('200: forwards the active student ids to the counts service', async () => {
-    StudentService.fetchSimpleStudents.mockResolvedValue([
-      { _id: new ObjectId() }
-    ]);
+    StudentService.fetchStudentIds.mockResolvedValue([{ _id: new ObjectId() }]);
     DocumentThreadService.getActiveThreadsCounts.mockResolvedValue({ all: 3 });
     const res = mockRes();
 
@@ -444,9 +466,7 @@ describe('getActiveThreadsCounts', () => {
 describe('getMyStudentsThreadsPaginated', () => {
   it('200: scopes to the supervised students and outsourced user', async () => {
     const userId = new ObjectId().toHexString();
-    StudentService.fetchSimpleStudents.mockResolvedValue([
-      { _id: new ObjectId() }
-    ]);
+    StudentService.fetchStudentIds.mockResolvedValue([{ _id: new ObjectId() }]);
     DocumentThreadService.getActiveThreadsPaginated.mockResolvedValue({
       data: []
     });
@@ -468,7 +488,7 @@ describe('getMyStudentsThreadsPaginated', () => {
 describe('getMyStudentsThreadsCounts', () => {
   it('200: scopes the counts to the supervised students', async () => {
     const userId = new ObjectId().toHexString();
-    StudentService.fetchSimpleStudents.mockResolvedValue([]);
+    StudentService.fetchStudentIds.mockResolvedValue([]);
     DocumentThreadService.getActiveThreadsCounts.mockResolvedValue({ all: 0 });
     const res = mockRes();
 

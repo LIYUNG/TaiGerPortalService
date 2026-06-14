@@ -189,6 +189,17 @@ const StudentDAO = {
   },
 
   /**
+   * Lean id-only lookup for callers that just need the matching student ids
+   * (e.g. scoping thread queries to active students). Skips the team populate
+   * and full document payload that `fetchSimpleStudents` carries.
+   * @param {object} filter
+   * @returns {Promise<Array<{ _id: import('mongoose').Types.ObjectId }>>}
+   */
+  async fetchStudentIds(filter) {
+    return Student.find(filter).select('_id').lean();
+  },
+
+  /**
    * Server-side paginated / sorted / searchable variant of fetchStudents.
    * @param {object} filter base filter (role/archiv/agents/editors) from UserQueryBuilder
    * @param {object} query raw req.query (page, limit, sortBy, sortOrder, search, column filters)

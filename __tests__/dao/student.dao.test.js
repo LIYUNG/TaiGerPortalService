@@ -144,6 +144,19 @@ describe('StudentDAO simple reads (mocked models)', () => {
     expect(result).toBe(docs);
   });
 
+  it('fetchStudentIds selects only _id (no populate) and returns lean docs', async () => {
+    const docs = [{ _id: 's2' }];
+    const chain = leanChain(docs);
+    Student.find.mockReturnValue(chain);
+
+    const result = await StudentDAO.fetchStudentIds({ archiv: false });
+
+    expect(Student.find).toHaveBeenCalledWith({ archiv: false });
+    expect(chain.select).toHaveBeenCalledWith('_id');
+    expect(chain.populate).not.toHaveBeenCalled();
+    expect(result).toBe(docs);
+  });
+
   it('getStudents queries User (not Student) and returns lean docs', async () => {
     const docs = [{ _id: 'u1' }];
     User.find.mockReturnValue(leanChain(docs));

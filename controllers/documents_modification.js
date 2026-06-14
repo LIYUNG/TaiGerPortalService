@@ -11,7 +11,7 @@ const {
 
 const { ErrorResponse } = require('../common/errors');
 const { asyncHandler } = require('../middlewares/error-handler');
-const { ten_minutes_cache } = require('../cache/node-cache');
+const { ten_minutes_cache, two_minutes_cache } = require('../cache/node-cache');
 const { informOnSurveyUpdate } = require('../utils/informEditor');
 const {
   sendNewApplicationMessageInThreadEmail,
@@ -88,13 +88,32 @@ const getActiveThreads = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: threads });
 });
 
-const getActiveThreadsPaginated = asyncHandler(async (req, res) => {
-  const activeStudents = await StudentService.fetchSimpleStudents({
+// Active (non-archived) student ids, cached briefly. This set changes rarely
+// (a student is onboarded or archived) — not per page view — so caching it
+// avoids re-querying on every pagination/counts request that the thread
+// dashboards fire. Trade-off: a newly created or archived student can take up
+// to the cache TTL (2 min) to appear/disappear from the boards.
+const ACTIVE_STUDENT_IDS_CACHE_KEY = 'active_student_ids';
+
+const getActiveStudentIds = async () => {
+  const cached = two_minutes_cache.get(ACTIVE_STUDENT_IDS_CACHE_KEY);
+  if (cached) {
+    return cached;
+  }
+
+  const activeStudents = await StudentService.fetchStudentIds({
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   });
+  const studentIds = activeStudents.map((student) => student._id.toString());
+  two_minutes_cache.set(ACTIVE_STUDENT_IDS_CACHE_KEY, studentIds);
+  return studentIds;
+};
+
+const getActiveThreadsPaginated = asyncHandler(async (req, res) => {
+  const studentIds = await getActiveStudentIds();
 
   const result = await DocumentThreadService.getActiveThreadsPaginated({
-    studentIds: activeStudents.map((student) => student._id.toString()),
+    studentIds,
     query: req.query
   });
 
@@ -102,12 +121,10 @@ const getActiveThreadsPaginated = asyncHandler(async (req, res) => {
 });
 
 const getActiveThreadsCounts = asyncHandler(async (req, res) => {
-  const activeStudents = await StudentService.fetchSimpleStudents({
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  });
+  const studentIds = await getActiveStudentIds();
 
   const data = await DocumentThreadService.getActiveThreadsCounts({
-    studentIds: activeStudents.map((student) => student._id.toString()),
+    studentIds,
     query: req.query
   });
 
@@ -117,7 +134,7 @@ const getActiveThreadsCounts = asyncHandler(async (req, res) => {
 // Active students supervised (agent/editor) by this user. Essay threads
 // outsourced to the user are added by the service via `outsourcedUserId`.
 const supervisedActiveStudentIds = async (req, userId) => {
-  const students = await StudentService.fetchSimpleStudents({
+  const students = await StudentService.fetchStudentIds({
     $and: [
       { $or: [{ archiv: { $exists: false } }, { archiv: false }] },
       { $or: [{ agents: userId }, { editors: userId }] }

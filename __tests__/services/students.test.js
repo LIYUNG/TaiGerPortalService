@@ -52,6 +52,18 @@ describe('StudentService (mocked DAO) — fetch/get with default-arg delegators'
     expect(result).toBe(daoResult);
   });
 
+  it('fetchStudentIds delegates with filter', () => {
+    const filter = { archiv: false };
+    const daoResult = [{ _id: 's1' }];
+    StudentDAO.fetchStudentIds.mockReturnValue(daoResult);
+
+    const result = StudentService.fetchStudentIds(filter);
+
+    expect(StudentDAO.fetchStudentIds).toHaveBeenCalledTimes(1);
+    expect(StudentDAO.fetchStudentIds).toHaveBeenCalledWith(filter);
+    expect(result).toBe(daoResult);
+  });
+
   it('getStudents forwards { filter, options } and returns DAO result', () => {
     const filter = { role: 'Student' };
     const options = { sort: { name: 1 } };

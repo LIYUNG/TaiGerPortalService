@@ -1,4 +1,4 @@
-const { Communication } = require('../models');
+import { Communication } from '../models';
 
 const POPULATE = [
   'student_id user_id readBy ignoredMessageBy',

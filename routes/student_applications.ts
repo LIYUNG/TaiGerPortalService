@@ -1,14 +1,12 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const { getMessagesRateLimiter } = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
+import { getMessagesRateLimiter } from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
 
-const {
-  getApplicationConflicts
-} = require('../controllers/student_applications');
+import { getApplicationConflicts } from '../controllers/student_applications';
 
-const { getApplicationDeltas } = require('../controllers/teams');
+import { getApplicationDeltas } from '../controllers/teams';
 
 const router = Router();
 

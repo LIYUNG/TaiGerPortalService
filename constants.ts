@@ -1,4 +1,4 @@
-const {
+import {
   PROGRAM_SUBJECTS,
   ProfileNameType,
   SCHOOL_TAGS,
@@ -12,18 +12,18 @@ const {
   isProgramDecided,
   isProgramSubmitted,
   isProgramWithdraw
-} = require('@taiger-common/core');
-const { differenceInDays } = require('date-fns');
+} from '@taiger-common/core';
+import { differenceInDays } from 'date-fns';
 
-const { ORIGIN, ESCALATION_DEADLINE_DAYS_TRIGGER } = require('./config');
-const {
+import { ORIGIN, ESCALATION_DEADLINE_DAYS_TRIGGER } from './config';
+import {
   TENANT_WEBSITE,
   TENANT_NAME,
   TENANT_INSTAGRAM_LINK,
   TENANT_FACEBOOK_LINK,
   TENANT_MEDIUM_LINK,
   TENANT_LINKEDIN_LINK
-} = require('./constants/common');
+} from './constants/common';
 
 const ACCOUNT_ACTIVATION_URL = new URL('/account/activation', ORIGIN).href;
 const RESEND_ACTIVATION_URL = new URL('/account/resend-activation', ORIGIN)

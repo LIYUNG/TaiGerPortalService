@@ -1,24 +1,19 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   GeneralPUTRequestRateLimiter,
   GeneralPOSTRequestRateLimiter,
   GeneralDELETERequestRateLimiter,
   GeneralGETRequestRateLimiter
-} = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
-const { multitenant_filter } = require('../middlewares/multitenant-filter');
-const {
-  InnerTaigerMultitenantFilter
-} = require('../middlewares/InnerTaigerMultitenantFilter');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const {
-  ProfilefileUpload,
-  VPDfileUpload
-} = require('../middlewares/file-upload');
+} from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
+import { multitenant_filter } from '../middlewares/multitenant-filter';
+import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { ProfilefileUpload, VPDfileUpload } from '../middlewares/file-upload';
 
-const {
+import {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
   getStudentsAndDocLinks,
@@ -31,8 +26,8 @@ const {
   getStudentsV3,
   getStudentsV3Paginated,
   getActiveStudents
-} = require('../controllers/students');
-const {
+} from '../controllers/students';
+import {
   saveProfileFilePath,
   updateVPDFileNecessity,
   saveVPDFilePath,
@@ -42,18 +37,18 @@ const {
   deleteProfileFile,
   deleteVPDFile,
   updateVPDPayment
-} = require('../controllers/files');
-const {
+} from '../controllers/files';
+import {
   permission_canAssignEditor_filter,
   permission_canAssignAgent_filter,
   permission_canAccessStudentDatabase_filter
-} = require('../middlewares/permission-filter');
-const { auditLog } = require('../utils/log/auditLog');
-const {
+} from '../middlewares/permission-filter';
+import { auditLog } from '../utils/log/auditLog';
+import {
   validateStudentId,
   validateProgramId,
   validateApplicationId
-} = require('../common/validation');
+} from '../common/validation';
 
 const router = Router();
 

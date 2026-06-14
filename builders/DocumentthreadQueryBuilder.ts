@@ -1,4 +1,4 @@
-const { BaseQueryBuilder } = require('./BaseQueryBuilder');
+import { BaseQueryBuilder } from './BaseQueryBuilder';
 
 class DocumentthreadQueryBuilder extends BaseQueryBuilder {
   constructor() {

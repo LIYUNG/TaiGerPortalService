@@ -1,5 +1,5 @@
-const { asyncHandler } = require('../middlewares/error-handler');
-const {
+import { asyncHandler } from '../middlewares/error-handler';
+import {
   leads,
   leadProfile,
   leadTags,
@@ -7,15 +7,15 @@ const {
   meetingTranscripts,
   salesReps,
   deals
-} = require('../drizzle/schema/schema.js');
-const { getPostgresDb } = require('../database');
-const { sql, getTableColumns, not, eq, desc, and } = require('drizzle-orm');
-const { nanoid } = require('nanoid');
-const logger = require('../services/logger');
-const { ten_minutes_cache } = require('../cache/node-cache');
-const UserService = require('../services/users');
+} from '../drizzle/schema/schema.js';
+import { getPostgresDb } from '../database';
+import { sql, getTableColumns, not, eq, desc, and } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
+import logger from '../services/logger';
+import { ten_minutes_cache } from '../cache/node-cache';
+import UserService from '../services/users';
 
-const { instantInviteTA } = require('../utils/meeting-assistant.service');
+import { instantInviteTA } from '../utils/meeting-assistant.service';
 
 const postgres = getPostgresDb();
 

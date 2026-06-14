@@ -1,5 +1,5 @@
-const InterviewDAO = require('../dao/interview.dao');
-const InterviewSurveyResponseDAO = require('../dao/interviewSurveyResponse.dao');
+import InterviewDAO from '../dao/interview.dao';
+import InterviewSurveyResponseDAO from '../dao/interviewSurveyResponse.dao';
 
 /**
  * InterviewService — business layer; delegates data access to the Interview and

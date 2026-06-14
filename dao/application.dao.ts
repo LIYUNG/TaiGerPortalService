@@ -1,7 +1,7 @@
-const mongoose = require('mongoose');
-const { ErrorResponse } = require('../common/errors');
-const logger = require('../services/logger');
-const { Application, Documentthread } = require('../models');
+import mongoose from 'mongoose';
+import { ErrorResponse } from '../common/errors';
+import logger from '../services/logger';
+import { Application, Documentthread } from '../models';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;

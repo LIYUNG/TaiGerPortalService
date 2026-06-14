@@ -1,4 +1,4 @@
-const ResponseTimeDAO = require('../dao/responseTime.dao');
+import ResponseTimeDAO from '../dao/responseTime.dao';
 
 /**
  * ResponseTimeService — business layer for averaged response-time records.

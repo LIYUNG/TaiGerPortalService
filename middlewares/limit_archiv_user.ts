@@ -1,4 +1,4 @@
-const { ErrorResponse } = require('../common/errors');
+import { ErrorResponse } from '../common/errors';
 
 const filter_archiv_user = (req, res, next) => {
   const { user } = req;

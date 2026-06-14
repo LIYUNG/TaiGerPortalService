@@ -1,4 +1,4 @@
-const { Token } = require('../models');
+import { Token } from '../models';
 
 /**
  * TokenDAO — data access for the Token model (default-connection model from

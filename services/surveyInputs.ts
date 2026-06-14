@@ -1,4 +1,4 @@
-const SurveyInputDAO = require('../dao/surveyInput.dao');
+import SurveyInputDAO from '../dao/surveyInput.dao';
 
 /**
  * SurveyInputService — business layer for survey inputs. Delegates data access

@@ -1,5 +1,5 @@
-const { TAIGER_SIGNATURE } = require('../constants');
-const { TENANT_NAME, TENANT_PORTAL_LINK } = require('../constants/common');
+import { TAIGER_SIGNATURE } from '../constants';
+import { TENANT_NAME, TENANT_PORTAL_LINK } from '../constants/common';
 
 const htmlContent = (message) => `
 <!DOCTYPE html>

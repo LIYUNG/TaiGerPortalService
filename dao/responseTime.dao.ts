@@ -1,4 +1,4 @@
-const { ResponseTime } = require('../models');
+import { ResponseTime } from '../models';
 
 /**
  * ResponseTimeDAO — data access for the ResponseTime model (default-connection

@@ -1,11 +1,11 @@
 // const path = require('path');
-const { ProfileNameType, DocumentStatusType } = require('@taiger-common/core');
+import { ProfileNameType, DocumentStatusType } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const { updateCredentialsEmail } = require('../services/email');
-const logger = require('../services/logger');
-const UserService = require('../services/users');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import { updateCredentialsEmail } from '../services/email';
+import logger from '../services/logger';
+import UserService from '../services/users';
 
 // (O) email : self notification
 const updateCredentials = asyncHandler(async (req, res) => {

@@ -1,8 +1,8 @@
-const mongoose = require('mongoose');
-const { drizzle } = require('drizzle-orm/node-postgres');
-const { Pool } = require('pg');
-const { MONGODB_URI, POSTGRES_URI, TENANT_ID } = require('./config');
-const {
+import mongoose from 'mongoose';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
+import { MONGODB_URI, POSTGRES_URI, TENANT_ID } from './config';
+import {
   UserSchema,
   Agent,
   Editor,
@@ -10,41 +10,37 @@ const {
   Admin,
   Guest,
   External
-} = require('./models/User');
-const postgresSchema = require('./drizzle/schema/schema.js');
-const { EventSchema } = require('./models/Event');
-const { documentThreadsSchema } = require('./models/Documentthread');
-const { programSchema } = require('./models/Program');
-const { programChangeRequestSchema } = require('./models/ProgramChangeRequest');
-const { coursesSchema } = require('./models/Course');
-const {
-  basedocumentationslinksSchema
-} = require('./models/Basedocumentationslink');
-const { communicationsSchema } = require('./models/Communication');
-const { versionControlSchema } = require('./models/VersionControl');
-const { ticketSchema } = require('./models/Ticket');
-const { tokenSchema } = require('./models/Token');
-const { templatesSchema } = require('./models/Template');
-const { documentationsSchema } = require('./models/Documentation');
-const { internaldocsSchema } = require('./models/Internaldoc');
-const { docspagesSchema } = require('./models/Docspage');
-const { expensesSchema } = require('./models/Expense');
-const { incomesSchema } = require('./models/Income');
-const { interviewsSchema } = require('./models/Interview');
-const { intervalSchema } = require('./models/Interval');
-const {
-  interviewSurveyResponseSchema
-} = require('./models/InterviewSurveyResponse');
-const { notesSchema } = require('./models/Note');
-const { ResponseTimeSchema } = require('./models/ResponseTime');
-const { surveyInputSchema } = require('./models/SurveyInput');
-const { permissionSchema } = require('./models/Permission');
-const { complaintSchema } = require('./models/Complaint');
-const { keywordSetSchema } = require('./models/Keywordset');
-const { programRequirementSchema } = require('./models/Programrequirement');
-const { auditSchema } = require('./models/Audit');
-const { allCourseSchema } = require('./models/Allcourse');
-const { applicationSchema } = require('./models/Application');
+} from './models/User';
+import postgresSchema from './drizzle/schema/schema.js';
+import { EventSchema } from './models/Event';
+import { documentThreadsSchema } from './models/Documentthread';
+import { programSchema } from './models/Program';
+import { programChangeRequestSchema } from './models/ProgramChangeRequest';
+import { coursesSchema } from './models/Course';
+import { basedocumentationslinksSchema } from './models/Basedocumentationslink';
+import { communicationsSchema } from './models/Communication';
+import { versionControlSchema } from './models/VersionControl';
+import { ticketSchema } from './models/Ticket';
+import { tokenSchema } from './models/Token';
+import { templatesSchema } from './models/Template';
+import { documentationsSchema } from './models/Documentation';
+import { internaldocsSchema } from './models/Internaldoc';
+import { docspagesSchema } from './models/Docspage';
+import { expensesSchema } from './models/Expense';
+import { incomesSchema } from './models/Income';
+import { interviewsSchema } from './models/Interview';
+import { intervalSchema } from './models/Interval';
+import { interviewSurveyResponseSchema } from './models/InterviewSurveyResponse';
+import { notesSchema } from './models/Note';
+import { ResponseTimeSchema } from './models/ResponseTime';
+import { surveyInputSchema } from './models/SurveyInput';
+import { permissionSchema } from './models/Permission';
+import { complaintSchema } from './models/Complaint';
+import { keywordSetSchema } from './models/Keywordset';
+import { programRequirementSchema } from './models/Programrequirement';
+import { auditSchema } from './models/Audit';
+import { allCourseSchema } from './models/Allcourse';
+import { applicationSchema } from './models/Application';
 
 // The service is no longer multi-tenant: we maintain exactly ONE shared
 // Mongoose connection instead of a per-tenant map of connections.

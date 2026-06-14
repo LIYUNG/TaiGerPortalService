@@ -1,34 +1,34 @@
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
-const { default: axios } = require('axios');
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+import { default as axios } from 'axios';
 
-const {
+import {
   JWT_SECRET,
   JWT_EXPIRE,
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URL
-} = require('../config');
-const { ErrorResponse } = require('../common/errors');
-const logger = require('../services/logger');
-const {
+} from '../config';
+import { ErrorResponse } from '../common/errors';
+import logger from '../services/logger';
+import {
   fieldsValidation,
   checkUserFirstname,
   checkUserLastname,
   checkEmail,
   checkPassword,
   checkToken
-} = require('../common/validation');
-const { asyncHandler } = require('../middlewares/error-handler');
-const {
+} from '../common/validation';
+import { asyncHandler } from '../middlewares/error-handler';
+import {
   sendConfirmationEmail,
   sendForgotPasswordEmail,
   sendPasswordResetEmail,
   sendAccountActivationConfirmationEmail
-} = require('../services/email');
-const UserService = require('../services/users');
-const TokenService = require('../services/tokens');
-const { fetchUserFromIdToken } = require('../utils/helper');
+} from '../services/email';
+import UserService from '../services/users';
+import TokenService from '../services/tokens';
+import { fetchUserFromIdToken } from '../utils/helper';
 
 const generateAuthToken = (user, tenantId, expiresIn = JWT_EXPIRE) => {
   const payload = { id: user._id, tenantId };

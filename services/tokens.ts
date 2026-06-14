@@ -1,4 +1,4 @@
-const TokenDAO = require('../dao/token.dao');
+import TokenDAO from '../dao/token.dao';
 
 /**
  * TokenService — business layer for auth/activation tokens. Delegates data

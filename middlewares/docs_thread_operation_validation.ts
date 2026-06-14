@@ -1,6 +1,6 @@
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('./error-handler');
-const DocumentThreadService = require('../services/documentthreads');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from './error-handler';
+import DocumentThreadService from '../services/documentthreads';
 
 const doc_thread_ops_validator = asyncHandler(async (req, res, next) => {
   const {

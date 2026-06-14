@@ -1,25 +1,23 @@
-const { asc, desc, eq, and, isNotNull } = require('drizzle-orm');
-const { ErrorResponse } = require('../common/errors');
-const { getPostgresDb } = require('../database');
-const { asyncHandler } = require('../middlewares/error-handler');
-const {
+import { asc, desc, eq, and, isNotNull } from 'drizzle-orm';
+import { ErrorResponse } from '../common/errors';
+import { getPostgresDb } from '../database';
+import { asyncHandler } from '../middlewares/error-handler';
+import {
   aiAssistConversations,
   aiAssistMessages,
   aiAssistToolCalls
-} = require('../drizzle/schema/schema');
-const aiAssistOrchestrator = require('../services/ai-assist/orchestrator');
-const {
+} from '../drizzle/schema/schema';
+import aiAssistOrchestrator from '../services/ai-assist/orchestrator';
+import {
   normalizeStudentPickerRow,
   requireAccessibleStudent,
   searchAccessibleStudents
-} = require('../services/ai-assist/tools');
-const {
-  getAccessibleStudentFilter
-} = require('../services/ai-assist/studentAccess');
-const { withPostgresRetry } = require('../services/ai-assist/postgresRetry');
-const { openAIClient, OpenAiModel } = require('../services/openai');
-const logger = require('../services/logger');
-const StudentService = require('../services/students');
+} from '../services/ai-assist/tools';
+import { getAccessibleStudentFilter } from '../services/ai-assist/studentAccess';
+import { withPostgresRetry } from '../services/ai-assist/postgresRetry';
+import { openAIClient, OpenAiModel } from '../services/openai';
+import logger from '../services/logger';
+import StudentService from '../services/students';
 
 const DEFAULT_TITLE = 'New AI Assist conversation';
 const ACTIVE_STATUS = 'active';

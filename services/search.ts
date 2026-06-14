@@ -1,4 +1,4 @@
-const SearchDAO = require('../dao/search.dao');
+import SearchDAO from '../dao/search.dao';
 
 const byScoreDesc = (a, b) => b.score - a.score;
 

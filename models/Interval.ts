@@ -1,4 +1,4 @@
-const { intervalSchema } = require('@taiger-common/model');
+import { intervalSchema } from '@taiger-common/model';
 
 intervalSchema.index(
   {

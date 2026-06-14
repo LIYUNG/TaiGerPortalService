@@ -1,23 +1,23 @@
-const _ = require('lodash');
-const { is_TaiGer_Agent } = require('@taiger-common/core');
-const { Role } = require('@taiger-common/core');
+import _ from 'lodash';
+import { is_TaiGer_Agent } from '@taiger-common/core';
+import { Role } from '@taiger-common/core';
 
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const { getStudentsByProgram } = require('./programs');
-const { findStudentDeltaGet } = require('../utils/modelHelper/programChange');
-const { GenerateResponseTimeByStudent } = require('./response_time');
-const { numStudentYearDistribution } = require('../utils/utils_function');
-const { ten_minutes_cache } = require('../cache/node-cache');
-const StudentService = require('../services/students');
-const UserQueryBuilder = require('../builders/UserQueryBuilder');
-const InterviewQueryBuilder = require('../builders/InterviewQueryBuilder');
-const InterviewService = require('../services/interviews');
-const DocumentThreadService = require('../services/documentthreads');
-const TeamService = require('../services/teams');
-const UserService = require('../services/users');
-const PermissionService = require('../services/permissions');
-const ProgramService = require('../services/programs');
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import { getStudentsByProgram } from './programs';
+import { findStudentDeltaGet } from '../utils/modelHelper/programChange';
+import { GenerateResponseTimeByStudent } from './response_time';
+import { numStudentYearDistribution } from '../utils/utils_function';
+import { ten_minutes_cache } from '../cache/node-cache';
+import StudentService from '../services/students';
+import UserQueryBuilder from '../builders/UserQueryBuilder';
+import InterviewQueryBuilder from '../builders/InterviewQueryBuilder';
+import InterviewService from '../services/interviews';
+import DocumentThreadService from '../services/documentthreads';
+import TeamService from '../services/teams';
+import UserService from '../services/users';
+import PermissionService from '../services/permissions';
+import ProgramService from '../services/programs';
 
 const getActivePrograms = asyncHandler(async () =>
   TeamService.getActivePrograms()

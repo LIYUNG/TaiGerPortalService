@@ -33,8 +33,8 @@
  * - debug: 3 (lowest priority)
  */
 
-const { isProd, isTest } = require('../config');
-const { getRequestId } = require('../middlewares/requestContext');
+import { isProd, isTest } from '../config';
+import { getRequestId } from '../middlewares/requestContext';
 
 // ANSI color codes for console output
 const colors = {

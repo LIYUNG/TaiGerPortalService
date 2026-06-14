@@ -1,7 +1,7 @@
-const { STSClient, AssumeRoleCommand } = require('@aws-sdk/client-sts');
+import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 
-const logger = require('../services/logger');
-const { AWS_KEY_CONFIG } = require('./constants');
+import logger from '../services/logger';
+import { AWS_KEY_CONFIG } from './constants';
 
 const stsClient = new STSClient(AWS_KEY_CONFIG);
 

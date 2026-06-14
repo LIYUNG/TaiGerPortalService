@@ -1,15 +1,15 @@
-const { Role } = require('@taiger-common/core');
+import { Role } from '@taiger-common/core';
 
-const { isArchiv, isNotArchiv } = require('../constants');
-const {
+import { isArchiv, isNotArchiv } from '../constants';
+import {
   sendNewApplicationMessageInThreadEmail,
   sendAssignEditorReminderEmail,
   sendNewGeneraldocMessageInThreadEmail
-} = require('../services/email');
-const { ErrorResponse } = require('../common/errors');
-const DocumentThreadService = require('../services/documentthreads');
-const StudentService = require('../services/students');
-const PermissionService = require('../services/permissions');
+} from '../services/email';
+import { ErrorResponse } from '../common/errors';
+import DocumentThreadService from '../services/documentthreads';
+import StudentService from '../services/students';
+import PermissionService from '../services/permissions';
 
 // Internal helpers — invoked directly with domain args (NOT Express
 // middleware), so they must NOT be wrapped in asyncHandler (its (req,res,next)

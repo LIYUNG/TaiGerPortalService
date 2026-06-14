@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 // Function to strip out `required` and `default` properties recursively
 const stripModel = (modelObj) => {

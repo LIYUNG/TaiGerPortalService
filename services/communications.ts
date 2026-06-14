@@ -1,4 +1,4 @@
-const CommunicationDAO = require('../dao/communication.dao');
+import CommunicationDAO from '../dao/communication.dao';
 
 /**
  * CommunicationService — business layer; delegates data access to the DAO

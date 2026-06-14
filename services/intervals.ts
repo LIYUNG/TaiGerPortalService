@@ -1,4 +1,4 @@
-const IntervalDAO = require('../dao/interval.dao');
+import IntervalDAO from '../dao/interval.dao';
 
 /**
  * IntervalService — business layer for response-interval records. Delegates

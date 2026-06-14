@@ -1,15 +1,15 @@
-const {
-  userSchema: UserSchema,
+import {
+  userSchema as UserSchema,
   agentSchema,
   editorSchema,
   studentSchema,
   externalSchema,
   managerSchema
-} = require('@taiger-common/model');
-const { model, Schema } = require('mongoose');
-const { Role } = require('@taiger-common/core');
+} from '@taiger-common/model';
+import { model, Schema } from 'mongoose';
+import { Role } from '@taiger-common/core';
 
-const bcrypt = require('bcryptjs');
+import bcrypt from 'bcryptjs';
 
 const options = { discriminatorKey: 'role', timestamps: true };
 

@@ -1,4 +1,4 @@
-const AuditDAO = require('../dao/audit.dao');
+import AuditDAO from '../dao/audit.dao';
 
 /**
  * AuditService — business layer for audit logs. Delegates data access to the

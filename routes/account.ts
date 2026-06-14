@@ -1,25 +1,23 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
-const {
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
+import {
   GeneralGETRequestRateLimiter,
   GeneralPUTRequestRateLimiter,
   DownloadTemplateRateLimiter,
   RemoveNotificationRateLimiter,
   updateCredentialRateLimiter,
   updatePersonalInformationRateLimiter
-} = require('../middlewares/rate_limiter');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const { multitenant_filter } = require('../middlewares/multitenant-filter');
-const {
-  InnerTaigerMultitenantFilter
-} = require('../middlewares/InnerTaigerMultitenantFilter');
-const { protect, permit } = require('../middlewares/auth');
-const {
+} from '../middlewares/rate_limiter';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { multitenant_filter } from '../middlewares/multitenant-filter';
+import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
+import { protect, permit } from '../middlewares/auth';
+import {
   TemplatefileUpload,
   admissionUpload
-} = require('../middlewares/file-upload');
+} from '../middlewares/file-upload';
 
-const {
+import {
   getTemplates,
   deleteTemplate,
   uploadTemplate,
@@ -29,20 +27,17 @@ const {
   getMyAcademicBackground,
   updateStudentApplicationResult,
   updateStudentApplicationResultV2
-} = require('../controllers/files');
-const {
+} from '../controllers/files';
+import {
   updateAcademicBackground,
   updateLanguageSkill,
   updateApplicationPreferenceSkill,
   updatePersonalData
-} = require('../controllers/account');
+} from '../controllers/account';
 
-const {
-  updateCredentials,
-  updateOfficehours
-} = require('../controllers/account');
-const { localAuth } = require('../middlewares/auth');
-const { validateStudentId } = require('../common/validation');
+import { updateCredentials, updateOfficehours } from '../controllers/account';
+import { localAuth } from '../middlewares/auth';
+import { validateStudentId } from '../common/validation';
 
 const router = Router();
 

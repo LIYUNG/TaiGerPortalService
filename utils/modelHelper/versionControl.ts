@@ -1,11 +1,11 @@
-const mongoose = require('mongoose');
-const path = require('path');
-const logger = require('../../services/logger');
-const { asyncHandler } = require('../../middlewares/error-handler');
-const { findStudentDelta } = require('./programChange');
-const { ErrorResponse } = require('../../common/errors');
-const { AWS_S3_BUCKET_NAME } = require('../../config');
-const { listS3ObjectsV2, deleteS3Objects } = require('../../aws/s3');
+import mongoose from 'mongoose';
+import path from 'path';
+import logger from '../../services/logger';
+import { asyncHandler } from '../../middlewares/error-handler';
+import { findStudentDelta } from './programChange';
+import { ErrorResponse } from '../../common/errors';
+import { AWS_S3_BUCKET_NAME } from '../../config';
+import { listS3ObjectsV2, deleteS3Objects } from '../../aws/s3';
 
 // TODO: aws-sdk v3 to be tested
 // only delete first 1000 objects
@@ -35,7 +35,7 @@ const emptyS3Directory = asyncHandler(async (bucket, dir) => {
 });
 
 const createApplicationThread = async (studentId, programId, fileType) => {
-  // eslint-disable-next-line global-require
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
   const { Student, Application, Documentthread } = require('../../models');
 
   const threadExisted = await Documentthread.findOne({
@@ -100,7 +100,7 @@ const createApplicationThreadV2 = async (
   applicationId,
   fileType
 ) => {
-  // eslint-disable-next-line global-require
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
   const { Student, Application, Documentthread } = require('../../models');
 
   const threadExisted = await Documentthread.findOne({
@@ -160,7 +160,7 @@ const deleteApplicationThread = async (
   programId,
   messagesThreadId
 ) => {
-  // eslint-disable-next-line global-require
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
   const { Application, Documentthread, surveyInput } = require('../../models');
 
   // Before delete the thread, please delete all of the files in the thread!!
@@ -235,7 +235,7 @@ const isCrucialChanges = (changes) => {
 };
 
 const findAffectedStudents = asyncHandler(async (programId) => {
-  // eslint-disable-next-line global-require
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
   const { Application } = require('../../models');
   // non-archived student has open application for program
   const applications = await Application.find({

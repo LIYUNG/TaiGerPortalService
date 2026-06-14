@@ -1,5 +1,5 @@
-const { body, param, validationResult } = require('express-validator');
-const { Role } = require('@taiger-common/core');
+import { body, param, validationResult } from 'express-validator';
+import { Role } from '@taiger-common/core';
 
 const fieldsValidation =
   (...rules) =>

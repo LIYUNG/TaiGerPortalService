@@ -1,12 +1,12 @@
-const axios = require('axios');
-const { Sha256 } = require('@aws-crypto/sha256-browser');
-const { SignatureV4 } = require('@aws-sdk/signature-v4');
+import axios from 'axios';
+import { Sha256 } from '@aws-crypto/sha256-browser';
+import { SignatureV4 } from '@aws-sdk/signature-v4';
 
-const logger = require('../services/logger');
-const { ses, limiter, SendRawEmailCommand } = require('./ses');
-const { s3Client } = require('./s3');
-const { getTemporaryCredentials } = require('./sts');
-const { AWS_REGION } = require('../config');
+import logger from '../services/logger';
+import { ses, limiter, SendRawEmailCommand } from './ses';
+import { s3Client } from './s3';
+import { getTemporaryCredentials } from './sts';
+import { AWS_REGION } from '../config';
 
 const callApiGateway = async (
   credentials,

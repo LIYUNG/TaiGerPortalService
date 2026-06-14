@@ -1,4 +1,4 @@
-const { Program } = require('../models');
+import { Program } from '../models';
 
 /**
  * ProgramDAO — data access for the Program model (default-connection model from

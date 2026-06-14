@@ -1,7 +1,7 @@
-const { Role, is_TaiGer_Student } = require('@taiger-common/core');
+import { Role, is_TaiGer_Student } from '@taiger-common/core';
 
-const ResponseTimeService = require('../services/responseTimes');
-const { asyncHandler } = require('../middlewares/error-handler');
+import ResponseTimeService from '../services/responseTimes';
+import { asyncHandler } from '../middlewares/error-handler';
 
 const GetResponseTimeForCommunication = asyncHandler(async () =>
   ResponseTimeService.getForCommunicationPopulated()

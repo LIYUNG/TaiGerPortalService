@@ -1,10 +1,10 @@
-const { is_TaiGer_Editor, is_TaiGer_Agent } = require('@taiger-common/core');
+import { is_TaiGer_Editor, is_TaiGer_Agent } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { getPermission } = require('../utils/queryFunctions');
-const { asyncHandler } = require('./error-handler');
-const DocumentThreadService = require('../services/documentthreads');
-const StudentService = require('../services/students');
+import { ErrorResponse } from '../common/errors';
+import { getPermission } from '../utils/queryFunctions';
+import { asyncHandler } from './error-handler';
+import DocumentThreadService from '../services/documentthreads';
+import StudentService from '../services/students';
 
 // Editor Lead, student's agents and agent lead
 // TODO: test case

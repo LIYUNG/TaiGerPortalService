@@ -1,6 +1,6 @@
-const ProgramRequirementDAO = require('../dao/programRequirement.dao');
-const ProgramDAO = require('../dao/program.dao');
-const KeywordSetDAO = require('../dao/keywordset.dao');
+import ProgramRequirementDAO from '../dao/programRequirement.dao';
+import ProgramDAO from '../dao/program.dao';
+import KeywordSetDAO from '../dao/keywordset.dao';
 
 /**
  * ProgramRequirementService — business layer for program requirements. Composes

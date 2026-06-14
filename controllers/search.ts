@@ -1,6 +1,6 @@
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const SearchService = require('../services/search');
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import SearchService from '../services/search';
 
 const getQueryPublicResults = asyncHandler(async (req, res) => {
   const data = await SearchService.getPublicResults(req.query.q);

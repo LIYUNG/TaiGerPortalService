@@ -1,4 +1,4 @@
-const { Documentation, User, Internaldoc, Program } = require('../models');
+import { Documentation, User, Internaldoc, Program } from '../models';
 
 const textScore = { score: { $meta: 'textScore' } };
 

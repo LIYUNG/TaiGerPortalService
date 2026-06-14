@@ -1,10 +1,10 @@
-const { Schema } = require('mongoose');
-const mongoose = require('mongoose');
-const { programModule } = require('@taiger-common/model');
-const {
+import { Schema } from 'mongoose';
+import mongoose from 'mongoose';
+import { programModule } from '@taiger-common/model';
+import {
   handleProgramChanges,
   enableVersionControl
-} = require('../utils/modelHelper/versionControl');
+} from '../utils/modelHelper/versionControl';
 
 const programSchema = new Schema(programModule, { timestamps: true });
 

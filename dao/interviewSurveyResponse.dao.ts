@@ -1,4 +1,4 @@
-const { InterviewSurveyResponse } = require('../models');
+import { InterviewSurveyResponse } from '../models';
 
 const applyPopulates = (query, populates = []) => {
   populates.forEach((args) => {

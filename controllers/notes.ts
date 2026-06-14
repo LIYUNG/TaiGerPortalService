@@ -1,5 +1,5 @@
-const { asyncHandler } = require('../middlewares/error-handler');
-const NoteService = require('../services/notes');
+import { asyncHandler } from '../middlewares/error-handler';
+import NoteService from '../services/notes';
 
 const getStudentNotes = asyncHandler(async (req, res) => {
   const { student_id } = req.params;

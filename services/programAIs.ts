@@ -1,4 +1,4 @@
-const ProgramAIDAO = require('../dao/programAI.dao');
+import ProgramAIDAO from '../dao/programAI.dao';
 
 /**
  * ProgramAIService — business layer for AI-generated program metadata.

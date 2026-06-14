@@ -1,5 +1,5 @@
-const { AsyncLocalStorage } = require('async_hooks');
-const crypto = require('crypto');
+import { AsyncLocalStorage } from 'async_hooks';
+import crypto from 'crypto';
 
 /**
  * Per-request context backed by AsyncLocalStorage.

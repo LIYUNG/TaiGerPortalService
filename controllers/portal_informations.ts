@@ -1,9 +1,9 @@
-const _ = require('lodash');
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const ApplicationService = require('../services/applications');
-const StudentService = require('../services/students');
+import _ from 'lodash';
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import ApplicationService from '../services/applications';
+import StudentService from '../services/students';
 
 const getPortalCredentials = asyncHandler(async (req, res) => {
   const {

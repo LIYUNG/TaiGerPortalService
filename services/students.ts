@@ -1,4 +1,4 @@
-const StudentDAO = require('../dao/student.dao');
+import StudentDAO from '../dao/student.dao';
 
 /**
  * StudentService — business/orchestration layer for students.

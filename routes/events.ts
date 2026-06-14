@@ -1,8 +1,8 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const { protect, permit } = require('../middlewares/auth');
-const {
+import { protect, permit } from '../middlewares/auth';
+import {
   getEvents,
   getEventsPaginated,
   getBookedEvents,
@@ -12,17 +12,17 @@ const {
   deleteEvent,
   confirmEvent,
   getActiveEventsNumber
-} = require('../controllers/events');
+} from '../controllers/events';
 
-const {
+import {
   GeneralGETRequestRateLimiter,
   GeneralPUTRequestRateLimiter,
   GeneralDELETERequestRateLimiter,
   GeneralPOSTRequestRateLimiter
-} = require('../middlewares/rate_limiter');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const { event_multitenant_filter } = require('../middlewares/event-filter');
-const { validateStudentId } = require('../common/validation');
+} from '../middlewares/rate_limiter';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { event_multitenant_filter } from '../middlewares/event-filter';
+import { validateStudentId } from '../common/validation';
 // const handleError = require('../utils/eventErrors');
 const router = Router();
 

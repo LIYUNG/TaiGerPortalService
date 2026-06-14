@@ -1,4 +1,4 @@
-const CourseDAO = require('../dao/course.dao');
+import CourseDAO from '../dao/course.dao';
 
 /**
  * CourseService — business layer for courses. Delegates data access to the DAO

@@ -1,14 +1,14 @@
-const _ = require('lodash');
-const path = require('path');
-const { Role } = require('@taiger-common/core');
+import _ from 'lodash';
+import path from 'path';
+import { Role } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const { ten_minutes_cache } = require('../cache/node-cache');
-const logger = require('../services/logger');
-const { ORIGIN, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
-const { getS3Object } = require('../aws/s3');
-const DocumentationService = require('../services/documentations');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import { ten_minutes_cache } from '../cache/node-cache';
+import logger from '../services/logger';
+import { ORIGIN, AWS_S3_PUBLIC_BUCKET_NAME } from '../config';
+import { getS3Object } from '../aws/s3';
+import DocumentationService from '../services/documentations';
 
 const valid_categories = [
   'howtostart',

@@ -1,4 +1,4 @@
-const { VC } = require('../models');
+import { VC } from '../models';
 
 /**
  * VCDAO — data access for the VC (version control) model (central

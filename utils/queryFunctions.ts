@@ -1,8 +1,8 @@
-const { ten_minutes_cache } = require('../cache/node-cache');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const PermissionService = require('../services/permissions');
-const StudentService = require('../services/students');
+import { ten_minutes_cache } from '../cache/node-cache';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import PermissionService from '../services/permissions';
+import StudentService from '../services/students';
 
 // These function will cache frequently query result but not change frequently.
 

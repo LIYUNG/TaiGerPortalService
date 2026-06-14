@@ -1,10 +1,8 @@
-const {
-  model,
-  Schema,
-  Types: { ObjectId }
-} = require('mongoose');
+import { model, Schema, Types } from 'mongoose';
 
-const { programModule } = require('./Program');
+const { ObjectId } = Types;
+
+import { programModule } from './Program';
 
 const programKeys = Object.keys(programModule);
 const programAIModule = {};

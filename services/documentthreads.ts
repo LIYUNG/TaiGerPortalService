@@ -1,5 +1,5 @@
-const StudentService = require('./students');
-const DocumentthreadDAO = require('../dao/documentthread.dao');
+import StudentService from './students';
+import DocumentthreadDAO from '../dao/documentthread.dao';
 
 const DocumentThreadService = {
   // Default-connection helpers (no req) used by the migrated application flow.

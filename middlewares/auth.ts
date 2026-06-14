@@ -1,5 +1,5 @@
-const passport = require('passport');
-const { ErrorResponse } = require('../common/errors');
+import passport from 'passport';
+import { ErrorResponse } from '../common/errors';
 
 const localAuth = (req, res, next) => {
   passport.authenticate('local', { session: false }, (err, user) => {

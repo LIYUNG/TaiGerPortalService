@@ -1,4 +1,4 @@
-const TicketDAO = require('../dao/ticket.dao');
+import TicketDAO from '../dao/ticket.dao';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;

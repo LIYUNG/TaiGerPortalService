@@ -10,42 +10,42 @@
 // enableVersionControl plugins, which resolve their sibling models from the
 // firing model's own connection — so Program reads AND writes run safely on the
 // default-connection model here.
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 // Already compiled on the default connection.
-const userModels = require('./User'); // User, Student, Agent, Editor, Admin, ...
-const { Program } = require('./Program');
-const { ProgramAI } = require('./ProgramAI');
+import userModels from './User'; // User, Student, Agent, Editor, Admin, ...
+import { Program } from './Program';
+import { ProgramAI } from './ProgramAI';
 
 // Schema-only models (compiled below).
-const { allCourseSchema } = require('./Allcourse');
-const { applicationSchema } = require('./Application');
-const { auditSchema } = require('./Audit');
-const { basedocumentationslinksSchema } = require('./Basedocumentationslink');
-const { communicationsSchema } = require('./Communication');
-const { complaintSchema } = require('./Complaint');
-const { coursesSchema } = require('./Course');
-const { documentationsSchema } = require('./Documentation');
-const { documentThreadsSchema } = require('./Documentthread');
-const { docspagesSchema } = require('./Docspage');
-const { EventSchema } = require('./Event');
-const { expensesSchema } = require('./Expense');
-const { incomesSchema } = require('./Income');
-const { internaldocsSchema } = require('./Internaldoc');
-const { intervalSchema } = require('./Interval');
-const { interviewsSchema } = require('./Interview');
-const { interviewSurveyResponseSchema } = require('./InterviewSurveyResponse');
-const { keywordSetSchema } = require('./Keywordset');
-const { notesSchema } = require('./Note');
-const { permissionSchema } = require('./Permission');
-const { programChangeRequestSchema } = require('./ProgramChangeRequest');
-const { programRequirementSchema } = require('./Programrequirement');
-const { ResponseTimeSchema } = require('./ResponseTime');
-const { surveyInputSchema } = require('./SurveyInput');
-const { templatesSchema } = require('./Template');
-const { ticketSchema } = require('./Ticket');
-const { tokenSchema } = require('./Token');
-const { versionControlSchema } = require('./VersionControl');
+import { allCourseSchema } from './Allcourse';
+import { applicationSchema } from './Application';
+import { auditSchema } from './Audit';
+import { basedocumentationslinksSchema } from './Basedocumentationslink';
+import { communicationsSchema } from './Communication';
+import { complaintSchema } from './Complaint';
+import { coursesSchema } from './Course';
+import { documentationsSchema } from './Documentation';
+import { documentThreadsSchema } from './Documentthread';
+import { docspagesSchema } from './Docspage';
+import { EventSchema } from './Event';
+import { expensesSchema } from './Expense';
+import { incomesSchema } from './Income';
+import { internaldocsSchema } from './Internaldoc';
+import { intervalSchema } from './Interval';
+import { interviewsSchema } from './Interview';
+import { interviewSurveyResponseSchema } from './InterviewSurveyResponse';
+import { keywordSetSchema } from './Keywordset';
+import { notesSchema } from './Note';
+import { permissionSchema } from './Permission';
+import { programChangeRequestSchema } from './ProgramChangeRequest';
+import { programRequirementSchema } from './Programrequirement';
+import { ResponseTimeSchema } from './ResponseTime';
+import { surveyInputSchema } from './SurveyInput';
+import { templatesSchema } from './Template';
+import { ticketSchema } from './Ticket';
+import { tokenSchema } from './Token';
+import { versionControlSchema } from './VersionControl';
 
 // Idempotent compile: reuse an already-registered model (avoids
 // OverwriteModelError when this module is required more than once).

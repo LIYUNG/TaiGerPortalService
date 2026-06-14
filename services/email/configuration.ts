@@ -1,16 +1,16 @@
-const { createTransport } = require('nodemailer');
-const {
+import { createTransport } from 'nodemailer';
+import {
   SMTP_HOST,
   SMTP_PORT,
   SMTP_USERNAME,
   SMTP_PASSWORD,
   isProd,
   isTest
-} = require('../../config');
-const { ses, limiter, SendRawEmailCommand } = require('../../aws');
-const { senderName, taigerNotReplyGmail } = require('../../constants/email');
-const { htmlContent } = require('../emailTemplate');
-const logger = require('../logger');
+} from '../../config';
+import { ses, limiter, SendRawEmailCommand } from '../../aws';
+import { senderName, taigerNotReplyGmail } from '../../constants/email';
+import { htmlContent } from '../emailTemplate';
+import logger from '../logger';
 
 const transporter = isProd()
   ? createTransport({

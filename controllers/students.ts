@@ -1,21 +1,21 @@
-const {
+import {
   Role,
   is_TaiGer_Agent,
   is_TaiGer_Editor,
   is_TaiGer_External,
   is_TaiGer_Student,
   is_TaiGer_Admin
-} = require('@taiger-common/core');
-const mongoose = require('mongoose');
+} from '@taiger-common/core';
+import mongoose from 'mongoose';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const {
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import {
   add_portals_registered_status,
   userChangesHelperFunction
-} = require('../utils/utils_function');
-const logger = require('../services/logger');
-const {
+} from '../utils/utils_function';
+import logger from '../services/logger';
+import {
   informEditorArchivedStudentEmail,
   informStudentArchivedStudentEmail,
   informAgentNewStudentEmail,
@@ -24,19 +24,19 @@ const {
   informStudentTheirEditorEmail,
   informAgentStudentAssignedEmail,
   informAgentManagerNewStudentEmail
-} = require('../services/email');
+} from '../services/email';
 
-const { isNotArchiv, ManagerType } = require('../constants');
-const { getPermission } = require('../utils/queryFunctions');
-const StudentService = require('../services/students');
-const UserQueryBuilder = require('../builders/UserQueryBuilder');
-const ApplicationService = require('../services/applications');
-const InterviewService = require('../services/interviews');
-const { getAuditLogs } = require('../services/audit');
-const ProgramService = require('../services/programs');
-const UserService = require('../services/users');
-const PermissionService = require('../services/permissions');
-const BasedocumentationslinkService = require('../services/basedocumentationslinks');
+import { isNotArchiv, ManagerType } from '../constants';
+import { getPermission } from '../utils/queryFunctions';
+import StudentService from '../services/students';
+import UserQueryBuilder from '../builders/UserQueryBuilder';
+import ApplicationService from '../services/applications';
+import InterviewService from '../services/interviews';
+import { getAuditLogs } from '../services/audit';
+import ProgramService from '../services/programs';
+import UserService from '../services/users';
+import PermissionService from '../services/permissions';
+import BasedocumentationslinkService from '../services/basedocumentationslinks';
 
 const getStudentAndDocLinks = asyncHandler(async (req, res) => {
   const {

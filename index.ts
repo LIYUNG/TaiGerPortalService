@@ -1,13 +1,13 @@
-const schedule = require('node-schedule');
-const https = require('https');
-const fs = require('fs');
-const mongoose = require('mongoose');
+import schedule from 'node-schedule';
+import https from 'https';
+import fs from 'fs';
+import mongoose from 'mongoose';
 
-const { app } = require('./app');
-const { mongoDb } = require('./database');
+import { app } from './app';
+import { mongoDb } from './database';
 // Compile all models on the default Mongoose connection (used by the DAO layer).
-require('./models');
-const {
+import './models';
+import {
   PORT,
   isProd,
   isDev,
@@ -26,13 +26,13 @@ const {
   COURSE_SELECTION_TASKS_REMINDER_JULY_SCHEDULE,
   COURSE_SELECTION_TASKS_REMINDER_NOVEMBER_SCHEDULE,
   AVERAGE_RESPONSE_TIME_CALCULATION_SCHEDULE
-} = require('./config');
-const logger = require('./services/logger');
+} from './config';
+import logger from './services/logger';
 // const {
 //   DocumentationS3GarbageCollector
 // } = require('./controllers/documentations');
 
-const {
+import {
   TasksReminderEmails,
   UrgentTasksReminderEmails,
   NextSemesterCourseSelectionReminderEmails,
@@ -42,7 +42,7 @@ const {
   DailyCalculateAverageResponseTime,
   NoInterviewTrainerOrTrainingDateDailyReminderChecker,
   DailyInterviewSurveyChecker
-} = require('./utils/utils_function');
+} from './utils/utils_function';
 // const { UserS3GarbageCollector } = require('./controllers/users');
 
 // process.on('SIGINT', () => {

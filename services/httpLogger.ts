@@ -1,5 +1,5 @@
-const morgan = require('morgan');
-const logger = require('./logger');
+import morgan from 'morgan';
+import logger from './logger';
 
 const httpLogger = morgan((tokens, req, res) => {
   const status = tokens.status(req, res);

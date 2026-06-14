@@ -1,8 +1,6 @@
-const {
-  model,
-  Schema,
-  Types: { ObjectId }
-} = require('mongoose');
+import { model, Schema, Types } from 'mongoose';
+
+const { ObjectId } = Types;
 
 const incomesSchema = new Schema({
   student_id: { type: ObjectId, ref: 'User' },

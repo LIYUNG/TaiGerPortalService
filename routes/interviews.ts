@@ -1,8 +1,8 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const { protect, permit } = require('../middlewares/auth');
-const {
+import { protect, permit } from '../middlewares/auth';
+import {
   getAllInterviewsPaginated,
   getMyInterviewPaginated,
   getInterview,
@@ -17,22 +17,20 @@ const {
   getAllOpenInterviews,
   getInterviewsByProgramId,
   getInterviewsByStudentId
-} = require('../controllers/interviews');
-const { multitenant_filter } = require('../middlewares/multitenant-filter');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const {
+} from '../controllers/interviews';
+import { multitenant_filter } from '../middlewares/multitenant-filter';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import {
   InterviewPUTRateLimiter,
   InterviewGETRateLimiter
-} = require('../middlewares/rate_limiter');
-const {
+} from '../middlewares/rate_limiter';
+import {
   interviewMultitenantFilter,
   interviewMultitenantReadOnlyFilter
-} = require('../middlewares/interviewMultitenantFilter');
-const {
-  InnerTaigerMultitenantFilter
-} = require('../middlewares/InnerTaigerMultitenantFilter');
-const { auditLog } = require('../utils/log/auditLog');
-const { validateStudentId } = require('../common/validation');
+} from '../middlewares/interviewMultitenantFilter';
+import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
+import { auditLog } from '../utils/log/auditLog';
+import { validateStudentId } from '../common/validation';
 
 const router = Router();
 

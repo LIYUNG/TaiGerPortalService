@@ -1,13 +1,13 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   GeneralGETRequestRateLimiter,
   GeneralPOSTRequestRateLimiter,
   GeneralDELETERequestRateLimiter
-} = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
-const {
+} from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
+import {
   archiveConversation,
   createConversation,
   getConversation,
@@ -18,7 +18,7 @@ const {
   sendFirstMessage,
   updateConversation,
   searchStudents
-} = require('../controllers/ai_assist');
+} from '../controllers/ai_assist';
 
 const router = Router();
 

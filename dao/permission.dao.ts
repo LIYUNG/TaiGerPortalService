@@ -1,4 +1,4 @@
-const { Permission } = require('../models');
+import { Permission } from '../models';
 
 /**
  * PermissionDAO — data access for the Permission model (default-connection

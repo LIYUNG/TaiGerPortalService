@@ -1,4 +1,4 @@
-const { Event } = require('../models');
+import { Event } from '../models';
 
 const TEAM_POPULATE_PATH = 'receiver_id requester_id';
 const TEAM_POPULATE_SELECT = 'firstname lastname email pictureUrl';

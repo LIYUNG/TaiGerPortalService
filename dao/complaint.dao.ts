@@ -1,4 +1,4 @@
-const { Complaint } = require('../models');
+import { Complaint } from '../models';
 
 const REQUESTER_POPULATE = [
   'requester_id',

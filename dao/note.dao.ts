@@ -1,4 +1,4 @@
-const { Note } = require('../models');
+import { Note } from '../models';
 
 /**
  * NoteDAO — data access for the Note model (default-connection model from

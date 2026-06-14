@@ -1,11 +1,11 @@
-const { is_TaiGer_Editor, is_TaiGer_Agent } = require('@taiger-common/core');
+import { is_TaiGer_Editor, is_TaiGer_Agent } from '@taiger-common/core';
 
-const { ten_minutes_cache } = require('../cache/node-cache');
-const { ErrorResponse } = require('../common/errors');
-const logger = require('../services/logger');
-const { getPermission } = require('../utils/queryFunctions');
-const { asyncHandler } = require('./error-handler');
-const StudentService = require('../services/students');
+import { ten_minutes_cache } from '../cache/node-cache';
+import { ErrorResponse } from '../common/errors';
+import logger from '../services/logger';
+import { getPermission } from '../utils/queryFunctions';
+import { asyncHandler } from './error-handler';
+import StudentService from '../services/students';
 
 const chatMultitenantFilter = asyncHandler(async (req, res, next) => {
   const {

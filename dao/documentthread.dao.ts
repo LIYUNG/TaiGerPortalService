@@ -1,8 +1,6 @@
-const mongoose = require('mongoose');
-const { Documentthread } = require('../models');
-const {
-  createApplicationThreadV2
-} = require('../utils/modelHelper/versionControl');
+import mongoose from 'mongoose';
+import { Documentthread } from '../models';
+import { createApplicationThreadV2 } from '../utils/modelHelper/versionControl';
 
 const applyPopulates = (query, populates = []) => {
   populates.forEach((args) => {

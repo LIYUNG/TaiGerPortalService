@@ -1,4 +1,4 @@
-const { BaseQueryBuilder } = require('./BaseQueryBuilder');
+import { BaseQueryBuilder } from './BaseQueryBuilder';
 
 class UserQueryBuilder extends BaseQueryBuilder {
   constructor() {

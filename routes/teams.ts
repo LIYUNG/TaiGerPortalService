@@ -1,11 +1,11 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const { GeneralGETRequestRateLimiter } = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
+import { GeneralGETRequestRateLimiter } from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 
-const {
+import {
   getTeamMembers,
   getStatisticsOverview,
   getStatisticsAgents,
@@ -16,10 +16,8 @@ const {
   getArchivStudents,
   getTasksOverview,
   getIsManager
-} = require('../controllers/teams');
-const {
-  permission_canAccessStudentDatabase_filter
-} = require('../middlewares/permission-filter');
+} from '../controllers/teams';
+import { permission_canAccessStudentDatabase_filter } from '../middlewares/permission-filter';
 
 const router = Router();
 

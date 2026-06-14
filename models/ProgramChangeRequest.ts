@@ -1,7 +1,7 @@
-const { Schema } = require('mongoose');
+import { Schema } from 'mongoose';
 
-const { programModule } = require('./Program');
-const stripModel = require('../utils/modelHelper/stripModel');
+import { programModule } from './Program';
+import stripModel from '../utils/modelHelper/stripModel';
 
 // program keys -> string values (URLs)
 const changeSources = Object.keys(programModule).reduce(

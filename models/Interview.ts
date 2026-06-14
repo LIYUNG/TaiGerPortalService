@@ -1,4 +1,4 @@
-const { interviewsSchema } = require('@taiger-common/model');
+import { interviewsSchema } from '@taiger-common/model';
 
 interviewsSchema.index(
   { student_id: 1, program_id: 1, thread_id: 1 },

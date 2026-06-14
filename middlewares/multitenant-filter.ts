@@ -1,11 +1,7 @@
-const {
-  Role,
-  is_TaiGer_Student,
-  is_TaiGer_Guest
-} = require('@taiger-common/core');
+import { Role, is_TaiGer_Student, is_TaiGer_Guest } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const ComplaintService = require('../services/complaints');
+import { ErrorResponse } from '../common/errors';
+import ComplaintService from '../services/complaints';
 
 const multitenant_filter = (req, res, next) => {
   const {

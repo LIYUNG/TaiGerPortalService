@@ -1,12 +1,12 @@
-const { Role } = require('@taiger-common/core');
-const {
+import { Role } from '@taiger-common/core';
+import {
   Application,
   User,
   Student,
   Interval,
   ResponseTime,
   Documentthread
-} = require('../models');
+} from '../models';
 
 // Editor task-count pipelines (general-doc threads + decided-application
 // threads). Kept as module constants so both the pipeline runners read the same

@@ -1,20 +1,20 @@
-const _ = require('lodash');
-const path = require('path');
-const { jsPDF } = require('jspdf');
-const { Role } = require('@taiger-common/core');
+import _ from 'lodash';
+import path from 'path';
+import { jsPDF } from 'jspdf';
+import { Role } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const { AWS_S3_BUCKET_NAME, isProd } = require('../config');
-const { font } = require('../utils/NotoSansTC-VariableFont_wght-normal');
-const { getS3Object, uploadJsonToS3 } = require('../aws/s3');
-const {
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import { AWS_S3_BUCKET_NAME, isProd } from '../config';
+import { font } from '../utils/NotoSansTC-VariableFont_wght-normal';
+import { getS3Object, uploadJsonToS3 } from '../aws/s3';
+import {
   roleToAssumeForCourseAnalyzerAPIG,
   apiGatewayUrl
-} = require('../aws/constants');
-const { callApiGateway, getTemporaryCredentials } = require('../aws');
-const CommunicationService = require('../services/communications');
+} from '../aws/constants';
+import { callApiGateway, getTemporaryCredentials } from '../aws';
+import CommunicationService from '../services/communications';
 
 const student_name = 'PreCustomer';
 

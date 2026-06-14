@@ -1,16 +1,16 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   GetProgramListRateLimiter,
   GetProgramRateLimiter,
   UpdateProgramRateLimiter,
   DeleteProgramRateLimiter,
   PostProgramRateLimiter
-} = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
+} from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
 
-const {
+import {
   getPrograms,
   getProgram,
   createProgram,
@@ -22,18 +22,16 @@ const {
   getProgramsOverview,
   getSchoolsDistribution,
   getSameProgramStudents
-} = require('../controllers/programs');
-const {
+} from '../controllers/programs';
+import {
   getProgramChangeRequests,
   submitProgramChangeRequests,
   reviewProgramChangeRequest
-} = require('../controllers/programChangeRequests');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const {
-  permission_canModifyProgramList_filter
-} = require('../middlewares/permission-filter');
-const getProgramFilter = require('../middlewares/getProgramFilter');
-const { validateProgramId } = require('../common/validation');
+} from '../controllers/programChangeRequests';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { permission_canModifyProgramList_filter } from '../middlewares/permission-filter';
+import getProgramFilter from '../middlewares/getProgramFilter';
+import { validateProgramId } from '../common/validation';
 
 const router = Router();
 

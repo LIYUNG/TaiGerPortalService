@@ -1,14 +1,14 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   GeneralGETRequestRateLimiter,
   GeneralPUTRequestRateLimiter
-} = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
+} from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 
-const {
+import {
   getCRMStats,
   getLeads,
   getLead,
@@ -28,7 +28,7 @@ const {
   createDeal,
   updateDeal,
   instantInviteMeetingAssistant
-} = require('../controllers/crm');
+} from '../controllers/crm';
 
 const router = Router();
 

@@ -1,6 +1,6 @@
-const { asyncHandler } = require('../middlewares/error-handler');
-const UserQueryBuilder = require('../builders/UserQueryBuilder');
-const AuditService = require('../services/audit');
+import { asyncHandler } from '../middlewares/error-handler';
+import UserQueryBuilder from '../builders/UserQueryBuilder';
+import AuditService from '../services/audit';
 
 const getAuditLogs = asyncHandler(async (req, res) => {
   const { page, limit, sortBy, sortOrder } = req.query;

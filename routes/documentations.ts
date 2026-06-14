@@ -1,20 +1,20 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
-const {
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
+import {
   GeneralPUTRequestRateLimiter,
   GeneralPOSTRequestRateLimiter,
   GeneralGETRequestRateLimiter,
   GeneralDELETERequestRateLimiter,
   DocumentationGETRateLimiter
-} = require('../middlewares/rate_limiter');
-const {
+} from '../middlewares/rate_limiter';
+import {
   imageUpload,
   documentationDocsUpload
-} = require('../middlewares/file-upload');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const { protect, permit, prohibit } = require('../middlewares/auth');
+} from '../middlewares/file-upload';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { protect, permit, prohibit } from '../middlewares/auth';
 
-const {
+import {
   getInternalDocumentationsPage,
   updateInternalDocumentationPage,
   updateDocumentationPage,
@@ -32,11 +32,9 @@ const {
   updateInternalDocumentation,
   deleteDocumentation,
   deleteInternalDocumentation
-} = require('../controllers/documentations');
+} from '../controllers/documentations';
 
-const {
-  permission_canModifyDocs_filter
-} = require('../middlewares/permission-filter');
+import { permission_canModifyDocs_filter } from '../middlewares/permission-filter';
 
 const router = Router();
 

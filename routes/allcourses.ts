@@ -1,17 +1,17 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const { GeneralGETRequestRateLimiter } = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
-const {
+import { GeneralGETRequestRateLimiter } from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
+import {
   getCourses,
   getCourse,
   deleteCourse,
   updateCourse,
   createCourse
-} = require('../controllers/allcourses');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const { validateCourseId } = require('../common/validation');
+} from '../controllers/allcourses';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { validateCourseId } from '../common/validation';
 
 const router = Router();
 router.use(protect);

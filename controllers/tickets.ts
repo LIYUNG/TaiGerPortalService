@@ -1,15 +1,15 @@
-const { is_TaiGer_role, is_TaiGer_Student } = require('@taiger-common/core');
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const { isNotArchiv } = require('../constants');
-const {
+import { is_TaiGer_role, is_TaiGer_Student } from '@taiger-common/core';
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import { isNotArchiv } from '../constants';
+import {
   TicketCreatedAgentEmail,
   TicketResolvedRequesterReminderEmail
-} = require('../services/email');
-const ProgramService = require('../services/programs');
-const StudentService = require('../services/students');
-const TicketService = require('../services/tickets');
+} from '../services/email';
+import ProgramService from '../services/programs';
+import StudentService from '../services/students';
+import TicketService from '../services/tickets';
 
 const getTickets = asyncHandler(async (req, res) => {
   const { user } = req;

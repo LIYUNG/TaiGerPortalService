@@ -1,4 +1,4 @@
-const { internaldocsSchema } = require('@taiger-common/model');
+import { internaldocsSchema } from '@taiger-common/model';
 
 internaldocsSchema.index({ title: 'text', text: 'text' });
 

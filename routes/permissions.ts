@@ -1,16 +1,16 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   GeneralPOSTRequestRateLimiter,
   GeneralGETRequestRateLimiter
-} = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const {
+} from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import {
   updateUserPermission,
   getUserPermission
-} = require('../controllers/permissions');
+} from '../controllers/permissions';
 
 const router = Router();
 

@@ -1,5 +1,5 @@
-const { Role } = require('@taiger-common/core');
-const {
+import { Role } from '@taiger-common/core';
+import {
   User,
   Agent,
   Editor,
@@ -14,7 +14,7 @@ const {
   Interview,
   surveyInput,
   Ticket
-} = require('../models');
+} from '../models';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;

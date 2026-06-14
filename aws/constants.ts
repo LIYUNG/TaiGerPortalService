@@ -1,11 +1,11 @@
-const {
+import {
   AWS_TRANSCRIPT_ANALYSER_ROLE,
   AWS_TRANSCRIPT_ANALYSER_APIG_URL,
   isProd,
   AWS_REGION,
   AWS_S3_ACCESS_KEY_ID,
   AWS_S3_ACCESS_KEY
-} = require('../config');
+} from '../config';
 
 // AWS configuration
 const roleToAssumeForCourseAnalyzerAPIG = AWS_TRANSCRIPT_ANALYSER_ROLE;

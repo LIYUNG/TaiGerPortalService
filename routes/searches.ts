@@ -1,16 +1,14 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
-  GeneralGETSearchRequestRateLimiter
-} = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
+import { GeneralGETSearchRequestRateLimiter } from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
 
-const {
+import {
   getQueryResults,
   getQueryPublicResults,
   getQueryStudentsResults
-} = require('../controllers/search');
+} from '../controllers/search';
 
 const router = Router();
 

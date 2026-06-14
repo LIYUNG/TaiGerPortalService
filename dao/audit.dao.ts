@@ -1,4 +1,4 @@
-const { Audit } = require('../models');
+import { Audit } from '../models';
 
 /**
  * AuditDAO — data access for the Audit model (default-connection model from

@@ -1,4 +1,4 @@
-const EventDAO = require('../dao/event.dao');
+import EventDAO from '../dao/event.dao';
 
 /**
  * EventService — business layer for booking/meeting events. Delegates data

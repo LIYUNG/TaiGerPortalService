@@ -1,7 +1,7 @@
-const mongoose = require('mongoose');
-const { Role } = require('@taiger-common/core');
+import mongoose from 'mongoose';
+import { Role } from '@taiger-common/core';
 
-const { Student, User } = require('../models');
+import { Student, User } from '../models';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;

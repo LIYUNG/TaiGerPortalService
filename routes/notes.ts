@@ -1,13 +1,13 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   GeneralGETRequestRateLimiter,
   GeneralPUTRequestRateLimiter
-} = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
-const { getStudentNotes, updateStudentNotes } = require('../controllers/notes');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
+} from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
+import { getStudentNotes, updateStudentNotes } from '../controllers/notes';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 
 const router = Router();
 router.use(protect);

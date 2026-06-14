@@ -174,7 +174,7 @@ const buildProgramsFilter = ({ search, filters = {} }) => {
   return filter;
 };
 
-const ProgramDAO = require('../dao/program.dao');
+import ProgramDAO from '../dao/program.dao';
 
 const ProgramService = {
   parseProgramsQuery,

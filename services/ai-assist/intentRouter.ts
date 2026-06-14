@@ -1,4 +1,4 @@
-const { OpenAiModel, openAIClient } = require('../openai');
+import { OpenAiModel, openAIClient } from '../openai';
 
 const DEFAULT_MODEL = OpenAiModel.GPT_4_o || 'gpt-4o';
 

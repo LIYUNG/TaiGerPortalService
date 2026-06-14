@@ -1,22 +1,22 @@
-const { desc, eq } = require('drizzle-orm');
-const { OpenAiModel, openAIClient } = require('../openai');
-const {
+import { desc, eq } from 'drizzle-orm';
+import { OpenAiModel, openAIClient } from '../openai';
+import {
   aiAssistConversations,
   aiAssistMessages,
   aiAssistToolCalls
-} = require('../../drizzle/schema/schema');
-const {
+} from '../../drizzle/schema/schema';
+import {
   aiAssistToolDefinitions,
   aiAssistToolDefinitionsByName
-} = require('./toolDefinitions');
-const tools = require('./tools');
-const { classifyIntent } = require('./intentRouter');
-const { resolveStudent, resolveStudentById } = require('./entityResolver');
-const {
+} from './toolDefinitions';
+import tools from './tools';
+import { classifyIntent } from './intentRouter';
+import { resolveStudent, resolveStudentById } from './entityResolver';
+import {
   composeAnswer,
   generateAnswerFromInput,
   extractAnswerReferences
-} = require('./answerComposer');
+} from './answerComposer';
 
 const DEFAULT_MODEL = OpenAiModel.GPT_4_o || 'gpt-4o';
 const MAX_TOOL_ROUNDS = 6;

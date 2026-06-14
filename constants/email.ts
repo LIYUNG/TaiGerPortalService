@@ -1,4 +1,4 @@
-const { isProd, SMTP_USERNAME } = require('../config');
+import { isProd, SMTP_USERNAME } from '../config';
 
 const appDomain = 'taigerconsultancy-portal.com';
 const senderEmail = isProd()

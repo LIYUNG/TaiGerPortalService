@@ -1,5 +1,5 @@
-const { RLs_CONSTANT } = require('../../constants');
-const { asyncHandler } = require('../../middlewares/error-handler');
+import { RLs_CONSTANT } from '../../constants';
+import { asyncHandler } from '../../middlewares/error-handler';
 
 const FILETYPES = {
   rl_required: 'RL',
@@ -87,6 +87,7 @@ const findStudentDeltaGet = asyncHandler(
 
     // Lazy require to avoid a load-time cycle:
     // versionControl -> programChange -> documentthreads -> versionControl.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
     const DocumentThreadService = require('../../services/documentthreads');
     const studentProgramThreads = await DocumentThreadService.findThreads(
       {
@@ -142,7 +143,7 @@ const findStudentDeltaGet = asyncHandler(
 const findStudentDelta = asyncHandler(async (studentId, program, options) => {
   const { skipCompleted } = options || {};
 
-  // eslint-disable-next-line global-require
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
   const { Documentthread } = require('../../models');
 
   const delta = {

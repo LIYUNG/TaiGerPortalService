@@ -1,4 +1,4 @@
-const ComplaintDAO = require('../dao/complaint.dao');
+import ComplaintDAO from '../dao/complaint.dao';
 
 /**
  * ComplaintService — business layer for customer-center complaint tickets.

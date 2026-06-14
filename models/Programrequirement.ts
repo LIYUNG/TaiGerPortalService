@@ -1,4 +1,4 @@
-const { programRequirementSchema } = require('@taiger-common/model');
+import { programRequirementSchema } from '@taiger-common/model';
 
 programRequirementSchema.index({ programId: 1 });
 

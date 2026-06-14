@@ -1,4 +1,4 @@
-const { Allcourse } = require('../models');
+import { Allcourse } from '../models';
 
 const UPDATED_BY_POPULATE = ['updatedBy', 'firstname lastname pictureUrl'];
 

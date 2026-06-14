@@ -1,11 +1,11 @@
-const { is_TaiGer_Editor, is_TaiGer_Agent } = require('@taiger-common/core');
+import { is_TaiGer_Editor, is_TaiGer_Agent } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const {
+import { ErrorResponse } from '../common/errors';
+import {
   getPermission,
   getCachedStudentPermission
-} = require('../utils/queryFunctions');
-const { asyncHandler } = require('./error-handler');
+} from '../utils/queryFunctions';
+import { asyncHandler } from './error-handler';
 
 const InnerTaigerMultitenantFilter = asyncHandler(async (req, res, next) => {
   const {

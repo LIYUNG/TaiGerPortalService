@@ -1,6 +1,6 @@
-const jwt = require('jsonwebtoken');
-const { asyncHandler } = require('./error-handler');
-const logger = require('../services/logger');
+import jwt from 'jsonwebtoken';
+import { asyncHandler } from './error-handler';
+import logger from '../services/logger';
 
 const decryptCookieMiddleware = asyncHandler((req, res, next) => {
   const token = req.cookies['x-auth'];

@@ -1,5 +1,5 @@
-const { ORIGIN } = require('../../config');
-const { sendEmail } = require('./configuration');
+import { ORIGIN } from '../../config';
+import { sendEmail } from './configuration';
 
 // For editor lead, manager
 const newCustomerCenterTicketEmail = async (recipient, payload) => {

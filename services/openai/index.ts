@@ -1,6 +1,6 @@
-const { OpenAI } = require('openai');
+import { OpenAI } from 'openai';
 
-const { OPENAI_API_KEY } = require('../../config');
+import { OPENAI_API_KEY } from '../../config';
 
 const openAIClient = new OpenAI({ apiKey: OPENAI_API_KEY });
 

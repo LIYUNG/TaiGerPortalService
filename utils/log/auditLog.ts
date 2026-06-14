@@ -1,6 +1,6 @@
-const { asyncHandler } = require('../../middlewares/error-handler');
-const logger = require('../../services/logger');
-const AuditService = require('../../services/audit');
+import { asyncHandler } from '../../middlewares/error-handler';
+import logger from '../../services/logger';
+import AuditService from '../../services/audit';
 
 const auditLog = asyncHandler(async (req) => {
   try {

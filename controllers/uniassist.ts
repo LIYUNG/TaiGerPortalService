@@ -1,7 +1,7 @@
-const { is_TaiGer_Student } = require('@taiger-common/core');
-const { asyncHandler } = require('../middlewares/error-handler');
-const StudentService = require('../services/students');
-const ApplicationService = require('../services/applications');
+import { is_TaiGer_Student } from '@taiger-common/core';
+import { asyncHandler } from '../middlewares/error-handler';
+import StudentService from '../services/students';
+import ApplicationService from '../services/applications';
 
 const getStudentUniAssist = asyncHandler(async (req, res) => {
   const {

@@ -1,24 +1,24 @@
-const _ = require('lodash');
-const path = require('path');
-const { is_TaiGer_Student } = require('@taiger-common/core');
+import _ from 'lodash';
+import path from 'path';
+import { is_TaiGer_Student } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const {
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import {
   updateCoursesDataAgentEmail,
   AnalysedCoursesDataStudentEmail
-} = require('../services/email');
-const { AWS_S3_BUCKET_NAME } = require('../config');
-const { isNotArchiv } = require('../constants');
-const { getTemporaryCredentials, callApiGateway } = require('../aws');
-const { getS3Object, uploadJsonToS3 } = require('../aws/s3');
-const {
+} from '../services/email';
+import { AWS_S3_BUCKET_NAME } from '../config';
+import { isNotArchiv } from '../constants';
+import { getTemporaryCredentials, callApiGateway } from '../aws';
+import { getS3Object, uploadJsonToS3 } from '../aws/s3';
+import {
   roleToAssumeForCourseAnalyzerAPIG,
   apiGatewayUrl
-} = require('../aws/constants');
-const CourseService = require('../services/course');
-const StudentService = require('../services/students');
+} from '../aws/constants';
+import CourseService from '../services/course';
+import StudentService from '../services/students';
 
 const getMycourses = asyncHandler(async (req, res) => {
   const { studentId } = req.params;

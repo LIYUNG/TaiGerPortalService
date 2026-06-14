@@ -1,4 +1,4 @@
-const PermissionDAO = require('../dao/permission.dao');
+import PermissionDAO from '../dao/permission.dao';
 
 /**
  * PermissionService — business layer for user permissions. Delegates data

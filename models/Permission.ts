@@ -1,3 +1,3 @@
-const { permissionSchema } = require('@taiger-common/model');
+import { permissionSchema } from '@taiger-common/model';
 
 module.exports = { permissionSchema };

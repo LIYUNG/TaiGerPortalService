@@ -1,30 +1,28 @@
-const { isNotArchiv, Role } = require('@taiger-common/core');
-const mongoose = require('mongoose');
+import { isNotArchiv, Role } from '@taiger-common/core';
+import mongoose from 'mongoose';
 
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const {
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import {
   GENERAL_RLs_CONSTANT,
   RLs_CONSTANT,
   PROGRAM_SPECIFIC_FILETYPE
-} = require('../constants');
-const {
+} from '../constants';
+import {
   createApplicationToStudentEmail,
   UpdateStudentApplicationsEmail,
   NewMLRLEssayTasksEmail,
   NewMLRLEssayTasksEmailFromTaiGer
-} = require('../services/email');
-const { ErrorResponse } = require('../common/errors');
-const ApplicationService = require('../services/applications');
-const UserService = require('../services/users');
-const StudentService = require('../services/students');
-const ProgramService = require('../services/programs');
-const DocumentThreadService = require('../services/documentthreads');
-const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
-const UserQueryBuilder = require('../builders/UserQueryBuilder');
-const {
-  sendApplicationWithdrawNotificationToEditors
-} = require('../utils/slackUtils');
+} from '../services/email';
+import { ErrorResponse } from '../common/errors';
+import ApplicationService from '../services/applications';
+import UserService from '../services/users';
+import StudentService from '../services/students';
+import ProgramService from '../services/programs';
+import DocumentThreadService from '../services/documentthreads';
+import ApplicationQueryBuilder from '../builders/ApplicationQueryBuilder';
+import UserQueryBuilder from '../builders/UserQueryBuilder';
+import { sendApplicationWithdrawNotificationToEditors } from '../utils/slackUtils';
 
 const getApplications = asyncHandler(async (req, res) => {
   const {

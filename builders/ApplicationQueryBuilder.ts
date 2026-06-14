@@ -1,4 +1,4 @@
-const { BaseQueryBuilder } = require('./BaseQueryBuilder');
+import { BaseQueryBuilder } from './BaseQueryBuilder';
 
 class ApplicationQueryBuilder extends BaseQueryBuilder {
   constructor() {

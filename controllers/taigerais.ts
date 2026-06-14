@@ -1,22 +1,22 @@
-const path = require('path');
-const async = require('async');
-const { spawn } = require('child_process');
-const { Role } = require('@taiger-common/core');
+import path from 'path';
+import async from 'async';
+import { spawn } from 'child_process';
+import { Role } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const ProgramAIService = require('../services/programAIs');
-const { isProd } = require('../config');
-const { openAIClient, OpenAiModel } = require('../services/openai');
-const { generalMLPrompt } = require('../prompt/ml_prompt');
-const { FILE_MAPPING_TABLE } = require('../constants');
-const { generalRLPrompt } = require('../prompt/rl_prompt');
-const ApplicationService = require('../services/applications');
-const ProgramService = require('../services/programs');
-const CommunicationService = require('../services/communications');
-const PermissionService = require('../services/permissions');
-const StudentService = require('../services/students');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import ProgramAIService from '../services/programAIs';
+import { isProd } from '../config';
+import { openAIClient, OpenAiModel } from '../services/openai';
+import { generalMLPrompt } from '../prompt/ml_prompt';
+import { FILE_MAPPING_TABLE } from '../constants';
+import { generalRLPrompt } from '../prompt/rl_prompt';
+import ApplicationService from '../services/applications';
+import ProgramService from '../services/programs';
+import CommunicationService from '../services/communications';
+import PermissionService from '../services/permissions';
+import StudentService from '../services/students';
 
 const pageSize = 3;
 

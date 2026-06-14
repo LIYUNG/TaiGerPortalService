@@ -1,13 +1,13 @@
-const { Role, is_TaiGer_Agent } = require('@taiger-common/core');
+import { Role, is_TaiGer_Agent } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const ApplicationService = require('../services/applications');
-const ProgramService = require('../services/programs');
-const VCService = require('../services/vs');
-const ProgramRequirementService = require('../services/programRequirements');
-const TicketService = require('../services/tickets');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import ApplicationService from '../services/applications';
+import ProgramService from '../services/programs';
+import VCService from '../services/vs';
+import ProgramRequirementService from '../services/programRequirements';
+import TicketService from '../services/tickets';
 
 const getDistinctSchoolsAttributes = async (req, res) => {
   try {

@@ -1,4 +1,4 @@
-const { ProgramChangeRequest } = require('../models');
+import { ProgramChangeRequest } from '../models';
 
 /**
  * ProgramChangeRequestDAO — data access for the ProgramChangeRequest model

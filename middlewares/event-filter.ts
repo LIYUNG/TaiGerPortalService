@@ -1,12 +1,12 @@
-const {
+import {
   is_TaiGer_Agent,
   is_TaiGer_Editor,
   is_TaiGer_Student
-} = require('@taiger-common/core');
+} from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('./error-handler');
-const EventService = require('../services/events');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from './error-handler';
+import EventService from '../services/events';
 
 const event_multitenant_filter = asyncHandler(async (req, res, next) => {
   const {

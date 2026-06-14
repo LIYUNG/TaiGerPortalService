@@ -1,17 +1,15 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const { GeneralGETRequestRateLimiter } = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
-const { multitenant_filter } = require('../middlewares/multitenant-filter');
+import { GeneralGETRequestRateLimiter } from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
+import { multitenant_filter } from '../middlewares/multitenant-filter';
 
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 
-const { getStudents } = require('../controllers/students');
-const { getStudentUniAssist } = require('../controllers/uniassist');
-const {
-  permission_canAccessStudentDatabase_filter
-} = require('../middlewares/permission-filter');
+import { getStudents } from '../controllers/students';
+import { getStudentUniAssist } from '../controllers/uniassist';
+import { permission_canAccessStudentDatabase_filter } from '../middlewares/permission-filter';
 
 const router = Router();
 

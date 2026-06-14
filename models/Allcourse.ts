@@ -1,4 +1,4 @@
-const { allCourseSchema } = require('@taiger-common/model');
+import { allCourseSchema } from '@taiger-common/model';
 
 allCourseSchema.index({ updatedBy: 1 });
 module.exports = {

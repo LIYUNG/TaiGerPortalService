@@ -1,7 +1,7 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   getMessagesRateLimiter,
   postMessagesRateLimiter,
   postMessagesImageRateLimiter,
@@ -11,22 +11,18 @@ const {
   getMessageFileRateLimiter,
   putThreadInputRateLimiter,
   putMessagesRateLimiter
-} = require('../middlewares/rate_limiter');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const { multitenant_filter } = require('../middlewares/multitenant-filter');
-const {
-  InnerTaigerMultitenantFilter
-} = require('../middlewares/InnerTaigerMultitenantFilter');
-const {
-  doc_thread_ops_validator
-} = require('../middlewares/docs_thread_operation_validation');
-const { protect, permit } = require('../middlewares/auth');
-const {
+} from '../middlewares/rate_limiter';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { multitenant_filter } from '../middlewares/multitenant-filter';
+import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
+import { doc_thread_ops_validator } from '../middlewares/docs_thread_operation_validation';
+import { protect, permit } from '../middlewares/auth';
+import {
   MessagesThreadUpload,
   MessagesImageThreadUpload
-} = require('../middlewares/file-upload');
+} from '../middlewares/file-upload';
 
-const {
+import {
   getActiveThreads,
   getActiveThreadsPaginated,
   getActiveThreadsCounts,
@@ -54,17 +50,15 @@ const {
   getMyStudentMetrics,
   getThreadsByStudent,
   getMyStudentsThreads
-} = require('../controllers/documents_modification');
-const {
+} from '../controllers/documents_modification';
+import {
   docThreadMultitenant_filter,
   surveyMultitenantFilter
-} = require('../middlewares/documentThreadMultitenantFilter');
-const { editorIdsBodyFilter } = require('../middlewares/editorIdsBodyFilter');
-const {
-  AssignOutsourcerFilter
-} = require('../middlewares/AssignOutsourcerFilter');
-const { auditLog } = require('../utils/log/auditLog');
-const { validateStudentId } = require('../common/validation');
+} from '../middlewares/documentThreadMultitenantFilter';
+import { editorIdsBodyFilter } from '../middlewares/editorIdsBodyFilter';
+import { AssignOutsourcerFilter } from '../middlewares/AssignOutsourcerFilter';
+import { auditLog } from '../utils/log/auditLog';
+import { validateStudentId } from '../common/validation';
 
 const router = Router();
 

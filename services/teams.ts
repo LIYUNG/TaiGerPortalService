@@ -1,4 +1,4 @@
-const TeamDAO = require('../dao/team.dao');
+import TeamDAO from '../dao/team.dao';
 
 /**
  * TeamService — business layer for the internal team dashboards / task

@@ -1,24 +1,22 @@
-const express = require('express');
-const cors = require('cors');
-const morgan = require('morgan');
-const cookieParser = require('cookie-parser');
-const methodOverride = require('method-override');
-const helmet = require('helmet');
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
+import methodOverride from 'method-override';
+import helmet from 'helmet';
 
-require('./middlewares/passport');
+import './middlewares/passport';
 
-const router = require('./routes');
-const { ORIGIN, isProd, isTest } = require('./config');
-const httpLogger = require('./services/httpLogger');
-const { errorHandler } = require('./middlewares/error-handler');
-const { requestContextMiddleware } = require('./middlewares/requestContext');
+import router from './routes';
+import { ORIGIN, isProd, isTest } from './config';
+import httpLogger from './services/httpLogger';
+import { errorHandler } from './middlewares/error-handler';
+import { requestContextMiddleware } from './middlewares/requestContext';
 
-const { checkTenantDBMiddleware } = require('./middlewares/tenantMiddleware');
-const {
-  decryptCookieMiddleware
-} = require('./middlewares/decryptCookieMiddleware');
+import { checkTenantDBMiddleware } from './middlewares/tenantMiddleware';
+import { decryptCookieMiddleware } from './middlewares/decryptCookieMiddleware';
 
-const compression = require('compression');
+import compression from 'compression';
 
 const app = express();
 app.set('trust proxy', 1);

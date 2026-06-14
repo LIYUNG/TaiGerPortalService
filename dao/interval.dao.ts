@@ -1,4 +1,4 @@
-const { Interval } = require('../models');
+import { Interval } from '../models';
 
 /**
  * IntervalDAO — data access for the Interval model (default-connection model

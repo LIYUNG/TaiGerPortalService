@@ -1,5 +1,5 @@
-const { asyncHandler } = require('../middlewares/error-handler');
-const AllcourseService = require('../services/allcourses');
+import { asyncHandler } from '../middlewares/error-handler';
+import AllcourseService from '../services/allcourses';
 
 const getCourses = asyncHandler(async (req, res) => {
   const courses = await AllcourseService.getAllcourses();

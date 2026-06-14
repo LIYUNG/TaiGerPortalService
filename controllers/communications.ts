@@ -1,29 +1,29 @@
-const mongoose = require('mongoose');
-const path = require('path');
-const {
+import mongoose from 'mongoose';
+import path from 'path';
+import {
   is_TaiGer_Agent,
   is_TaiGer_Admin,
   is_TaiGer_Editor,
   is_TaiGer_Student
-} = require('@taiger-common/core');
-const { Role } = require('@taiger-common/core');
+} from '@taiger-common/core';
+import { Role } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const {
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import {
   sendAgentNewMessageReminderEmail,
   sendStudentNewMessageReminderEmail
-} = require('../services/email');
-const logger = require('../services/logger');
-const { isNotArchiv } = require('../constants');
-const { getPermission } = require('../utils/queryFunctions');
-const { AWS_S3_BUCKET_NAME } = require('../config');
-const { ten_minutes_cache } = require('../cache/node-cache');
-const { deleteS3Objects } = require('../aws/s3');
-const { TENANT_SHORT_NAME } = require('../constants/common');
-const { getS3Object } = require('../aws/s3');
-const CommunicationService = require('../services/communications');
-const StudentService = require('../services/students');
+} from '../services/email';
+import logger from '../services/logger';
+import { isNotArchiv } from '../constants';
+import { getPermission } from '../utils/queryFunctions';
+import { AWS_S3_BUCKET_NAME } from '../config';
+import { ten_minutes_cache } from '../cache/node-cache';
+import { deleteS3Objects } from '../aws/s3';
+import { TENANT_SHORT_NAME } from '../constants/common';
+import { getS3Object } from '../aws/s3';
+import CommunicationService from '../services/communications';
+import StudentService from '../services/students';
 
 const pageSize = 5;
 

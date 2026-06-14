@@ -1,7 +1,4 @@
-const {
-  searchAccessibleStudents,
-  requireAccessibleStudent
-} = require('./tools');
+import { searchAccessibleStudents, requireAccessibleStudent } from './tools';
 
 const formatStudentName = (student = {}, fallbackDisplayName = null) =>
   [student.firstname, student.lastname].filter(Boolean).join(' ') ||

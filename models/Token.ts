@@ -1,3 +1,3 @@
-const { tokenSchema } = require('@taiger-common/model');
+import { tokenSchema } from '@taiger-common/model';
 
 module.exports = { tokenSchema };

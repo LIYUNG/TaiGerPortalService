@@ -1,4 +1,4 @@
-const { Docspage } = require('../models');
+import { Docspage } from '../models';
 
 /**
  * DocspageDAO — data access for the Docspage model (default-connection model

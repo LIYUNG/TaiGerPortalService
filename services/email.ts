@@ -1,8 +1,8 @@
-const ical = require('ical-generator');
-const queryString = require('query-string');
-const { DocumentStatusType } = require('@taiger-common/core');
+import ical from 'ical-generator';
+import queryString from 'query-string';
+import { DocumentStatusType } from '@taiger-common/core';
 
-const {
+import {
   ACCOUNT_ACTIVATION_URL,
   TEAMS_URL,
   RESEND_ACTIVATION_URL,
@@ -36,17 +36,13 @@ const {
   THREAD_ID_URL,
   SINGLE_INTERVIEW_SURVEY_THREAD_URL,
   STUDENT_APPLICATION_STUDENT_URL
-} = require('../constants');
+} from '../constants';
 
-const { ORIGIN } = require('../config');
-const { htmlContent } = require('./emailTemplate');
-const { transporter, sendEmail } = require('./email/configuration');
-const {
-  senderName,
-  taigerNotReplyGmail,
-  appDomain
-} = require('../constants/email');
-const { asyncHandler } = require('../middlewares/error-handler');
+import { ORIGIN } from '../config';
+import { htmlContent } from './emailTemplate';
+import { transporter, sendEmail } from './email/configuration';
+import { senderName, taigerNotReplyGmail, appDomain } from '../constants/email';
+import { asyncHandler } from '../middlewares/error-handler';
 
 const sendEventEmail = (
   to,

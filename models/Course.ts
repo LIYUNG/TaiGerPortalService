@@ -1,3 +1,3 @@
-const { coursesSchema } = require('@taiger-common/model');
+import { coursesSchema } from '@taiger-common/model';
 
 module.exports = { coursesSchema };

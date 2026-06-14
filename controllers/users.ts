@@ -1,27 +1,27 @@
-const _ = require('lodash');
-const crypto = require('crypto');
-const generator = require('generate-password');
-const { Role } = require('@taiger-common/core');
-const mongoose = require('mongoose');
-const { is_TaiGer_Admin } = require('@taiger-common/core');
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const {
+import _ from 'lodash';
+import crypto from 'crypto';
+import generator from 'generate-password';
+import { Role } from '@taiger-common/core';
+import mongoose from 'mongoose';
+import { is_TaiGer_Admin } from '@taiger-common/core';
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import {
   updateNotificationEmail,
   sendInvitationEmail
-} = require('../services/email');
-const logger = require('../services/logger');
-const {
+} from '../services/email';
+import logger from '../services/logger';
+import {
   fieldsValidation,
   checkUserFirstname,
   checkUserLastname,
   checkEmail
-} = require('../common/validation');
-const { AWS_S3_BUCKET_NAME } = require('../config');
-const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
-const UserService = require('../services/users');
-const TokenService = require('../services/tokens');
-const UserQueryBuilder = require('../builders/UserQueryBuilder');
+} from '../common/validation';
+import { AWS_S3_BUCKET_NAME } from '../config';
+import { emptyS3Directory } from '../utils/modelHelper/versionControl';
+import UserService from '../services/users';
+import TokenService from '../services/tokens';
+import UserQueryBuilder from '../builders/UserQueryBuilder';
 
 const generateRandomToken = () => crypto.randomBytes(32).toString('hex');
 const hashToken = (token) =>

@@ -1,15 +1,15 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   GeneralGETRequestRateLimiter,
   getMessagesRateLimiter,
   postMessagesImageRateLimiter,
   GeneralPUTRequestRateLimiter
-} = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
+} from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
 
-const {
+import {
   getApplications,
   getStudentApplications,
   deleteApplication,
@@ -22,13 +22,11 @@ const {
   updateApplication,
   withdrawApplication,
   refreshApplication
-} = require('../controllers/applications');
-const { multitenant_filter } = require('../middlewares/multitenant-filter');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const {
-  InnerTaigerMultitenantFilter
-} = require('../middlewares/InnerTaigerMultitenantFilter');
-const { validateStudentId } = require('../common/validation');
+} from '../controllers/applications';
+import { multitenant_filter } from '../middlewares/multitenant-filter';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
+import { validateStudentId } from '../common/validation';
 
 const router = Router();
 

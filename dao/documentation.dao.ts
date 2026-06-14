@@ -1,4 +1,4 @@
-const { Documentation } = require('../models');
+import { Documentation } from '../models';
 
 /**
  * DocumentationDAO — data access for the Documentation model

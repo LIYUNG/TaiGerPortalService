@@ -1,13 +1,13 @@
-const mongoose = require('mongoose');
-const async = require('async');
-const path = require('path');
-const { Role, is_TaiGer_Student } = require('@taiger-common/core');
+import mongoose from 'mongoose';
+import async from 'async';
+import path from 'path';
+import { Role, is_TaiGer_Student } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const { AWS_S3_BUCKET_NAME } = require('../config');
-const {
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import { AWS_S3_BUCKET_NAME } from '../config';
+import {
   sendInterviewConfirmationEmail,
   sendAssignTrainerReminderEmail,
   sendAssignedInterviewTrainerToTrainerEmail,
@@ -16,19 +16,19 @@ const {
   sendSetAsFinalInterviewEmail,
   InterviewSurveyFinishedEmail,
   InterviewSurveyFinishedToTaiGerEmail
-} = require('../services/email');
-const { addMessageInThread } = require('../utils/informEditor');
-const { isNotArchiv } = require('../constants');
-const { getPermission } = require('../utils/queryFunctions');
-const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
-const { userChangesHelperFunction } = require('../utils/utils_function');
-const StudentService = require('../services/students');
-const ApplicationService = require('../services/applications');
-const InterviewService = require('../services/interviews');
-const EventService = require('../services/events');
-const DocumentThreadService = require('../services/documentthreads');
-const PermissionService = require('../services/permissions');
-const AuditService = require('../services/audit');
+} from '../services/email';
+import { addMessageInThread } from '../utils/informEditor';
+import { isNotArchiv } from '../constants';
+import { getPermission } from '../utils/queryFunctions';
+import { emptyS3Directory } from '../utils/modelHelper/versionControl';
+import { userChangesHelperFunction } from '../utils/utils_function';
+import StudentService from '../services/students';
+import ApplicationService from '../services/applications';
+import InterviewService from '../services/interviews';
+import EventService from '../services/events';
+import DocumentThreadService from '../services/documentthreads';
+import PermissionService from '../services/permissions';
+import AuditService from '../services/audit';
 
 const PrecheckInterview = asyncHandler(async (req, interview_id) => {
   const precheck_interview = await InterviewService.findByIdRaw(interview_id);

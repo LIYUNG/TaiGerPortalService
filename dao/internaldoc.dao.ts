@@ -1,4 +1,4 @@
-const { Internaldoc } = require('../models');
+import { Internaldoc } from '../models';
 
 /**
  * InternaldocDAO — data access for the Internaldoc model (default-connection

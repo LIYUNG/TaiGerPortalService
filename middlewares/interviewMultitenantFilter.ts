@@ -1,14 +1,14 @@
-const {
+import {
   is_TaiGer_Editor,
   is_TaiGer_Agent,
   is_TaiGer_Student,
   is_TaiGer_Guest
-} = require('@taiger-common/core');
+} from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { getPermission } = require('../utils/queryFunctions');
-const { asyncHandler } = require('./error-handler');
-const InterviewService = require('../services/interviews');
+import { ErrorResponse } from '../common/errors';
+import { getPermission } from '../utils/queryFunctions';
+import { asyncHandler } from './error-handler';
+import InterviewService from '../services/interviews';
 
 const interviewMultitenantFilter = asyncHandler(async (req, res, next) => {
   const {

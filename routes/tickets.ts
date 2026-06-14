@@ -1,26 +1,24 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   GetTicketListRateLimiter,
   GetTicketRateLimiter,
   UpdateTicketRateLimiter,
   DeleteTicketRateLimiter,
   PostTicketRateLimiter
-} = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
+} from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
 
-const {
+import {
   getTickets,
   getTicketsOverview,
   createTicket,
   updateTicket,
   deleteTicket
-} = require('../controllers/tickets');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const {
-  permission_canModifyTicketList_filter
-} = require('../middlewares/permission-filter');
+} from '../controllers/tickets';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { permission_canModifyTicketList_filter } from '../middlewares/permission-filter';
 
 const router = Router();
 

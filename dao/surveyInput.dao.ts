@@ -1,4 +1,4 @@
-const { surveyInput } = require('../models');
+import { surveyInput } from '../models';
 
 /**
  * SurveyInputDAO — data access for the surveyInput model (default-connection

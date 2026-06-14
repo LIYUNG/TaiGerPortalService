@@ -1,22 +1,20 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   GeneralPOSTRequestRateLimiter,
   GeneralGETRequestRateLimiter
-} = require('../middlewares/rate_limiter');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const { multitenant_filter } = require('../middlewares/multitenant-filter');
-const {
-  InnerTaigerMultitenantFilter
-} = require('../middlewares/InnerTaigerMultitenantFilter');
-const { protect, permit, prohibit } = require('../middlewares/auth');
+} from '../middlewares/rate_limiter';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { multitenant_filter } from '../middlewares/multitenant-filter';
+import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
+import { protect, permit, prohibit } from '../middlewares/auth';
 
-const {
+import {
   createPortalCredentials,
   getPortalCredentials
   //   updateCourses,
-} = require('../controllers/portal_informations');
+} from '../controllers/portal_informations';
 
 const router = Router();
 

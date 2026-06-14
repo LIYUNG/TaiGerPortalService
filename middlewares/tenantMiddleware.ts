@@ -1,6 +1,6 @@
-const { connectToDatabase } = require('../database');
-const { TENANT_ID } = require('../config');
-const { asyncHandler } = require('./error-handler');
+import { connectToDatabase } from '../database';
+import { TENANT_ID } from '../config';
+import { asyncHandler } from './error-handler';
 
 // The service is single-tenant: there is one application database, so we no
 // longer resolve a tenant from a registry (by header / decrypted token /

@@ -1,6 +1,6 @@
-const { is_TaiGer_Agent, is_TaiGer_Editor } = require('@taiger-common/core');
-const { oauthClient } = require('../google/oauth');
-const { GOOGLE_CLIENT_ID } = require('../config');
+import { is_TaiGer_Agent, is_TaiGer_Editor } from '@taiger-common/core';
+import { oauthClient } from '../google/oauth';
+import { GOOGLE_CLIENT_ID } from '../config';
 
 const queryStudent = (q, user) => {
   const query = { ...q };

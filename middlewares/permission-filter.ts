@@ -1,13 +1,13 @@
-const {
+import {
   is_TaiGer_Agent,
   is_TaiGer_Editor,
   is_TaiGer_Admin
-} = require('@taiger-common/core');
+} from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const logger = require('../services/logger');
-const { getPermission } = require('../utils/queryFunctions');
-const { asyncHandler } = require('./error-handler');
+import { ErrorResponse } from '../common/errors';
+import logger from '../services/logger';
+import { getPermission } from '../utils/queryFunctions';
+import { asyncHandler } from './error-handler';
 
 const permission_canAssignEditor_filter = asyncHandler(
   async (req, res, next) => {

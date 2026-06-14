@@ -1,6 +1,6 @@
-const { OAuth2Client } = require('google-auth-library');
+import { OAuth2Client } from 'google-auth-library';
 
-const { GOOGLE_CLIENT_ID } = require('../config');
+import { GOOGLE_CLIENT_ID } from '../config';
 
 const oauthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 

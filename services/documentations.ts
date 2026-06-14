@@ -1,6 +1,6 @@
-const DocspageDAO = require('../dao/docspage.dao');
-const DocumentationDAO = require('../dao/documentation.dao');
-const InternaldocDAO = require('../dao/internaldoc.dao');
+import DocspageDAO from '../dao/docspage.dao';
+import DocumentationDAO from '../dao/documentation.dao';
+import InternaldocDAO from '../dao/internaldoc.dao';
 
 /**
  * DocumentationService — business layer for the docs feature, composing the

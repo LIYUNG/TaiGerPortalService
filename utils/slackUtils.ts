@@ -1,19 +1,19 @@
-const axios = require('axios');
-const {
+import axios from 'axios';
+import {
   isDev,
   SLACK_BOT_TOKEN,
   SLACK_TAIGER_WIN_CHANNEL_ID,
   SLACK_DEVELOPER_ID,
   SLACK_NOTIFICATIONS_LOG_CHANNEL_ID
-} = require('../config');
+} from '../config';
 
-const {
+import {
   PROGRAM_URL,
   BASE_DOCUMENT_FOR_AGENT_URL,
   STUDENT_APPLICATION_STUDENT_URL
-} = require('../constants');
+} from '../constants';
 
-const logger = require('../services/logger');
+import logger from '../services/logger';
 
 /**
  * Internal sender for Slack chat.postMessage

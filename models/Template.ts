@@ -1,4 +1,4 @@
-const { templatesSchema } = require('@taiger-common/model');
+import { templatesSchema } from '@taiger-common/model';
 
 module.exports = {
   templatesSchema

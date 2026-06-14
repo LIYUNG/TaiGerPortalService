@@ -1,4 +1,4 @@
-const TemplateDAO = require('../dao/template.dao');
+import TemplateDAO from '../dao/template.dao';
 
 /**
  * TemplateService — business layer for download templates. Delegates data

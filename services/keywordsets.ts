@@ -1,5 +1,5 @@
-const KeywordSetDAO = require('../dao/keywordset.dao');
-const ProgramRequirementDAO = require('../dao/programRequirement.dao');
+import KeywordSetDAO from '../dao/keywordset.dao';
+import ProgramRequirementDAO from '../dao/programRequirement.dao';
 
 /**
  * KeywordSetService — business layer for course keyword sets. Delegates data

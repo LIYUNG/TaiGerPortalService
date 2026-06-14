@@ -1,6 +1,6 @@
-const { asyncHandler } = require('../middlewares/error-handler');
-const { updatePermissionNotificationEmail } = require('../services/email');
-const PermissionService = require('../services/permissions');
+import { asyncHandler } from '../middlewares/error-handler';
+import { updatePermissionNotificationEmail } from '../services/email';
+import PermissionService from '../services/permissions';
 
 const getUserPermission = asyncHandler(async (req, res) => {
   const users = await PermissionService.getPermissions({});

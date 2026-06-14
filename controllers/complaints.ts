@@ -1,25 +1,25 @@
-const path = require('path');
-const { is_TaiGer_Student } = require('@taiger-common/core');
+import path from 'path';
+import { is_TaiGer_Student } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const { isNotArchiv } = require('../constants');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import { isNotArchiv } from '../constants';
 
-const {
+import {
   newCustomerCenterTicketEmail,
   newCustomerCenterTicketSubmitConfirmationEmail,
   complaintResolvedRequesterReminderEmail,
   newCustomerCenterTicketMessageEmail
-} = require('../services/email/complaints');
-const { ten_minutes_cache } = require('../cache/node-cache');
-const { AWS_S3_BUCKET_NAME } = require('../config');
-const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
-const { threadS3GarbageCollector } = require('../utils/utils_function');
-const { getS3Object } = require('../aws/s3');
-const ComplaintService = require('../services/complaints');
-const PermissionService = require('../services/permissions');
-const StudentService = require('../services/students');
+} from '../services/email/complaints';
+import { ten_minutes_cache } from '../cache/node-cache';
+import { AWS_S3_BUCKET_NAME } from '../config';
+import { emptyS3Directory } from '../utils/modelHelper/versionControl';
+import { threadS3GarbageCollector } from '../utils/utils_function';
+import { getS3Object } from '../aws/s3';
+import ComplaintService from '../services/complaints';
+import PermissionService from '../services/permissions';
+import StudentService from '../services/students';
 
 const getManagers = async () => PermissionService.getManagers();
 

@@ -1,4 +1,4 @@
-const ApplicationDAO = require('../dao/application.dao');
+import ApplicationDAO from '../dao/application.dao';
 
 /**
  * ApplicationService — business/orchestration layer for applications.

@@ -1,39 +1,39 @@
-const { Router } = require('express');
-const logger = require('../services/logger');
-const { CRM_API_TARGET, isDev } = require('../config');
+import { Router } from 'express';
+import logger from '../services/logger';
+import { CRM_API_TARGET, isDev } from '../config';
 
-const accountRouter = require('./account');
-const applicationsRouter = require('./applications');
-const admissionsRouter = require('./admissions');
-const agentsRouter = require('./agents');
-const allCoursesRouter = require('./allcourses');
-const authRouter = require('./auth');
-const auditRouter = require('./audit');
-const aiAssistRouter = require('./ai_assist');
-const complaintsRouter = require('./complaints');
-const communicationsRouter = require('./communications');
-const coursekewordsRouter = require('./coursekeywords');
-const coursesRouter = require('./courses');
-const documentationsRouter = require('./documentations');
-const docsModiRouter = require('./documents_modification');
-const expensesRouter = require('./expenses');
-const eventsRouter = require('./events');
-const interviewsRouter = require('./interviews');
-const notesRouter = require('./notes');
-const portalsRouter = require('./portal_information');
-const programRequirementsRouter = require('./program_requirements');
-const programsRouter = require('./programs');
-const permissionsRouter = require('./permissions');
-const searchesRouter = require('./searches');
-const studentsRouter = require('./students');
-const studentsApplicationRouter = require('./student_applications');
-const taigeraisRouter = require('./taigerais');
-const teamsRouter = require('./teams');
-const ticketsRouter = require('./tickets');
-const uniassistRouter = require('./uniassist');
-const usersRouter = require('./users');
-const widgetsRouter = require('./widget');
-const CRMRouter = require('./crm');
+import accountRouter from './account';
+import applicationsRouter from './applications';
+import admissionsRouter from './admissions';
+import agentsRouter from './agents';
+import allCoursesRouter from './allcourses';
+import authRouter from './auth';
+import auditRouter from './audit';
+import aiAssistRouter from './ai_assist';
+import complaintsRouter from './complaints';
+import communicationsRouter from './communications';
+import coursekewordsRouter from './coursekeywords';
+import coursesRouter from './courses';
+import documentationsRouter from './documentations';
+import docsModiRouter from './documents_modification';
+import expensesRouter from './expenses';
+import eventsRouter from './events';
+import interviewsRouter from './interviews';
+import notesRouter from './notes';
+import portalsRouter from './portal_information';
+import programRequirementsRouter from './program_requirements';
+import programsRouter from './programs';
+import permissionsRouter from './permissions';
+import searchesRouter from './searches';
+import studentsRouter from './students';
+import studentsApplicationRouter from './student_applications';
+import taigeraisRouter from './taigerais';
+import teamsRouter from './teams';
+import ticketsRouter from './tickets';
+import uniassistRouter from './uniassist';
+import usersRouter from './users';
+import widgetsRouter from './widget';
+import CRMRouter from './crm';
 
 function setupCrmProxy(app, target) {
   if (!isDev()) return;
@@ -46,6 +46,7 @@ function setupCrmProxy(app, target) {
     return;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
   const { createProxyMiddleware } = require('http-proxy-middleware');
   logger.info('Using dev proxy for CRM API', target);
   app.use(

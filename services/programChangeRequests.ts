@@ -1,4 +1,4 @@
-const ProgramChangeRequestDAO = require('../dao/programChangeRequest.dao');
+import ProgramChangeRequestDAO from '../dao/programChangeRequest.dao';
 
 /**
  * ProgramChangeRequestService — business layer for program change requests.

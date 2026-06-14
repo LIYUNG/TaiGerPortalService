@@ -1,4 +1,4 @@
-const BasedocumentationslinkDAO = require('../dao/basedocumentationslink.dao');
+import BasedocumentationslinkDAO from '../dao/basedocumentationslink.dao';
 
 /**
  * BasedocumentationslinkService — business layer for the base-documents / survey

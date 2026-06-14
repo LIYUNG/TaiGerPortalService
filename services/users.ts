@@ -1,4 +1,4 @@
-const UserDAO = require('../dao/user.dao');
+import UserDAO from '../dao/user.dao';
 
 /**
  * UserService — business layer for users. Delegates data access to the DAO

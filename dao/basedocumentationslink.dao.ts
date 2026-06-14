@@ -1,4 +1,4 @@
-const { Basedocumentationslink } = require('../models');
+import { Basedocumentationslink } from '../models';
 
 /**
  * BasedocumentationslinkDAO — data access for the Basedocumentationslink model

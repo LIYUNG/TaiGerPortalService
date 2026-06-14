@@ -1,8 +1,8 @@
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const ProgramChangeRequestService = require('../services/programChangeRequests');
-const ProgramService = require('../services/programs');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import ProgramChangeRequestService from '../services/programChangeRequests';
+import ProgramService from '../services/programs';
 
 const getProgramChangeRequests = asyncHandler(async (req, res) => {
   const { programId } = req.params;

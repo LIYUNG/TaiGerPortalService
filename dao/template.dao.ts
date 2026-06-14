@@ -1,4 +1,4 @@
-const { Template } = require('../models');
+import { Template } from '../models';
 
 /**
  * TemplateDAO — data access for the Template model (default-connection model

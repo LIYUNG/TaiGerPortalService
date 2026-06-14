@@ -1,9 +1,9 @@
-const axios = require('axios');
-const {
+import axios from 'axios';
+import {
   FIREFLIES_API_URL,
   FIREFLIES_API_TOKEN,
   FIREFLIES_GOOGLE_INVITE_N8N_URL
-} = require('../config');
+} from '../config';
 
 /**
  * Schedule invite a TaiGer assitant to a meeting. Creates a Google meeting event by posting meeting details to an external workflow.

@@ -1,4 +1,4 @@
-const { KeywordSet } = require('../models');
+import { KeywordSet } from '../models';
 
 /**
  * KeywordSetDAO — data access for the KeywordSet model (default-connection

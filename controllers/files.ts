@@ -1,14 +1,11 @@
-const path = require('path');
-const {
-  DocumentStatusType,
-  is_TaiGer_Student
-} = require('@taiger-common/core');
+import path from 'path';
+import { DocumentStatusType, is_TaiGer_Student } from '@taiger-common/core';
 
-const { asyncHandler } = require('../middlewares/error-handler');
-const { ten_minutes_cache } = require('../cache/node-cache');
-const { ErrorResponse } = require('../common/errors');
-const { isNotArchiv } = require('../constants');
-const {
+import { asyncHandler } from '../middlewares/error-handler';
+import { ten_minutes_cache } from '../cache/node-cache';
+import { ErrorResponse } from '../common/errors';
+import { isNotArchiv } from '../constants';
+import {
   deleteTemplateSuccessEmail,
   sendAgentUploadedProfileFilesForStudentEmail,
   sendAgentUploadedVPDForStudentEmail,
@@ -16,18 +13,18 @@ const {
   sendUploadedVPDRemindForAgentEmail,
   sendChangedProfileFileStatusEmail,
   AdmissionResultInformEmailToTaiGer
-} = require('../services/email');
-const { sendSlackMessageToWinChannel } = require('../utils/slackUtils');
-const { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
-const logger = require('../services/logger');
+} from '../services/email';
+import { sendSlackMessageToWinChannel } from '../utils/slackUtils';
+import { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } from '../config';
+import logger from '../services/logger';
 
-const { deleteS3Object } = require('../aws/s3');
-const { getS3Object } = require('../aws/s3');
-const ApplicationService = require('../services/applications');
-const TemplateService = require('../services/templates');
-const StudentService = require('../services/students');
-const UserService = require('../services/users');
-const BasedocumentationslinkService = require('../services/basedocumentationslinks');
+import { deleteS3Object } from '../aws/s3';
+import { getS3Object } from '../aws/s3';
+import ApplicationService from '../services/applications';
+import TemplateService from '../services/templates';
+import StudentService from '../services/students';
+import UserService from '../services/users';
+import BasedocumentationslinkService from '../services/basedocumentationslinks';
 
 const getTemplates = asyncHandler(async (req, res, next) => {
   const templates = await TemplateService.getTemplates();

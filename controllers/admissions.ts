@@ -1,11 +1,11 @@
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const { AWS_S3_BUCKET_NAME } = require('../config');
-const { getS3Object } = require('../aws/s3');
-const ApplicationService = require('../services/applications');
-const StudentService = require('../services/students');
-const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import { AWS_S3_BUCKET_NAME } from '../config';
+import { getS3Object } from '../aws/s3';
+import ApplicationService from '../services/applications';
+import StudentService from '../services/students';
+import ApplicationQueryBuilder from '../builders/ApplicationQueryBuilder';
 
 // Overall admission/rejection/pending/notYetSubmitted counts.
 const getApplicationCountsResultCount = asyncHandler(async () => {

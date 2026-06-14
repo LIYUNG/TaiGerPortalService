@@ -1,8 +1,8 @@
-const { is_TaiGer_Agent, is_TaiGer_Editor } = require('@taiger-common/core');
+import { is_TaiGer_Agent, is_TaiGer_Editor } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('./error-handler');
-const DocumentThreadService = require('../services/documentthreads');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from './error-handler';
+import DocumentThreadService from '../services/documentthreads';
 
 const editorIdsBodyFilter = asyncHandler(async (req, res, next) => {
   const {

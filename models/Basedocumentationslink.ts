@@ -1,3 +1,3 @@
-const { basedocumentationslinksSchema } = require('@taiger-common/model');
+import { basedocumentationslinksSchema } from '@taiger-common/model';
 
 module.exports = { basedocumentationslinksSchema };

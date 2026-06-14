@@ -1,4 +1,4 @@
-const { complaintSchema } = require('@taiger-common/model');
+import { complaintSchema } from '@taiger-common/model';
 
 complaintSchema.index({ requester_id: 1 });
 

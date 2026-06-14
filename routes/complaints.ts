@@ -1,15 +1,15 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
-const {
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
+import {
   GetComplaintListRateLimiter,
   GetComplaintRateLimiter,
   UpdateComplaintRateLimiter,
   DeleteComplaintRateLimiter,
   PostComplaintRateLimiter
-} = require('../middlewares/rate_limiter');
-const { protect, permit } = require('../middlewares/auth');
+} from '../middlewares/rate_limiter';
+import { protect, permit } from '../middlewares/auth';
 
-const {
+import {
   getComplaints,
   getComplaint,
   createComplaint,
@@ -19,13 +19,11 @@ const {
   postMessageInTicket,
   getMessageFileInTicket,
   updateAMessageInComplaint
-} = require('../controllers/complaints');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const {
-  complaintTicketMultitenant_filter
-} = require('../middlewares/multitenant-filter');
-const { MessagesTicketUpload } = require('../middlewares/file-upload');
-const { validateStudentId } = require('../common/validation');
+} from '../controllers/complaints';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { complaintTicketMultitenant_filter } from '../middlewares/multitenant-filter';
+import { MessagesTicketUpload } from '../middlewares/file-upload';
+import { validateStudentId } from '../common/validation';
 // const {
 //   permission_canModifyComplaintList_filter
 // } = require('../middlewares/permission-filter');

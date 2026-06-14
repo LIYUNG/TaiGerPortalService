@@ -1,7 +1,7 @@
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const ProgramRequirementService = require('../services/programRequirements');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import ProgramRequirementService from '../services/programRequirements';
 
 const getDistinctProgramsAndKeywordSets = async (req, res) => {
   try {

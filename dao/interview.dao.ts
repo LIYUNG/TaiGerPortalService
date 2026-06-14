@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const { Interview } = require('../models');
+import mongoose from 'mongoose';
+import { Interview } from '../models';
 
 const withPopulate = (query) =>
   query

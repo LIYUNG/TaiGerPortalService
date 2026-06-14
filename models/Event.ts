@@ -1,4 +1,4 @@
-const { EventSchema } = require('@taiger-common/model');
+import { EventSchema } from '@taiger-common/model';
 
 EventSchema.index({ receiver_id: 1 });
 EventSchema.index({ requester_id: 1 });

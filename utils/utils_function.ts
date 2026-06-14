@@ -1,22 +1,18 @@
-const path = require('path');
-const async = require('async');
-const mammoth = require('mammoth');
-const PdfParse = require('pdf-parse');
-const {
-  Role,
-  isProgramDecided,
-  is_TaiGer_Agent
-} = require('@taiger-common/core');
+import path from 'path';
+import async from 'async';
+import mammoth from 'mammoth';
+import PdfParse from 'pdf-parse';
+import { Role, isProgramDecided, is_TaiGer_Agent } from '@taiger-common/core';
 
-const {
+import {
   MeetingReminderEmail,
   UnconfirmedMeetingReminderEmail,
   sendNoTrainerInterviewRequestsReminderEmail,
   InterviewTrainingReminderEmail,
   InterviewSurveyRequestEmail
-} = require('../services/email');
+} from '../services/email';
 
-const {
+import {
   StudentTasksReminderEmail,
   EditorTasksReminderEmail,
   StudentApplicationsDeadline_Within30Days_DailyReminderEmail,
@@ -27,29 +23,29 @@ const {
   EditorCVMLRLEssayDeadline_Within30Days_DailyReminderEmail,
   StudentCourseSelectionReminderEmail,
   AgentCourseSelectionReminderEmail
-} = require('../services/regular_system_emails');
-const logger = require('../services/logger');
-const {
+} from '../services/regular_system_emails';
+import logger from '../services/logger';
+import {
   does_editor_have_pending_tasks,
   is_deadline_within30days_needed,
   is_cv_ml_rl_reminder_needed,
   isNotArchiv,
   needUpdateCourseSelection
-} = require('../constants');
-const { asyncHandler } = require('../middlewares/error-handler');
-const { AWS_S3_BUCKET_NAME } = require('../config');
-const { deleteS3Objects, listS3ObjectsV2 } = require('../aws/s3');
-const { ErrorResponse } = require('../common/errors');
-const StudentService = require('../services/students');
-const UserService = require('../services/users');
-const EventService = require('../services/events');
-const InterviewService = require('../services/interviews');
-const PermissionService = require('../services/permissions');
-const CommunicationService = require('../services/communications');
-const IntervalService = require('../services/intervals');
-const ResponseTimeService = require('../services/responseTimes');
-const DocumentThreadService = require('../services/documentthreads');
-const ComplaintService = require('../services/complaints');
+} from '../constants';
+import { asyncHandler } from '../middlewares/error-handler';
+import { AWS_S3_BUCKET_NAME } from '../config';
+import { deleteS3Objects, listS3ObjectsV2 } from '../aws/s3';
+import { ErrorResponse } from '../common/errors';
+import StudentService from '../services/students';
+import UserService from '../services/users';
+import EventService from '../services/events';
+import InterviewService from '../services/interviews';
+import PermissionService from '../services/permissions';
+import CommunicationService from '../services/communications';
+import IntervalService from '../services/intervals';
+import ResponseTimeService from '../services/responseTimes';
+import DocumentThreadService from '../services/documentthreads';
+import ComplaintService from '../services/complaints';
 
 // Tested: redundant image is deleted
 const threadS3GarbageCollector = async (

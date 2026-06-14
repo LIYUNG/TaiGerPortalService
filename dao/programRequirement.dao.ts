@@ -1,4 +1,4 @@
-const { ProgramRequirement } = require('../models');
+import { ProgramRequirement } from '../models';
 
 /**
  * ProgramRequirementDAO — data access for the ProgramRequirement model

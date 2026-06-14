@@ -1,4 +1,4 @@
-const {
+import {
   S3Client,
   NoSuchKey,
   S3ServiceException,
@@ -8,10 +8,10 @@ const {
   DeleteObjectsCommand,
   PutObjectCommand,
   ListObjectsCommand
-} = require('@aws-sdk/client-s3');
+} from '@aws-sdk/client-s3';
 
-const logger = require('../services/logger');
-const { AWS_KEY_CONFIG } = require('./constants');
+import logger from '../services/logger';
+import { AWS_KEY_CONFIG } from './constants';
 
 const s3Client = new S3Client(AWS_KEY_CONFIG);
 

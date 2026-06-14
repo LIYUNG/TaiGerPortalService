@@ -1,16 +1,16 @@
-const path = require('path');
-const _ = require('lodash');
-const multer = require('multer');
-const multerS3 = require('multer-s3');
-const uuid = require('uuid');
-const { ErrorResponse } = require('../common/errors');
-const { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } = require('../config');
-const { s3Client } = require('../aws');
-const StudentService = require('../services/students');
-const ApplicationService = require('../services/applications');
-const ComplaintService = require('../services/complaints');
-const DocumentThreadService = require('../services/documentthreads');
-const ProgramService = require('../services/programs');
+import path from 'path';
+import _ from 'lodash';
+import multer from 'multer';
+import multerS3 from 'multer-s3';
+import uuid from 'uuid';
+import { ErrorResponse } from '../common/errors';
+import { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } from '../config';
+import { s3Client } from '../aws';
+import StudentService from '../services/students';
+import ApplicationService from '../services/applications';
+import ComplaintService from '../services/complaints';
+import DocumentThreadService from '../services/documentthreads';
+import ProgramService from '../services/programs';
 
 const MAX_FILE_SIZE_MB = 2 * 1024 * 1024; // 2 MB
 const MAX_DOC_FILE_SIZE_MB = 1 * 1024 * 1024; // 1 MB

@@ -1,5 +1,5 @@
-const { Router } = require('express');
-const {
+import { Router } from 'express';
+import {
   loginRateLimiter,
   activateAccountRateLimiter,
   resendActivationRateLimiter,
@@ -7,10 +7,10 @@ const {
   resetPasswordRateLimiter,
   // registerRateLimiter,
   GeneralGETRequestRateLimiter
-} = require('../middlewares/rate_limiter');
+} from '../middlewares/rate_limiter';
 
-const { localAuth, protect } = require('../middlewares/auth');
-const {
+import { localAuth, protect } from '../middlewares/auth';
+import {
   // signup,
   login,
   logout,
@@ -20,7 +20,7 @@ const {
   forgotPassword,
   resetPassword,
   thirdAuth
-} = require('../controllers/auth');
+} from '../controllers/auth';
 
 const router = Router();
 // TODO: when public to all user, then activate registration.

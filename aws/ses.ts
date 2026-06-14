@@ -1,7 +1,7 @@
-const { SES, SendRawEmailCommand } = require('@aws-sdk/client-ses');
+import { SES, SendRawEmailCommand } from '@aws-sdk/client-ses';
 
-const Bottleneck = require('bottleneck/es5');
-const { AWS_REGION } = require('../config');
+import Bottleneck from 'bottleneck/es5';
+import { AWS_REGION } from '../config';
 
 const ses = new SES({
   region: AWS_REGION

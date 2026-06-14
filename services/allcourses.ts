@@ -1,4 +1,4 @@
-const AllcourseDAO = require('../dao/allcourse.dao');
+import AllcourseDAO from '../dao/allcourse.dao';
 
 /**
  * AllcourseService — business layer for the global course catalogue

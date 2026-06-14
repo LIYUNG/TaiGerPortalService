@@ -1,4 +1,4 @@
-const { keywordSetSchema } = require('@taiger-common/model');
+import { keywordSetSchema } from '@taiger-common/model';
 
 keywordSetSchema.index({ categoryName: 1 });
 

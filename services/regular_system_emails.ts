@@ -1,4 +1,4 @@
-const {
+import {
   cv_ml_rl_escalation_summary,
   is_cv_ml_rl_task_response_needed,
   cv_ml_rl_editor_escalation_summary,
@@ -8,17 +8,16 @@ const {
   unsubmitted_applications_summary,
   unsubmitted_applications_escalation_summary,
   unsubmitted_applications_escalation_agent_summary,
-
   STUDENT_SURVEY_URL,
   cvmlrl_deadline_within30days_escalation_summary,
   is_deadline_within30days_needed,
   is_cv_ml_rl_reminder_needed,
   STUDENT_COURSE_URL,
   SURVEY_URL_FOR_AGENT_URL
-} = require('../constants');
+} from '../constants';
 
-const { sendEmail } = require('./email/configuration');
-const { asyncHandler } = require('../middlewares/error-handler');
+import { sendEmail } from './email/configuration';
+import { asyncHandler } from '../middlewares/error-handler';
 
 const StudentTasksReminderEmail = asyncHandler(async (recipient, payload) => {
   const subject = `TaiGer Weekly Reminder: ${recipient.firstname} ${recipient.lastname}`;

@@ -1,13 +1,13 @@
-const {
+import {
   Role,
   is_TaiGer_Admin,
   is_TaiGer_Agent,
   is_TaiGer_Editor
-} = require('@taiger-common/core');
+} from '@taiger-common/core';
 
-const { ErrorResponse } = require('../../common/errors');
-const { ManagerType } = require('../../constants');
-const { getPermission } = require('../../utils/queryFunctions');
+import { ErrorResponse } from '../../common/errors';
+import { ManagerType } from '../../constants';
+import { getPermission } from '../../utils/queryFunctions';
 
 const activeStudentFilter = {
   $or: [{ archiv: { $exists: false } }, { archiv: false }]

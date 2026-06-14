@@ -1,17 +1,17 @@
-const { Router } = require('express');
-const { Role } = require('@taiger-common/core');
+import { Router } from 'express';
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   getMessagesRateLimiter,
   postMessagesRateLimiter,
   postMessagesImageRateLimiter,
   GeneralGETSearchRequestRateLimiter,
   getNumberUnreadMessagesRateLimiter
-} = require('../middlewares/rate_limiter');
-const { filter_archiv_user } = require('../middlewares/limit_archiv_user');
-const { multitenant_filter } = require('../middlewares/multitenant-filter');
-const { protect, permit } = require('../middlewares/auth');
-const {
+} from '../middlewares/rate_limiter';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { multitenant_filter } from '../middlewares/multitenant-filter';
+import { protect, permit } from '../middlewares/auth';
+import {
   getMessages,
   updateAMessageInThread,
   deleteAMessageInCommunicationThread,
@@ -22,12 +22,10 @@ const {
   getUnreadNumberMessages,
   IgnoreMessage,
   getChatFile
-} = require('../controllers/communications');
-const {
-  chatMultitenantFilter
-} = require('../middlewares/chatMultitenantFilter');
-const { MessagesChatUpload } = require('../middlewares/file-upload');
-const { validateStudentId } = require('../common/validation');
+} from '../controllers/communications';
+import { chatMultitenantFilter } from '../middlewares/chatMultitenantFilter';
+import { MessagesChatUpload } from '../middlewares/file-upload';
+import { validateStudentId } from '../common/validation';
 
 const router = Router();
 

@@ -1,9 +1,9 @@
-const passport = require('passport');
-const { Strategy: LocalStrategy } = require('passport-local');
-const { Strategy: JwtStrategy } = require('passport-jwt');
+import passport from 'passport';
+import { Strategy as LocalStrategy } from 'passport-local';
+import { Strategy as JwtStrategy } from 'passport-jwt';
 
-const { JWT_SECRET } = require('../config');
-const UserService = require('../services/users');
+import { JWT_SECRET } from '../config';
+import UserService from '../services/users';
 
 passport.use(
   new LocalStrategy(

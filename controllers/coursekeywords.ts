@@ -1,7 +1,7 @@
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const KeywordSetService = require('../services/keywordsets');
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import KeywordSetService from '../services/keywordsets';
 
 const getKeywordSets = asyncHandler(async (req, res) => {
   const keywordsets = await KeywordSetService.getKeywordSets();

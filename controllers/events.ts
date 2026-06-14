@@ -1,25 +1,25 @@
-const {
+import {
   is_TaiGer_Agent,
   is_TaiGer_Student,
   is_TaiGer_Editor
-} = require('@taiger-common/core');
-const { Types } = require('mongoose');
+} from '@taiger-common/core';
+import { Types } from 'mongoose';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const {
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import {
   MeetingInvitationEmail,
   MeetingConfirmationReminderEmail,
   MeetingAdjustReminderEmail,
   MeetingCancelledReminderEmail
-} = require('../services/email');
-const logger = require('../services/logger');
-const { TENANT_SHORT_NAME } = require('../constants/common');
-const EventQueryBuilder = require('../builders/EventQueryBuilder');
+} from '../services/email';
+import logger from '../services/logger';
+import { TENANT_SHORT_NAME } from '../constants/common';
+import EventQueryBuilder from '../builders/EventQueryBuilder';
 
-const { scheduleInviteTA } = require('../utils/meeting-assistant.service');
-const EventService = require('../services/events');
-const UserService = require('../services/users');
+import { scheduleInviteTA } from '../utils/meeting-assistant.service';
+import EventService from '../services/events';
+import UserService from '../services/users';
 
 const AGENT_OH_SELECT =
   'firstname lastname email selfIntroduction officehours timezone pictureUrl';

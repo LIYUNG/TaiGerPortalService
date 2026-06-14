@@ -1,19 +1,19 @@
-const mongoose = require('mongoose');
-const path = require('path');
-const {
+import mongoose from 'mongoose';
+import path from 'path';
+import {
   Role,
   is_TaiGer_Agent,
   is_TaiGer_Editor,
   is_TaiGer_Admin,
   is_TaiGer_Student,
   isProgramDecided
-} = require('@taiger-common/core');
+} from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
-const { ten_minutes_cache, two_minutes_cache } = require('../cache/node-cache');
-const { informOnSurveyUpdate } = require('../utils/informEditor');
-const {
+import { ErrorResponse } from '../common/errors';
+import { asyncHandler } from '../middlewares/error-handler';
+import { ten_minutes_cache, two_minutes_cache } from '../cache/node-cache';
+import { informOnSurveyUpdate } from '../utils/informEditor';
+import {
   sendNewApplicationMessageInThreadEmail,
   sendAssignEditorReminderEmail,
   sendNewGeneraldocMessageInThreadEmail,
@@ -27,9 +27,9 @@ const {
   assignEssayTaskToEditorEmail,
   sendAssignTrainerReminderEmail,
   sendNewInterviewMessageInThreadEmail
-} = require('../services/email');
-const logger = require('../services/logger');
-const {
+} from '../services/email';
+import logger from '../services/logger';
+import {
   General_Docs,
   GENERAL_RLs_CONSTANT,
   application_deadline_V2_calculator,
@@ -39,32 +39,32 @@ const {
   EDITOR_SCOPE,
   ESSAY_WRITER_SCOPE,
   CV_MUST_HAVE_PATTERNS
-} = require('../constants');
-const {
+} from '../constants';
+import {
   informEssayWriterNewEssayEmail,
   informStudentTheirEssayWriterEmail,
   informAgentEssayAssignedEmail
-} = require('../services/email');
+} from '../services/email';
 
-const { AWS_S3_BUCKET_NAME, ORIGIN } = require('../config');
-const { deleteS3Objects } = require('../aws/s3');
-const { emptyS3Directory } = require('../utils/modelHelper/versionControl');
-const {
+import { AWS_S3_BUCKET_NAME, ORIGIN } from '../config';
+import { deleteS3Objects } from '../aws/s3';
+import { emptyS3Directory } from '../utils/modelHelper/versionControl';
+import {
   threadS3GarbageCollector,
   patternMatched,
   userChangesHelperFunction
-} = require('../utils/utils_function');
-const { getS3Object } = require('../aws/s3');
-const { getPermission } = require('../utils/queryFunctions');
-const StudentService = require('../services/students');
-const DocumentThreadService = require('../services/documentthreads');
-const UserService = require('../services/users');
-const ApplicationService = require('../services/applications');
-const SurveyInputService = require('../services/surveyInputs');
-const PermissionService = require('../services/permissions');
-const InterviewService = require('../services/interviews');
-const AuditService = require('../services/audit');
-const DocumentthreadQueryBuilder = require('../builders/DocumentthreadQueryBuilder');
+} from '../utils/utils_function';
+import { getS3Object } from '../aws/s3';
+import { getPermission } from '../utils/queryFunctions';
+import StudentService from '../services/students';
+import DocumentThreadService from '../services/documentthreads';
+import UserService from '../services/users';
+import ApplicationService from '../services/applications';
+import SurveyInputService from '../services/surveyInputs';
+import PermissionService from '../services/permissions';
+import InterviewService from '../services/interviews';
+import AuditService from '../services/audit';
+import DocumentthreadQueryBuilder from '../builders/DocumentthreadQueryBuilder';
 
 const getActiveThreads = asyncHandler(async (req, res) => {
   const {

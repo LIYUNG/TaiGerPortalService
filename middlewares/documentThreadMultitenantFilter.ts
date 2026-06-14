@@ -1,14 +1,10 @@
-const {
-  Role,
-  is_TaiGer_Student,
-  is_TaiGer_Guest
-} = require('@taiger-common/core');
+import { Role, is_TaiGer_Student, is_TaiGer_Guest } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const logger = require('../services/logger');
-const { asyncHandler } = require('./error-handler');
-const DocumentThreadService = require('../services/documentthreads');
-const SurveyInputService = require('../services/surveyInputs');
+import { ErrorResponse } from '../common/errors';
+import logger from '../services/logger';
+import { asyncHandler } from './error-handler';
+import DocumentThreadService from '../services/documentthreads';
+import SurveyInputService from '../services/surveyInputs';
 
 const docThreadMultitenant_filter = asyncHandler(async (req, res, next) => {
   const {

@@ -1,4 +1,4 @@
-const { surveyInputSchema } = require('@taiger-common/model');
+import { surveyInputSchema } from '@taiger-common/model';
 
 // Declare the unique compound index ONCE here, on the shared schema object, so
 // every connection that compiles this schema (the default-connection central

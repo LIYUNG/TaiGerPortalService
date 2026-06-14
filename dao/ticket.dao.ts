@@ -1,4 +1,4 @@
-const { Ticket } = require('../models');
+import { Ticket } from '../models';
 
 const escapeRegex = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -1,11 +1,11 @@
-const { Role, is_TaiGer_Agent } = require('@taiger-common/core');
+import { Role, is_TaiGer_Agent } from '@taiger-common/core';
 
-const { ErrorResponse } = require('../common/errors');
-const { TENANT_SHORT_NAME } = require('../constants/common');
-const { asyncHandler } = require('../middlewares/error-handler');
-const logger = require('../services/logger');
-const StudentService = require('../services/students');
-const UserService = require('../services/users');
+import { ErrorResponse } from '../common/errors';
+import { TENANT_SHORT_NAME } from '../constants/common';
+import { asyncHandler } from '../middlewares/error-handler';
+import logger from '../services/logger';
+import StudentService from '../services/students';
+import UserService from '../services/users';
 
 const getExpenses = asyncHandler(async (req, res) => {
   const studentsWithExpenses =

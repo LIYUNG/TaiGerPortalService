@@ -1,4 +1,4 @@
-const VCDAO = require('../dao/vc.dao');
+import VCDAO from '../dao/vc.dao';
 
 /**
  * VCService — business layer; delegates data access to the DAO.

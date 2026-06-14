@@ -1,4 +1,4 @@
-const { ProgramAI } = require('../models');
+import { ProgramAI } from '../models';
 
 /**
  * ProgramAIDAO — data access for the ProgramAI model (default-connection model

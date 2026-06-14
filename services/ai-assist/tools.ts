@@ -1,24 +1,22 @@
-const { ErrorResponse } = require('../../common/errors');
-const { Role } = require('@taiger-common/core');
-const { and, desc, eq, not } = require('drizzle-orm');
-const { getPostgresDb } = require('../../database');
-const { leads } = require('../../drizzle/schema/leads');
-const {
-  meetingTranscripts
-} = require('../../drizzle/schema/meetingTranscripts');
-const { getAccessibleStudentFilter } = require('./studentAccess');
-const {
+import { ErrorResponse } from '../../common/errors';
+import { Role } from '@taiger-common/core';
+import { and, desc, eq, not } from 'drizzle-orm';
+import { getPostgresDb } from '../../database';
+import { leads } from '../../drizzle/schema/leads';
+import { meetingTranscripts } from '../../drizzle/schema/meetingTranscripts';
+import { getAccessibleStudentFilter } from './studentAccess';
+import {
   normalizeApplication,
   normalizeMessage,
   normalizeProfileDocument,
   normalizeUser
-} = require('./normalizers');
-const StudentService = require('../students');
-const ApplicationService = require('../applications');
-const CommunicationService = require('../communications');
-const ComplaintService = require('../complaints');
-const DocumentThreadService = require('../documentthreads');
-const ProgramService = require('../programs');
+} from './normalizers';
+import StudentService from '../students';
+import ApplicationService from '../applications';
+import CommunicationService from '../communications';
+import ComplaintService from '../complaints';
+import DocumentThreadService from '../documentthreads';
+import ProgramService from '../programs';
 
 const AI_STUDENT_PICKER_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count';

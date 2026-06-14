@@ -1,4 +1,4 @@
-const NoteDAO = require('../dao/note.dao');
+import NoteDAO from '../dao/note.dao';
 
 /**
  * NoteService — business layer for student notes. Delegates data access to the

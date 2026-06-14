@@ -1,4 +1,4 @@
-const NodeCache = require('node-cache');
+import NodeCache from 'node-cache';
 // https://www.npmjs.com/package/node-cache
 
 const ten_minutes_cache = new NodeCache({

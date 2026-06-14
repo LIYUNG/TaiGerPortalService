@@ -1,4 +1,4 @@
-const { Course } = require('../models');
+import { Course } from '../models';
 
 /**
  * CourseDAO — data access for the Course model (default-connection model from

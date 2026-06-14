@@ -166,9 +166,14 @@ async function logStaffNotificationToManagers(editor, message) {
       : `${editor?.firstname || ''} ${editor?.lastname || ''}`.trim() ||
         'a TaiGer contributor';
 
+  const quotedMessage = message
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n');
+
   try {
     await sendSlackMessage(
-      `Message sent to ${recipient}:\n${message}`,
+      `Message sent to ${recipient}:\n${quotedMessage}`,
       SLACK_NOTIFICATIONS_LOG_CHANNEL_ID,
       undefined,
       {

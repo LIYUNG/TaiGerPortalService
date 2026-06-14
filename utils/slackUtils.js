@@ -1,7 +1,16 @@
 const axios = require('axios');
-const { SLACK_BOT_TOKEN, SLACK_TAIGER_WIN_CHANNEL_ID } = require('../config');
+const {
+  isDev,
+  SLACK_BOT_TOKEN,
+  SLACK_TAIGER_WIN_CHANNEL_ID,
+  SLACK_DEVELOPER_ID
+} = require('../config');
 
-const { PROGRAM_URL, BASE_DOCUMENT_FOR_AGENT_URL } = require('../constants');
+const {
+  PROGRAM_URL,
+  BASE_DOCUMENT_FOR_AGENT_URL,
+  STUDENT_APPLICATION_STUDENT_URL
+} = require('../constants');
 
 const logger = require('../services/logger');
 
@@ -141,7 +150,68 @@ async function sendSlackMessageToWinChannel(student, application) {
   }
 }
 
+/**
+ * Notifies a student's editors via Slack DM that an application has been
+ * withdrawn or re-activated, so they know whether it still needs work.
+ */
+async function sendApplicationWithdrawNotificationToEditors(
+  student,
+  application,
+  isWithdrawn
+) {
+  const editors = (student.editors || []).filter(
+    (editor) => !editor.archiv && typeof editor?.slackId === 'string' && editor.slackId
+  );
+
+  if (editors.length === 0) {
+    return;
+  }
+
+  const studentLink = STUDENT_APPLICATION_STUDENT_URL(student._id);
+  const programLink = PROGRAM_URL(application.programId._id);
+  const studentName = `${student.firstname} ${student.lastname}`;
+  const programLabel = `${application.programId.school} - ${application.programId.program_name} (${application.programId.degree})`;
+
+  const slackMessage = isWithdrawn
+    ? `🚫 Application withdrawn\n\n` +
+      `• Student: <${studentLink}|${studentName}>\n` +
+      `• Program: <${programLink}|${programLabel}>\n\n` +
+      `This application has been withdrawn and no longer needs to be processed or worked on.`
+    : `↩️ Application reinstated\n\n` +
+      `• Student: <${studentLink}|${studentName}>\n` +
+      `• Program: <${programLink}|${programLabel}>\n\n` +
+      `This application has been un-withdrawn and needs to be processed again.`;
+
+  for (const editor of editors) {
+    let channel = editor.slackId;
+
+    if (isDev()) {
+      if (!SLACK_DEVELOPER_ID) {
+        logger.info(
+          `[dev] Slack application withdraw notification to editor ${editor._id} (${editor.slackId}) skipped, no SLACK_DEVELOPER_ID set:\n${slackMessage}`
+        );
+        continue;
+      }
+      channel = SLACK_DEVELOPER_ID;
+    }
+
+    try {
+      await sendSlackMessage(slackMessage, channel, undefined, {
+        unfurl_links: false,
+        unfurl_media: false
+      });
+    } catch (error) {
+      logger.error(
+        `Failed to send Slack application withdraw notification to editor ${editor._id}: ${
+          error.message || error
+        }`
+      );
+    }
+  }
+}
+
 module.exports = {
   sendSlackMessage,
-  sendSlackMessageToWinChannel
+  sendSlackMessageToWinChannel,
+  sendApplicationWithdrawNotificationToEditors
 };

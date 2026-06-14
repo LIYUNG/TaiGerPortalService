@@ -20,6 +20,7 @@ const {
   getApplicationProgramsUpdateStatus,
   getMyStudentsApplicationsStats,
   updateApplication,
+  withdrawApplication,
   refreshApplication
 } = require('../controllers/applications');
 const { multitenant_filter } = require('../middlewares/multitenant-filter');
@@ -87,6 +88,15 @@ router.route('/student/:studentId/:application_id').put(
   multitenant_filter,
   InnerTaigerMultitenantFilter,
   updateApplication
+);
+
+router.route('/student/:studentId/:application_id/withdraw').put(
+  validateStudentId,
+  getMessagesRateLimiter,
+  permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+  multitenant_filter,
+  InnerTaigerMultitenantFilter,
+  withdrawApplication
 );
 
 router

@@ -65,6 +65,12 @@ const generate_streaming = asyncHandler(async (input, model) =>
   })
 );
 
+const countTokens = (text) => {
+  // Implement a function to count tokens based on your tokenizer
+  // This is a simple approximation, and you should replace it with an accurate tokenizer
+  return text.split(' ').length;
+};
+
 const TaiGerAiChat = asyncHandler(async (req, res, next) => {
   const {
     user,
@@ -188,12 +194,6 @@ const TaiGerAiChat = asyncHandler(async (req, res, next) => {
   // res.status(200).send({ success: true, data: chat });
   await PermissionService.decrementTaigerAiQuota(user._id);
 });
-
-const countTokens = (text) => {
-  // Implement a function to count tokens based on your tokenizer
-  // This is a simple approximation, and you should replace it with an accurate tokenizer
-  return text.split(' ').length;
-};
 
 const cvmlrlAi = asyncHandler(async (req, res, next) => {
   const { user } = req;

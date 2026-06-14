@@ -6,6 +6,15 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
+    // Transpile-only deploy: emit runnable JS even while the strict type backlog
+    // is being burned down, so type errors never break the CI Docker build.
+    // Type-checking is the separate, advisory `npm run typecheck`.
+    "noEmitOnError": false,
+    // The original JS ran in sloppy mode; don't let tsc inject "use strict" into
+    // CommonJS output (would risk latent strict-mode regressions across files
+    // not yet reviewed). Overrides the `strict`-implied alwaysStrict:true. Files
+    // written with ES-module syntax are strict regardless, which is fine.
+    "alwaysStrict": false,
     "outDir": "./dist",
     "rootDir": "."
   },

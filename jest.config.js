@@ -5,7 +5,18 @@ module.exports = {
   // so the @shelf/jest-mongodb preset / in-memory server is no longer used and
   // the whole suite is deterministic.
   watchPathIgnorePatterns: ['globalConfig'],
-  testRegex: '/__tests__/.*\\.(test|spec)\\.jsx?$',
+  // Never scan compiled output (local `npm run build` artifact; absent in CI).
+  modulePathIgnorePatterns: ['<rootDir>/dist/'],
+  coveragePathIgnorePatterns: ['/node_modules/', '<rootDir>/dist/'],
+  // .js and .ts coexist during the migration. ts-jest runs transpile-only
+  // (isolatedModules) so type errors never gate the test run — type-checking is
+  // a separate, advisory `npm run typecheck`. ts-jest also hoists `jest.mock`
+  // for both extensions, so existing .js mock behavior is preserved.
+  testRegex: '/__tests__/.*\\.(test|spec)\\.[jt]sx?$',
+  transform: {
+    '^.+\\.[tj]sx?$': 'ts-jest'
+  },
+  moduleFileExtensions: ['js', 'ts', 'json', 'node'],
   setupFilesAfterEnv: ['jest-extended'],
   transformIgnorePatterns: ['/node_modules/(?!(axios|nanoid)/)'],
   moduleNameMapper: {

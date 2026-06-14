@@ -90,14 +90,16 @@ router.route('/student/:studentId/:application_id').put(
   updateApplication
 );
 
-router.route('/student/:studentId/:application_id/withdraw').put(
-  validateStudentId,
-  getMessagesRateLimiter,
-  permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-  multitenant_filter,
-  InnerTaigerMultitenantFilter,
-  withdrawApplication
-);
+router
+  .route('/student/:studentId/:application_id/withdraw')
+  .put(
+    validateStudentId,
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    multitenant_filter,
+    InnerTaigerMultitenantFilter,
+    withdrawApplication
+  );
 
 router
   .route('/taiger-user/:userId/stats')

@@ -135,6 +135,36 @@ const parseBoolParam = (value) => {
   return value === true || String(value).toLowerCase() === 'true';
 };
 
+// Parse an ISO date query value into a Date, or undefined when absent/invalid.
+// `endOfDay` pushes a date-only bound to 23:59:59.999 so a "to" filter is
+// inclusive of the whole selected day.
+const parseDateParam = (value, endOfDay = false) => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+  if (endOfDay) {
+    date.setHours(23, 59, 59, 999);
+  }
+  return date;
+};
+
+// Build a { $gte, $lte } range from optional from/to bounds, or undefined when
+// neither is present.
+const buildDateRange = (from, to) => {
+  const range = {};
+  if (from) {
+    range.$gte = from;
+  }
+  if (to) {
+    range.$lte = to;
+  }
+  return Object.keys(range).length > 0 ? range : undefined;
+};
+
 const parseInterviewsQuery = (query = {}) => {
   const { page, limit, search, sortBy, sortOrder } = query;
   const parsedPage = parseInt(page, 10);
@@ -168,6 +198,23 @@ const parseInterviewsQuery = (query = {}) => {
       filters[key] = String(query[key]).trim();
     }
   });
+
+  // Date-range filters: training time (the linked event's start) and the
+  // official interview time.
+  const trainingTime = buildDateRange(
+    parseDateParam(query.trainingTimeFrom),
+    parseDateParam(query.trainingTimeTo, true)
+  );
+  if (trainingTime) {
+    filters.trainingTime = trainingTime;
+  }
+  const interviewTime = buildDateRange(
+    parseDateParam(query.interviewTimeFrom),
+    parseDateParam(query.interviewTimeTo, true)
+  );
+  if (interviewTime) {
+    filters.interviewTime = interviewTime;
+  }
 
   return {
     page: safePage,
@@ -319,6 +366,15 @@ const InterviewDAO = {
           [field]: { $regex: pattern, $options: 'i' }
         }))
       });
+    }
+    // Date ranges match the materialised eventStart / interview_date. A range
+    // naturally excludes interviews with no such date (null), which is the
+    // intended behaviour when filtering by a time window.
+    if (filters.trainingTime) {
+      andConditions.push({ eventStart: filters.trainingTime });
+    }
+    if (filters.interviewTime) {
+      andConditions.push({ interview_date: filters.interviewTime });
     }
     const postMatch = andConditions.length > 0 ? { $and: andConditions } : {};
 

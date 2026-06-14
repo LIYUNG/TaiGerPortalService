@@ -374,6 +374,47 @@ describe('InterviewDAO (mocked models)', () => {
       expect(and.filter((c) => c.$or)).toHaveLength(4);
     });
 
+    it('adds inclusive eventStart / interview_date range conditions for date filters', async () => {
+      Interview.aggregate.mockReturnValue(aggChain([{ rows: [], total: [] }]));
+
+      await InterviewDAO.getInterviewsPaginated({
+        filter: {},
+        query: {
+          trainingTimeFrom: '2025-06-01',
+          trainingTimeTo: '2025-06-30',
+          interviewTimeFrom: '2025-07-01'
+        }
+      });
+
+      const pipeline = Interview.aggregate.mock.calls[0][0];
+      const and = pipeline.find((s) => s.$match && s.$match.$and).$match.$and;
+
+      const training = and.find((c) => c.eventStart);
+      expect(training.eventStart.$gte).toEqual(new Date('2025-06-01'));
+      // "to" is pushed to end-of-day so the whole day is included.
+      const expectedTo = new Date('2025-06-30');
+      expectedTo.setHours(23, 59, 59, 999);
+      expect(training.eventStart.$lte).toEqual(expectedTo);
+
+      // interview_date with only a "from" bound -> $gte, no $lte.
+      const interview = and.find((c) => c.interview_date);
+      expect(interview.interview_date.$gte).toEqual(new Date('2025-07-01'));
+      expect(interview.interview_date.$lte).toBeUndefined();
+    });
+
+    it('ignores invalid / empty date filter values', async () => {
+      Interview.aggregate.mockReturnValue(aggChain([{ rows: [], total: [] }]));
+
+      await InterviewDAO.getInterviewsPaginated({
+        filter: {},
+        query: { trainingTimeFrom: 'not-a-date', interviewTimeTo: '' }
+      });
+
+      const pipeline = Interview.aggregate.mock.calls[0][0];
+      // No valid filters/search -> no post-match $and stage at all.
+      expect(pipeline.filter((s) => s.$match && s.$match.$and)).toHaveLength(0);
+    });
+
     it('casts a string student_id / trainer_id to ObjectId and isClosed to boolean in the base $match (aggregation does not auto-cast)', async () => {
       const mongoose = require('mongoose');
       const sid = '5f9f1b9b9c9d440000a1a1a1';

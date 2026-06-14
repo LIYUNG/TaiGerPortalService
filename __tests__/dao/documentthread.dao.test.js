@@ -784,6 +784,34 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
     expect(flat).toContain('a\\\\*b');
   });
 
+  it('adds editor / agent / essay-writer name filters on the joined collaborators', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: {
+        editorName: 'Al.ice',
+        agentName: 'Bob',
+        essayWriterName: 'Eve'
+      }
+    });
+    const andMatch = pipeline.find(
+      (s) =>
+        s.$match &&
+        Array.isArray(s.$match.$and) &&
+        s.$match.$and.some((c) => c['student.archiv'])
+    ).$match.$and;
+
+    const editor = andMatch.find((c) => c['editors.firstname']);
+    expect(editor['editors.firstname']).toEqual({
+      $regex: 'Al\\.ice', // metacharacters escaped
+      $options: 'i'
+    });
+    expect(andMatch.some((c) => c['agents.firstname']?.$regex === 'Bob')).toBe(
+      true
+    );
+    expect(
+      andMatch.some((c) => c['outsourced_user_id.firstname']?.$regex === 'Eve')
+    ).toBe(true);
+  });
+
   it('maps an Unlocked status filter to isLocked=false', async () => {
     const pipeline = await runAndGetPipeline({
       query: { status: 'Unlocked' }

@@ -90,6 +90,11 @@ const parseActiveThreadsQuery = (query = {}) => {
       file_type: trim(query.file_type),
       lang: trim(query.lang),
       status: trim(query.status),
+      // Staff-name filters matched against the joined editor / agent / essay
+      // writer collaborators on each thread's student.
+      editorName: trim(query.editorName),
+      agentName: trim(query.agentName),
+      essayWriterName: trim(query.essayWriterName),
       // Year/month text match against the displayed deadline string
       // (e.g. "2025/09"); also matches "Rolling"/"WITHDRAW".
       deadline: trim(query.deadline),
@@ -945,6 +950,32 @@ const DocumentthreadDAO = {
     if (filters.lang) {
       andConditions.push({
         lang: { $regex: escapeRegex(filters.lang), $options: 'i' }
+      });
+    }
+    // Staff filters match any collaborator's first name (the lookups above
+    // projected firstname onto each array element).
+    if (filters.editorName) {
+      andConditions.push({
+        'editors.firstname': {
+          $regex: escapeRegex(filters.editorName),
+          $options: 'i'
+        }
+      });
+    }
+    if (filters.agentName) {
+      andConditions.push({
+        'agents.firstname': {
+          $regex: escapeRegex(filters.agentName),
+          $options: 'i'
+        }
+      });
+    }
+    if (filters.essayWriterName) {
+      andConditions.push({
+        'outsourced_user_id.firstname': {
+          $regex: escapeRegex(filters.essayWriterName),
+          $options: 'i'
+        }
       });
     }
     if (filters.deadline) {

@@ -675,7 +675,6 @@ const updateInterviewSurvey = asyncHandler(async (req, res) => {
         : undefined;
     if (notificationUser) {
       await addMessageInThread(
-        req,
         `Automatic Notification: Hi ${interview.student_id.firstname}, thank you for filling the interview training survey. I wish you having a great result for the application.`,
         interview?.thread_id,
         notificationUser

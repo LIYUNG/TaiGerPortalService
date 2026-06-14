@@ -182,7 +182,7 @@ const getResponseIntervalByStudent = asyncHandler(async (req, res) => {
   const studentApplications =
     await StudentService.getStudentApplicationsForIntervals(studentId);
 
-  let allDocThreadId = [];
+  let allDocThreadIds = [];
   if (studentApplications && studentApplications.applications) {
     studentApplications.applications = studentApplications.applications.map(
       (app) => ({

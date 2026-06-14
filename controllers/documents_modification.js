@@ -247,7 +247,7 @@ const postSurveyInput = asyncHandler(async (req, res) => {
       },
       [['program_id']]
     );
-    informOnSurveyUpdate(req, user, newSurvey, thread);
+    informOnSurveyUpdate(user, newSurvey, thread);
   }
 });
 
@@ -276,7 +276,7 @@ const putSurveyInput = asyncHandler(async (req, res) => {
       },
       [['program_id']]
     );
-    informOnSurveyUpdate(req, user, updatedSurvey, thread);
+    informOnSurveyUpdate(user, updatedSurvey, thread);
   }
 });
 

@@ -57,15 +57,6 @@ const processProgramListAi = asyncHandler(async (req, res, next) => {
   });
 });
 
-const generate = asyncHandler(async (input, model) => {
-  logger.info(`model = ${model}`);
-  const response = await openAIClient.chat.completions.create({
-    messages: [{ role: 'user', content: input || 'where is BMW Headquarter?' }],
-    model
-  });
-  return response.choices[0]?.message;
-});
-
 const generate_streaming = asyncHandler(async (input, model) =>
   openAIClient.chat.completions.create({
     messages: [{ role: 'user', content: input || 'where is BMW Headquarter?' }],

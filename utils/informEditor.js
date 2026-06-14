@@ -7,35 +7,35 @@ const {
   sendNewGeneraldocMessageInThreadEmail
 } = require('../services/email');
 const { ErrorResponse } = require('../common/errors');
-const { asyncHandler } = require('../middlewares/error-handler');
 const DocumentThreadService = require('../services/documentthreads');
 const StudentService = require('../services/students');
 const PermissionService = require('../services/permissions');
 
-const addMessageInThread = asyncHandler(
-  async (req, message, threadId, userId) => {
-    const thread = await DocumentThreadService.getThreadDocById(threadId);
-    if (!thread) {
-      throw new ErrorResponse(403, 'Invalid message thread id');
-    }
-    const msg = JSON.stringify({
-      blocks: [
-        {
-          data: { text: message },
-          type: 'paragraph'
-        }
-      ]
-    });
-    const newMessage = {
-      user_id: userId,
-      message: msg,
-      createdAt: new Date()
-    };
-    thread.messages.push(newMessage);
-    thread.updatedAt = new Date();
-    await thread.save();
+// Internal helpers — invoked directly with domain args (NOT Express
+// middleware), so they must NOT be wrapped in asyncHandler (its (req,res,next)
+// wrapper would drop every positional arg past the third).
+const addMessageInThread = async (message, threadId, userId) => {
+  const thread = await DocumentThreadService.getThreadDocById(threadId);
+  if (!thread) {
+    throw new ErrorResponse(403, 'Invalid message thread id');
   }
-);
+  const msg = JSON.stringify({
+    blocks: [
+      {
+        data: { text: message },
+        type: 'paragraph'
+      }
+    ]
+  });
+  const newMessage = {
+    user_id: userId,
+    message: msg,
+    createdAt: new Date()
+  };
+  thread.messages.push(newMessage);
+  thread.updatedAt = new Date();
+  await thread.save();
+};
 
 const informStaff = async (user, staff, student, fileType, thread, message) => {
   await sendNewApplicationMessageInThreadEmail(
@@ -59,7 +59,7 @@ const informStaff = async (user, staff, student, fileType, thread, message) => {
   );
 };
 
-const informNoEditor = asyncHandler(async (req, student) => {
+const informNoEditor = async (student) => {
   const agents = student?.agents;
   await StudentService.updateStudentByIdRaw(student._id, { needEditor: true });
 
@@ -111,15 +111,14 @@ const informNoEditor = asyncHandler(async (req, student) => {
       )
     )
   );
-});
+};
 
-const informOnSurveyUpdate = asyncHandler(async (req, user, survey, thread) => {
+const informOnSurveyUpdate = async (user, survey, thread) => {
   // placeholder for automatic notification user id
   const notificationUser = undefined;
 
   // Create message notification
   await addMessageInThread(
-    req,
     `Automatic Notification: Survey has been finalized by ${user.firstname} ${user.lastname}.`,
     thread?._id,
     notificationUser
@@ -146,13 +145,13 @@ const informOnSurveyUpdate = asyncHandler(async (req, user, survey, thread) => {
 
   // If no editor, inform agent to assign
   if (noEditor) {
-    informNoEditor(req, student);
+    informNoEditor(student);
     // if supplementary form, inform Agent.
   } else if (fileType === 'Supplementary_Form') {
     const activeAgents = agents.filter((agent) => !isArchiv(agent));
     await Promise.all(
       activeAgents.map((agent) =>
-        informStaff(user, agent, student, fileType, message)
+        informStaff(user, agent, student, fileType, thread, message)
       )
     );
   } else {
@@ -161,7 +160,7 @@ const informOnSurveyUpdate = asyncHandler(async (req, user, survey, thread) => {
     await Promise.all(
       activeEditors.map((editor) => {
         if (programId) {
-          return informStaff(user, editor, student, fileType, message);
+          return informStaff(user, editor, student, fileType, thread, message);
         }
         const recipient = {
           firstname: editor.firstname,
@@ -182,6 +181,6 @@ const informOnSurveyUpdate = asyncHandler(async (req, user, survey, thread) => {
       })
     );
   }
-});
+};
 
 module.exports = { informOnSurveyUpdate, addMessageInThread };

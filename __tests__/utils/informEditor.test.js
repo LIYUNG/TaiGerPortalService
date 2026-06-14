@@ -6,18 +6,13 @@
 // are mocked: the email service, the document-thread / student / permission
 // services, and the constants archive guards. No DB, no email.
 //
-// NOTE on skipped branches (all rooted in asyncHandler dropping positional
-// args beyond (req,res,next)):
-//   * informOnSurveyUpdate is asyncHandler-wrapped, so its 4th arg `thread` is
-//     ALWAYS undefined at runtime. The "Supplementary_Form agent" and "editor
-//     WITH programId" branches additionally call informStaff with the wrong
-//     arity (5 args into a 6-arg signature => thread.program_id.school throws),
-//     and the "editor without programId" branch dereferences thread._id — all
-//     of which throw a TypeError in production. These crash paths are NOT tested
-//     here (testing them would only assert a latent bug). We cover the
-//     deterministic, non-crashing branches: addMessageInThread, the non-Student
-//     early return, the archived early return, and the informNoEditor cascade.
-//   See FINAL REPORT.
+// These helpers are plain async functions (NOT asyncHandler-wrapped), so every
+// positional arg — including `thread` — is received correctly, and informStaff
+// is called with the full (user, staff, student, fileType, thread, message)
+// arity. All branches are therefore deterministic and covered below: the
+// non-Student/archived early returns, the informNoEditor cascade, and the three
+// staff-notification branches (Supplementary_Form agent, editor with programId,
+// editor without programId) that previously crashed on the dropped `thread`.
 
 // Stub the model registry so auto-mocked services don't compile Mongoose (NO DB).
 jest.mock('../../models', () => ({}));
@@ -36,6 +31,7 @@ jest.mock('../../constants', () => ({
 
 const { Role } = require('@taiger-common/core');
 const {
+  sendNewApplicationMessageInThreadEmail,
   sendAssignEditorReminderEmail,
   sendNewGeneraldocMessageInThreadEmail
 } = require('../../services/email');
@@ -61,7 +57,7 @@ describe('addMessageInThread', () => {
   it('throws 403 when the thread does not exist', async () => {
     DocumentThreadService.getThreadDocById.mockResolvedValue(null);
     await expect(
-      addMessageInThread({}, 'hi', 'thread-1', 'user-1')
+      addMessageInThread('hi', 'thread-1', 'user-1')
     ).rejects.toBeInstanceOf(ErrorResponse);
   });
 
@@ -73,12 +69,11 @@ describe('addMessageInThread', () => {
       save
     });
 
-    // NOTE: addMessageInThread is wrapped by asyncHandler, whose returned fn
-    // forwards only (req, res, next) — so the 4th positional arg (userId) is
-    // dropped. We pass it for documentation but assert the real behaviour.
-    await addMessageInThread({}, 'hello', 'thread-1', 'user-1');
+    await addMessageInThread('hello', 'thread-1', 'user-1');
 
     expect(messages).toHaveLength(1);
+    // userId is now received (no longer dropped) and stored on the message
+    expect(messages[0].user_id).toBe('user-1');
     // message is an EditorJS-style serialized block carrying the text
     const parsed = JSON.parse(messages[0].message);
     expect(parsed.blocks[0].data.text).toBe('hello');
@@ -98,7 +93,6 @@ describe('informOnSurveyUpdate', () => {
     DocumentThreadService.getThreadDocById.mockResolvedValue(threadDoc());
 
     await informOnSurveyUpdate(
-      {},
       { role: Role.Agent, firstname: 'A', lastname: 'B' },
       { studentId: 'stu-1' },
       baseThread
@@ -118,7 +112,6 @@ describe('informOnSurveyUpdate', () => {
     isArchiv.mockReturnValue(true);
 
     await informOnSurveyUpdate(
-      {},
       { role: Role.Student, firstname: 'S', lastname: 'T' },
       { studentId: 'stu-1', fileType: 'ML' },
       baseThread
@@ -151,7 +144,6 @@ describe('informOnSurveyUpdate', () => {
     ]);
 
     await informOnSurveyUpdate(
-      {},
       { role: Role.Student, firstname: 'S', lastname: 'T' },
       { studentId: 'stu-1', fileType: 'ML' },
       baseThread
@@ -184,7 +176,6 @@ describe('informOnSurveyUpdate', () => {
     PermissionService.findPermissionsWithUser.mockResolvedValue([]);
 
     await informOnSurveyUpdate(
-      {},
       { role: Role.Student, firstname: 'S', lastname: 'T' },
       { studentId: 'stu-1', fileType: 'ML' },
       baseThread
@@ -196,5 +187,86 @@ describe('informOnSurveyUpdate', () => {
     // only the active-agent reminders ran (none, since no agents); no editor-lead
     // reminders were sent because the permissions list was empty.
     expect(sendAssignEditorReminderEmail).not.toHaveBeenCalled();
+  });
+
+  // The three branches below dereference `thread` (and inform staff with the
+  // full 6-arg arity) — they crashed before the asyncHandler removal.
+  const threadWithProgram = {
+    _id: { toString: () => 'thread-1' },
+    program_id: { school: 'ETH', program_name: 'CS' }
+  };
+
+  it('informs the agent for a Supplementary_Form survey', async () => {
+    DocumentThreadService.getThreadDocById.mockResolvedValue(threadDoc());
+    StudentService.getStudentByIdPopulated.mockResolvedValue({
+      _id: 'stu-1',
+      firstname: 'Stu',
+      lastname: 'Dent',
+      agents: [{ firstname: 'Ag', lastname: 'Ent', email: 'ag@x.io' }],
+      editors: []
+    });
+    isArchiv.mockReturnValue(false);
+    isNotArchiv.mockReturnValue(true);
+
+    await informOnSurveyUpdate(
+      { role: Role.Student, firstname: 'S', lastname: 'T' },
+      { studentId: 'stu-1', fileType: 'Supplementary_Form' },
+      threadWithProgram
+    );
+    await flush();
+
+    expect(sendNewApplicationMessageInThreadEmail).toHaveBeenCalledTimes(1);
+    const [, payload] = sendNewApplicationMessageInThreadEmail.mock.calls[0];
+    expect(payload.school).toBe('ETH');
+    expect(payload.thread_id).toBe('thread-1');
+  });
+
+  it('informs an editor via the application email when the survey has a programId', async () => {
+    DocumentThreadService.getThreadDocById.mockResolvedValue(threadDoc());
+    StudentService.getStudentByIdPopulated.mockResolvedValue({
+      _id: 'stu-1',
+      firstname: 'Stu',
+      lastname: 'Dent',
+      agents: [{ firstname: 'Ag', lastname: 'Ent', email: 'ag@x.io' }],
+      editors: [{ firstname: 'Ed', lastname: 'Itor', email: 'ed@x.io' }]
+    });
+    isArchiv.mockReturnValue(false);
+    isNotArchiv.mockReturnValue(true);
+
+    await informOnSurveyUpdate(
+      { role: Role.Student, firstname: 'S', lastname: 'T' },
+      { studentId: 'stu-1', fileType: 'ML', programId: 'prog-1' },
+      threadWithProgram
+    );
+    await flush();
+
+    expect(sendNewApplicationMessageInThreadEmail).toHaveBeenCalledTimes(1);
+    expect(sendNewGeneraldocMessageInThreadEmail).not.toHaveBeenCalled();
+  });
+
+  it('informs an editor via the general-doc email (uses thread._id) without a programId', async () => {
+    DocumentThreadService.getThreadDocById.mockResolvedValue(threadDoc());
+    StudentService.getStudentByIdPopulated.mockResolvedValue({
+      _id: 'stu-1',
+      firstname: 'Stu',
+      lastname: 'Dent',
+      agents: [{ firstname: 'Ag', lastname: 'Ent', email: 'ag@x.io' }],
+      editors: [{ firstname: 'Ed', lastname: 'Itor', email: 'ed@x.io' }]
+    });
+    isArchiv.mockReturnValue(false);
+    isNotArchiv.mockReturnValue(true);
+
+    await informOnSurveyUpdate(
+      { role: Role.Student, firstname: 'S', lastname: 'T' },
+      { studentId: 'stu-1', fileType: 'ML' },
+      { _id: { toString: () => 'thread-1' } }
+    );
+    await flush();
+
+    expect(sendNewGeneraldocMessageInThreadEmail).toHaveBeenCalledTimes(1);
+    const [recipient, msg] =
+      sendNewGeneraldocMessageInThreadEmail.mock.calls[0];
+    expect(recipient.address).toBe('ed@x.io');
+    expect(msg.thread_id).toBe('thread-1');
   });
 });

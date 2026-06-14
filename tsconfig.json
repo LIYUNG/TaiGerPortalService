@@ -1,0 +1,36 @@
+{
+  // Base config — type-checking only (noEmit). Used by `npm run typecheck`.
+  // Phase 0 of the incremental JS->TS migration: allowJs lets .js and .ts
+  // coexist; checkJs is OFF so existing JS is parsed but not type-checked until
+  // a file opts in with `// @ts-check` or is renamed to .ts. strict is OFF for
+  // now and ratcheted up later (see tsconfig notes / migration plan).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "types": ["node", "jest"]
+  },
+  "include": ["**/*.js", "**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "built",
+    "coverage",
+    "__tests__",
+    "docs",
+    "python",
+    "cdk.out",
+    "**/*.test.js"
+  ]
+}

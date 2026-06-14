@@ -55,3 +55,8 @@ globalConfig.json
 
 .eslintcache
 .worktrees/
+
+# TypeScript build output
+dist/
+built/
+*.tsbuildinfo

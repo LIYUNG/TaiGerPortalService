@@ -1,0 +1,25 @@
+{
+  // Build config — emits compiled JS to ./dist (allowJs compiles .js too, so the
+  // app builds end-to-end whether or not any file has been converted to .ts yet).
+  // NOT wired into the Dockerfile yet; used to validate build-readiness and as
+  // the target for Phase 1 (multi-stage Docker build running `node dist/index.js`).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": ["**/*.js", "**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "built",
+    "coverage",
+    "__tests__",
+    "docs",
+    "python",
+    "cdk.out",
+    "jest.config.js",
+    "**/*.test.js"
+  ]
+}

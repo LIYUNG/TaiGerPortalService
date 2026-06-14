@@ -25,3 +25,6 @@
 **/secrets.dev.yaml
 **/values.dev.yaml
 README.md
+# TS build output (never ship into the image)
+**/dist
+**/built

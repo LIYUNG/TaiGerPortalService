@@ -22,6 +22,9 @@ const ProgramService = require('../services/programs');
 const DocumentThreadService = require('../services/documentthreads');
 const ApplicationQueryBuilder = require('../builders/ApplicationQueryBuilder');
 const UserQueryBuilder = require('../builders/UserQueryBuilder');
+const {
+  sendApplicationWithdrawNotificationToEditors
+} = require('../utils/slackUtils');
 
 const getApplications = asyncHandler(async (req, res) => {
   const {
@@ -384,6 +387,44 @@ const updateApplication = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: application });
 });
 
+const withdrawApplication = asyncHandler(async (req, res) => {
+  const {
+    params: { studentId, application_id },
+    body: { closed }
+  } = req;
+
+  if (closed !== 'X' && closed !== '-') {
+    throw new ErrorResponse(400, 'Invalid withdraw status');
+  }
+
+  const application = await ApplicationService.updateApplication(
+    { _id: application_id },
+    { closed }
+  );
+
+  if (!application) {
+    logger.error('withdrawApplication: Invalid application id');
+    throw new ErrorResponse(404, 'Application not found');
+  }
+
+  res.status(200).send({ success: true, data: application });
+
+  const student = await StudentService.getStudentByIdPopulated(studentId, [
+    ['editors', 'firstname lastname email slackId archiv']
+  ]);
+
+  if (!student) {
+    logger.error('withdrawApplication: Invalid student id');
+    return;
+  }
+
+  await sendApplicationWithdrawNotificationToEditors(
+    student,
+    application,
+    closed === 'X'
+  );
+});
+
 const deleteApplication = asyncHandler(async (req, res) => {
   const { application_id } = req.params;
   await ApplicationService.deleteApplication(application_id);
@@ -658,6 +699,7 @@ module.exports = {
   getStudentApplications,
   updateStudentApplications,
   updateApplication,
+  withdrawApplication,
   createApplicationV2,
   refreshApplication
 };

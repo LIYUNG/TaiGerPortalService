@@ -645,7 +645,7 @@ const refreshProgram = asyncHandler(async (req, res) => {
   return res.status(200).send({ success: true, data: program, vc });
 });
 
-module.exports = {
+export = {
   getDistinctSchoolsAttributes,
   updateBatchSchoolAttributes,
   getStudentsByProgram,

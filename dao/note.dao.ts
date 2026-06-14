@@ -17,4 +17,4 @@ const NoteDAO = {
   }
 };
 
-module.exports = NoteDAO;
+export = NoteDAO;

@@ -40,6 +40,6 @@ const event_multitenant_filter = asyncHandler(async (req, res, next) => {
   next();
 });
 
-module.exports = {
+export = {
   event_multitenant_filter
 };

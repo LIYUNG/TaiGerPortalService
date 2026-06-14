@@ -334,4 +334,4 @@ router
     handleDeleteProgramThread
   );
 
-module.exports = router;
+export = router;

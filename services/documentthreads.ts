@@ -141,4 +141,4 @@ const DocumentThreadService = {
   }
 };
 
-module.exports = DocumentThreadService;
+export = DocumentThreadService;

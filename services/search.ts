@@ -32,4 +32,4 @@ const SearchService = {
   }
 };
 
-module.exports = SearchService;
+export = SearchService;

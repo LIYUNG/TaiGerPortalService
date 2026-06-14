@@ -85,4 +85,4 @@ router
     updateUserArchivStatus
   );
 
-module.exports = router;
+export = router;

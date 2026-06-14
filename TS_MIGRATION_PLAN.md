@@ -62,8 +62,16 @@ coverage 96.18/83.15/95.39/96.38).
 
 - [x] **B1** leaf utils: `aws/ cache/ common/ constants/ builders/`
 - [x] **B2–B7** `dao/ services/ models/ middlewares/ routes/ controllers/ utils/ google/ prompt/` + root — all require→import done in one verified pass
+- [x] **B9a** `module.exports` → `export =` (231 files). Uniform `export =` (NOT
+  `export {}` / `export default`): `export =` emits a writable `module.exports`,
+  so `require()`-consumers AND `jest.spyOn(require(mod), 'fn')` keep working.
+  **Gotcha:** `export { a, b }` (ES named) are read-only live bindings → broke
+  `jest.spyOn` on named exports (ai_assist). Side benefit: typecheck backlog
+  4951 → 4170 (consumers' default imports now resolve). Full suite green (2381).
 - [ ] **B8** `@typescript-eslint/no-unused-vars` sweep (104) — per-var review (don't blind-autofix; some are real dead code, some false positives)
-- [ ] **B9** (later) modernize `module.exports` → `export`, convert test files (.js→.ts), add type-aware eslint + import/order, burn down the ~4951 strict-type backlog
+- [ ] **B9b** (later) once test files are `.ts` + not spy-on-require, move singletons
+  to `export default` / named `export`; convert the 172 `.js` tests; add
+  type-aware eslint + import/order; burn down the ~4170 strict-type backlog
 
 ## Out of scope (separate effort)
 

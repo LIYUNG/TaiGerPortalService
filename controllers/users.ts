@@ -346,7 +346,7 @@ const getUsersOverview = asyncHandler(async (req, res) => {
   return res.send({ success: true, data: overview });
 });
 
-module.exports = {
+export = {
   // UserS3GarbageCollector,
   getUsersCount,
   addUser,

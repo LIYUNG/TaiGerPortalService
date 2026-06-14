@@ -41,4 +41,4 @@ const InterviewSurveyResponseDAO = {
   }
 };
 
-module.exports = InterviewSurveyResponseDAO;
+export = InterviewSurveyResponseDAO;

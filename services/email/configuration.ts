@@ -47,4 +47,4 @@ const sendEmail = isTest()
       }
     };
 
-module.exports = { transporter, sendEmail };
+export = { transporter, sendEmail };

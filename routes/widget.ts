@@ -41,4 +41,4 @@ router
     WidgetdownloadJson
   );
 
-module.exports = router;
+export = router;

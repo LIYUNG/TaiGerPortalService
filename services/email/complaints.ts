@@ -102,7 +102,7 @@ const complaintResolvedRequesterReminderEmail = async (recipient, payload) => {
   sendEmail(recipient, subject, message);
 };
 
-module.exports = {
+export = {
   newCustomerCenterTicketEmail,
   newCustomerCenterTicketSubmitConfirmationEmail,
   newCustomerCenterTicketMessageEmail,

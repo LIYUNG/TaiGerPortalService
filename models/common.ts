@@ -11,6 +11,6 @@ const attributeSchema = new Schema({
   }
 });
 
-module.exports = {
+export = {
   attributeSchema
 };

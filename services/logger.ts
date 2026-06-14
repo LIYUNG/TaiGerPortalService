@@ -155,4 +155,4 @@ const logger = {
   isLevelEnabled: (level) => shouldLog(level)
 };
 
-module.exports = logger;
+export = logger;

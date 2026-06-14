@@ -89,7 +89,7 @@ const Editor = User.discriminator('Editor', editorSchema, Role.Editor);
 
 const Admin = User.discriminator('Admin', new Schema({}, options), Role.Admin);
 
-module.exports = {
+export = {
   User,
   UserSchema,
   Guest,

@@ -54,4 +54,4 @@ versionControlSchema.index({ docId: 1, collectionName: 1 });
 
 const VC = model('VC', versionControlSchema);
 
-module.exports = { VC, versionControlSchema };
+export = { VC, versionControlSchema };

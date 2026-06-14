@@ -253,7 +253,7 @@ const cvmlrlAi = asyncHandler(async (req, res, next) => {
   await PermissionService.decrementTaigerAiQuota(user._id);
 });
 
-module.exports = {
+export = {
   TaiGerAiChat,
   cvmlrlAi,
   processProgramListAi

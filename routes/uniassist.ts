@@ -42,4 +42,4 @@ router
     getStudentUniAssist
   );
 
-module.exports = router;
+export = router;

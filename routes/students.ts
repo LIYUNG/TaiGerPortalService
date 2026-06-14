@@ -285,4 +285,4 @@ router
     multitenant_filter,
     getStudent
   );
-module.exports = router;
+export = router;

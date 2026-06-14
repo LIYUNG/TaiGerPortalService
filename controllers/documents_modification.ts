@@ -2039,7 +2039,7 @@ const getMyStudentMetrics = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = {
+export = {
   getActiveThreads,
   getActiveThreadsPaginated,
   getActiveThreadsCounts,

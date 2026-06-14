@@ -69,7 +69,7 @@ const syncExpense = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: users });
 });
 
-module.exports = {
+export = {
   getExpenses,
   getExpense,
   syncExpense

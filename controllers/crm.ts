@@ -1224,7 +1224,7 @@ const instantInviteMeetingAssistant = asyncHandler(async (req, res) => {
   res.status(statusCode).send(result);
 });
 
-module.exports = {
+export = {
   getCRMStats,
   getLeads,
   getLead,

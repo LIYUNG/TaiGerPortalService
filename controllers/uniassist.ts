@@ -27,6 +27,6 @@ const getStudentUniAssist = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: student });
 });
 
-module.exports = {
+export = {
   getStudentUniAssist
 };

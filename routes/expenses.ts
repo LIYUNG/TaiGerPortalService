@@ -26,4 +26,4 @@ router
     getExpense
   );
 
-module.exports = router;
+export = router;

@@ -1156,4 +1156,4 @@ const ApplicationDAO = {
   }
 };
 
-module.exports = ApplicationDAO;
+export = ApplicationDAO;

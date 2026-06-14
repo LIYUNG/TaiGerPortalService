@@ -41,4 +41,4 @@ router
     getPortalCredentials
   );
 
-module.exports = router;
+export = router;

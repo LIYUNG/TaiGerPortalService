@@ -10,4 +10,4 @@ const ProgramAIDAO = {
   }
 };
 
-module.exports = ProgramAIDAO;
+export = ProgramAIDAO;

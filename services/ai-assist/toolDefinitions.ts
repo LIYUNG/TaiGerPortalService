@@ -212,7 +212,7 @@ const selectAiAssistToolDefinitions = (toolNames = []) =>
     .map((toolName) => aiAssistToolDefinitionsByName[toolName])
     .filter(Boolean);
 
-module.exports = {
+export = {
   aiAssistToolDefinitions,
   aiAssistToolDefinitionsByName,
   selectAiAssistToolDefinitions

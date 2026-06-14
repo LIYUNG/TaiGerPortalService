@@ -54,4 +54,4 @@ class InterviewQueryBuilder extends BaseQueryBuilder {
   }
 }
 
-module.exports = InterviewQueryBuilder;
+export = InterviewQueryBuilder;

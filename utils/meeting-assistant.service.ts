@@ -177,7 +177,7 @@ const instantInviteTA = async (meetingSummary, meetingLink) => {
   }
 };
 
-module.exports = {
+export = {
   scheduleInviteTA,
   instantInviteTA
 };

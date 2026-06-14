@@ -26,4 +26,4 @@ const InternaldocDAO = {
   }
 };
 
-module.exports = InternaldocDAO;
+export = InternaldocDAO;

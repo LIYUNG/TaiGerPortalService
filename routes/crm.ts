@@ -100,4 +100,4 @@ router
     instantInviteMeetingAssistant
   );
 
-module.exports = router;
+export = router;

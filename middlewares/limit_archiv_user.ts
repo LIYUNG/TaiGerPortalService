@@ -8,6 +8,6 @@ const filter_archiv_user = (req, res, next) => {
   next();
 };
 
-module.exports = {
+export = {
   filter_archiv_user
 };

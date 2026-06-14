@@ -103,4 +103,4 @@ router
     deleteEvent
   );
 
-module.exports = router;
+export = router;

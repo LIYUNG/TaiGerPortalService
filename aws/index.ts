@@ -57,7 +57,7 @@ const callApiGateway = async (
   }
 };
 
-module.exports = {
+export = {
   s3Client,
   ses,
   SendRawEmailCommand,

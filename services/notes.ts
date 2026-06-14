@@ -14,4 +14,4 @@ const NoteService = {
   }
 };
 
-module.exports = NoteService;
+export = NoteService;

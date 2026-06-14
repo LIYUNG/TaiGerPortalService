@@ -60,7 +60,7 @@ const createPortalCredentials = asyncHandler(async (req, res) => {
   return res.send({ success: true, data: application });
 });
 
-module.exports = {
+export = {
   getPortalCredentials,
   createPortalCredentials
 };

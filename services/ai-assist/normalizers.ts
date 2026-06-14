@@ -172,7 +172,7 @@ function collectText(value) {
     .flatMap(([, entry]) => collectText(entry));
 }
 
-module.exports = {
+export = {
   normalizeApplication,
   normalizeMessage,
   normalizeProfileDocument,

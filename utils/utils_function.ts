@@ -1491,7 +1491,7 @@ const userChangesHelperFunction = async (req, newUserIds, existingUsers) => {
   };
 };
 
-module.exports = {
+export = {
   threadS3GarbageCollector,
   TasksReminderEmails,
   UrgentTasksReminderEmails,

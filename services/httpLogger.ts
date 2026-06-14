@@ -21,4 +21,4 @@ const httpLogger = morgan((tokens, req, res) => {
   }
 });
 
-module.exports = httpLogger;
+export = httpLogger;

@@ -878,4 +878,4 @@ const StudentDAO = {
   }
 };
 
-module.exports = StudentDAO;
+export = StudentDAO;

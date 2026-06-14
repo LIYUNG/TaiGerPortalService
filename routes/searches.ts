@@ -39,4 +39,4 @@ router
     getQueryResults
   );
 
-module.exports = router;
+export = router;

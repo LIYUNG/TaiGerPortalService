@@ -27,4 +27,4 @@ router
     updateStudentNotes
   );
 
-module.exports = router;
+export = router;

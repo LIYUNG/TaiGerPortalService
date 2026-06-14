@@ -855,7 +855,7 @@ const runTool = async (req, toolName, args) => {
   return tool(req, args);
 };
 
-module.exports = {
+export = {
   AI_ASSIST_TOOL_NAMES,
   hasTool,
   registry,

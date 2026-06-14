@@ -79,7 +79,7 @@ const resolveStudentById = async (
   }
 };
 
-module.exports = {
+export = {
   resolveStudent,
   resolveStudentById
 };

@@ -40,4 +40,4 @@ const CourseDAO = {
   }
 };
 
-module.exports = CourseDAO;
+export = CourseDAO;

@@ -157,7 +157,7 @@ const permission_canModifyComplaintList_filter = async (req, res, next) => {
   }
 };
 
-module.exports = {
+export = {
   permission_canAssignEditor_filter,
   permission_canAssignAgent_filter,
   permission_canModifyDocs_filter,

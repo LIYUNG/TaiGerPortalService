@@ -120,7 +120,7 @@ const deleteProgramRequirement = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true });
 });
 
-module.exports = {
+export = {
   getDistinctProgramsAndKeywordSets,
   getProgramRequirements,
   getProgramRequirement,

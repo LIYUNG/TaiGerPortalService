@@ -60,4 +60,4 @@ const DocumentationService = {
   }
 };
 
-module.exports = DocumentationService;
+export = DocumentationService;

@@ -16,7 +16,7 @@ const checkTenantDBMiddleware = asyncHandler(async (req, res, next) => {
 
 // connectToDatabase is still re-exported for the test fixtures and any tooling
 // that needs to open the shared connection directly.
-module.exports = {
+export = {
   checkTenantDBMiddleware,
   connectToDatabase
 };

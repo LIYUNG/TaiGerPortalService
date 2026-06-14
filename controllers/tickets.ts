@@ -106,7 +106,7 @@ const deleteTicket = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true });
 });
 
-module.exports = {
+export = {
   getTickets,
   getTicketsOverview,
   createTicket,

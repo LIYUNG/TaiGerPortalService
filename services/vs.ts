@@ -13,4 +13,4 @@ const VCService = {
   }
 };
 
-module.exports = VCService;
+export = VCService;

@@ -7,4 +7,4 @@ const senderEmail = isProd()
 const taigerNotReplyGmail = 'noreply.taigerconsultancy@gmail.com';
 const senderName = `No-Reply TaiGer Consultancy ${senderEmail}`;
 
-module.exports = { appDomain, senderEmail, taigerNotReplyGmail, senderName };
+export = { appDomain, senderEmail, taigerNotReplyGmail, senderName };

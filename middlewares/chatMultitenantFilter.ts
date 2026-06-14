@@ -51,6 +51,6 @@ const chatMultitenantFilter = asyncHandler(async (req, res, next) => {
   next();
 });
 
-module.exports = {
+export = {
   chatMultitenantFilter
 };

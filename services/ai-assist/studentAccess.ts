@@ -72,6 +72,6 @@ const getAccessibleStudentFilter = async (req) => {
   throw new ErrorResponse(403, 'Permission denied');
 };
 
-module.exports = {
+export = {
   getAccessibleStudentFilter
 };

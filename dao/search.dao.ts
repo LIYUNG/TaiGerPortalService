@@ -85,4 +85,4 @@ const SearchDAO = {
   }
 };
 
-module.exports = SearchDAO;
+export = SearchDAO;

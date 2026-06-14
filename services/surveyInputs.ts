@@ -26,4 +26,4 @@ const SurveyInputService = {
   }
 };
 
-module.exports = SurveyInputService;
+export = SurveyInputService;

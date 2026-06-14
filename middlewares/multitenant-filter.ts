@@ -40,7 +40,7 @@ const complaintTicketMultitenant_filter = async (req, res, next) => {
   next();
 };
 
-module.exports = {
+export = {
   multitenant_filter,
   complaintTicketMultitenant_filter
 };

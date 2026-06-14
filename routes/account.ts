@@ -227,4 +227,4 @@ router
     updateCredentials
   );
 
-module.exports = router;
+export = router;

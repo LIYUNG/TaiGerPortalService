@@ -47,4 +47,4 @@ router
     deleteKeywordSet
   );
 
-module.exports = router;
+export = router;

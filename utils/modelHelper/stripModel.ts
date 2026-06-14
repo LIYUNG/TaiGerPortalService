@@ -33,4 +33,4 @@ const stripModel = (modelObj) => {
   return strippedSchema;
 };
 
-module.exports = stripModel;
+export = stripModel;

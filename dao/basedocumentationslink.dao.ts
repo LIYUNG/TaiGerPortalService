@@ -18,4 +18,4 @@ const BasedocumentationslinkDAO = {
   }
 };
 
-module.exports = BasedocumentationslinkDAO;
+export = BasedocumentationslinkDAO;

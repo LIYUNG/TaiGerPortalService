@@ -20,4 +20,4 @@ const IntervalDAO = {
   }
 };
 
-module.exports = IntervalDAO;
+export = IntervalDAO;

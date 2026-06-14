@@ -193,7 +193,7 @@ const classifyIntent = async ({ message, conversationContext }) => {
   return normalizeIntentResult(parsed, message);
 };
 
-module.exports = {
+export = {
   INTENTS,
   classifyIntent
 };

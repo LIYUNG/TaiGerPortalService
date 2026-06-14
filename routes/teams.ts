@@ -112,4 +112,4 @@ router
     getArchivStudents
   );
 
-module.exports = router;
+export = router;

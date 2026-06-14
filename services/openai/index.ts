@@ -11,4 +11,4 @@ const OpenAiModel = {
   GPT_5_4_nano: 'gpt-5.4-nano'
 };
 
-module.exports = { openAIClient, OpenAiModel };
+export = { openAIClient, OpenAiModel };

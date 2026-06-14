@@ -1510,7 +1510,7 @@ const CV_MUST_HAVE_PATTERNS = [
 
 const PROGRAM_SUBJECT_KEYS = Object.keys(PROGRAM_SUBJECTS);
 
-module.exports = {
+export = {
   Role,
   TicketStatus,
   ManagerType,

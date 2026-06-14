@@ -189,4 +189,4 @@ router
     deleteDocumentation
   );
 
-module.exports = router;
+export = router;

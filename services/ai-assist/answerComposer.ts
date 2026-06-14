@@ -289,7 +289,7 @@ const composeAnswer = async ({
   });
 };
 
-module.exports = {
+export = {
   composeAnswer,
   generateAnswerFromInput,
   extractAnswerLinkHints,

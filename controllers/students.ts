@@ -663,7 +663,7 @@ const assignAttributesToStudent = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: student_upated });
 });
 
-module.exports = {
+export = {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
   getActiveStudents,

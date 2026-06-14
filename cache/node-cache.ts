@@ -13,7 +13,7 @@ const two_minutes_cache = new NodeCache({
   stdTTL: 60 * 2
 });
 
-module.exports = {
+export = {
   ten_minutes_cache,
   two_minutes_cache
 };

@@ -14,4 +14,4 @@ const AuditService = {
   }
 };
 
-module.exports = AuditService;
+export = AuditService;

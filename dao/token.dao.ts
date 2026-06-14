@@ -15,4 +15,4 @@ const TokenDAO = {
   }
 };
 
-module.exports = TokenDAO;
+export = TokenDAO;

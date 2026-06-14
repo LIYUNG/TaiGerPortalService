@@ -31,7 +31,7 @@ const updateUserPermission = asyncHandler(async (req, res) => {
   );
 });
 
-module.exports = {
+export = {
   getUserPermission,
   updateUserPermission
 };

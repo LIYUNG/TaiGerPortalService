@@ -53,4 +53,4 @@ const ProgramRequirementService = {
   }
 };
 
-module.exports = ProgramRequirementService;
+export = ProgramRequirementService;

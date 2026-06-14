@@ -75,4 +75,4 @@ const TicketService = {
   }
 };
 
-module.exports = TicketService;
+export = TicketService;

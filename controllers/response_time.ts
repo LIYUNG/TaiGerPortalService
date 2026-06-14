@@ -190,7 +190,7 @@ const GenerateResponseTimeByStudent = asyncHandler(async () => {
   return Lookup;
 });
 
-module.exports = {
+export = {
   GenerateResponseTimeByStudent,
   GenerateResponseTimeByTaigerUser
 };

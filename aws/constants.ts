@@ -23,7 +23,7 @@ const AWS_KEY_CONFIG = isProd()
       }
     };
 
-module.exports = {
+export = {
   roleToAssumeForCourseAnalyzerAPIG,
   apiGatewayUrl,
   AWS_KEY_CONFIG

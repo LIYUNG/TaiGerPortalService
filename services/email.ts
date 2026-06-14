@@ -2769,7 +2769,7 @@ const InterviewSurveyFinishedToTaiGerEmail = asyncHandler(
   }
 );
 
-module.exports = {
+export = {
   updateNotificationEmail,
   updatePermissionNotificationEmail,
   deleteTemplateSuccessEmail,

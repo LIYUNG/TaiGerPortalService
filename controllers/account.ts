@@ -368,7 +368,7 @@ const updatePersonalData = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = {
+export = {
   updateOfficehours,
   updateCredentials,
   updateAcademicBackground,

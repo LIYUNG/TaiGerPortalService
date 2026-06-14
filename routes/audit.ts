@@ -20,4 +20,4 @@ router
     getAuditLogs
   );
 
-module.exports = router;
+export = router;

@@ -35,6 +35,6 @@ const InnerTaigerMultitenantFilter = asyncHandler(async (req, res, next) => {
   next();
 });
 
-module.exports = {
+export = {
   InnerTaigerMultitenantFilter
 };

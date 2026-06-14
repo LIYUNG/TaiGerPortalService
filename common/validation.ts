@@ -75,7 +75,7 @@ const validateApplicationId = [
   validationCallBack
 ];
 
-module.exports = {
+export = {
   fieldsValidation,
   makeOptional,
   checkUserFirstname,

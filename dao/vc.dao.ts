@@ -19,4 +19,4 @@ const VCDAO = {
   }
 };
 
-module.exports = VCDAO;
+export = VCDAO;

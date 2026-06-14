@@ -148,4 +148,4 @@ router
     InnerTaigerMultitenantFilter,
     createInterview
   );
-module.exports = router;
+export = router;

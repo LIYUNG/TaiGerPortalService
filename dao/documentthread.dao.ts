@@ -1197,4 +1197,4 @@ const DocumentthreadDAO = {
   }
 };
 
-module.exports = DocumentthreadDAO;
+export = DocumentthreadDAO;

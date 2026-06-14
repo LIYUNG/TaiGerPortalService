@@ -13,4 +13,4 @@ const incomesSchema = new Schema({
 });
 const Income = model('Income', incomesSchema);
 
-module.exports = { Income, incomesSchema };
+export = { Income, incomesSchema };

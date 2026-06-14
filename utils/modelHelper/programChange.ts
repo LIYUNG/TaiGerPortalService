@@ -200,7 +200,7 @@ const findStudentDelta = asyncHandler(async (studentId, program, options) => {
   return delta;
 });
 
-module.exports = {
+export = {
   findStudentDeltaGet,
   findStudentDelta
 };

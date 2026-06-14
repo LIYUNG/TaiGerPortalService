@@ -108,4 +108,4 @@ const ProgramDAO = {
   }
 };
 
-module.exports = ProgramDAO;
+export = ProgramDAO;

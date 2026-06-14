@@ -91,7 +91,7 @@ const getAdmissionsYear = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: tasks });
 });
 
-module.exports = {
+export = {
   getAdmissionsOverview,
   getApplicationCountsResultCount,
   getAdmissions,

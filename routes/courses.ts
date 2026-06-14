@@ -81,4 +81,4 @@ router
     downloadJson
   );
 
-module.exports = router;
+export = router;

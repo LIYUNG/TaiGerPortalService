@@ -30,4 +30,4 @@ const programChangeRequestSchema = new Schema(
   { timestamps: true }
 );
 
-module.exports = { programChangeRequestSchema };
+export = { programChangeRequestSchema };

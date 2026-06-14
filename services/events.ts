@@ -46,4 +46,4 @@ const EventService = {
   }
 };
 
-module.exports = EventService;
+export = EventService;

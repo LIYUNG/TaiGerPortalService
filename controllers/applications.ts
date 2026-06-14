@@ -687,7 +687,7 @@ const refreshApplication = asyncHandler(async (req, res) => {
   return res.json({ success: true, data: updatedApplication });
 });
 
-module.exports = {
+export = {
   getApplications,
   deleteApplication,
   getActiveStudentsApplicationsPaginated,

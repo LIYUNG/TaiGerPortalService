@@ -658,7 +658,7 @@ const getStatisticsResponseTime = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = {
+export = {
   getTeamMembers,
   getStatisticsOverview,
   getStatisticsAgents,

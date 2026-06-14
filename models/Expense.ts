@@ -13,4 +13,4 @@ const expensesSchema = new Schema({
   updatedAt: Date
 });
 const Expense = model('Expense', expensesSchema);
-module.exports = { Expense, expensesSchema };
+export = { Expense, expensesSchema };

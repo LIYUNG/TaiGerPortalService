@@ -84,4 +84,4 @@ const InterviewService = {
   }
 };
 
-module.exports = InterviewService;
+export = InterviewService;

@@ -31,6 +31,6 @@ Reminder: you will create a customized ${
   props.student_info?.firstname
 } and last name ${props.student_info?.lastname} in the end of the text`;
 
-module.exports = {
+export = {
   generalRLPrompt
 };

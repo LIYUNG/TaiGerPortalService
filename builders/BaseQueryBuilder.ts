@@ -44,4 +44,4 @@ class BaseQueryBuilder {
   }
 }
 
-module.exports = { BaseQueryBuilder };
+export = { BaseQueryBuilder };

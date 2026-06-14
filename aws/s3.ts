@@ -193,7 +193,7 @@ async function uploadJsonToS3(responseJson, bucketName, fileName) {
   }
 }
 
-module.exports = {
+export = {
   s3Client,
   putS3Object,
   uploadJsonToS3,

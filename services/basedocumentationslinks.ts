@@ -14,4 +14,4 @@ const BasedocumentationslinkService = {
   }
 };
 
-module.exports = BasedocumentationslinkService;
+export = BasedocumentationslinkService;

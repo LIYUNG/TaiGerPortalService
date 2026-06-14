@@ -18,4 +18,4 @@ const IntervalService = {
   }
 };
 
-module.exports = IntervalService;
+export = IntervalService;

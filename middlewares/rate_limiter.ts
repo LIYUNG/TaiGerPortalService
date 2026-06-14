@@ -302,7 +302,7 @@ const InterviewPUTRateLimiter = rateLimit({
   legacyHeaders: false // Disable the `X-RateLimit-*` headers
 });
 
-module.exports = {
+export = {
   DownloadTemplateRateLimiter,
   GeneralGETRequestRateLimiter,
   GeneralGETSearchRequestRateLimiter,

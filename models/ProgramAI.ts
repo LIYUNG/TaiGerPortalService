@@ -29,4 +29,4 @@ const programAISchema = new Schema(
 );
 
 const ProgramAI = model('ProgramAI', programAISchema);
-module.exports = { ProgramAI, programAISchema };
+export = { ProgramAI, programAISchema };

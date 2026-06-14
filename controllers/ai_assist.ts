@@ -1021,7 +1021,7 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
   queueAiTitleRefinement(titleRefinementPayload || {});
 });
 
-module.exports = {
+export = {
   archiveConversation,
   createConversation,
   getConversation,

@@ -28,4 +28,4 @@ router
     getApplicationDeltas
   );
 
-module.exports = router;
+export = router;

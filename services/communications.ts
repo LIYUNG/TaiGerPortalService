@@ -54,4 +54,4 @@ const CommunicationService = {
   }
 };
 
-module.exports = CommunicationService;
+export = CommunicationService;

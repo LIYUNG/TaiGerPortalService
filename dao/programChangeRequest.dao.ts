@@ -40,4 +40,4 @@ const ProgramChangeRequestDAO = {
   }
 };
 
-module.exports = ProgramChangeRequestDAO;
+export = ProgramChangeRequestDAO;

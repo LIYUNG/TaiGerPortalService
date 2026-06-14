@@ -20,6 +20,6 @@ const doc_thread_ops_validator = asyncHandler(async (req, res, next) => {
   next();
 });
 
-module.exports = {
+export = {
   doc_thread_ops_validator
 };

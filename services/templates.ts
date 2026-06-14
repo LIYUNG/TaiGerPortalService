@@ -22,4 +22,4 @@ const TemplateService = {
   }
 };
 
-module.exports = TemplateService;
+export = TemplateService;

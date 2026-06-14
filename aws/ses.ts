@@ -11,7 +11,7 @@ const limiter = new Bottleneck({
   minTime: 1100 / 14
 });
 
-module.exports = {
+export = {
   ses,
   SendRawEmailCommand,
   limiter

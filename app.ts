@@ -84,4 +84,4 @@ if (!isProd() && !isTest()) {
 router(app);
 app.use(errorHandler);
 
-module.exports = { app };
+export = { app };

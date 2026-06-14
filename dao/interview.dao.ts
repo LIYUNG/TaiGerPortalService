@@ -575,4 +575,4 @@ const InterviewDAO = {
   }
 };
 
-module.exports = InterviewDAO;
+export = InterviewDAO;

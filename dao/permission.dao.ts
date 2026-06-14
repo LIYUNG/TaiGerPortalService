@@ -52,4 +52,4 @@ const PermissionDAO = {
   }
 };
 
-module.exports = PermissionDAO;
+export = PermissionDAO;

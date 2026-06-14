@@ -10,4 +10,4 @@ const ProgramAIService = {
   }
 };
 
-module.exports = ProgramAIService;
+export = ProgramAIService;

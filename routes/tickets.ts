@@ -89,4 +89,4 @@ router
     deleteTicket
   );
 
-module.exports = router;
+export = router;

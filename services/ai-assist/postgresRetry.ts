@@ -39,7 +39,7 @@ const withPostgresRetry = async (operation, context = {}) => {
   }
 };
 
-module.exports = {
+export = {
   isTransientPostgresError,
   withPostgresRetry
 };

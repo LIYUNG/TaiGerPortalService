@@ -26,4 +26,4 @@ const DocumentationDAO = {
   }
 };
 
-module.exports = DocumentationDAO;
+export = DocumentationDAO;

@@ -135,4 +135,4 @@ router
     createApplicationV2
   );
 
-module.exports = router;
+export = router;

@@ -25,4 +25,4 @@ const TemplateDAO = {
   }
 };
 
-module.exports = TemplateDAO;
+export = TemplateDAO;

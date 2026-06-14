@@ -108,4 +108,4 @@ const CommunicationDAO = {
   }
 };
 
-module.exports = CommunicationDAO;
+export = CommunicationDAO;

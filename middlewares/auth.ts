@@ -53,7 +53,7 @@ const prohibit =
     next();
   };
 
-module.exports = {
+export = {
   localAuth,
   protect,
   permit,

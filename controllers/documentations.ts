@@ -225,7 +225,7 @@ const deleteInternalDocumentation = asyncHandler(async (req, res) => {
   return res.send({ success: true });
 });
 
-module.exports = {
+export = {
   // DocumentationS3GarbageCollector,
   updateInternalDocumentationPage,
   getInternalDocumentationsPage,

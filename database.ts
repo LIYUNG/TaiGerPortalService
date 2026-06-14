@@ -149,7 +149,7 @@ const closePostgresPool = async () => {
   }
 };
 
-module.exports = {
+export = {
   mongoDb,
   getPostgresDb,
   closePostgresPool,

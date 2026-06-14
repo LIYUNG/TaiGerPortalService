@@ -77,4 +77,4 @@ const ComplaintDAO = {
   }
 };
 
-module.exports = ComplaintDAO;
+export = ComplaintDAO;

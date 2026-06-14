@@ -16,4 +16,4 @@ const decryptCookieMiddleware = asyncHandler((req, res, next) => {
   next();
 });
 
-module.exports = { decryptCookieMiddleware };
+export = { decryptCookieMiddleware };

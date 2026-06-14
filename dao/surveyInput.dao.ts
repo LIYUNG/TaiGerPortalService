@@ -33,4 +33,4 @@ const SurveyInputDAO = {
   }
 };
 
-module.exports = SurveyInputDAO;
+export = SurveyInputDAO;

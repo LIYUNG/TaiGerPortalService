@@ -68,4 +68,4 @@ class UserQueryBuilder extends BaseQueryBuilder {
   }
 }
 
-module.exports = UserQueryBuilder;
+export = UserQueryBuilder;

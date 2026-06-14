@@ -54,4 +54,4 @@ class ApplicationQueryBuilder extends BaseQueryBuilder {
   }
 }
 
-module.exports = ApplicationQueryBuilder;
+export = ApplicationQueryBuilder;

@@ -95,7 +95,7 @@ const deleteKeywordSet = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true });
 });
 
-module.exports = {
+export = {
   getKeywordSets,
   createKeywordSet,
   updateKeywordSet,

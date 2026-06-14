@@ -17,7 +17,7 @@ const updateStudentNotes = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: users });
 });
 
-module.exports = {
+export = {
   getStudentNotes,
   updateStudentNotes
 };

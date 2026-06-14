@@ -63,4 +63,4 @@ class DocumentthreadQueryBuilder extends BaseQueryBuilder {
   }
 }
 
-module.exports = DocumentthreadQueryBuilder;
+export = DocumentthreadQueryBuilder;

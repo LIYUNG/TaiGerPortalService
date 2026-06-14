@@ -303,7 +303,7 @@ const thirdAuth = asyncHandler(async (req, res, next) => {
   // }
 });
 
-module.exports = {
+export = {
   signup,
   login,
   logout,

@@ -26,4 +26,4 @@ const KeywordSetDAO = {
   }
 };
 
-module.exports = KeywordSetDAO;
+export = KeywordSetDAO;

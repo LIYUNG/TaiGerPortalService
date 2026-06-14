@@ -26,4 +26,4 @@ const ProgramChangeRequestService = {
   }
 };
 
-module.exports = ProgramChangeRequestService;
+export = ProgramChangeRequestService;

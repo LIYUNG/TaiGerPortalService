@@ -931,7 +931,7 @@ const getInterviewsByStudentId = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = {
+export = {
   getAllInterviewsPaginated,
   getMyInterviewPaginated,
   getInterviewQuestions,

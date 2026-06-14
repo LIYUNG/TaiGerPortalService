@@ -11,6 +11,6 @@ intervalSchema.index(
   { unique: true }
 );
 
-module.exports = {
+export = {
   intervalSchema
 };

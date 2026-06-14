@@ -58,7 +58,7 @@ const reviewProgramChangeRequest = asyncHandler(async (req, res) => {
   res.send({ success: true, data: updatedChangeRequest });
 });
 
-module.exports = {
+export = {
   getProgramChangeRequests,
   submitProgramChangeRequests,
   reviewProgramChangeRequest

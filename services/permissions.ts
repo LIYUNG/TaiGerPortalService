@@ -37,4 +37,4 @@ const PermissionService = {
   }
 };
 
-module.exports = PermissionService;
+export = PermissionService;

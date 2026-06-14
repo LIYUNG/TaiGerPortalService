@@ -46,4 +46,4 @@ router.post('/reset-password', resetPasswordRateLimiter, resetPassword);
 
 router.post('/oauth/google/callback', loginRateLimiter, thirdAuth);
 
-module.exports = router;
+export = router;

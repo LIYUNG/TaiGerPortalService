@@ -10,7 +10,7 @@ const TENANT_MEDIUM_LINK = 'https://taigerconsultancy.medium.com/';
 const TENANT_LINKEDIN_LINK =
   'https://www.linkedin.com/company/taigerconsultancy/';
 
-module.exports = {
+export = {
   TENANT_NAME,
   TENANT_SHORT_NAME,
   TENANT_WEBSITE,

@@ -60,4 +60,4 @@ router
     getAdmissionsYear
   );
 
-module.exports = router;
+export = router;

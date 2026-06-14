@@ -20,7 +20,7 @@ programSchema.plugin(handleProgramChanges);
 programSchema.plugin(enableVersionControl);
 
 const Program = mongoose.model('Program', programSchema);
-module.exports = {
+export = {
   Program,
   programSchema,
   programModule

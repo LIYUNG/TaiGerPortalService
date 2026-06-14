@@ -261,7 +261,7 @@ async function sendApplicationWithdrawNotificationToEditors(
   }
 }
 
-module.exports = {
+export = {
   sendSlackMessage,
   sendSlackMessageToWinChannel,
   sendApplicationWithdrawNotificationToEditors

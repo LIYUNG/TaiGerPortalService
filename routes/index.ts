@@ -102,4 +102,4 @@ const router = (app) => {
   app.use('/auth', authRouter);
 };
 
-module.exports = router;
+export = router;

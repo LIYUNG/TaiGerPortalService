@@ -98,4 +98,4 @@ const models = {
   VC: compile('VC', versionControlSchema)
 };
 
-module.exports = models;
+export = models;

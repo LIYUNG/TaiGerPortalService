@@ -105,7 +105,7 @@ const createCourse = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = {
+export = {
   getCourses,
   getCourse,
   deleteCourse,

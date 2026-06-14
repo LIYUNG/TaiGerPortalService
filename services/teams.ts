@@ -55,4 +55,4 @@ const TeamService = {
   }
 };
 
-module.exports = TeamService;
+export = TeamService;

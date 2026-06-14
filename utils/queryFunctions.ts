@@ -47,7 +47,7 @@ const getCachedStudentPermission = async (req, studentId) => {
   return cachedStudent;
 };
 
-module.exports = {
+export = {
   getPermission,
   getCachedStudentPermission
 };

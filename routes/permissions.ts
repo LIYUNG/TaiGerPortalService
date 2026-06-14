@@ -25,4 +25,4 @@ router
     updateUserPermission
   );
 
-module.exports = router;
+export = router;

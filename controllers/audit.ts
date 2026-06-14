@@ -12,6 +12,6 @@ const getAuditLogs = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: auditLogs });
 });
 
-module.exports = {
+export = {
   getAuditLogs
 };

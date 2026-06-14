@@ -46,4 +46,4 @@ const ResponseTimeDAO = {
   }
 };
 
-module.exports = ResponseTimeDAO;
+export = ResponseTimeDAO;

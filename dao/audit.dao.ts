@@ -29,4 +29,4 @@ const AuditDAO = {
   }
 };
 
-module.exports = AuditDAO;
+export = AuditDAO;

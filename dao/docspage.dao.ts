@@ -17,4 +17,4 @@ const DocspageDAO = {
   }
 };
 
-module.exports = DocspageDAO;
+export = DocspageDAO;

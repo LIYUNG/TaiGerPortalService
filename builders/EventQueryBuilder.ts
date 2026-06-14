@@ -78,4 +78,4 @@ class EventQueryBuilder extends BaseQueryBuilder {
   }
 }
 
-module.exports = EventQueryBuilder;
+export = EventQueryBuilder;

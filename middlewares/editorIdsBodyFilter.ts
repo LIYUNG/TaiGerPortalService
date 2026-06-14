@@ -34,6 +34,6 @@ const editorIdsBodyFilter = asyncHandler(async (req, res, next) => {
   next();
 });
 
-module.exports = {
+export = {
   editorIdsBodyFilter
 };

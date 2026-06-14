@@ -152,4 +152,4 @@ const StudentService = {
   }
 };
 
-module.exports = StudentService;
+export = StudentService;

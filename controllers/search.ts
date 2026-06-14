@@ -22,7 +22,7 @@ const getQueryStudentsResults = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data });
 });
 
-module.exports = {
+export = {
   getQueryStudentsResults,
   getQueryPublicResults,
   getQueryResults

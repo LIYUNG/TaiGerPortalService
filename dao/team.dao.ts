@@ -345,4 +345,4 @@ const TeamDAO = {
   }
 };
 
-module.exports = TeamDAO;
+export = TeamDAO;

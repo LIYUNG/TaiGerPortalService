@@ -429,7 +429,7 @@ const enableVersionControl = (schema) => {
 };
 
 module.default = enableVersionControl;
-module.exports = {
+export = {
   emptyS3Directory,
   createApplicationThread,
   createApplicationThreadV2,

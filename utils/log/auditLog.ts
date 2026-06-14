@@ -27,6 +27,6 @@ const auditLog = asyncHandler(async (req) => {
   }
 });
 
-module.exports = {
+export = {
   auditLog
 };

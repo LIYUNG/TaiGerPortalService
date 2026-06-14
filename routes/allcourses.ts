@@ -55,4 +55,4 @@ router
     deleteCourse
   );
 
-module.exports = router;
+export = router;

@@ -249,4 +249,4 @@ const ProgramService = {
   }
 };
 
-module.exports = ProgramService;
+export = ProgramService;

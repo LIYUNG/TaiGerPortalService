@@ -54,4 +54,4 @@ router
     processProgramListAi
   );
 
-module.exports = router;
+export = router;

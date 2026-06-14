@@ -688,7 +688,7 @@ const deleteEvent = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = {
+export = {
   getEvents,
   getEventsPaginated,
   buildEventScopeFilter,

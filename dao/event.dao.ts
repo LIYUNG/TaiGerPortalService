@@ -111,4 +111,4 @@ const EventDAO = {
   }
 };
 
-module.exports = EventDAO;
+export = EventDAO;

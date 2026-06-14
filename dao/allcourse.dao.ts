@@ -33,4 +33,4 @@ const AllcourseDAO = {
   }
 };
 
-module.exports = AllcourseDAO;
+export = AllcourseDAO;

@@ -7,7 +7,7 @@ documentThreadsSchema.index(
 );
 const Documentthread = model('Documentthread', documentThreadsSchema);
 
-module.exports = {
+export = {
   Documentthread,
   documentThreadsSchema
 };

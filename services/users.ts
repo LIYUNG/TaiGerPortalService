@@ -119,4 +119,4 @@ const UserService = {
   }
 };
 
-module.exports = UserService;
+export = UserService;

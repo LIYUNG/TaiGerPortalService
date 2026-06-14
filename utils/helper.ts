@@ -21,4 +21,4 @@ const fetchUserFromIdToken = async (idToken) => {
   return payload;
 };
 
-module.exports = { queryStudent, fetchUserFromIdToken };
+export = { queryStudent, fetchUserFromIdToken };

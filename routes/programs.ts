@@ -172,4 +172,4 @@ router
     reviewProgramChangeRequest
   );
 
-module.exports = router;
+export = router;

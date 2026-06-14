@@ -30,4 +30,4 @@ const CourseService = {
   }
 };
 
-module.exports = CourseService;
+export = CourseService;

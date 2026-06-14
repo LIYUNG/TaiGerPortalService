@@ -140,4 +140,4 @@ const ApplicationService = {
   }
 };
 
-module.exports = ApplicationService;
+export = ApplicationService;

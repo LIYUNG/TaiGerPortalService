@@ -308,7 +308,7 @@ ${cvmlrl_deadline_soon}
   }
 );
 
-module.exports = {
+export = {
   StudentTasksReminderEmail,
   EditorTasksReminderEmail,
   StudentApplicationsDeadline_Within30Days_DailyReminderEmail,

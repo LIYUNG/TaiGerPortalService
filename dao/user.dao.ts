@@ -427,4 +427,4 @@ const UserDAO = {
   }
 };
 
-module.exports = UserDAO;
+export = UserDAO;

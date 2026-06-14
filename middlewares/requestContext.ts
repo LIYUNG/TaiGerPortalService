@@ -43,4 +43,4 @@ const requestContextMiddleware = (req, res, next) => {
 // Returns the current request's id, or undefined outside a request (cron, boot).
 const getRequestId = () => als.getStore()?.requestId;
 
-module.exports = { requestContextMiddleware, getRequestId, als };
+export = { requestContextMiddleware, getRequestId, als };

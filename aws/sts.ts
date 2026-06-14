@@ -28,6 +28,6 @@ const getTemporaryCredentials = async (roleToAssumeArn) => {
   }
 };
 
-module.exports = {
+export = {
   getTemporaryCredentials
 };

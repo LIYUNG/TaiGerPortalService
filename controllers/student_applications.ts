@@ -7,6 +7,6 @@ const getApplicationConflicts = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: applicationConflicts });
 });
 
-module.exports = {
+export = {
   getApplicationConflicts
 };

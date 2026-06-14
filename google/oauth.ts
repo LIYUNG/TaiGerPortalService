@@ -4,4 +4,4 @@ import { GOOGLE_CLIENT_ID } from '../config';
 
 const oauthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-module.exports = { oauthClient };
+export = { oauthClient };

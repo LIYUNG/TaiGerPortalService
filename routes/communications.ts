@@ -130,4 +130,4 @@ router
     loadMessages
   );
 
-module.exports = router;
+export = router;

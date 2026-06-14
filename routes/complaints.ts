@@ -115,4 +115,4 @@ router
     postMessageInTicket
   );
 
-module.exports = router;
+export = router;

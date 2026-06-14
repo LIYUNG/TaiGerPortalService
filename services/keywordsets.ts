@@ -31,4 +31,4 @@ const KeywordSetService = {
   }
 };
 
-module.exports = KeywordSetService;
+export = KeywordSetService;

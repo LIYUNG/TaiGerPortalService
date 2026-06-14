@@ -17,7 +17,7 @@ if (isDev() || isTest() || isProd()) {
 // FIXME: throw error if both env variable and default not set
 const env = (name, default_) => process.env[name] || default_;
 
-module.exports = {
+export = {
   isProd,
   isTest,
   isDev,

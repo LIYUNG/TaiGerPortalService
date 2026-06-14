@@ -121,4 +121,4 @@ const TicketDAO = {
   }
 };
 
-module.exports = TicketDAO;
+export = TicketDAO;

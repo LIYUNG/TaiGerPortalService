@@ -5,4 +5,4 @@ interviewSurveyResponseSchema.index(
   { unique: true }
 );
 
-module.exports = { interviewSurveyResponseSchema };
+export = { interviewSurveyResponseSchema };

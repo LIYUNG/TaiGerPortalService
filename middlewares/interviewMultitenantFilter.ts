@@ -81,7 +81,7 @@ const interviewMultitenantReadOnlyFilter = asyncHandler(
   }
 );
 
-module.exports = {
+export = {
   interviewMultitenantFilter,
   interviewMultitenantReadOnlyFilter
 };

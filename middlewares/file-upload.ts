@@ -516,7 +516,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-module.exports = {
+export = {
   imageUpload: upload_doc_image_s3.single('file'),
   admissionUpload: upload_admission_letter_s3.single('file'),
   documentationDocsUpload: upload_doc_docs_s3.single('file'),

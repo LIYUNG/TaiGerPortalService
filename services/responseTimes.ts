@@ -22,4 +22,4 @@ const ResponseTimeService = {
   }
 };
 
-module.exports = ResponseTimeService;
+export = ResponseTimeService;

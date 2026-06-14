@@ -5,6 +5,6 @@ interviewsSchema.index(
   { unique: true }
 );
 
-module.exports = {
+export = {
   interviewsSchema
 };

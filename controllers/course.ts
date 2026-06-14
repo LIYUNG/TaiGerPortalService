@@ -204,7 +204,7 @@ const deleteMyCourse = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true });
 });
 
-module.exports = {
+export = {
   getMycourses,
   putMycourses,
   processTranscript_api_gatway,

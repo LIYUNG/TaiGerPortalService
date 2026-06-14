@@ -116,4 +116,4 @@ const htmlContent = (message) => `
 </html>
 `;
 
-module.exports = { htmlContent };
+export = { htmlContent };

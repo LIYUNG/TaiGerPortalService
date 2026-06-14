@@ -26,4 +26,4 @@ const AllcourseService = {
   }
 };
 
-module.exports = AllcourseService;
+export = AllcourseService;

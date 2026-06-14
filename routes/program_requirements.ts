@@ -67,4 +67,4 @@ router
     getProgramRequirement
   );
 
-module.exports = router;
+export = router;

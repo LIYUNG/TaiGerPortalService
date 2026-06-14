@@ -980,7 +980,7 @@ const getMyAcademicBackground = asyncHandler(async (req, res, next) => {
   next();
 });
 
-module.exports = {
+export = {
   getTemplates,
   deleteTemplate,
   uploadTemplate,

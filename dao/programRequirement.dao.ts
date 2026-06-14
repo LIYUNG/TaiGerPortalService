@@ -57,4 +57,4 @@ const ProgramRequirementDAO = {
   }
 };
 
-module.exports = ProgramRequirementDAO;
+export = ProgramRequirementDAO;

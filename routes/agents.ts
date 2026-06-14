@@ -25,4 +25,4 @@ router
     getAgentProfile
   );
 
-module.exports = router;
+export = router;

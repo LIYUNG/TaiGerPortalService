@@ -162,7 +162,7 @@ const WidgetExportMessagePDF = asyncHandler(async (req, res, next) => {
   logger.info('Export messages for student Id : studentId successfully.');
 });
 
-module.exports = {
+export = {
   WidgetProcessTranscriptV2,
   WidgetdownloadJson,
   WidgetExportMessagePDF

@@ -1300,7 +1300,7 @@ const runAiAssist = async (
   };
 };
 
-module.exports = {
+export = {
   autoDetectSkill,
   resolveAssistContext,
   runAiAssist

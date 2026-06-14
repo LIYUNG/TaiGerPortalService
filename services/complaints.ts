@@ -54,4 +54,4 @@ const ComplaintService = {
   }
 };
 
-module.exports = ComplaintService;
+export = ComplaintService;

@@ -55,4 +55,4 @@ router
   .patch(GeneralPOSTRequestRateLimiter, updateConversation)
   .delete(GeneralDELETERequestRateLimiter, archiveConversation);
 
-module.exports = router;
+export = router;

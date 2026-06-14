@@ -27,4 +27,4 @@ const getProgramFilter = async (req, res, next) => {
   next();
 };
 
-module.exports = getProgramFilter;
+export = getProgramFilter;

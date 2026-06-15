@@ -1,5 +1,4 @@
-import { Schema } from 'mongoose';
-import mongoose from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 import { programModule } from '@taiger-common/model';
 import {
   handleProgramChanges,

@@ -4,9 +4,9 @@ import {
   is_TaiGer_Agent,
   is_TaiGer_Admin,
   is_TaiGer_Editor,
-  is_TaiGer_Student
+  is_TaiGer_Student,
+  Role
 } from '@taiger-common/core';
-import { Role } from '@taiger-common/core';
 
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
@@ -19,16 +19,15 @@ import { isNotArchiv } from '../constants';
 import { getPermission } from '../utils/queryFunctions';
 import { AWS_S3_BUCKET_NAME } from '../config';
 import { ten_minutes_cache } from '../cache/node-cache';
-import { deleteS3Objects } from '../aws/s3';
+import { deleteS3Objects, getS3Object } from '../aws/s3';
 import { TENANT_SHORT_NAME } from '../constants/common';
-import { getS3Object } from '../aws/s3';
 import CommunicationService from '../services/communications';
 import StudentService from '../services/students';
 
 const pageSize = 5;
 
 // TODO
-const getSearchUserMessages = asyncHandler(async (req, res) => {
+export const getSearchUserMessages = asyncHandler(async (req, res) => {
   const { user } = req;
 
   // Get only the last communication
@@ -77,7 +76,7 @@ const getSearchUserMessages = asyncHandler(async (req, res) => {
       .send({ success: true, data: { students: mergedResults, user } });
   }
 });
-const getSearchMessageKeywords = asyncHandler(async (req, res) => {
+export const getSearchMessageKeywords = asyncHandler(async (req, res) => {
   const { user } = req;
 
   // Get only the last communication
@@ -120,7 +119,7 @@ const getSearchMessageKeywords = asyncHandler(async (req, res) => {
     .send({ success: true, data: { students: mergedResults, user } });
 });
 
-const getUnreadNumberMessages = asyncHandler(async (req, res) => {
+export const getUnreadNumberMessages = asyncHandler(async (req, res) => {
   const { user } = req;
   if (is_TaiGer_Student(user)) {
     const latestMessage = await CommunicationService.getLatestByStudentId(
@@ -170,7 +169,7 @@ const getUnreadNumberMessages = asyncHandler(async (req, res) => {
 });
 
 // TODO: refactor permission to middleware
-const getMyMessages = asyncHandler(async (req, res) => {
+export const getMyMessages = asyncHandler(async (req, res) => {
   const { user } = req;
 
   // Role is enforced at the route via permit(Admin, Manager, Agent, Editor).
@@ -217,7 +216,7 @@ const getMyMessages = asyncHandler(async (req, res) => {
   });
 });
 
-const loadMessages = asyncHandler(async (req, res) => {
+export const loadMessages = asyncHandler(async (req, res) => {
   const {
     params: { studentId, pageNumber }
   } = req;
@@ -253,7 +252,7 @@ const loadMessages = asyncHandler(async (req, res) => {
   });
 });
 
-const getMessages = asyncHandler(async (req, res) => {
+export const getMessages = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId }
@@ -310,7 +309,7 @@ const getMessages = asyncHandler(async (req, res) => {
   });
 });
 
-const getChatFile = asyncHandler(async (req, res) => {
+export const getChatFile = asyncHandler(async (req, res) => {
   const {
     params: { studentId, fileName }
   } = req;
@@ -334,7 +333,7 @@ const getChatFile = asyncHandler(async (req, res) => {
 });
 
 // (O) notification email works
-const postMessages = asyncHandler(async (req, res) => {
+export const postMessages = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId }
@@ -462,7 +461,7 @@ const postMessages = asyncHandler(async (req, res) => {
 });
 
 // (-) TODO email : no notification needed
-const updateAMessageInThread = asyncHandler(async (req, res) => {
+export const updateAMessageInThread = asyncHandler(async (req, res) => {
   const {
     params: { messageId }
   } = req;
@@ -484,46 +483,48 @@ const updateAMessageInThread = asyncHandler(async (req, res) => {
 });
 
 // (-) TODO email : no notification needed
-const deleteAMessageInCommunicationThread = asyncHandler(async (req, res) => {
-  const {
-    params: { messageId }
-  } = req;
-  const msg = await CommunicationService.getCommunicationById(messageId);
+export const deleteAMessageInCommunicationThread = asyncHandler(
+  async (req, res) => {
+    const {
+      params: { messageId }
+    } = req;
+    const msg = await CommunicationService.getCommunicationById(messageId);
 
-  // remove chat attachment cache.
-  msg.files?.map((file) =>
-    ten_minutes_cache.del(`chat-${msg.student_id?.toString()}${file.name}`)
-  );
+    // remove chat attachment cache.
+    msg.files?.map((file) =>
+      ten_minutes_cache.del(`chat-${msg.student_id?.toString()}${file.name}`)
+    );
 
-  try {
-    console.log('msg.files', msg.files);
-    if (msg.files?.filter((file) => file.path !== '')?.length > 0) {
-      await deleteS3Objects({
-        bucketName: AWS_S3_BUCKET_NAME,
-        objectKeys: msg.files
-          .filter((file) => file.path !== '')
-          .map((file) => ({
-            Key: file.path
-          }))
-      });
+    try {
+      console.log('msg.files', msg.files);
+      if (msg.files?.filter((file) => file.path !== '')?.length > 0) {
+        await deleteS3Objects({
+          bucketName: AWS_S3_BUCKET_NAME,
+          objectKeys: msg.files
+            .filter((file) => file.path !== '')
+            .map((file) => ({
+              Key: file.path
+            }))
+        });
+      }
+    } catch (err) {
+      if (err) {
+        logger.error('delete chat files: ', err);
+        throw new ErrorResponse(500, 'Error occurs while deleting');
+      }
     }
-  } catch (err) {
-    if (err) {
-      logger.error('delete chat files: ', err);
-      throw new ErrorResponse(500, 'Error occurs while deleting');
+
+    try {
+      await CommunicationService.deleteById(messageId);
+      res.status(200).send({ success: true });
+    } catch (e) {
+      logger.error(`Delete error for messageId ${messageId}`);
+      throw new ErrorResponse(400, 'message collapse');
     }
   }
+);
 
-  try {
-    await CommunicationService.deleteById(messageId);
-    res.status(200).send({ success: true });
-  } catch (e) {
-    logger.error(`Delete error for messageId ${messageId}`);
-    throw new ErrorResponse(400, 'message collapse');
-  }
-});
-
-const IgnoreMessage = asyncHandler(async (req, res) => {
+export const IgnoreMessage = asyncHandler(async (req, res) => {
   const {
     user,
     params: { communication_messageId, ignoreMessageState }
@@ -545,17 +546,3 @@ const IgnoreMessage = asyncHandler(async (req, res) => {
   logger.info('IgnoreMessage : save succeeds');
   res.status(200).send({ success: true });
 });
-
-export = {
-  getSearchUserMessages,
-  getSearchMessageKeywords,
-  getUnreadNumberMessages,
-  getMyMessages,
-  loadMessages,
-  getMessages,
-  getChatFile,
-  postMessages,
-  updateAMessageInThread,
-  deleteAMessageInCommunicationThread,
-  IgnoreMessage
-};

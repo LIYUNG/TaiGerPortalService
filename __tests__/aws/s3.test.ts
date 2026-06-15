@@ -66,6 +66,7 @@ jest.mock('../../services/logger', () => ({
 }));
 
 const sdk = require('@aws-sdk/client-s3');
+
 const {
   __send: send,
   NoSuchKey,

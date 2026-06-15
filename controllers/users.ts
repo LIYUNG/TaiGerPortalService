@@ -1,9 +1,8 @@
 import _ from 'lodash';
 import crypto from 'crypto';
 import generator from 'generate-password';
-import { Role } from '@taiger-common/core';
+import { Role, is_TaiGer_Admin } from '@taiger-common/core';
 import mongoose from 'mongoose';
-import { is_TaiGer_Admin } from '@taiger-common/core';
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import {

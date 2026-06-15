@@ -1,6 +1,5 @@
 import _ from 'lodash';
-import { is_TaiGer_Agent } from '@taiger-common/core';
-import { Role } from '@taiger-common/core';
+import { is_TaiGer_Agent, Role } from '@taiger-common/core';
 
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';

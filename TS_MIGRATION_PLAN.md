@@ -77,11 +77,22 @@ coverage 96.18/83.15/95.39/96.38).
   this was a clean rename; full suite green. `.test.ts` eslint override turns off
   `no-require-imports` + `no-unused-vars` (tests use require for jest mocking).
   Fixtures/mocks/`ai-assist.jest.config.js` stay `.js` (resolve fine).
-- [ ] **B9b-part2** (BLOCKED) move singletons `export =` → `export default`/named:
-  the tests still use `jest.spyOn(require(mod), 'fn')`, which only works on the
-  writable CommonJS object `export =` emits — ES named/default are read-only live
-  bindings. Needs the spyOn-on-require mocking rewritten first (separate effort).
-- [ ] **B10** (later) type-aware eslint + `import/order`; burn down ~4170 strict-type backlog
+- [x] **B9b-part2** WON'T DO (investigated + reverted). Moving `export =` →
+  named/`export default` is NOT safe per-module: consumers use a **mix** of
+  default imports (`import x from './m'; x.fn()` — needs the whole object, i.e.
+  `export =`/default) and named imports (`import { fn }` — needs named exports).
+  Converting a module's exports breaks its default-import consumers (verified:
+  orchestrator → `undefined.runAiAssist`). It would require flipping every
+  consumer's import style in lockstep, for only ~525 *advisory* TS2497 errors.
+  `export =` is the correct form for a **commonjs**-target build — keep it.
+- [x] **B10a** import hygiene (eslint autofix): `import/no-duplicates` (merged the
+  codemod's split imports), `import/first`, `import/newline-after-import`. 26→0.
+  `import/order` left OFF — reordering side-effect imports (`import './models'`)
+  is unsafe. ESLint `.ts` (source+tests) = **0 problems**.
+- [ ] **B10b** (large, incremental) burn down ~4170 strict-type errors —
+  dominated by **TS7006 implicit-any params (2338)** + TS2339 (495) + TS2554
+  (158). Real per-function typing work; do it domain-by-domain, leaf-up. NOT a
+  one-pass job. (TS2497 ~525 would only clear with B9b-part2, which we won't do.)
 
 ## Out of scope (separate effort)
 

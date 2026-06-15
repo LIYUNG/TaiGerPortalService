@@ -1,3 +1,5 @@
+import ProgramDAO from '../dao/program.dao';
+
 const ACTIVE_PROGRAM_FILTER = {
   $or: [{ isArchiv: { $exists: false } }, { isArchiv: false }]
 };
@@ -173,8 +175,6 @@ const buildProgramsFilter = ({ search, filters = {} }) => {
 
   return filter;
 };
-
-import ProgramDAO from '../dao/program.dao';
 
 const ProgramService = {
   parseProgramsQuery,

@@ -26,7 +26,10 @@ import {
   sendAssignEssayWriterReminderEmail,
   assignEssayTaskToEditorEmail,
   sendAssignTrainerReminderEmail,
-  sendNewInterviewMessageInThreadEmail
+  sendNewInterviewMessageInThreadEmail,
+  informEssayWriterNewEssayEmail,
+  informStudentTheirEssayWriterEmail,
+  informAgentEssayAssignedEmail
 } from '../services/email';
 import logger from '../services/logger';
 import {
@@ -40,21 +43,15 @@ import {
   ESSAY_WRITER_SCOPE,
   CV_MUST_HAVE_PATTERNS
 } from '../constants';
-import {
-  informEssayWriterNewEssayEmail,
-  informStudentTheirEssayWriterEmail,
-  informAgentEssayAssignedEmail
-} from '../services/email';
 
 import { AWS_S3_BUCKET_NAME, ORIGIN } from '../config';
-import { deleteS3Objects } from '../aws/s3';
+import { deleteS3Objects, getS3Object } from '../aws/s3';
 import { emptyS3Directory } from '../utils/modelHelper/versionControl';
 import {
   threadS3GarbageCollector,
   patternMatched,
   userChangesHelperFunction
 } from '../utils/utils_function';
-import { getS3Object } from '../aws/s3';
 import { getPermission } from '../utils/queryFunctions';
 import StudentService from '../services/students';
 import DocumentThreadService from '../services/documentthreads';

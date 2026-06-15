@@ -1,8 +1,8 @@
 import { model, Schema, Types } from 'mongoose';
 
-const { ObjectId } = Types;
-
 import { programModule } from './Program';
+
+const { ObjectId } = Types;
 
 const programKeys = Object.keys(programModule);
 const programAIModule = {};

@@ -2,10 +2,10 @@ import { isProd } from '../config';
 import { ErrorResponse } from '../common/errors';
 import logger from '../services/logger';
 
-const asyncHandler = (handler) => (req, res, next) =>
+export const asyncHandler = (handler) => (req, res, next) =>
   Promise.resolve(handler(req, res, next)).catch(next);
 
-const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, next) => {
   if (res.headersSent) {
     return next(err);
   }
@@ -23,5 +23,3 @@ const errorHandler = (err, req, res, next) => {
     message: isProd() ? 'Unexpected condition' : err.message
   });
 };
-
-export = { asyncHandler, errorHandler };

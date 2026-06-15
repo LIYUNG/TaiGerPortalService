@@ -45,6 +45,7 @@ const {
 } = require('../../../services/ai-assist/answerComposer');
 
 const orchestrator = require('../../../services/ai-assist/orchestrator');
+
 const { autoDetectSkill, resolveAssistContext, runAiAssist } = orchestrator;
 
 // ---------------------------------------------------------------------------

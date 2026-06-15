@@ -1,7 +1,7 @@
 import passport from 'passport';
 import { ErrorResponse } from '../common/errors';
 
-const localAuth = (req, res, next) => {
+export const localAuth = (req, res, next) => {
   passport.authenticate('local', { session: false }, (err, user) => {
     if (err) return next(err);
 
@@ -17,7 +17,7 @@ const localAuth = (req, res, next) => {
   })(req, res, next);
 };
 
-const protect = (req, res, next) => {
+export const protect = (req, res, next) => {
   passport.authenticate('jwt', { session: false }, (err, user) => {
     if (err) return next(err);
 
@@ -34,7 +34,7 @@ const protect = (req, res, next) => {
   })(req, res, next);
 };
 
-const permit =
+export const permit =
   (...roles) =>
   (req, res, next) => {
     if (!roles.includes(req.user.role)) {
@@ -44,7 +44,7 @@ const permit =
     next();
   };
 
-const prohibit =
+export const prohibit =
   (...roles) =>
   (req, res, next) => {
     if (roles.includes(req.user.role))
@@ -52,10 +52,3 @@ const prohibit =
 
     next();
   };
-
-export = {
-  localAuth,
-  protect,
-  permit,
-  prohibit
-};

@@ -156,6 +156,7 @@ const { getPostgresDb } = require('../../database');
 const UserDAO = require('../../dao/user.dao');
 const { TENANT_ID } = require('../fixtures/constants');
 const { admin, student } = require('../mock/user');
+
 const postgres = getPostgresDb();
 
 const requestWithSupertest = request(app);

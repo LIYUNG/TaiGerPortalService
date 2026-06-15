@@ -52,7 +52,7 @@
         "sourceType": "module",
         "ecmaVersion": "latest"
       },
-      "plugins": ["@typescript-eslint", "unused-imports"],
+      "plugins": ["@typescript-eslint", "unused-imports", "import"],
       "rules": {
         "no-undef": "off",
         "no-underscore-dangle": "off",
@@ -69,7 +69,13 @@
             "argsIgnorePattern": "^_"
           }
         ],
-        "@typescript-eslint/no-require-imports": "warn"
+        "@typescript-eslint/no-require-imports": "warn",
+        "import/no-duplicates": "warn",
+        "import/first": "warn",
+        "import/newline-after-import": "warn",
+        "import/no-unresolved": "off",
+        "import/extensions": "off",
+        "import/order": "off"
       }
     },
     {

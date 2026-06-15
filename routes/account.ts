@@ -11,7 +11,7 @@ import {
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import { multitenant_filter } from '../middlewares/multitenant-filter';
 import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
-import { protect, permit } from '../middlewares/auth';
+import { protect, permit, localAuth } from '../middlewares/auth';
 import {
   TemplatefileUpload,
   admissionUpload
@@ -32,11 +32,11 @@ import {
   updateAcademicBackground,
   updateLanguageSkill,
   updateApplicationPreferenceSkill,
-  updatePersonalData
+  updatePersonalData,
+  updateCredentials,
+  updateOfficehours
 } from '../controllers/account';
 
-import { updateCredentials, updateOfficehours } from '../controllers/account';
-import { localAuth } from '../middlewares/auth';
 import { validateStudentId } from '../common/validation';
 
 const router = Router();

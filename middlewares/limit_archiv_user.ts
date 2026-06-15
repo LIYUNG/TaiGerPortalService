@@ -1,13 +1,9 @@
 import { ErrorResponse } from '../common/errors';
 
-const filter_archiv_user = (req, res, next) => {
+export const filter_archiv_user = (req, res, next) => {
   const { user } = req;
   if (user.archiv) {
     return next(new ErrorResponse(403, 'User service period expired!'));
   }
   next();
-};
-
-export = {
-  filter_archiv_user
 };

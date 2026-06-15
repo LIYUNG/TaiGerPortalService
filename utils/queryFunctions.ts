@@ -6,7 +6,7 @@ import StudentService from '../services/students';
 
 // These function will cache frequently query result but not change frequently.
 
-const getPermission = asyncHandler(async (req, user) => {
+export const getPermission = asyncHandler(async (req, user) => {
   let cachedPermission = ten_minutes_cache.get(
     `/permission/${user._id.toString()}`
   );
@@ -27,7 +27,7 @@ const getPermission = asyncHandler(async (req, user) => {
   return cachedPermission;
 });
 
-const getCachedStudentPermission = async (req, studentId) => {
+export const getCachedStudentPermission = async (req, studentId) => {
   let cachedStudent = ten_minutes_cache.get(`/filter/studentId/${studentId}`);
   if (cachedStudent === undefined) {
     const student = await StudentService.getStudentByIdSelect(
@@ -45,9 +45,4 @@ const getCachedStudentPermission = async (req, studentId) => {
     }
   }
   return cachedStudent;
-};
-
-export = {
-  getPermission,
-  getCachedStudentPermission
 };

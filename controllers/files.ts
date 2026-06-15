@@ -18,8 +18,7 @@ import { sendSlackMessageToWinChannel } from '../utils/slackUtils';
 import { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } from '../config';
 import logger from '../services/logger';
 
-import { deleteS3Object } from '../aws/s3';
-import { getS3Object } from '../aws/s3';
+import { deleteS3Object, getS3Object } from '../aws/s3';
 import ApplicationService from '../services/applications';
 import TemplateService from '../services/templates';
 import StudentService from '../services/students';

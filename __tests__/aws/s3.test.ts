@@ -280,17 +280,6 @@ describe('listS3ObjectsV2', () => {
 });
 
 describe('uploadJsonToS3', () => {
-  let logSpy;
-  let errSpy;
-  beforeEach(() => {
-    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-  });
-  afterEach(() => {
-    logSpy.mockRestore();
-    errSpy.mockRestore();
-  });
-
   test('stringifies the payload and uploads it as application/json', async () => {
     send.mockResolvedValueOnce({});
     await s3.uploadJsonToS3({ a: 1 }, 'bucket', 'file.json');
@@ -303,7 +292,7 @@ describe('uploadJsonToS3', () => {
       Body: JSON.stringify({ a: 1 }),
       ContentType: 'application/json'
     });
-    expect(logSpy).toHaveBeenCalledWith('File uploaded successfully');
+    expect(logger.info).toHaveBeenCalledWith('File uploaded successfully');
   });
 
   test('rethrows when the underlying put throws a non-S3 error', async () => {
@@ -311,6 +300,6 @@ describe('uploadJsonToS3', () => {
     await expect(
       s3.uploadJsonToS3({ a: 1 }, 'bucket', 'file.json')
     ).rejects.toThrow('boom');
-    expect(errSpy).toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalled();
   });
 });

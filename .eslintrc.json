@@ -70,6 +70,7 @@
           }
         ],
         "@typescript-eslint/no-require-imports": "warn",
+        "no-console": "warn",
         "import/no-duplicates": "warn",
         "import/first": "warn",
         "import/newline-after-import": "warn",
@@ -99,6 +100,12 @@
         "unused-imports/no-unused-vars": "off",
         "import/first": "off",
         "import/newline-after-import": "off"
+      }
+    },
+    {
+      "files": ["services/logger.ts"],
+      "rules": {
+        "no-console": "off"
       }
     }
   ]

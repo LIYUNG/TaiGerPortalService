@@ -186,9 +186,9 @@ async function uploadJsonToS3(responseJson, bucketName, fileName) {
       Body: jsonData,
       ContentType: 'application/json'
     });
-    console.log('File uploaded successfully');
+    logger.info('File uploaded successfully');
   } catch (error) {
-    console.error('Error uploading file:', error);
+    logger.error('Error uploading file', { error });
     throw error;
   }
 }

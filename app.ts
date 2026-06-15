@@ -8,8 +8,9 @@ import helmet from 'helmet';
 import './middlewares/passport';
 
 import router from './routes';
-import { ORIGIN, isProd, isTest } from './config';
+import { ORIGIN, isInPipeline, isLocal } from './config';
 import httpLogger from './services/httpLogger';
+import logger from './services/logger';
 import { errorHandler } from './middlewares/error-handler';
 import { requestContextMiddleware } from './middlewares/requestContext';
 
@@ -48,18 +49,18 @@ app.use(
 );
 app.use(cookieParser());
 app.get('/health', async (req, res) => {
-  console.log('healthy check');
+  logger.info('healthy check');
   // Optional: read ECS task metadata (if awsvpc mode)
   let ecsMetadata = {};
   const metadataUri = process.env.ECS_CONTAINER_METADATA_URI_V4;
-  console.log('metadataUri', metadataUri);
+  logger.info('metadataUri', { metadataUri });
   try {
     if (metadataUri) {
       const metadata = await fetch(`${metadataUri}/task`);
       ecsMetadata = await metadata.json();
     }
   } catch (err) {
-    console.warn('ECS metadata unavailable:', err.message);
+    logger.warn('ECS metadata unavailable', { error: err.message });
   }
   res.status(200).json({
     status: 'healthy',
@@ -74,10 +75,10 @@ app.use(methodOverride('_method')); // in order to make delete request
 app.use(express.json());
 app.use(compression());
 
-if (isProd()) {
+if (isInPipeline()) {
   app.use(httpLogger);
 }
-if (!isProd() && !isTest()) {
+if (isLocal()) {
   app.use(morgan('dev'));
 }
 

@@ -4,7 +4,7 @@ import { Role } from '@taiger-common/core';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
 import ProgramAIService from '../services/programAIs';
-import { isProd } from '../config';
+import { isInPipeline } from '../config';
 import { openAIClient, OpenAiModel } from '../services/openai';
 import { generalMLPrompt } from '../prompt/ml_prompt';
 import { FILE_MAPPING_TABLE } from '../constants';
@@ -28,7 +28,7 @@ const processProgramListAi = asyncHandler(async (req, res, _next) => {
     return res.send({ success: true, data: {} });
   }
 
-  const python_command = isProd() ? 'python3' : 'python';
+  const python_command = isInPipeline() ? 'python3' : 'python';
   const python = spawn(
     python_command,
     ['program_info.py', program.school, program.program_name, program.degree],

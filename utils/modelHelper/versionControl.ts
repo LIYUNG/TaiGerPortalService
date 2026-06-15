@@ -252,7 +252,7 @@ const findAffectedStudents = asyncHandler(async (programId) => {
 
 const handleStudentDelta = asyncHandler(async (studentId, program) => {
   const studentDelta = await findStudentDelta(studentId, program);
-  console.log('studentDelta', studentDelta);
+  logger.info('studentDelta', { studentDelta });
   for (let missingDoc of studentDelta.add) {
     try {
       await createApplicationThread(

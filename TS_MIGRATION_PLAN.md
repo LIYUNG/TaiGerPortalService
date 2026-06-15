@@ -33,21 +33,6 @@ the export side or convert consumers in lockstep.
   - `@typescript-eslint/no-unused-vars`: warn (ignores `^_`)
 - Inventory command: `npx eslint . --ext .ts`
 
-## Inventory
-
-| Rule | Baseline | Now |
-|---|---|---|
-| `@typescript-eslint/no-require-imports` | 1086 | **0** ✅ |
-| `@typescript-eslint/no-unused-vars` | 104 | 104 (next batch) |
-| **total** | 1190 | **104** (0 errors) |
-
-require→import done: ~224 files via codemod; 4 mongoose nested-destructures
-(`Types: { ObjectId }`) converted by hand; 7 intentional lazy/circular requires
-inside functions kept as `require` with `// eslint-disable-next-line
-@typescript-eslint/no-require-imports`. Codemod gotcha fixed: renamed
-destructures `const { a: b } = require` must become `import { a as b }` (not
-`{ a: b }`) — see `tools/` history. Full suite stayed green (2381 tests,
-coverage 96.18/83.15/95.39/96.38).
 
 ## Per-batch process
 
@@ -59,40 +44,31 @@ coverage 96.18/83.15/95.39/96.38).
 - Final gate before merge: full `npm run test:ci` (coverage 96/83/95/96) + `npm run build`.
 
 ## Batch order (leaf-up)
-
-- [x] **B1** leaf utils: `aws/ cache/ common/ constants/ builders/`
-- [x] **B2–B7** `dao/ services/ models/ middlewares/ routes/ controllers/ utils/ google/ prompt/` + root — all require→import done in one verified pass
-- [x] **B9a** `module.exports` → `export =` (231 files). Uniform `export =` (NOT
-  `export {}` / `export default`): `export =` emits a writable `module.exports`,
-  so `require()`-consumers AND `jest.spyOn(require(mod), 'fn')` keep working.
-  **Gotcha:** `export { a, b }` (ES named) are read-only live bindings → broke
-  `jest.spyOn` on named exports (ai_assist). Side benefit: typecheck backlog
-  4951 → 4170 (consumers' default imports now resolve). Full suite green (2381).
-- [x] **B8** unused-vars sweep — **eslint `.ts` 104 → 0**. 38 unused imports removed
-  via `eslint-plugin-unused-imports` autofix; 69 unused vars/args prefixed `_`
-  (preserves side-effecting calls like `const job7 = schedule.scheduleJob(...)`,
-  `const response = await s3.send(...)` — call kept, result intentionally ignored);
-  1 dead `let updatedStudent` (decl + 2 assignments) prefixed by hand.
-- [x] **B9b-part1** 171 `.test.js` → `.test.ts`. Tests already ran under ts-jest, so
-  this was a clean rename; full suite green. `.test.ts` eslint override turns off
-  `no-require-imports` + `no-unused-vars` (tests use require for jest mocking).
-  Fixtures/mocks/`ai-assist.jest.config.js` stay `.js` (resolve fine).
-- [x] **B9b-part2** WON'T DO (investigated + reverted). Moving `export =` →
-  named/`export default` is NOT safe per-module: consumers use a **mix** of
-  default imports (`import x from './m'; x.fn()` — needs the whole object, i.e.
-  `export =`/default) and named imports (`import { fn }` — needs named exports).
-  Converting a module's exports breaks its default-import consumers (verified:
-  orchestrator → `undefined.runAiAssist`). It would require flipping every
-  consumer's import style in lockstep, for only ~525 *advisory* TS2497 errors.
-  `export =` is the correct form for a **commonjs**-target build — keep it.
-- [x] **B10a** import hygiene (eslint autofix): `import/no-duplicates` (merged the
-  codemod's split imports), `import/first`, `import/newline-after-import`. 26→0.
-  `import/order` left OFF — reordering side-effect imports (`import './models'`)
-  is unsafe. ESLint `.ts` (source+tests) = **0 problems**.
-- [ ] **B10b** (large, incremental) burn down ~4170 strict-type errors —
-  dominated by **TS7006 implicit-any params (2338)** + TS2339 (495) + TS2554
-  (158). Real per-function typing work; do it domain-by-domain, leaf-up. NOT a
-  one-pass job. (TS2497 ~525 would only clear with B9b-part2, which we won't do.)
+- [x] **console → logger** (June 2026): 9 `console.*` in 6 source files → `logger`
+  (`log`/`info`→`logger.info`, `error`→`logger.error`, `warn`→`logger.warn`;
+  `console.x('label', v)` → `logger.x('label', { v })`). Added `import logger` to
+  app.ts; updated aws/s3.test (console spy → `logger` mock assertion). ESLint
+  `no-console: warn` added (`services/logger.ts` overridden off — it IS the
+  logger). `logger.test.ts` keeps real console spies.
+- [~] **B10b** (large, incremental) burn down the strict-type backlog.
+  - Baseline **3884 source errors** (tests excluded — `tsconfig` now includes
+    `__tests__` for the editor jest global, so `tsc --noEmit` total is ~8994;
+    work the ~3884 SOURCE ones). Dominant: **TS7006 implicit-any (2337)**,
+    TS2339 (495), TS2497 (277), TS2554 (158), TS7053 (139), TS7031 (123).
+  - **DONE: typed `asyncHandler` → 3884 → 3076 (−808).** `handler: (...args:any[])
+    => any` (NOT `RequestHandler`): contextually types every controller's
+    `(req,res,next)` callback (clears their TS7006) WITHOUT mistyping the
+    functions that **misuse** asyncHandler to wrap non-`(req,res,next)` helpers
+    (email senders etc.) — `RequestHandler` surfaced +854 bogus TS2339 there.
+    Added `types/express.d.ts` (augments `Request.user`/`tenantId`) as a
+    foundation for when handlers get real `Request` types. Type-only change;
+    778 controller tests green.
+  - NEXT: per-function typing, domain/leaf-up. Remaining TS7006 (1530) are
+    non-handler callbacks/service/dao params. (TS2497 ~277 only clears by
+    modernizing those modules' exports — see B9b-part2 WON'T DO.) The latent
+    **asyncHandler misuse** (wrapping non-handlers) is a real cleanup: removing
+    it from those helpers (like the informEditor fix) would let handlers take
+    real `Request` types and clear more.
 
 ## Out of scope (separate effort)
 

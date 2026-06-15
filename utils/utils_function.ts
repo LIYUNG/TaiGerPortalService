@@ -1137,7 +1137,7 @@ export const CreateIntervalOperation = (thread, msg1, msg2) => {
   return {
     updateOne: {
       filter: queryData,
-      update: update,
+      update,
       upsert: true
     }
   };

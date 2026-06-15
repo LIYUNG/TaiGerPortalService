@@ -121,7 +121,7 @@ const CalculateAvgReponseTimeinLookup = asyncHandler(async (Lookup) => {
 });
 
 const GenerateResponseTimeByTaigerUser = asyncHandler(async () => {
-  let Lookup = {};
+  const Lookup = {};
 
   const ResponseTimeForCommunication = await GetResponseTimeForCommunication({
     student_id: { $exists: true }
@@ -162,7 +162,7 @@ const GenerateResponseTimeByTaigerUser = asyncHandler(async () => {
 
 // TODO: deprecated
 const GenerateResponseTimeByStudent = asyncHandler(async () => {
-  let Lookup = {};
+  const Lookup = {};
 
   const ResponseTimeForCommunication = await GetResponseTimeForCommunication({
     student_id: { $exists: true }

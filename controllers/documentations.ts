@@ -161,11 +161,10 @@ const getDocFile = asyncHandler(async (req, res) => {
     }
     res.attachment(object_key);
     return res.end(response);
-  } else {
-    logger.info('cache hit');
-    res.attachment(object_key);
-    return res.end(value);
   }
+  logger.info('cache hit');
+  res.attachment(object_key);
+  return res.end(value);
 });
 
 const uploadDocDocs = asyncHandler(async (req, res) => {

@@ -790,7 +790,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
     const taigerStaff = [...student.agents, ...student.editors]
       .filter((staff) => isNotArchiv(staff))
       .filter((staff) => staff._id !== user._id); // exclude the one who trigger the result update
-    for (let staff of taigerStaff) {
+    for (const staff of taigerStaff) {
       await AdmissionResultInformEmailToTaiGer(
         {
           firstname: staff.firstname,

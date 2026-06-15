@@ -33,6 +33,26 @@ the export side or convert consumers in lockstep.
   - `@typescript-eslint/no-unused-vars`: warn (ignores `^_`)
 - Inventory command: `npx eslint . --ext .ts`
 
+## ESLint hardening (robustness/maintainability — June 2026)
+
+Added to the `.ts` rules (all warn): `eqeqeq` (smart), `no-var`, `prefer-const`,
+`object-shorthand`, `prefer-template`, `no-throw-literal`, `no-param-reassign`,
+`no-else-return`, `@typescript-eslint/no-shadow`, `no-console` (logger.ts off).
+All autofixed except 4 `no-param-reassign` (3 DAO `applyPopulates` → `reduce`;
+teams map → return directly). Full suite green.
+
+**Type-aware** (`parserOptions.project: ./tsconfig.json`, ~10s load per run; off
+for `.test.ts`): **`@typescript-eslint/no-floating-promises`: warn** — surfaced
+**78** source floating promises (mostly fire-and-forget `inform*Email`/`send*`
+notifications, e.g. students.ts ×7). With no global rejection handler these were
+crash risks (Node 22 exits on unhandled rejection).
+- **FIX (robustness): added `process.on('unhandledRejection'|'uncaughtException')`
+  loggers in `index.ts`** — last-line-of-defence so a failed side effect can't
+  take the server down. Added `utils/fireAndForget.ts` (logs + non-blocking) as
+  the recommended per-call fix; void/wrap the 78 incrementally (tracked warnings).
+- Cost: type-aware lint slows `npm run lint`/lint-staged (~10s). If too slow, move
+  `no-floating-promises` to a separate `lint:types` script out of lint-staged.
+
 
 ## Per-batch process
 

@@ -8,12 +8,8 @@ const withPopulate = (query) =>
     .lean();
 
 // Apply a list of populate argument tuples (e.g. [['program_id', 'school']]).
-const applyPopulates = (query, populates = []) => {
-  populates.forEach((args) => {
-    query = query.populate(...args);
-  });
-  return query;
-};
+const applyPopulates = (query, populates = []) =>
+  populates.reduce((populated, args) => populated.populate(...args), query);
 
 // ── Server-side pagination helpers ───────────────────────────────────────────
 const DEFAULT_PAGE = 1;

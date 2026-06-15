@@ -161,7 +161,7 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
       throw new ErrorResponse(403, 'Unauthorized request');
     }
   }
-  let newfile = [];
+  const newfile = [];
   if (req.files) {
     for (let i = 0; i < req.files.length; i += 1) {
       const fileName = req.files[i].key.split('/')[2];

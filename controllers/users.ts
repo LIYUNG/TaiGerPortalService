@@ -257,7 +257,7 @@ const updateUserArchivStatus = asyncHandler(async (req, res) => {
   } = req;
 
   // TODO: data validation for isArchived and user_id
-  let _updated_user = await UserService.updateUserArchiv(user_id, isArchived);
+  const _updated_user = await UserService.updateUserArchiv(user_id, isArchived);
   const users = await UserService.getUsers({});
   res.status(200).send({ success: true, data: users });
 });

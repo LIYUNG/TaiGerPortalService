@@ -2,12 +2,8 @@ import mongoose from 'mongoose';
 import { Documentthread } from '../models';
 import { createApplicationThreadV2 } from '../utils/modelHelper/versionControl';
 
-const applyPopulates = (query, populates = []) => {
-  populates.forEach((args) => {
-    query = query.populate(...args);
-  });
-  return query;
-};
+const applyPopulates = (query, populates = []) =>
+  populates.reduce((populated, args) => populated.populate(...args), query);
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;

@@ -22,7 +22,7 @@ const checkIsRLspecific = (program) => {
 const findRLDelta = asyncHandler(
   async (program, studentId, threads, options) => {
     const { skipCompleted } = options || {};
-    let delta = {
+    const delta = {
       add: [],
       remove: []
     };

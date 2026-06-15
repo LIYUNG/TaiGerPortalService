@@ -51,6 +51,18 @@ import {
 //   });
 // });
 
+// Safety net: log (don't crash on) unhandled promise rejections. Node 15+
+// terminates the process by default, so a single failed fire-and-forget side
+// effect (e.g. a notification email) could take the server down. Individual
+// fire-and-forget calls should still use `fireAndForget()` for context; this is
+// the last line of defence.
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection', { reason });
+});
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', { error });
+});
+
 const launch = async () => {
   logger.info(`AWS_S3_BUCKET_NAME: ${process.env.AWS_S3_BUCKET_NAME}`);
 

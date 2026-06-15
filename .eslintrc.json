@@ -50,10 +50,12 @@
       "parser": "@typescript-eslint/parser",
       "parserOptions": {
         "sourceType": "module",
-        "ecmaVersion": "latest"
+        "ecmaVersion": "latest",
+        "project": "./tsconfig.json"
       },
       "plugins": ["@typescript-eslint", "unused-imports", "import"],
       "rules": {
+        "@typescript-eslint/no-floating-promises": "warn",
         "no-undef": "off",
         "no-underscore-dangle": "off",
         "camelcase": "off",
@@ -71,6 +73,15 @@
         ],
         "@typescript-eslint/no-require-imports": "warn",
         "no-console": "warn",
+        "eqeqeq": ["warn", "smart"],
+        "no-var": "warn",
+        "prefer-const": "warn",
+        "object-shorthand": ["warn", "always"],
+        "prefer-template": "warn",
+        "no-throw-literal": "warn",
+        "no-param-reassign": "warn",
+        "no-else-return": ["warn", { "allowElseIf": false }],
+        "@typescript-eslint/no-shadow": "warn",
         "import/no-duplicates": "warn",
         "import/first": "warn",
         "import/newline-after-import": "warn",
@@ -99,7 +110,9 @@
         "@typescript-eslint/no-require-imports": "off",
         "unused-imports/no-unused-vars": "off",
         "import/first": "off",
-        "import/newline-after-import": "off"
+        "import/newline-after-import": "off",
+        "@typescript-eslint/no-floating-promises": "off",
+        "no-param-reassign": "off"
       }
     },
     {

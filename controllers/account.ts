@@ -8,7 +8,7 @@ import logger from '../services/logger';
 import UserService from '../services/users';
 
 // (O) email : self notification
-const updateCredentials = asyncHandler(async (req, res) => {
+export const updateCredentials = asyncHandler(async (req, res) => {
   const {
     user,
     body: { credentials }
@@ -34,7 +34,7 @@ const updateCredentials = asyncHandler(async (req, res) => {
   );
 });
 
-const updateOfficehours = asyncHandler(async (req, res) => {
+export const updateOfficehours = asyncHandler(async (req, res) => {
   const {
     user,
     body: { officehours, timezone }
@@ -52,13 +52,13 @@ const updateOfficehours = asyncHandler(async (req, res) => {
 });
 
 // Helper function to normalize university name
-const normalizeName = (name) => {
+export const normalizeName = (name) => {
   if (!name || typeof name !== 'string') return name;
   return name.trim().replace(/\s+/g, ' '); // Replace multiple spaces with single space
 };
 
 // (O)  email : self notification
-const updateAcademicBackground = asyncHandler(async (req, res) => {
+export const updateAcademicBackground = asyncHandler(async (req, res) => {
   const {
     body: { university }
   } = req;
@@ -225,7 +225,7 @@ const updateAcademicBackground = asyncHandler(async (req, res) => {
 });
 
 // (O) email : self notification
-const updateLanguageSkill = asyncHandler(async (req, res) => {
+export const updateLanguageSkill = asyncHandler(async (req, res) => {
   const {
     body: { language }
   } = req;
@@ -311,25 +311,27 @@ const updateLanguageSkill = asyncHandler(async (req, res) => {
 });
 
 // (O) email : self notification
-const updateApplicationPreferenceSkill = asyncHandler(async (req, res) => {
-  const {
-    body: { application_preference }
-  } = req;
-  const { studentId } = req.params;
+export const updateApplicationPreferenceSkill = asyncHandler(
+  async (req, res) => {
+    const {
+      body: { application_preference }
+    } = req;
+    const { studentId } = req.params;
 
-  application_preference.updatedAt = new Date();
-  const updatedStudent = await UserService.updateUser(studentId, {
-    application_preference
-  });
+    application_preference.updatedAt = new Date();
+    const updatedStudent = await UserService.updateUser(studentId, {
+      application_preference
+    });
 
-  res.status(200).send({
-    success: true,
-    data: updatedStudent.application_preference
-  });
-});
+    res.status(200).send({
+      success: true,
+      data: updatedStudent.application_preference
+    });
+  }
+);
 
 // (O) email : self notification
-const updatePersonalData = asyncHandler(async (req, res) => {
+export const updatePersonalData = asyncHandler(async (req, res) => {
   const {
     params: { user_id },
     body: { personaldata }
@@ -367,12 +369,3 @@ const updatePersonalData = asyncHandler(async (req, res) => {
     logger.error(err);
   }
 });
-
-export = {
-  updateOfficehours,
-  updateCredentials,
-  updateAcademicBackground,
-  updateLanguageSkill,
-  updateApplicationPreferenceSkill,
-  updatePersonalData
-};

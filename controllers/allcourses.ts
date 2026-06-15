@@ -1,12 +1,12 @@
 import { asyncHandler } from '../middlewares/error-handler';
 import AllcourseService from '../services/allcourses';
 
-const getCourses = asyncHandler(async (req, res) => {
+export const getCourses = asyncHandler(async (req, res) => {
   const courses = await AllcourseService.getAllcourses();
   res.status(200).send({ success: true, data: courses });
 });
 
-const getCourse = asyncHandler(async (req, res) => {
+export const getCourse = asyncHandler(async (req, res) => {
   const { courseId } = req.params;
 
   const course = await AllcourseService.getAllcourseById(courseId);
@@ -20,7 +20,7 @@ const getCourse = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: course });
 });
 
-const deleteCourse = asyncHandler(async (req, res) => {
+export const deleteCourse = asyncHandler(async (req, res) => {
   const { courseId } = req.params;
 
   const course = await AllcourseService.deleteAllcourseById(courseId);
@@ -36,7 +36,7 @@ const deleteCourse = asyncHandler(async (req, res) => {
     .send({ success: true, message: 'Course deleted successfully.' });
 });
 
-const updateCourse = asyncHandler(async (req, res) => {
+export const updateCourse = asyncHandler(async (req, res) => {
   const { user } = req;
   const { courseId } = req.params; // Expecting courseId as a parameter
   const payload = req.body;
@@ -78,7 +78,7 @@ const updateCourse = asyncHandler(async (req, res) => {
   }
 });
 
-const createCourse = asyncHandler(async (req, res) => {
+export const createCourse = asyncHandler(async (req, res) => {
   const payload = req.body;
 
   if (!payload.all_course_chinese || !payload.all_course_english) {
@@ -104,11 +104,3 @@ const createCourse = asyncHandler(async (req, res) => {
     });
   }
 });
-
-export = {
-  getCourses,
-  getCourse,
-  deleteCourse,
-  updateCourse,
-  createCourse
-};

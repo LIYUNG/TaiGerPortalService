@@ -68,7 +68,7 @@ const getApplicationDeltaByProgram = asyncHandler(async (req, programId) => {
 const getApplicationDeltas = asyncHandler(async (req, res) => {
   const activePrograms = await getActivePrograms(req);
   const deltaPromises = [];
-  for (let program of activePrograms) {
+  for (const program of activePrograms) {
     const programDeltaPromise = getApplicationDeltaByProgram(req, program._id);
     deltaPromises.push(programDeltaPromise);
   }
@@ -223,7 +223,7 @@ const getResponseIntervalByStudent = asyncHandler(async (req, res) => {
       if (!threadIds) {
         return;
       }
-      let intervalsByThreads = [];
+      const intervalsByThreads = [];
       const _threadIntervals = threadIds.forEach((threadId) => {
         const _id = threadId.toString();
         if (intervalsGroupedByThread.hasOwnProperty(_id)) {
@@ -244,8 +244,7 @@ const getResponseIntervalByStudent = asyncHandler(async (req, res) => {
       delete application.doc_modification_thread;
       application.threadIntervals = intervalsByThreads;
       const { ['programId']: program, ...rest } = application;
-      application = { ...program, ...rest };
-      return application;
+      return { ...program, ...rest };
     })
     ?.filter((application) => !!application);
 

@@ -1,11 +1,7 @@
 import { InterviewSurveyResponse } from '../models';
 
-const applyPopulates = (query, populates = []) => {
-  populates.forEach((args) => {
-    query = query.populate(...args);
-  });
-  return query;
-};
+const applyPopulates = (query, populates = []) =>
+  populates.reduce((populated, args) => populated.populate(...args), query);
 
 /**
  * InterviewSurveyResponseDAO — data access for the InterviewSurveyResponse model

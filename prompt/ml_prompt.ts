@@ -1,4 +1,4 @@
-const generalMLPrompt = (props) => `
+export const generalMLPrompt = (props) => `
 Your first name is ${props.student_info?.firstname} and last name ${
   props.student_info?.lastname
 }, a intelligent student. You will write a customed ${
@@ -27,7 +27,3 @@ Reminder: you will create a customized ${
 } if existed, and write your firstname ${
   props.student_info?.firstname
 } and last name ${props.student_info?.lastname} in the end of the text`;
-
-export = {
-  generalMLPrompt
-};

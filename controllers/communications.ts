@@ -377,7 +377,7 @@ export const postMessages = asyncHandler(async (req, res) => {
     logger.error(`message collapse ${message}`);
     throw new ErrorResponse(400, 'message collapse');
   }
-  let newfile = [];
+  const newfile = [];
   if (req.files) {
     for (let i = 0; i < req.files.length; i += 1) {
       const filePath = req.files[i].key.split('/');

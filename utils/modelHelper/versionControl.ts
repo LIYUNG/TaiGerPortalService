@@ -253,7 +253,7 @@ const findAffectedStudents = asyncHandler(async (programId) => {
 const handleStudentDelta = asyncHandler(async (studentId, program) => {
   const studentDelta = await findStudentDelta(studentId, program);
   logger.info('studentDelta', { studentDelta });
-  for (let missingDoc of studentDelta.add) {
+  for (const missingDoc of studentDelta.add) {
     try {
       await createApplicationThread(
         missingDoc.studentId.toString(),
@@ -269,7 +269,7 @@ const handleStudentDelta = asyncHandler(async (studentId, program) => {
       );
     }
   }
-  for (let extraDoc of studentDelta.remove) {
+  for (const extraDoc of studentDelta.remove) {
     if (extraDoc?.fileThread?.messageSize !== 0) {
       logger.info(
         `handleStudentDelta: thread deletion aborted (non-empty thread) for student ${studentId} and program ${program._id} with file type ${extraDoc.fileThread.fileType} -> messages exist`
@@ -295,7 +295,7 @@ const handleStudentDelta = asyncHandler(async (studentId, program) => {
 
 const handleThreadDelta = asyncHandler(async (program) => {
   const affectedStudents = await findAffectedStudents(program._id);
-  for (let studentId of affectedStudents) {
+  for (const studentId of affectedStudents) {
     try {
       await handleStudentDelta(studentId, program);
     } catch (error) {
@@ -390,7 +390,7 @@ const enableVersionControl = (schema) => {
       delete this._changeRequestId;
       const changes = this.getUpdate().$set;
 
-      for (let doc of docs) {
+      for (const doc of docs) {
         const updatedDoc = { ...doc, ...changes };
         const objectId = updatedDoc._id;
         const docChanges = detectChanges(doc, updatedDoc);
@@ -410,7 +410,7 @@ const enableVersionControl = (schema) => {
           await VCModel.findOneAndUpdate(
             {
               docId: objectId,
-              collectionName: collectionName
+              collectionName
             },
             { $push: { changes: docChanges } },
             { upsert: true, new: true }

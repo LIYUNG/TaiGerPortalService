@@ -8,3 +8,10 @@
 /cert
 /coverage
 /docs
+/dist
+/build
+/cdk.out
+utils/NotoSansTC-VariableFont_wght-normal.js
+/dist
+/build
+tools

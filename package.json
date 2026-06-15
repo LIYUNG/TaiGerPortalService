@@ -3,19 +3,21 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "cross-env NODE_ENV=production node index.js",
-    "prod": "NODE_ENV=production node index.js",
-    "dev": "cross-env NODE_ENV=development nodemon --config nodemon.json index.js",
+    "start": "cross-env NODE_ENV=production node dist/index.js",
+    "prod": "NODE_ENV=production node dist/index.js",
+    "dev": "cross-env NODE_ENV=development nodemon --watch . --ext ts,js,json --ignore dist --ignore coverage --exec \"ts-node --transpile-only index.ts\"",
     "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles --verbose --coverage --logHeapUsage --watchAll --no-cache --clearMocks --no-compilation-cache --bail",
     "test:ci": "cross-env NODE_ENV=test jest --ci --verbose --watchAll=false --coverage",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json --noCheck",
     "format": "prettier --write --cache . --ignore-path .prettierignore",
     "pre-commit": "lint-staged",
     "lint": "eslint ./"
   },
   "lint-staged": {
-    "**/*.{js}": [
-      "prettier --write --cache .",
-      "git add ."
+    "**/*.{js,ts}": [
+      "prettier --write",
+      "eslint --fix --ext .ts"
     ]
   },
   "dependencies": {
@@ -81,7 +83,12 @@
     "validator": "^13.9.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/jest": "^27.0.1",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.19.21",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "aws-sdk-client-mock": "^4.1.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^8.19.0",
@@ -90,6 +97,7 @@
     "eslint-plugin-jsx-a11y": "^6.6.0",
     "eslint-plugin-react": "^7.30.1",
     "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-unused-imports": "^3.2.0",
     "http-proxy-middleware": "^3.0.5",
     "husky": "^9.1.7",
     "jest": "^30.4.2",
@@ -97,6 +105,9 @@
     "lint-staged": "^15.4.3",
     "nodemon": "^3.0.1",
     "prettier": "^2.8.8",
-    "supertest": "^6.3.3"
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.4.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }

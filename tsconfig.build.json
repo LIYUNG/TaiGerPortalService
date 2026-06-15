@@ -1,0 +1,34 @@
+{
+  // Build config — emits compiled JS to ./dist (allowJs compiles .js too, so the
+  // app builds end-to-end whether or not any file has been converted to .ts yet).
+  // NOT wired into the Dockerfile yet; used to validate build-readiness and as
+  // the target for Phase 1 (multi-stage Docker build running `node dist/index.js`).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    // Transpile-only deploy: emit runnable JS even while the strict type backlog
+    // is being burned down, so type errors never break the CI Docker build.
+    // Type-checking is the separate, advisory `npm run typecheck`.
+    "noEmitOnError": false,
+    // The original JS ran in sloppy mode; don't let tsc inject "use strict" into
+    // CommonJS output (would risk latent strict-mode regressions across files
+    // not yet reviewed). Overrides the `strict`-implied alwaysStrict:true. Files
+    // written with ES-module syntax are strict regardless, which is fine.
+    "alwaysStrict": false,
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": ["**/*.js", "**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "built",
+    "coverage",
+    "__tests__",
+    "docs",
+    "python",
+    "cdk.out",
+    "jest.config.js",
+    "**/*.test.js"
+  ]
+}

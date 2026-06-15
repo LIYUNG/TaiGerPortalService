@@ -1,0 +1,67 @@
+import axios from 'axios';
+import { Sha256 } from '@aws-crypto/sha256-browser';
+import { SignatureV4 } from '@aws-sdk/signature-v4';
+
+import logger from '../services/logger';
+import { ses, limiter, SendRawEmailCommand } from './ses';
+import { s3Client } from './s3';
+import { getTemporaryCredentials } from './sts';
+import { AWS_REGION } from '../config';
+
+const callApiGateway = async (
+  credentials,
+  apiGatewayUrl,
+  method,
+  requestBody = null,
+  additionalHeaders = {}
+) => {
+  try {
+    const signer = new SignatureV4({
+      credentials: {
+        accessKeyId: credentials.AccessKeyId,
+        secretAccessKey: credentials.SecretAccessKey,
+        sessionToken: credentials.SessionToken
+      },
+      region: AWS_REGION,
+      service: 'execute-api',
+      sha256: Sha256
+    });
+
+    const url = new URL(apiGatewayUrl);
+    const signedRequest = await signer.sign({
+      method,
+      hostname: url.hostname,
+      path: url.pathname,
+      protocol: url.protocol,
+      headers: {
+        host: url.hostname,
+        'Content-Type': requestBody ? 'application/json' : undefined, // Set content type if there is a body
+        ...additionalHeaders // Include any additional headers provided
+      },
+      // Only stringify if there's a body
+      body: requestBody ? JSON.stringify(requestBody) : undefined
+    });
+
+    const response = await axios({
+      ...signedRequest,
+      url: apiGatewayUrl,
+      method: signedRequest.method,
+      headers: signedRequest.headers,
+      data: requestBody
+    });
+
+    return response.data;
+  } catch (error) {
+    logger.error('Error calling API Gateway:', error);
+    throw error;
+  }
+};
+
+export = {
+  s3Client,
+  ses,
+  SendRawEmailCommand,
+  limiter,
+  getTemporaryCredentials,
+  callApiGateway
+};

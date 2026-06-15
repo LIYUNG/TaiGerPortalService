@@ -1,0 +1,25 @@
+import { isProd } from '../config';
+import { ErrorResponse } from '../common/errors';
+import logger from '../services/logger';
+
+export const asyncHandler = (handler) => (req, res, next) =>
+  Promise.resolve(handler(req, res, next)).catch(next);
+
+export const errorHandler = (err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  if (err instanceof ErrorResponse) {
+    return res
+      .status(err.statusCode)
+      .json({ success: false, message: err.message });
+  }
+
+  // TODO: body-parser error, mongoose error, validation error
+  logger.error(err.message);
+  res.status(500).json({
+    success: false,
+    message: isProd() ? 'Unexpected condition' : err.message
+  });
+};

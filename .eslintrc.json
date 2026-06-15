@@ -1,47 +1,105 @@
 {
+  "root": true,
   "env": {
-    "commonjs": true,
-    "es2021": true
+    "es2021": true,
+    "node": true
   },
-  "extends": ["plugin:react/recommended", "airbnb"],
+  "parserOptions": {
+    "ecmaVersion": "latest"
+  },
   "overrides": [
     {
+      "files": ["**/*.js", "**/*.jsx"],
+      "env": {
+        "commonjs": true,
+        "es2021": true,
+        "node": true
+      },
+      "extends": ["plugin:react/recommended", "airbnb"],
+      "plugins": ["react"],
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        },
+        "ecmaVersion": "latest"
+      },
+      "rules": {
+        "no-underscore-dangle": "off",
+        "implicit-arrow-linebreak": "off",
+        "operator-linebreak": "off",
+        "indent": "off",
+        "function-paren-newline": "off",
+        "linebreak-style": "off",
+        "camelcase": "off",
+        "no-await-in-loop": "off",
+        "object-curly-newline": "off",
+        "comma-dangle": [
+          "error",
+          {
+            "arrays": "never",
+            "objects": "never",
+            "imports": "never",
+            "exports": "never",
+            "functions": "never"
+          }
+        ]
+      }
+    },
+    {
+      "files": ["**/*.ts"],
+      "parser": "@typescript-eslint/parser",
+      "parserOptions": {
+        "sourceType": "module",
+        "ecmaVersion": "latest"
+      },
+      "plugins": ["@typescript-eslint", "unused-imports", "import"],
+      "rules": {
+        "no-undef": "off",
+        "no-underscore-dangle": "off",
+        "camelcase": "off",
+        "no-unused-vars": "off",
+        "@typescript-eslint/no-unused-vars": "off",
+        "unused-imports/no-unused-imports": "warn",
+        "unused-imports/no-unused-vars": [
+          "warn",
+          {
+            "vars": "all",
+            "varsIgnorePattern": "^_",
+            "args": "after-used",
+            "argsIgnorePattern": "^_"
+          }
+        ],
+        "@typescript-eslint/no-require-imports": "warn",
+        "import/no-duplicates": "warn",
+        "import/first": "warn",
+        "import/newline-after-import": "warn",
+        "import/no-unresolved": "off",
+        "import/extensions": "off",
+        "import/order": "off"
+      }
+    },
+    {
+      "files": ["**/*.test.js", "**/*.test.jsx"],
       "env": {
         "node": true,
         "jest": true
       },
-      "files": ["**/*.test.js", "**/*.test.jsx"],
       "parserOptions": {
         "sourceType": "script"
       }
-    }
-  ],
-  "parserOptions": {
-    "ecmaFeatures": {
-      "jsx": true
     },
-    "ecmaVersion": "latest"
-  },
-  "plugins": ["react"],
-  "rules": {
-    "no-underscore-dangle": "off",
-    "implicit-arrow-linebreak": "off",
-    "operator-linebreak": "off",
-    "indent": "off",
-    "function-paren-newline": "off",
-    "linebreak-style": "off",
-    "camelcase": "off",
-    "no-await-in-loop": "off",
-    "object-curly-newline": "off",
-    "comma-dangle": [
-      "error",
-      {
-        "arrays": "never",
-        "objects": "never",
-        "imports": "never",
-        "exports": "never",
-        "functions": "never"
+    {
+      "files": ["**/*.test.ts"],
+      "env": {
+        "node": true,
+        "jest": true
+      },
+      "rules": {
+        "@typescript-eslint/no-require-imports": "off",
+        "unused-imports/no-unused-vars": "off",
+        "import/first": "off",
+        "import/newline-after-import": "off"
       }
-    ]
-  }
+    }
+  ]
 }

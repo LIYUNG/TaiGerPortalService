@@ -3,7 +3,6 @@ import { Role } from '@taiger-common/core';
 
 import {
   GetTicketListRateLimiter,
-  GetTicketRateLimiter,
   UpdateTicketRateLimiter,
   DeleteTicketRateLimiter,
   PostTicketRateLimiter
@@ -18,7 +17,6 @@ import {
   deleteTicket
 } from '../controllers/tickets';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
-import { permission_canModifyTicketList_filter } from '../middlewares/permission-filter';
 
 const router = Router();
 

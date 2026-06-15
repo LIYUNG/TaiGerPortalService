@@ -6,7 +6,6 @@ import { protect, permit } from '../middlewares/auth';
 
 import {
   getQueryResults,
-  getQueryPublicResults,
   getQueryStudentsResults
 } from '../controllers/search';
 

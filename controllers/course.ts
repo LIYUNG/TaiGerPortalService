@@ -1,14 +1,10 @@
-import _ from 'lodash';
 import path from 'path';
 import { is_TaiGer_Student } from '@taiger-common/core';
 
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
-import {
-  updateCoursesDataAgentEmail,
-  AnalysedCoursesDataStudentEmail
-} from '../services/email';
+import { updateCoursesDataAgentEmail } from '../services/email';
 import { AWS_S3_BUCKET_NAME } from '../config';
 import { isNotArchiv } from '../constants';
 import { getTemporaryCredentials, callApiGateway } from '../aws';

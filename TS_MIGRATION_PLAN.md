@@ -68,10 +68,20 @@ coverage 96.18/83.15/95.39/96.38).
   **Gotcha:** `export { a, b }` (ES named) are read-only live bindings → broke
   `jest.spyOn` on named exports (ai_assist). Side benefit: typecheck backlog
   4951 → 4170 (consumers' default imports now resolve). Full suite green (2381).
-- [ ] **B8** `@typescript-eslint/no-unused-vars` sweep (104) — per-var review (don't blind-autofix; some are real dead code, some false positives)
-- [ ] **B9b** (later) once test files are `.ts` + not spy-on-require, move singletons
-  to `export default` / named `export`; convert the 172 `.js` tests; add
-  type-aware eslint + import/order; burn down the ~4170 strict-type backlog
+- [x] **B8** unused-vars sweep — **eslint `.ts` 104 → 0**. 38 unused imports removed
+  via `eslint-plugin-unused-imports` autofix; 69 unused vars/args prefixed `_`
+  (preserves side-effecting calls like `const job7 = schedule.scheduleJob(...)`,
+  `const response = await s3.send(...)` — call kept, result intentionally ignored);
+  1 dead `let updatedStudent` (decl + 2 assignments) prefixed by hand.
+- [x] **B9b-part1** 171 `.test.js` → `.test.ts`. Tests already ran under ts-jest, so
+  this was a clean rename; full suite green. `.test.ts` eslint override turns off
+  `no-require-imports` + `no-unused-vars` (tests use require for jest mocking).
+  Fixtures/mocks/`ai-assist.jest.config.js` stay `.js` (resolve fine).
+- [ ] **B9b-part2** (BLOCKED) move singletons `export =` → `export default`/named:
+  the tests still use `jest.spyOn(require(mod), 'fn')`, which only works on the
+  writable CommonJS object `export =` emits — ES named/default are read-only live
+  bindings. Needs the spyOn-on-require mocking rewritten first (separate effort).
+- [ ] **B10** (later) type-aware eslint + `import/order`; burn down ~4170 strict-type backlog
 
 ## Out of scope (separate effort)
 

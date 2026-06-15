@@ -1,8 +1,7 @@
 import path from 'path';
-import async from 'async';
 import mammoth from 'mammoth';
 import PdfParse from 'pdf-parse';
-import { Role, isProgramDecided, is_TaiGer_Agent } from '@taiger-common/core';
+import { Role, isProgramDecided } from '@taiger-common/core';
 
 import {
   MeetingReminderEmail,
@@ -277,7 +276,7 @@ const TasksReminderEmails = asyncHandler(async () => {
   await TasksReminderEmails_Student_core();
 });
 
-const UrgentTasksReminderEmails_Student_core = async () => {
+const _UrgentTasksReminderEmails_Student_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -327,7 +326,7 @@ const UrgentTasksReminderEmails_Student_core = async () => {
   }
 };
 
-const UrgentTasksReminderEmails_Agent_core = async () => {
+const _UrgentTasksReminderEmails_Agent_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -419,7 +418,7 @@ const UrgentTasksReminderEmails_Agent_core = async () => {
   }
 };
 
-const UrgentTasksReminderEmails_Editor_core = async () => {
+const _UrgentTasksReminderEmails_Editor_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -536,7 +535,7 @@ const NextSemesterCourseSelectionStudentReminderEmails = async () => {
   }
 };
 
-const NextSemesterCourseSelectionAgentReminderEmails = async () => {
+const _NextSemesterCourseSelectionAgentReminderEmails = async () => {
   // Only inform active student
   try {
     const studentsWithCourses =
@@ -928,7 +927,7 @@ const CreateIntervalMessageOperation = (student_id, msg1, msg2) => {
   };
 
   // Create a query object excluding the updatedAt field
-  const { updatedAt, ...queryData } = intervalData;
+  const { _updatedAt, ...queryData } = intervalData;
 
   // Define the update operation
   const update = {
@@ -1128,7 +1127,7 @@ const CreateIntervalOperation = (thread, msg1, msg2) => {
   };
 
   // Create a query object excluding the updatedAt field
-  const { updatedAt, ...queryData } = intervalData;
+  const { _updatedAt, ...queryData } = intervalData;
 
   // Define the update operation
   const update = {

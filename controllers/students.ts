@@ -2,13 +2,11 @@ import {
   Role,
   is_TaiGer_Agent,
   is_TaiGer_Editor,
-  is_TaiGer_External,
   is_TaiGer_Student,
   is_TaiGer_Admin
 } from '@taiger-common/core';
 import mongoose from 'mongoose';
 
-import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import {
   add_portals_registered_status,
@@ -26,14 +24,12 @@ import {
   informAgentManagerNewStudentEmail
 } from '../services/email';
 
-import { isNotArchiv, ManagerType } from '../constants';
+import { isNotArchiv } from '../constants';
 import { getPermission } from '../utils/queryFunctions';
 import StudentService from '../services/students';
 import UserQueryBuilder from '../builders/UserQueryBuilder';
 import ApplicationService from '../services/applications';
-import InterviewService from '../services/interviews';
 import { getAuditLogs } from '../services/audit';
-import ProgramService from '../services/programs';
 import UserService from '../services/users';
 import PermissionService from '../services/permissions';
 import BasedocumentationslinkService from '../services/basedocumentationslinks';

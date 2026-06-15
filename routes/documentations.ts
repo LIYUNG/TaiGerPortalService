@@ -3,7 +3,6 @@ import { Role } from '@taiger-common/core';
 import {
   GeneralPUTRequestRateLimiter,
   GeneralPOSTRequestRateLimiter,
-  GeneralGETRequestRateLimiter,
   GeneralDELETERequestRateLimiter,
   DocumentationGETRateLimiter
 } from '../middlewares/rate_limiter';

@@ -312,7 +312,7 @@ const handleThreadDelta = asyncHandler(async (program) => {
 const handleProgramChanges = (schema) => {
   schema.pre(
     ['findOneAndUpdate', 'updateOne', 'updateMany', 'update'],
-    async function (doc) {
+    async function (_doc) {
       try {
         const condition = this.getQuery();
         this._originals = await this.model.find(condition).lean();
@@ -324,7 +324,7 @@ const handleProgramChanges = (schema) => {
 
   schema.post(
     ['findOneAndUpdate', 'updateOne', 'updateMany', 'update'],
-    async function (doc) {
+    async function (_doc) {
       try {
         const docs = this._originals;
         delete this._originals;

@@ -52,15 +52,22 @@
         "sourceType": "module",
         "ecmaVersion": "latest"
       },
-      "plugins": ["@typescript-eslint"],
+      "plugins": ["@typescript-eslint", "unused-imports"],
       "rules": {
         "no-undef": "off",
         "no-underscore-dangle": "off",
         "camelcase": "off",
         "no-unused-vars": "off",
-        "@typescript-eslint/no-unused-vars": [
+        "@typescript-eslint/no-unused-vars": "off",
+        "unused-imports/no-unused-imports": "warn",
+        "unused-imports/no-unused-vars": [
           "warn",
-          { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+          {
+            "vars": "all",
+            "varsIgnorePattern": "^_",
+            "args": "after-used",
+            "argsIgnorePattern": "^_"
+          }
         ],
         "@typescript-eslint/no-require-imports": "warn"
       }
@@ -80,6 +87,10 @@
       "env": {
         "node": true,
         "jest": true
+      },
+      "rules": {
+        "@typescript-eslint/no-require-imports": "off",
+        "unused-imports/no-unused-vars": "off"
       }
     }
   ]

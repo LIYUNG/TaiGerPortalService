@@ -1974,7 +1974,7 @@ const IgnoreMessageInDocumentThread = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: thread });
 });
 
-const isAdminOrAccessAllChat = async (req) => {
+const _isAdminOrAccessAllChat = async (req) => {
   const { user } = req;
   const permissions = await getPermission(req, user);
   return (

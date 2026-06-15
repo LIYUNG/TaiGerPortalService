@@ -1,12 +1,10 @@
-import _ from 'lodash';
 import path from 'path';
 import { jsPDF } from 'jspdf';
 import { Role } from '@taiger-common/core';
 
-import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
-import { AWS_S3_BUCKET_NAME, isProd } from '../config';
+import { AWS_S3_BUCKET_NAME } from '../config';
 import { font } from '../utils/NotoSansTC-VariableFont_wght-normal';
 import { getS3Object, uploadJsonToS3 } from '../aws/s3';
 import {
@@ -18,7 +16,7 @@ import CommunicationService from '../services/communications';
 
 const student_name = 'PreCustomer';
 
-const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, next) => {
+const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, _next) => {
   const {
     params: { language },
     body: { courses, requirementIds, factor }
@@ -87,7 +85,7 @@ const WidgetdownloadJson = asyncHandler(async (req, res, next) => {
 });
 
 // Export messages as pdf
-const WidgetExportMessagePDF = asyncHandler(async (req, res, next) => {
+const WidgetExportMessagePDF = asyncHandler(async (req, res, _next) => {
   const {
     params: { studentId }
   } = req;

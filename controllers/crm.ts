@@ -419,7 +419,7 @@ const getCRMStats = asyncHandler(async (req, res) => {
     }
   };
 
-  const success = ten_minutes_cache.set(cacheKey, returnBody);
+  const _success = ten_minutes_cache.set(cacheKey, returnBody);
   res.status(200).send(returnBody);
 });
 const getLeads = asyncHandler(async (_req, res) => {

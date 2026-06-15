@@ -122,7 +122,7 @@ const downloadTemplateFile = asyncHandler(async (req, res, next) => {
 
 // (O) email : student notification
 // (O) email : agent notification
-const saveProfileFilePath = asyncHandler(async (req, res, next) => {
+const saveProfileFilePath = asyncHandler(async (req, res, _next) => {
   const {
     user,
     params: { studentId, category }
@@ -273,7 +273,7 @@ const saveProfileFilePath = asyncHandler(async (req, res, next) => {
   }
 });
 
-const updateVPDPayment = asyncHandler(async (req, res, next) => {
+const updateVPDPayment = asyncHandler(async (req, res, _next) => {
   const {
     params: { applicationId },
     body: { isPaid }
@@ -294,7 +294,7 @@ const updateVPDPayment = asyncHandler(async (req, res, next) => {
 });
 // () email:
 
-const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
+const updateVPDFileNecessity = asyncHandler(async (req, res, _next) => {
   const {
     params: { applicationId }
   } = req;
@@ -327,7 +327,7 @@ const updateVPDFileNecessity = asyncHandler(async (req, res, next) => {
 
 // (O) email : student notification
 // (O) email : agent notification
-const saveVPDFilePath = asyncHandler(async (req, res, next) => {
+const saveVPDFilePath = asyncHandler(async (req, res, _next) => {
   const {
     user,
     params: { studentId, applicationId, fileType }
@@ -401,9 +401,9 @@ const saveVPDFilePath = asyncHandler(async (req, res, next) => {
   }
 });
 
-const downloadVPDFile = asyncHandler(async (req, res, next) => {
+const downloadVPDFile = asyncHandler(async (req, res, _next) => {
   const {
-    user,
+    _user,
     params: { applicationId, fileType }
   } = req;
 
@@ -457,7 +457,7 @@ const downloadVPDFile = asyncHandler(async (req, res, next) => {
   res.end(response);
 });
 
-const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
+const downloadProfileFileURL = asyncHandler(async (req, res, _next) => {
   const {
     params: { studentId, file_key }
   } = req;
@@ -496,7 +496,7 @@ const downloadProfileFileURL = asyncHandler(async (req, res, next) => {
 });
 
 // (O) email : student notification
-const updateProfileDocumentStatus = asyncHandler(async (req, res, next) => {
+const updateProfileDocumentStatus = asyncHandler(async (req, res, _next) => {
   const { studentId, category } = req.params;
   const { status, feedback } = req.body;
 
@@ -569,7 +569,7 @@ const updateProfileDocumentStatus = asyncHandler(async (req, res, next) => {
 
 // TODO: not used yet.
 const updateStudentApplicationResultV2 = asyncHandler(
-  async (req, res, next) => {
+  async (req, res, _next) => {
     const { studentId, programId } = req.params;
     const { user } = req;
     const { admission, closed } = req.body;
@@ -709,7 +709,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   const { studentId, applicationId, result } = req.params;
   const { user } = req;
 
-  let updatedStudent;
+  let _updatedStudent;
   if (req.file) {
     const admission_letter_temp = {
       status: DocumentStatusType.Uploaded,
@@ -718,7 +718,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       updatedAt: new Date()
     };
 
-    updatedStudent = await ApplicationService.updateApplication(
+    _updatedStudent = await ApplicationService.updateApplication(
       {
         _id: applicationId
       },
@@ -751,7 +751,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       comments: '',
       updatedAt: new Date()
     };
-    updatedStudent = await ApplicationService.updateApplication(
+    _updatedStudent = await ApplicationService.updateApplication(
       {
         _id: applicationId
       },
@@ -761,7 +761,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
       }
     );
   } else {
-    updatedStudent = await ApplicationService.updateApplication(
+    _updatedStudent = await ApplicationService.updateApplication(
       {
         _id: applicationId
       },
@@ -820,7 +820,7 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const deleteProfileFile = asyncHandler(async (req, res, next) => {
+const deleteProfileFile = asyncHandler(async (req, res, _next) => {
   const { studentId, category } = req.params;
 
   const student = await StudentService.getStudentDocById(studentId);
@@ -861,7 +861,7 @@ const deleteProfileFile = asyncHandler(async (req, res, next) => {
   }
 });
 
-const deleteVPDFile = asyncHandler(async (req, res, next) => {
+const deleteVPDFile = asyncHandler(async (req, res, _next) => {
   const { applicationId, fileType } = req.params;
 
   const app = await ApplicationService.getApplicationDocByIdWithProgram(

@@ -6,7 +6,6 @@ import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
 import { getStudentsByProgram } from './programs';
 import { findStudentDeltaGet } from '../utils/modelHelper/programChange';
-import { GenerateResponseTimeByStudent } from './response_time';
 import { numStudentYearDistribution } from '../utils/utils_function';
 import { ten_minutes_cache } from '../cache/node-cache';
 import StudentService from '../services/students';
@@ -86,13 +85,15 @@ const getTeamMembers = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: users });
 });
 
-const getGeneralTasks = asyncHandler(async () => TeamService.getGeneralTasks());
+const _getGeneralTasks = asyncHandler(async () =>
+  TeamService.getGeneralTasks()
+);
 
-const getDecidedApplicationsTasks = asyncHandler(async () =>
+const _getDecidedApplicationsTasks = asyncHandler(async () =>
   TeamService.getDecidedApplicationsTasks()
 );
 
-const getFileTypeCount = asyncHandler(async (req) => {
+const getFileTypeCount = asyncHandler(async (_req) => {
   // TODO not accurate, because these contains not-decided tasks.
   const { counts1, counts2 } = await TeamService.getFileTypeCounts();
 
@@ -224,7 +225,7 @@ const getResponseIntervalByStudent = asyncHandler(async (req, res) => {
         return;
       }
       let intervalsByThreads = [];
-      const threadIntervals = threadIds.forEach((threadId) => {
+      const _threadIntervals = threadIds.forEach((threadId) => {
         const _id = threadId.toString();
         if (intervalsGroupedByThread.hasOwnProperty(_id)) {
           intervalsByThreads.push({
@@ -260,7 +261,7 @@ const getResponseTimeByStudent = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: responseTimeRecords });
 });
 
-const putAgentProfile = asyncHandler(async (req, res, next) => {
+const putAgentProfile = asyncHandler(async (req, res, _next) => {
   const { agent_id } = req.params;
   const agent = await UserService.findAgentById(
     agent_id,
@@ -270,7 +271,7 @@ const putAgentProfile = asyncHandler(async (req, res, next) => {
   res.status(200).send({ success: true, data: agent });
 });
 
-const getAgentProfile = asyncHandler(async (req, res, next) => {
+const getAgentProfile = asyncHandler(async (req, res, _next) => {
   const { agent_id } = req.params;
   const agent = await UserService.findAgentById(
     agent_id,
@@ -307,7 +308,7 @@ const getArchivStudents = asyncHandler(async (req, res) => {
   }
 });
 
-const getTasksOverview = asyncHandler(async (req, res, next) => {
+const getTasksOverview = asyncHandler(async (req, res, _next) => {
   const { filter: noAgentsfilter } = new UserQueryBuilder()
     .withArchiv(false)
     .withAgents({ $exists: true, $size: 0 })
@@ -350,7 +351,7 @@ const getTasksOverview = asyncHandler(async (req, res, next) => {
   });
 });
 
-const getIsManager = asyncHandler(async (req, res, next) => {
+const getIsManager = asyncHandler(async (req, res, _next) => {
   const permission = await PermissionService.getPermissionByUserId(
     req.user._id
   );
@@ -530,7 +531,7 @@ const getStatisticsAgents = asyncHandler(async (req, res) => {
     );
 
     const resultNoAdmission = agentsStudentsDistribution.map(
-      (agentStudentDis, idx) => {
+      (agentStudentDis, _idx) => {
         const returnData = {
           noAdmission: agentStudentDis.noAdmission.reduce((acc, curr) => {
             if (curr.expected_application_date) {

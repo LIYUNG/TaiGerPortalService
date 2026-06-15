@@ -25,7 +25,7 @@ const putS3Object = async ({ bucketName, key, Body, ContentType }) => {
   });
 
   try {
-    const response = await client.send(command);
+    const _response = await client.send(command);
   } catch (caught) {
     if (
       caught instanceof S3ServiceException &&
@@ -180,7 +180,7 @@ async function uploadJsonToS3(responseJson, bucketName, fileName) {
     const jsonData = JSON.stringify(responseJson);
 
     // Upload to S3
-    const result = await putS3Object({
+    const _result = await putS3Object({
       bucketName,
       key: fileName,
       Body: jsonData,

@@ -7,7 +7,6 @@ import { multitenant_filter } from '../middlewares/multitenant-filter';
 
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 
-import { getStudents } from '../controllers/students';
 import { getStudentUniAssist } from '../controllers/uniassist';
 import { permission_canAccessStudentDatabase_filter } from '../middlewares/permission-filter';
 

@@ -29,7 +29,7 @@ const transporter = isProd()
     });
 
 const sendEmail = isTest()
-  ? (to, subject, message) => {}
+  ? (_to, _subject, _message) => {}
   : async (to, subject, message) => {
       const mail = {
         from: senderName,

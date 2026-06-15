@@ -150,7 +150,7 @@ const meetingConfirmationReminder = (receiver, user, start_time) => {
   );
 };
 
-const getBookedEvents = asyncHandler(async (req, res, next) => {
+const getBookedEvents = asyncHandler(async (req, res, _next) => {
   const { user } = req;
   const { startTime, endTime } = req.query;
   const { filter: startTimeEventQuery } = new EventQueryBuilder()
@@ -187,7 +187,7 @@ const getBookedEvents = asyncHandler(async (req, res, next) => {
   });
 });
 
-const getEvents = asyncHandler(async (req, res, next) => {
+const getEvents = asyncHandler(async (req, res, _next) => {
   const { user } = req;
   const { startTime, endTime, requester_id, receiver_id, rangeField } =
     req.query;

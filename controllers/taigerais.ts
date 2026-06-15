@@ -1,9 +1,6 @@
-import path from 'path';
-import async from 'async';
 import { spawn } from 'child_process';
 import { Role } from '@taiger-common/core';
 
-import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
 import ProgramAIService from '../services/programAIs';
@@ -20,12 +17,12 @@ import StudentService from '../services/students';
 
 const pageSize = 3;
 
-const processProgramListAi = asyncHandler(async (req, res, next) => {
+const processProgramListAi = asyncHandler(async (req, res, _next) => {
   const {
     params: { programId }
   } = req;
   const program = await ProgramService.getProgramByIdLean(programId);
-  const programai = await ProgramAIService.getByProgramId(programId);
+  const _programai = await ProgramAIService.getByProgramId(programId);
   if (!program) {
     logger.error('no program found!');
     return res.send({ success: true, data: {} });
@@ -57,7 +54,7 @@ const processProgramListAi = asyncHandler(async (req, res, next) => {
   });
 });
 
-const generate_streaming = asyncHandler(async (input, model) =>
+const generate_streaming = asyncHandler(async (input, _model) =>
   openAIClient.chat.completions.create({
     messages: [{ role: 'user', content: input || 'where is BMW Headquarter?' }],
     model: OpenAiModel.GPT_3_5_TURBO,
@@ -71,7 +68,7 @@ const countTokens = (text) => {
   return text.split(' ').length;
 };
 
-const TaiGerAiChat = asyncHandler(async (req, res, next) => {
+const TaiGerAiChat = asyncHandler(async (req, res, _next) => {
   const {
     user,
     params: { studentId }
@@ -195,7 +192,7 @@ const TaiGerAiChat = asyncHandler(async (req, res, next) => {
   await PermissionService.decrementTaigerAiQuota(user._id);
 });
 
-const cvmlrlAi = asyncHandler(async (req, res, next) => {
+const cvmlrlAi = asyncHandler(async (req, res, _next) => {
   const { user } = req;
   const {
     student_input,

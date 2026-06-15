@@ -1,4 +1,3 @@
-import _ from 'lodash';
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';

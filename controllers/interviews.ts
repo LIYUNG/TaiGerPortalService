@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import async from 'async';
 import path from 'path';
 import { Role, is_TaiGer_Student } from '@taiger-common/core';
 
@@ -520,9 +519,9 @@ const updateInterview = asyncHandler(async (req, res, next) => {
   const {
     addedUsers: addedInterviewers,
     removedUsers: removedInterviewers,
-    updatedUsers: updatedInterviewers,
-    toBeInformedUsers: toBeInformedInterviewers,
-    updatedUserIds: updatedInterviewerIds
+    updatedUsers: _updatedInterviewers,
+    toBeInformedUsers: _toBeInformedInterviewers,
+    updatedUserIds: _updatedInterviewerIds
   } = await userChangesHelperFunction(req, trainerObj, beforeUpdate.trainer_id);
 
   if (payload.isClosed === true || payload.isClosed === false) {

@@ -34,7 +34,7 @@ const StudentTasksReminderEmail = asyncHandler(async (recipient, payload) => {
   );
   // TODO: uni-assist if missing
   // TODO if english not passed and not registering any date, inform them
-  const missing_uni_assist = '';
+  const _missing_uni_assist = '';
   const survey_not_complete = missing_academic_background(
     payload.student,
     payload.student

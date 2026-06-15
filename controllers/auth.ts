@@ -255,7 +255,7 @@ const resetPassword = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true });
 });
 
-const thirdAuth = asyncHandler(async (req, res, next) => {
+const thirdAuth = asyncHandler(async (req, res, _next) => {
   const code = req.body?.code;
   const oauthRequest = {
     url: new URL('https://oauth2.googleapis.com/token'),
@@ -275,7 +275,7 @@ const thirdAuth = asyncHandler(async (req, res, next) => {
   if (!payload) {
     throw new ErrorResponse(400, 'Invalid Google Token');
   }
-  const { email, name, picture } = payload;
+  const { email, _name, picture } = payload;
   const user = await UserService.getUserByEmail(email);
   if (!user) {
     throw new ErrorResponse(400, 'User not found');

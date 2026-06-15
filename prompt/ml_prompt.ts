@@ -1,6 +1,3 @@
-import async from 'async';
-import path from 'path';
-
 const generalMLPrompt = (props) => `
 Your first name is ${props.student_info?.firstname} and last name ${
   props.student_info?.lastname

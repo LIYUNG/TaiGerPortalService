@@ -1,7 +1,5 @@
-import { is_TaiGer_role, is_TaiGer_Student } from '@taiger-common/core';
-import { ErrorResponse } from '../common/errors';
+import { is_TaiGer_role } from '@taiger-common/core';
 import { asyncHandler } from '../middlewares/error-handler';
-import logger from '../services/logger';
 import { isNotArchiv } from '../constants';
 import {
   TicketCreatedAgentEmail,

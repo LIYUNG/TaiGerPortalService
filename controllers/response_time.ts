@@ -1,4 +1,4 @@
-import { Role, is_TaiGer_Student } from '@taiger-common/core';
+import { is_TaiGer_Student } from '@taiger-common/core';
 
 import ResponseTimeService from '../services/responseTimes';
 import { asyncHandler } from '../middlewares/error-handler';
@@ -72,7 +72,7 @@ const BlankLookupTable = {
 
 const GetFormattedFileType = (fileType) => {
   // Find the entry where the fileType exists in the values array
-  const entry = Object.entries(FileTypeMapping).find(([key, values]) =>
+  const entry = Object.entries(FileTypeMapping).find(([_key, values]) =>
     values.includes(fileType)
   );
   // If entry is found, return the key, otherwise return null

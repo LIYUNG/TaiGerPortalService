@@ -6,7 +6,7 @@ import { programModule } from './Program';
 
 const programKeys = Object.keys(programModule);
 const programAIModule = {};
-programKeys.forEach((key, i) => {
+programKeys.forEach((key, _i) => {
   programAIModule[key] = {
     Result: {
       type: String

@@ -1,5 +1,5 @@
 import { TAIGER_SIGNATURE } from '../constants';
-import { TENANT_NAME, TENANT_PORTAL_LINK } from '../constants/common';
+import { TENANT_PORTAL_LINK } from '../constants/common';
 
 const htmlContent = (message) => `
 <!DOCTYPE html>

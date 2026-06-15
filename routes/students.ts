@@ -44,11 +44,7 @@ import {
   permission_canAccessStudentDatabase_filter
 } from '../middlewares/permission-filter';
 import { auditLog } from '../utils/log/auditLog';
-import {
-  validateStudentId,
-  validateProgramId,
-  validateApplicationId
-} from '../common/validation';
+import { validateStudentId, validateApplicationId } from '../common/validation';
 
 const router = Router();
 

@@ -43,7 +43,7 @@ const getAdmissionsOverview = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: result });
 });
 
-const getAdmissions = asyncHandler(async (req, res, next) => {
+const getAdmissions = asyncHandler(async (req, res, _next) => {
   const { decided, closed, admission } = req.query;
   const { filter } = new ApplicationQueryBuilder()
     .withDecided(decided)
@@ -63,7 +63,7 @@ const getAdmissions = asyncHandler(async (req, res, next) => {
   });
 });
 
-const getAdmissionLetter = asyncHandler(async (req, res, next) => {
+const getAdmissionLetter = asyncHandler(async (req, res, _next) => {
   const {
     params: { studentId, fileName }
   } = req;

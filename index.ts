@@ -33,8 +33,6 @@ import logger from './services/logger';
 // } = require('./controllers/documentations');
 
 import {
-  TasksReminderEmails,
-  UrgentTasksReminderEmails,
   NextSemesterCourseSelectionReminderEmails,
   // UpdateStatisticsData,
   MeetingDailyReminderChecker,
@@ -119,19 +117,19 @@ const launch = async () => {
   // );
 
   // Remind Student to select next semester courses 6-7 month, 11-12 month.
-  const job7 = schedule.scheduleJob(
+  const _job7 = schedule.scheduleJob(
     COURSE_SELECTION_TASKS_REMINDER_JUNE_SCHEDULE,
     NextSemesterCourseSelectionReminderEmails
   );
-  const job8 = schedule.scheduleJob(
+  const _job8 = schedule.scheduleJob(
     COURSE_SELECTION_TASKS_REMINDER_JULY_SCHEDULE,
     NextSemesterCourseSelectionReminderEmails
   );
-  const job9 = schedule.scheduleJob(
+  const _job9 = schedule.scheduleJob(
     COURSE_SELECTION_TASKS_REMINDER_NOVEMBER_SCHEDULE,
     NextSemesterCourseSelectionReminderEmails
   );
-  const job10 = schedule.scheduleJob(
+  const _job10 = schedule.scheduleJob(
     COURSE_SELECTION_TASKS_REMINDER_DECEMBER_SCHEDULE,
     NextSemesterCourseSelectionReminderEmails
   );
@@ -140,27 +138,27 @@ const launch = async () => {
   //   DAILY_TASKS_REMINDER_SCHEDULE,
   //   UpdateStatisticsData
   // );
-  const job12 = schedule.scheduleJob(
+  const _job12 = schedule.scheduleJob(
     DAILY_TASKS_REMINDER_SCHEDULE,
     MeetingDailyReminderChecker
   );
 
-  const job13 = schedule.scheduleJob(
+  const _job13 = schedule.scheduleJob(
     DAILY_TASKS_REMINDER_SCHEDULE,
     UnconfirmedMeetingDailyReminderChecker
   );
 
-  const job14 = schedule.scheduleJob(
+  const _job14 = schedule.scheduleJob(
     DAILY_TASKS_REMINDER_SCHEDULE,
     NoInterviewTrainerOrTrainingDateDailyReminderChecker
   );
 
-  const job15 = schedule.scheduleJob(
+  const _job15 = schedule.scheduleJob(
     AVERAGE_RESPONSE_TIME_CALCULATION_SCHEDULE,
     DailyCalculateAverageResponseTime
   );
 
-  const job16 = schedule.scheduleJob(
+  const _job16 = schedule.scheduleJob(
     DAILY_TASKS_REMINDER_SCHEDULE,
     DailyInterviewSurveyChecker
   );

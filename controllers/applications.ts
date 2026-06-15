@@ -8,12 +8,7 @@ import {
   RLs_CONSTANT,
   PROGRAM_SPECIFIC_FILETYPE
 } from '../constants';
-import {
-  createApplicationToStudentEmail,
-  UpdateStudentApplicationsEmail,
-  NewMLRLEssayTasksEmail,
-  NewMLRLEssayTasksEmailFromTaiGer
-} from '../services/email';
+import { createApplicationToStudentEmail } from '../services/email';
 import { ErrorResponse } from '../common/errors';
 import ApplicationService from '../services/applications';
 import UserService from '../services/users';

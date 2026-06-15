@@ -14,7 +14,8 @@ jest.mock('../../../services/logger', () => ({
 
 jest.mock('../../../config', () => ({
   AWS_S3_BUCKET_NAME: 'test-bucket',
-  isProd: () => false
+  isProd: () => false,
+  isInPipeline: () => false
 }));
 
 const mockListS3ObjectsV2 = jest.fn();

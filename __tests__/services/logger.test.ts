@@ -17,6 +17,7 @@ const setup = ({ prod = false, test = false, logLevel } = {}) => {
   const getRequestId = jest.fn().mockReturnValue(undefined);
   jest.doMock('../../config', () => ({
     isProd: () => prod,
+    isInPipeline: () => prod, // treat pipeline env same as prod for logger defaults
     isTest: () => test
   }));
   jest.doMock('../../middlewares/requestContext', () => ({ getRequestId }));

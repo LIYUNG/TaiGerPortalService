@@ -2,10 +2,11 @@ import path from 'path';
 import dotenv from 'dotenv';
 
 const isProd = () => process.env.NODE_ENV === 'production';
+const isBeta = () => process.env.NODE_ENV === 'beta';
+const isInPipeline = () => isBeta() || isProd();
 const isTest = () => process.env.NODE_ENV === 'test';
-const isLocal = () => process.env.NODE_ENV === 'local';
-const isDev = () =>
-  process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+const isLocal = () =>
+  process.env.NODE_ENV === 'local' || process.env.NODE_ENV === 'test';
 
 // TODO: if later use Docker CICD, .env is not needed and env variables are
 // injected from secret manager during deployment
@@ -22,7 +23,7 @@ export = {
   isProd,
   isLocal,
   isTest,
-  isDev,
+  isInPipeline,
   PORT: env('PORT', 3000),
   HTTPS_KEY: env('HTTPS_KEY', './cert/selfsigned.key'),
   HTTPS_CERT: env('HTTPS_CERT', './cert/selfsigned.pem'),

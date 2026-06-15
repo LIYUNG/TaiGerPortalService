@@ -10,7 +10,6 @@ import './models';
 import {
   PORT,
   isProd,
-  isDev,
   HTTPS_KEY,
   HTTPS_CERT,
   HTTPS_CA,
@@ -26,7 +25,8 @@ import {
   COURSE_SELECTION_TASKS_REMINDER_JULY_SCHEDULE,
   COURSE_SELECTION_TASKS_REMINDER_NOVEMBER_SCHEDULE,
   AVERAGE_RESPONSE_TIME_CALCULATION_SCHEDULE,
-  isLocal
+  isLocal,
+  isInPipeline
 } from './config';
 import logger from './services/logger';
 // const {
@@ -165,10 +165,9 @@ const launch = async () => {
   );
 
   logger.info(`isProd : ${isProd()}`);
-  logger.info(`isDev : ${isDev()}`);
   logger.info(`isLocal : ${isLocal()}`);
   let httpsOption;
-  if (isProd() || isDev()) {
+  if (isInPipeline()) {
     // launch http server
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);

@@ -8,7 +8,7 @@ import helmet from 'helmet';
 import './middlewares/passport';
 
 import router from './routes';
-import { ORIGIN, isProd, isTest } from './config';
+import { ORIGIN, isInPipeline, isLocal } from './config';
 import httpLogger from './services/httpLogger';
 import logger from './services/logger';
 import { errorHandler } from './middlewares/error-handler';
@@ -75,10 +75,10 @@ app.use(methodOverride('_method')); // in order to make delete request
 app.use(express.json());
 app.use(compression());
 
-if (isProd()) {
+if (isInPipeline()) {
   app.use(httpLogger);
 }
-if (!isProd() && !isTest()) {
+if (isLocal()) {
   app.use(morgan('dev'));
 }
 

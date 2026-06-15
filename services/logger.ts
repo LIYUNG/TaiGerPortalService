@@ -33,7 +33,7 @@
  * - debug: 3 (lowest priority)
  */
 
-import { isProd, isTest } from '../config';
+import { isInPipeline, isTest } from '../config';
 import { getRequestId } from '../middlewares/requestContext';
 
 // ANSI color codes for console output
@@ -58,7 +58,8 @@ const levels = {
 };
 
 // Current log level (can be set via environment variable)
-const currentLevel = process.env.LOG_LEVEL || (isProd() ? 'info' : 'debug');
+const currentLevel =
+  process.env.LOG_LEVEL || (isInPipeline() ? 'info' : 'debug');
 
 // Helper function to format timestamp
 const getTimestamp = () => new Date().toISOString();
@@ -77,7 +78,7 @@ const formatMessage = (level, message, meta = {}) => {
 
   // In production or CloudWatch environment, output JSON for structured logging
   // (without timestamp since CloudWatch provides it automatically)
-  if (isProd()) {
+  if (isInPipeline()) {
     return JSON.stringify(logData);
   }
 

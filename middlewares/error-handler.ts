@@ -5,7 +5,7 @@ import type {
   Response
 } from 'express';
 
-import { isProd } from '../config';
+import { isInPipeline } from '../config';
 import { ErrorResponse } from '../common/errors';
 import logger from '../services/logger';
 
@@ -16,6 +16,7 @@ import logger from '../services/logger';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const asyncHandler =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 
     (handler: (...args: any[]) => any) =>
     (req: Request, res: Response, next: NextFunction) =>
@@ -36,6 +37,6 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   logger.error(err.message);
   res.status(500).json({
     success: false,
-    message: isProd() ? 'Unexpected condition' : err.message
+    message: isInPipeline() ? 'Unexpected condition' : err.message
   });
 };

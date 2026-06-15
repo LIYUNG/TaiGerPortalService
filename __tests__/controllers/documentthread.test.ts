@@ -71,22 +71,22 @@ jest.mock('../../services/email', () => ({
 }));
 
 const { ObjectId } = require('mongoose').Types;
-const DocumentThreadService = require('../../services/documentthreads');
-const StudentService = require('../../services/students');
-const UserService = require('../../services/users');
-const ApplicationService = require('../../services/applications');
-const AuditService = require('../../services/audit');
-const SurveyInputService = require('../../services/surveyInputs');
-const {
+import DocumentThreadService from '../../services/documentthreads';
+import StudentService from '../../services/students';
+import UserService from '../../services/users';
+import ApplicationService from '../../services/applications';
+import AuditService from '../../services/audit';
+import SurveyInputService from '../../services/surveyInputs';
+import {
   getSurveyInputs,
   getMessages,
   putThreadFavorite,
   deleteAMessageInThread,
   handleDeleteGeneralThread,
   handleDeleteProgramThread
-} = require('../../controllers/documents_modification');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, agent, student } = require('../mock/user');
+} from '../../controllers/documents_modification';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, agent, student } from '../mock/user';
 
 const studentId = student._id.toString();
 const adminId = admin._id.toString();

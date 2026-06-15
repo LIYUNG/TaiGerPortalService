@@ -9,8 +9,8 @@ jest.mock('../../models', () => ({
   }
 }));
 
-const { ResponseTime } = require('../../models');
-const ResponseTimeDAO = require('../../dao/responseTime.dao');
+import { ResponseTime } from '../../models';
+import ResponseTimeDAO from '../../dao/responseTime.dao';
 
 // A query chain that is both thenable (resolves to `value` for queries not
 // ending in .lean()) and chainable (.populate/.lean compose). Intermediate

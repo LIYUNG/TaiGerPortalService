@@ -37,14 +37,14 @@ jest.mock('../../cache/node-cache', () => ({
   ten_minutes_cache: { get: jest.fn(), set: jest.fn() }
 }));
 
-const ComplaintService = require('../../services/complaints');
-const PermissionService = require('../../services/permissions');
-const StudentService = require('../../services/students');
-const { getS3Object } = require('../../aws/s3');
-const { ten_minutes_cache } = require('../../cache/node-cache');
-const { threadS3GarbageCollector } = require('../../utils/utils_function');
-const emailComplaints = require('../../services/email/complaints');
-const {
+import ComplaintService from '../../services/complaints';
+import PermissionService from '../../services/permissions';
+import StudentService from '../../services/students';
+import { getS3Object } from '../../aws/s3';
+import { ten_minutes_cache } from '../../cache/node-cache';
+import { threadS3GarbageCollector } from '../../utils/utils_function';
+import emailComplaints from '../../services/email/complaints';
+import {
   getComplaints,
   getComplaint,
   createComplaint,
@@ -54,9 +54,9 @@ const {
   updateAMessageInComplaint,
   deleteAMessageInComplaint,
   deleteComplaint
-} = require('../../controllers/complaints');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, student } = require('../mock/user');
+} from '../../controllers/complaints';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
 
 const ticketId = '5f9f1b9b9b9b9b9b9b9b9b9b';
 const messageId = '6f9f1b9b9b9b9b9b9b9b9b9b';

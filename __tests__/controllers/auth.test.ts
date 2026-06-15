@@ -27,12 +27,12 @@ jest.mock('../../utils/helper', () => ({
   fetchUserFromIdToken: jest.fn()
 }));
 
-const axios = require('axios');
-const UserService = require('../../services/users');
-const TokenService = require('../../services/tokens');
-const EmailService = require('../../services/email');
-const { fetchUserFromIdToken } = require('../../utils/helper');
-const {
+import axios from 'axios';
+import UserService from '../../services/users';
+import TokenService from '../../services/tokens';
+import * as EmailService from '../../services/email';
+import { fetchUserFromIdToken } from '../../utils/helper';
+import {
   signup,
   login,
   logout,
@@ -42,9 +42,9 @@ const {
   forgotPassword,
   resetPassword,
   thirdAuth
-} = require('../../controllers/auth');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin } = require('../mock/user');
+} from '../../controllers/auth';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin } from '../mock/user';
 
 const fakeUser = {
   _id: admin._id,

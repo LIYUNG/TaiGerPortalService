@@ -50,15 +50,15 @@ jest.mock('../../utils/utils_function', () => ({
   })
 }));
 
-const InterviewService = require('../../services/interviews');
-const StudentService = require('../../services/students');
-const ApplicationService = require('../../services/applications');
-const EventService = require('../../services/events');
-const DocumentThreadService = require('../../services/documentthreads');
-const PermissionService = require('../../services/permissions');
-const AuditService = require('../../services/audit');
-const { getPermission } = require('../../utils/queryFunctions');
-const {
+import InterviewService from '../../services/interviews';
+import StudentService from '../../services/students';
+import ApplicationService from '../../services/applications';
+import EventService from '../../services/events';
+import DocumentThreadService from '../../services/documentthreads';
+import PermissionService from '../../services/permissions';
+import AuditService from '../../services/audit';
+import { getPermission } from '../../utils/queryFunctions';
+import {
   getAllInterviewsPaginated,
   getMyInterviewPaginated,
   getMyInterview,
@@ -73,9 +73,9 @@ const {
   getInterviewQuestions,
   deleteInterview,
   createInterview
-} = require('../../controllers/interviews');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, student } = require('../mock/user');
+} from '../../controllers/interviews';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
 
 const interviewId = '5f9f1b9b9c9d440000a1a1a1';
 const programId = '5f9f1b9b9c9d440000b1b1b1';

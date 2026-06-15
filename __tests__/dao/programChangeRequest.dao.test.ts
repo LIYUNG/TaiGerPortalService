@@ -14,8 +14,8 @@ jest.mock('../../models', () => ({
   }
 }));
 
-const { ProgramChangeRequest } = require('../../models');
-const ProgramChangeRequestDAO = require('../../dao/programChangeRequest.dao');
+import { ProgramChangeRequest } from '../../models';
+import ProgramChangeRequestDAO from '../../dao/programChangeRequest.dao';
 
 // A query chain that is BOTH chainable (populate returns the chain) AND thenable
 // (awaiting it resolves to `value`), for methods that don't terminate in

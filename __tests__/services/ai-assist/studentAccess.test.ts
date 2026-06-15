@@ -6,12 +6,10 @@ jest.mock('../../../utils/queryFunctions', () => ({
   getPermission: jest.fn()
 }));
 
-const { Role } = require('@taiger-common/core');
-const { ManagerType } = require('../../../constants');
-const { getPermission } = require('../../../utils/queryFunctions');
-const {
-  getAccessibleStudentFilter
-} = require('../../../services/ai-assist/studentAccess');
+import { Role } from '@taiger-common/core';
+import { ManagerType } from '../../../constants';
+import { getPermission } from '../../../utils/queryFunctions';
+import { getAccessibleStudentFilter } from '../../../services/ai-assist/studentAccess';
 
 const ACTIVE = {
   $or: [{ archiv: { $exists: false } }, { archiv: false }]

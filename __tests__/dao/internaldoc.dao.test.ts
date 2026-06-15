@@ -15,8 +15,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Internaldoc } = require('../../models');
-const InternaldocDAO = require('../../dao/internaldoc.dao');
+import { Internaldoc } from '../../models';
+import InternaldocDAO from '../../dao/internaldoc.dao';
 
 // A query chain that is BOTH chainable AND thenable: builder calls (select/...)
 // return the same chain, and awaiting the chain directly (no `.lean()`) resolves

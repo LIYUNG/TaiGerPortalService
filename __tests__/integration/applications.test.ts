@@ -9,19 +9,15 @@
 // deadline-derivation logic itself is covered by the DAO unit tests
 // (__tests__/dao/application.dao.test.js). Fully deterministic — no engine flake.
 
-const request = require('supertest');
+import request from 'supertest';
 
-const { protect } = require('../../middlewares/auth');
-const {
-  InnerTaigerMultitenantFilter
-} = require('../../middlewares/InnerTaigerMultitenantFilter');
-const {
-  permission_canAccessStudentDatabase_filter
-} = require('../../middlewares/permission-filter');
-const { ErrorResponse } = require('../../common/errors');
-const { TENANT_ID } = require('../fixtures/constants');
-const { agent, student, student2 } = require('../mock/user');
-const { program1, programs } = require('../mock/programs');
+import { protect } from '../../middlewares/auth';
+import { InnerTaigerMultitenantFilter } from '../../middlewares/InnerTaigerMultitenantFilter';
+import { permission_canAccessStudentDatabase_filter } from '../../middlewares/permission-filter';
+import { ErrorResponse } from '../../common/errors';
+import { TENANT_ID } from '../fixtures/constants';
+import { agent, student, student2 } from '../mock/user';
+import { program1, programs } from '../mock/programs';
 
 jest.mock('../../middlewares/auth', () => {
   const passthrough = async (req, res, next) => next();
@@ -85,13 +81,13 @@ jest.mock('../../dao/program.dao');
 jest.mock('../../dao/user.dao');
 jest.mock('../../dao/documentthread.dao');
 
-const ApplicationDAO = require('../../dao/application.dao');
-const StudentDAO = require('../../dao/student.dao');
-const ProgramDAO = require('../../dao/program.dao');
-const UserDAO = require('../../dao/user.dao');
-const DocumentthreadDAO = require('../../dao/documentthread.dao');
-const mongoose = require('mongoose');
-const { app } = require('../../app');
+import ApplicationDAO from '../../dao/application.dao';
+import StudentDAO from '../../dao/student.dao';
+import ProgramDAO from '../../dao/program.dao';
+import UserDAO from '../../dao/user.dao';
+import DocumentthreadDAO from '../../dao/documentthread.dao';
+import mongoose from 'mongoose';
+import { app } from '../../app';
 
 const requestWithSupertest = request(app);
 

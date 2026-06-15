@@ -67,14 +67,14 @@ jest.mock('../../dao/student.dao');
 jest.mock('../../dao/application.dao');
 
 const { ObjectId } = require('mongoose').Types;
-const request = require('supertest');
-const StudentDAO = require('../../dao/student.dao');
-const ApplicationDAO = require('../../dao/application.dao');
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, student } = require('../mock/user');
-const { generateProgram } = require('../fixtures/faker');
+import request from 'supertest';
+import StudentDAO from '../../dao/student.dao';
+import ApplicationDAO from '../../dao/application.dao';
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, student } from '../mock/user';
+import { generateProgram } from '../fixtures/faker';
 
 const requestWithSupertest = request(app);
 

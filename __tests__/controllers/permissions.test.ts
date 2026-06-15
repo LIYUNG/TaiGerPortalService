@@ -13,14 +13,14 @@ jest.mock('../../services/email', () => ({
   updatePermissionNotificationEmail: jest.fn()
 }));
 
-const PermissionService = require('../../services/permissions');
-const { updatePermissionNotificationEmail } = require('../../services/email');
-const {
+import PermissionService from '../../services/permissions';
+import { updatePermissionNotificationEmail } from '../../services/email';
+import {
   getUserPermission,
   updateUserPermission
-} = require('../../controllers/permissions');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { agent } = require('../mock/user');
+} from '../../controllers/permissions';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { agent } from '../mock/user';
 
 const userId = agent._id.toString();
 

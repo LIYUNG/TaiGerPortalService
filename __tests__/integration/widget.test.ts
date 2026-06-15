@@ -73,12 +73,12 @@ jest.mock('../../aws/s3', () => ({
 // The data boundary: mock the DAO the communication service delegates to.
 jest.mock('../../dao/communication.dao');
 
-const request = require('supertest');
-const CommunicationDAO = require('../../dao/communication.dao');
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, agent, student } = require('../mock/user');
+import request from 'supertest';
+import CommunicationDAO from '../../dao/communication.dao';
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, agent, student } from '../mock/user';
 
 const requestWithSupertest = request(app);
 

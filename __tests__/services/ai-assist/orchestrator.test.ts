@@ -31,20 +31,20 @@ jest.mock('../../../services/ai-assist/answerComposer', () => ({
   extractAnswerReferences: jest.fn()
 }));
 
-const { openAIClient } = require('../../../services/openai');
-const tools = require('../../../services/ai-assist/tools');
-const { classifyIntent } = require('../../../services/ai-assist/intentRouter');
-const {
+import { openAIClient } from '../../../services/openai';
+import tools from '../../../services/ai-assist/tools';
+import { classifyIntent } from '../../../services/ai-assist/intentRouter';
+import {
   resolveStudent,
   resolveStudentById
-} = require('../../../services/ai-assist/entityResolver');
-const {
+} from '../../../services/ai-assist/entityResolver';
+import {
   composeAnswer,
   generateAnswerFromInput,
   extractAnswerReferences
-} = require('../../../services/ai-assist/answerComposer');
+} from '../../../services/ai-assist/answerComposer';
 
-const orchestrator = require('../../../services/ai-assist/orchestrator');
+import orchestrator from '../../../services/ai-assist/orchestrator';
 
 const { autoDetectSkill, resolveAssistContext, runAiAssist } = orchestrator;
 

@@ -1,14 +1,14 @@
-const { Role } = require('@taiger-common/core');
+import { Role } from '@taiger-common/core';
 
-const { getPermission } = require('../../utils/queryFunctions');
-const {
+import { getPermission } from '../../utils/queryFunctions';
+import {
   permission_canModifyDocs_filter,
   permission_canAccessStudentDatabase_filter,
   permission_canAddUser_filter,
   permission_canModifyComplaintList_filter
-} = require('../../middlewares/permission-filter');
-const { ErrorResponse } = require('../../common/errors');
-const logger = require('../../services/logger');
+} from '../../middlewares/permission-filter';
+import { ErrorResponse } from '../../common/errors';
+import logger from '../../services/logger';
 
 jest.mock('../../utils/queryFunctions');
 

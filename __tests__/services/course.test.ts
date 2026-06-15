@@ -4,8 +4,8 @@
 // and the service returns the DAO result.
 jest.mock('../../dao/course.dao');
 
-const CourseDAO = require('../../dao/course.dao');
-const CourseService = require('../../services/course');
+import CourseDAO from '../../dao/course.dao';
+import CourseService from '../../services/course';
 
 beforeEach(() => {
   jest.clearAllMocks();

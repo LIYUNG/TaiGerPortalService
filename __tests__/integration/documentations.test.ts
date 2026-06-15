@@ -9,7 +9,7 @@
 // query construction is covered by the DAO unit tests. Fully deterministic — no
 // engine flake.
 
-const request = require('supertest');
+import request from 'supertest';
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -90,12 +90,12 @@ jest.mock('../../dao/documentation.dao');
 jest.mock('../../dao/internaldoc.dao');
 jest.mock('../../dao/docspage.dao');
 
-const DocumentationDAO = require('../../dao/documentation.dao');
-const InternaldocDAO = require('../../dao/internaldoc.dao');
-const { protect } = require('../../middlewares/auth');
-const { app } = require('../../app');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin } = require('../mock/user');
+import DocumentationDAO from '../../dao/documentation.dao';
+import InternaldocDAO from '../../dao/internaldoc.dao';
+import { protect } from '../../middlewares/auth';
+import { app } from '../../app';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin } from '../mock/user';
 
 const requestWithSupertest = request(app);
 

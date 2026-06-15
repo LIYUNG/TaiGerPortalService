@@ -8,13 +8,13 @@ jest.mock('../../../services/openai', () => ({
   OpenAiModel: { GPT_4_o: 'gpt-4o' }
 }));
 
-const { openAIClient } = require('../../../services/openai');
-const {
+import { openAIClient } from '../../../services/openai';
+import {
   composeAnswer,
   generateAnswerFromInput,
   extractAnswerLinkHints,
   extractAnswerReferences
-} = require('../../../services/ai-assist/answerComposer');
+} from '../../../services/ai-assist/answerComposer';
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 

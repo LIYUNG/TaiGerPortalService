@@ -11,14 +11,14 @@
 
 jest.mock('../../services/keywordsets');
 
-const KeywordSetService = require('../../services/keywordsets');
-const {
+import KeywordSetService from '../../services/keywordsets';
+import {
   getKeywordSets,
   createKeywordSet,
   updateKeywordSet,
   deleteKeywordSet
-} = require('../../controllers/coursekeywords');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
+} from '../../controllers/coursekeywords';
+import { mockReq, mockRes } from '../helpers/httpMocks';
 
 const keywordsSetId = '5f9f1b9b9b9b9b9b9b9b9b9b';
 

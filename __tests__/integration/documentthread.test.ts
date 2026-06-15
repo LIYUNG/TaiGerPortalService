@@ -12,13 +12,13 @@
 // (mocked) return. The real DB query/aggregation construction is covered by the
 // DAO unit tests. Fully deterministic — no engine, no seed.
 
-const request = require('supertest');
+import request from 'supertest';
 const { ObjectId } = require('mongoose').Types;
 
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, agent, student } = require('../mock/user');
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, agent, student } from '../mock/user';
 
 const requestWithSupertest = request(app);
 
@@ -187,12 +187,12 @@ jest.mock('../../dao/surveyInput.dao');
 jest.mock('../../dao/application.dao');
 jest.mock('../../dao/audit.dao');
 
-const DocumentthreadDAO = require('../../dao/documentthread.dao');
-const StudentDAO = require('../../dao/student.dao');
-const UserDAO = require('../../dao/user.dao');
-const SurveyInputDAO = require('../../dao/surveyInput.dao');
-const ApplicationDAO = require('../../dao/application.dao');
-const AuditDAO = require('../../dao/audit.dao');
+import DocumentthreadDAO from '../../dao/documentthread.dao';
+import StudentDAO from '../../dao/student.dao';
+import UserDAO from '../../dao/user.dao';
+import SurveyInputDAO from '../../dao/surveyInput.dao';
+import ApplicationDAO from '../../dao/application.dao';
+import AuditDAO from '../../dao/audit.dao';
 
 // ---- IDs used across tests ----
 const threadId = new ObjectId().toHexString();

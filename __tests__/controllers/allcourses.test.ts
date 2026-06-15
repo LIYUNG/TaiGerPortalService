@@ -10,16 +10,16 @@
 
 jest.mock('../../services/allcourses');
 
-const AllcourseService = require('../../services/allcourses');
-const {
+import AllcourseService from '../../services/allcourses';
+import {
   getCourses,
   getCourse,
   deleteCourse,
   updateCourse,
   createCourse
-} = require('../../controllers/allcourses');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { agent } = require('../mock/user');
+} from '../../controllers/allcourses';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { agent } from '../mock/user';
 
 const courseId = '012345678901234567891234';
 

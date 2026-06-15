@@ -4,8 +4,8 @@
 // database is touched.
 jest.mock('../../dao/permission.dao');
 
-const PermissionDAO = require('../../dao/permission.dao');
-const PermissionService = require('../../services/permissions');
+import PermissionDAO from '../../dao/permission.dao';
+import PermissionService from '../../services/permissions';
 
 beforeEach(() => {
   jest.clearAllMocks();

@@ -13,9 +13,9 @@ jest.mock('@taiger-common/core', () => ({
   is_TaiGer_Editor: jest.fn()
 }));
 
-const { is_TaiGer_Agent, is_TaiGer_Editor } = require('@taiger-common/core');
-const { oauthClient } = require('../../google/oauth');
-const { queryStudent, fetchUserFromIdToken } = require('../../utils/helper');
+import { is_TaiGer_Agent, is_TaiGer_Editor } from '@taiger-common/core';
+import { oauthClient } from '../../google/oauth';
+import { queryStudent, fetchUserFromIdToken } from '../../utils/helper';
 
 beforeEach(() => {
   jest.clearAllMocks();

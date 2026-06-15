@@ -4,13 +4,13 @@ jest.mock('../../../services/email/configuration', () => ({
   transporter: { sendMail: jest.fn() }
 }));
 
-const { sendEmail } = require('../../../services/email/configuration');
-const {
+import { sendEmail } from '../../../services/email/configuration';
+import {
   newCustomerCenterTicketEmail,
   newCustomerCenterTicketSubmitConfirmationEmail,
   newCustomerCenterTicketMessageEmail,
   complaintResolvedRequesterReminderEmail
-} = require('../../../services/email/complaints');
+} from '../../../services/email/complaints';
 
 const recipient = {
   firstname: 'Recip',

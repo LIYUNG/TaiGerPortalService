@@ -11,12 +11,12 @@
 
 jest.mock('../../services/responseTimes');
 
-const { Role } = require('@taiger-common/core');
-const ResponseTimeService = require('../../services/responseTimes');
-const {
+import { Role } from '@taiger-common/core';
+import ResponseTimeService from '../../services/responseTimes';
+import {
   GenerateResponseTimeByTaigerUser,
   GenerateResponseTimeByStudent
-} = require('../../controllers/response_time');
+} from '../../controllers/response_time';
 
 // Small helpers to build the populated records the controller iterates over.
 const agentUser = (overrides = {}) => ({

@@ -9,8 +9,8 @@
 // here.
 jest.mock('../../dao/student.dao');
 
-const StudentDAO = require('../../dao/student.dao');
-const StudentService = require('../../services/students');
+import StudentDAO from '../../dao/student.dao';
+import StudentService from '../../services/students';
 
 beforeEach(() => {
   jest.clearAllMocks();

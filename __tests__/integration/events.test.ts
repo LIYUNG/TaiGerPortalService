@@ -9,8 +9,8 @@
 // create/update/delete are stubbed so no SMTP connection is opened. Fully
 // deterministic — no engine flake.
 
-const request = require('supertest');
-const { Types } = require('mongoose');
+import request from 'supertest';
+import { Types } from 'mongoose';
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -78,13 +78,13 @@ jest.mock('../../services/email', () => ({
 jest.mock('../../dao/event.dao');
 jest.mock('../../dao/user.dao');
 
-const EventDAO = require('../../dao/event.dao');
-const UserDAO = require('../../dao/user.dao');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { student, student2, agent2, student3, agent } = require('../mock/user');
-const { event2, event3, eventNew, eventNew2 } = require('../mock/events');
-const { app } = require('../../app');
+import EventDAO from '../../dao/event.dao';
+import UserDAO from '../../dao/user.dao';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { student, student2, agent2, student3, agent } from '../mock/user';
+import { event2, event3, eventNew, eventNew2 } from '../mock/events';
+import { app } from '../../app';
 
 const requestWithSupertest = request(app);
 

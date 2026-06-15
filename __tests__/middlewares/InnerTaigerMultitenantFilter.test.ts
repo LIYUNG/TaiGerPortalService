@@ -14,15 +14,13 @@ jest.mock('../../utils/queryFunctions', () => ({
   getCachedStudentPermission: jest.fn()
 }));
 
-const { is_TaiGer_Editor, is_TaiGer_Agent } = require('@taiger-common/core');
-const {
+import { is_TaiGer_Editor, is_TaiGer_Agent } from '@taiger-common/core';
+import {
   getPermission,
   getCachedStudentPermission
-} = require('../../utils/queryFunctions');
-const { ErrorResponse } = require('../../common/errors');
-const {
-  InnerTaigerMultitenantFilter
-} = require('../../middlewares/InnerTaigerMultitenantFilter');
+} from '../../utils/queryFunctions';
+import { ErrorResponse } from '../../common/errors';
+import { InnerTaigerMultitenantFilter } from '../../middlewares/InnerTaigerMultitenantFilter';
 
 const makeReq = (user, studentId = 'stu-1') => ({
   user,

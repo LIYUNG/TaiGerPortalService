@@ -8,8 +8,8 @@ jest.mock('../../models', () => ({
   }
 }));
 
-const { ProgramAI } = require('../../models');
-const ProgramAIDAO = require('../../dao/programAI.dao');
+import { ProgramAI } from '../../models';
+import ProgramAIDAO from '../../dao/programAI.dao';
 
 // A query chain whose terminal `.lean()` resolves to `value`.
 const leanChain = (value) => {

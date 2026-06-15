@@ -8,7 +8,7 @@
 // query/populate construction is covered by the DAO unit tests. Fully
 // deterministic — no engine flake.
 
-const request = require('supertest');
+import request from 'supertest';
 
 jest.mock('../../middlewares/tenantMiddleware', () => ({
   ...jest.requireActual('../../middlewares/tenantMiddleware'),
@@ -53,12 +53,12 @@ jest.mock('../../services/students', () => ({
 // The data boundary: mock the DAO the ticket service delegates to.
 jest.mock('../../dao/ticket.dao');
 
-const TicketDAO = require('../../dao/ticket.dao');
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin } = require('../mock/user');
-const { generateProgram, generateTicket } = require('../fixtures/faker');
+import TicketDAO from '../../dao/ticket.dao';
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin } from '../mock/user';
+import { generateProgram, generateTicket } from '../fixtures/faker';
 
 const api = request(app);
 

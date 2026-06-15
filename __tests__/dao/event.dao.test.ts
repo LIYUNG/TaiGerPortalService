@@ -15,8 +15,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Event } = require('../../models');
-const EventDAO = require('../../dao/event.dao');
+import { Event } from '../../models';
+import EventDAO from '../../dao/event.dao';
 
 // A query chain that is BOTH chainable AND thenable: builder calls
 // (populate/select/sort/...) return the same chain so they compose, the terminal

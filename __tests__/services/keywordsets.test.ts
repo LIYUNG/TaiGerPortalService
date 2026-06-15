@@ -4,9 +4,9 @@
 jest.mock('../../dao/keywordset.dao');
 jest.mock('../../dao/programRequirement.dao');
 
-const KeywordSetDAO = require('../../dao/keywordset.dao');
-const ProgramRequirementDAO = require('../../dao/programRequirement.dao');
-const KeywordSetService = require('../../services/keywordsets');
+import KeywordSetDAO from '../../dao/keywordset.dao';
+import ProgramRequirementDAO from '../../dao/programRequirement.dao';
+import KeywordSetService from '../../services/keywordsets';
 
 beforeEach(() => {
   jest.clearAllMocks();

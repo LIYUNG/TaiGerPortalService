@@ -4,8 +4,8 @@
 // the DAO is called with the exact args and the service returns the DAO result.
 jest.mock('../../dao/complaint.dao');
 
-const ComplaintDAO = require('../../dao/complaint.dao');
-const ComplaintService = require('../../services/complaints');
+import ComplaintDAO from '../../dao/complaint.dao';
+import ComplaintService from '../../services/complaints';
 
 beforeEach(() => {
   jest.clearAllMocks();

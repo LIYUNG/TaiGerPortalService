@@ -1,4 +1,4 @@
-const { Role } = require('@taiger-common/core');
+import { Role } from '@taiger-common/core';
 
 // ---- Mock every external dependency so nothing hits a DB or network ----
 jest.mock('../../services/logger', () => ({
@@ -90,24 +90,24 @@ jest.mock('../../services/complaints', () => ({
 jest.mock('pdf-parse', () => jest.fn());
 jest.mock('mammoth', () => ({ extractRawText: jest.fn() }));
 
-const { deleteS3Objects, listS3ObjectsV2 } = require('../../aws/s3');
-const email = require('../../services/email');
-const systemEmails = require('../../services/regular_system_emails');
-const constants = require('../../constants');
-const StudentService = require('../../services/students');
-const UserService = require('../../services/users');
-const EventService = require('../../services/events');
-const InterviewService = require('../../services/interviews');
-const PermissionService = require('../../services/permissions');
-const CommunicationService = require('../../services/communications');
-const IntervalService = require('../../services/intervals');
-const ResponseTimeService = require('../../services/responseTimes');
-const DocumentThreadService = require('../../services/documentthreads');
-const ComplaintService = require('../../services/complaints');
-const PdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
+import { deleteS3Objects, listS3ObjectsV2 } from '../../aws/s3';
+import * as email from '../../services/email';
+import systemEmails from '../../services/regular_system_emails';
+import constants from '../../constants';
+import StudentService from '../../services/students';
+import UserService from '../../services/users';
+import EventService from '../../services/events';
+import InterviewService from '../../services/interviews';
+import PermissionService from '../../services/permissions';
+import CommunicationService from '../../services/communications';
+import IntervalService from '../../services/intervals';
+import ResponseTimeService from '../../services/responseTimes';
+import DocumentThreadService from '../../services/documentthreads';
+import ComplaintService from '../../services/complaints';
+import PdfParse from 'pdf-parse';
+import mammoth from 'mammoth';
 
-const utils = require('../../utils/utils_function');
+import * as utils from '../../utils/utils_function';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -570,7 +570,6 @@ describe('userChangesHelperFunction', () => {
     );
 
     const result = await utils.userChangesHelperFunction(
-      {},
       newUserIds,
       existingUsers
     );
@@ -596,7 +595,6 @@ describe('userChangesHelperFunction', () => {
     });
 
     const result = await utils.userChangesHelperFunction(
-      {},
       { u1: true },
       undefined
     );

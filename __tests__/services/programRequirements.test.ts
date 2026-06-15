@@ -7,10 +7,10 @@ jest.mock('../../dao/programRequirement.dao');
 jest.mock('../../dao/program.dao');
 jest.mock('../../dao/keywordset.dao');
 
-const ProgramRequirementDAO = require('../../dao/programRequirement.dao');
-const ProgramDAO = require('../../dao/program.dao');
-const KeywordSetDAO = require('../../dao/keywordset.dao');
-const ProgramRequirementService = require('../../services/programRequirements');
+import ProgramRequirementDAO from '../../dao/programRequirement.dao';
+import ProgramDAO from '../../dao/program.dao';
+import KeywordSetDAO from '../../dao/keywordset.dao';
+import ProgramRequirementService from '../../services/programRequirements';
 
 beforeEach(() => {
   jest.clearAllMocks();

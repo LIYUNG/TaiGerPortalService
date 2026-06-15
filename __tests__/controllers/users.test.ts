@@ -24,10 +24,10 @@ jest.mock('../../utils/modelHelper/versionControl', () => ({
   emptyS3Directory: jest.fn().mockResolvedValue(undefined)
 }));
 
-const { Role } = require('@taiger-common/core');
-const UserService = require('../../services/users');
-const TokenService = require('../../services/tokens');
-const {
+import { Role } from '@taiger-common/core';
+import UserService from '../../services/users';
+import TokenService from '../../services/tokens';
+import {
   getUsersCount,
   addUser,
   getUsers,
@@ -36,9 +36,9 @@ const {
   updateUser,
   deleteUser,
   getUsersOverview
-} = require('../../controllers/users');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin } = require('../mock/user');
+} from '../../controllers/users';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin } from '../mock/user';
 
 beforeEach(() => {
   jest.clearAllMocks();

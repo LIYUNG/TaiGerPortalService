@@ -47,20 +47,18 @@ jest.mock('../../services/logger', () => ({
   info: jest.fn()
 }));
 
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { getPostgresDb } = require('../../database');
-const orchestrator = require('../../services/ai-assist/orchestrator');
-const {
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { getPostgresDb } from '../../database';
+import orchestrator from '../../services/ai-assist/orchestrator';
+import {
   requireAccessibleStudent,
   searchAccessibleStudents
-} = require('../../services/ai-assist/tools');
-const {
-  getAccessibleStudentFilter
-} = require('../../services/ai-assist/studentAccess');
-const StudentService = require('../../services/students');
-const { openAIClient } = require('../../services/openai');
-const logger = require('../../services/logger');
-const controller = require('../../controllers/ai_assist');
+} from '../../services/ai-assist/tools';
+import { getAccessibleStudentFilter } from '../../services/ai-assist/studentAccess';
+import StudentService from '../../services/students';
+import { openAIClient } from '../../services/openai';
+import logger from '../../services/logger';
+import controller from '../../controllers/ai_assist';
 
 const USER = { _id: { toString: () => 'user_1' }, role: 'Agent' };
 

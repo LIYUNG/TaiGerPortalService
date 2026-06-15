@@ -5,9 +5,9 @@
 jest.mock('../../dao/interview.dao');
 jest.mock('../../dao/interviewSurveyResponse.dao');
 
-const InterviewDAO = require('../../dao/interview.dao');
-const InterviewSurveyResponseDAO = require('../../dao/interviewSurveyResponse.dao');
-const InterviewService = require('../../services/interviews');
+import InterviewDAO from '../../dao/interview.dao';
+import InterviewSurveyResponseDAO from '../../dao/interviewSurveyResponse.dao';
+import InterviewService from '../../services/interviews';
 
 beforeEach(() => {
   jest.clearAllMocks();

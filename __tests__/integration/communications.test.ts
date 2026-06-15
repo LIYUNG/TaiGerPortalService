@@ -9,12 +9,12 @@
 // query construction is covered by the DAO unit tests. Fully deterministic —
 // no engine flake.
 
-const request = require('supertest');
+import request from 'supertest';
 
-const { generateCommunicationMessage } = require('../fixtures/faker');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, agent, student } = require('../mock/user');
+import { generateCommunicationMessage } from '../fixtures/faker';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, agent, student } from '../mock/user';
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -91,10 +91,10 @@ jest.mock('../../dao/communication.dao');
 jest.mock('../../dao/student.dao');
 jest.mock('../../dao/permission.dao');
 
-const CommunicationDAO = require('../../dao/communication.dao');
-const StudentDAO = require('../../dao/student.dao');
-const PermissionDAO = require('../../dao/permission.dao');
-const { app } = require('../../app');
+import CommunicationDAO from '../../dao/communication.dao';
+import StudentDAO from '../../dao/student.dao';
+import PermissionDAO from '../../dao/permission.dao';
+import { app } from '../../app';
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();

@@ -42,16 +42,16 @@ jest.mock('../../aws', () => ({
   })
 }));
 
-const CommunicationService = require('../../services/communications');
-const { getS3Object, uploadJsonToS3 } = require('../../aws/s3');
-const { callApiGateway, getTemporaryCredentials } = require('../../aws');
-const {
+import CommunicationService from '../../services/communications';
+import { getS3Object, uploadJsonToS3 } from '../../aws/s3';
+import { callApiGateway, getTemporaryCredentials } from '../../aws';
+import {
   WidgetProcessTranscriptV2,
   WidgetdownloadJson,
   WidgetExportMessagePDF
-} = require('../../controllers/widget');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, student } = require('../mock/user');
+} from '../../controllers/widget';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
 
 const studentId = student._id.toString();
 const adminId = admin._id.toString();

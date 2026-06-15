@@ -16,8 +16,8 @@ jest.mock('bcryptjs', () => ({
   compare: jest.fn().mockResolvedValue(true)
 }));
 
-const bcrypt = require('bcryptjs');
-const { UserSchema } = require('../../models/User');
+import bcrypt from 'bcryptjs';
+import { UserSchema } from '../../models/User';
 
 const preHooks = (event) => {
   const map = UserSchema.s.hooks._pres;

@@ -14,8 +14,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { InterviewSurveyResponse } = require('../../models');
-const SurveyDAO = require('../../dao/interviewSurveyResponse.dao');
+import { InterviewSurveyResponse } from '../../models';
+import SurveyDAO from '../../dao/interviewSurveyResponse.dao';
 
 // A query chain whose terminal `.lean()` resolves to `value`. `.populate()`
 // returns the same chain so applyPopulates can compose multiple calls.

@@ -4,8 +4,8 @@
 // DAO method with the exact args and returns the DAO's result.
 jest.mock('../../dao/ticket.dao');
 
-const TicketDAO = require('../../dao/ticket.dao');
-const TicketService = require('../../services/tickets');
+import TicketDAO from '../../dao/ticket.dao';
+import TicketService from '../../services/tickets';
 
 beforeEach(() => {
   jest.clearAllMocks();

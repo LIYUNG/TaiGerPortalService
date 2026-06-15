@@ -10,7 +10,7 @@
 // after the upsert; the email senders are stubbed so no SMTP connection opens.
 // Fully deterministic — no engine flake.
 
-const request = require('supertest');
+import request from 'supertest';
 
 jest.mock('../../middlewares/auth', () => {
   const passthrough = async (req, res, next) => next();
@@ -94,14 +94,14 @@ jest.mock('../../dao/user.dao');
 jest.mock('../../dao/permission.dao');
 jest.mock('../../dao/audit.dao');
 
-const StudentDAO = require('../../dao/student.dao');
-const UserDAO = require('../../dao/user.dao');
-const PermissionDAO = require('../../dao/permission.dao');
-const AuditDAO = require('../../dao/audit.dao');
-const { protect } = require('../../middlewares/auth');
-const { app } = require('../../app');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, agents, editors, student } = require('../mock/user');
+import StudentDAO from '../../dao/student.dao';
+import UserDAO from '../../dao/user.dao';
+import PermissionDAO from '../../dao/permission.dao';
+import AuditDAO from '../../dao/audit.dao';
+import { protect } from '../../middlewares/auth';
+import { app } from '../../app';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, agents, editors, student } from '../mock/user';
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();

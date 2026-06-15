@@ -8,7 +8,7 @@
 // query/aggregation construction is covered by the DAO unit tests
 // (__tests__/dao/course.dao.test.js). Fully deterministic — no engine flake.
 
-const request = require('supertest');
+import request from 'supertest';
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -59,12 +59,12 @@ jest.mock('../../services/email', () => ({
 jest.mock('../../dao/course.dao');
 jest.mock('../../dao/student.dao');
 
-const CourseDAO = require('../../dao/course.dao');
-const StudentDAO = require('../../dao/student.dao');
-const { protect } = require('../../middlewares/auth');
-const { app } = require('../../app');
-const { TENANT_ID } = require('../fixtures/constants');
-const { student } = require('../mock/user');
+import CourseDAO from '../../dao/course.dao';
+import StudentDAO from '../../dao/student.dao';
+import { protect } from '../../middlewares/auth';
+import { app } from '../../app';
+import { TENANT_ID } from '../fixtures/constants';
+import { student } from '../mock/user';
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();

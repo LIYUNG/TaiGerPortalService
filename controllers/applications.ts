@@ -19,7 +19,7 @@ import ApplicationQueryBuilder from '../builders/ApplicationQueryBuilder';
 import UserQueryBuilder from '../builders/UserQueryBuilder';
 import { sendApplicationWithdrawNotificationToEditors } from '../utils/slackUtils';
 
-const getApplications = asyncHandler(async (req, res) => {
+export const getApplications = asyncHandler(async (req, res) => {
   const {
     decided,
     closed,
@@ -57,7 +57,7 @@ const getApplications = asyncHandler(async (req, res) => {
 // Server-side paginated active (non-archived) students' applications. Without
 // `userId` it covers all active students; with `userId` (query param) it scopes
 // to the students that TaiGer user supervises (as agent OR editor).
-const getActiveStudentsApplicationsPaginated = asyncHandler(
+export const getActiveStudentsApplicationsPaginated = asyncHandler(
   async (req, res) => {
     const { userId } = req.query;
 
@@ -99,75 +99,81 @@ const getActiveStudentsApplicationsPaginated = asyncHandler(
 // Open-applications deadline distribution. Without `userId` it covers all
 // active students; with `userId` it scopes to the students that TaiGer user
 // supervises (as agent OR editor).
-const getApplicationsDeadlineDistribution = asyncHandler(async (req, res) => {
-  const { userId } = req.query;
+export const getApplicationsDeadlineDistribution = asyncHandler(
+  async (req, res) => {
+    const { userId } = req.query;
 
-  const { filter } = new UserQueryBuilder()
-    .withRole(Role.Student)
-    .withArchiv(false)
-    .build();
+    const { filter } = new UserQueryBuilder()
+      .withRole(Role.Student)
+      .withArchiv(false)
+      .build();
 
-  if (userId) {
-    const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
-    if (filter.$or) {
-      filter.$and = [{ $or: filter.$or }, supervisionOr];
-      delete filter.$or;
-    } else {
-      Object.assign(filter, supervisionOr);
+    if (userId) {
+      const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
+      if (filter.$or) {
+        filter.$and = [{ $or: filter.$or }, supervisionOr];
+        delete filter.$or;
+      } else {
+        Object.assign(filter, supervisionOr);
+      }
     }
-  }
 
-  const students = await StudentService.getStudents({
-    filter,
-    options: {}
-  });
-
-  const data =
-    await ApplicationService.getActiveStudentsApplicationsDeadlineDistribution({
-      studentIds: students.map((student) => student._id.toString())
+    const students = await StudentService.getStudents({
+      filter,
+      options: {}
     });
 
-  res.status(200).send({ success: true, data });
-});
+    const data =
+      await ApplicationService.getActiveStudentsApplicationsDeadlineDistribution(
+        {
+          studentIds: students.map((student) => student._id.toString())
+        }
+      );
+
+    res.status(200).send({ success: true, data });
+  }
+);
 
 // Distinct programs (with update metadata) referenced by active students'
 // applications, for the "Programs Update Status" tabs. Without `userId` it
 // covers all active students; with `userId` it scopes to that user's supervised
 // students. `decided=O` returns only programs with a decided application.
-const getApplicationProgramsUpdateStatus = asyncHandler(async (req, res) => {
-  const { userId, decided } = req.query;
+export const getApplicationProgramsUpdateStatus = asyncHandler(
+  async (req, res) => {
+    const { userId, decided } = req.query;
 
-  const { filter } = new UserQueryBuilder()
-    .withRole(Role.Student)
-    .withArchiv(false)
-    .build();
+    const { filter } = new UserQueryBuilder()
+      .withRole(Role.Student)
+      .withArchiv(false)
+      .build();
 
-  if (userId) {
-    const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
-    if (filter.$or) {
-      filter.$and = [{ $or: filter.$or }, supervisionOr];
-      delete filter.$or;
-    } else {
-      Object.assign(filter, supervisionOr);
+    if (userId) {
+      const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
+      if (filter.$or) {
+        filter.$and = [{ $or: filter.$or }, supervisionOr];
+        delete filter.$or;
+      } else {
+        Object.assign(filter, supervisionOr);
+      }
     }
+
+    const students = await StudentService.getStudents({
+      filter,
+      options: {}
+    });
+
+    const data = await ApplicationService.getApplicationProgramsUpdateStatus({
+      studentIds: students.map((student) => student._id.toString()),
+      decided
+    });
+
+    res.status(200).send({ success: true, data });
   }
-
-  const students = await StudentService.getStudents({
-    filter,
-    options: {}
-  });
-
-  const data = await ApplicationService.getApplicationProgramsUpdateStatus({
-    studentIds: students.map((student) => student._id.toString()),
-    decided
-  });
-
-  res.status(200).send({ success: true, data });
-});
+);
 
 // Aggregated application stats + the agent's user record for the AgentPage stat
 // cards, computed in the DB (no full applications payload).
-const getMyStudentsApplicationsStats = asyncHandler(async (req, res) => {
+export const getMyStudentsApplicationsStats = asyncHandler(async (req, res) => {
   const {
     params: { userId }
   } = req;
@@ -204,7 +210,7 @@ const getMyStudentsApplicationsStats = asyncHandler(async (req, res) => {
   });
 });
 
-const getStudentApplications = asyncHandler(async (req, res) => {
+export const getStudentApplications = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId }
@@ -231,7 +237,7 @@ const getStudentApplications = asyncHandler(async (req, res) => {
 });
 
 // TODO: application query updated not working, to be tested
-const updateStudentApplications = asyncHandler(async (req, res) => {
+export const updateStudentApplications = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId },
@@ -370,7 +376,7 @@ const updateStudentApplications = asyncHandler(async (req, res) => {
   // }
 });
 
-const updateApplication = asyncHandler(async (req, res) => {
+export const updateApplication = asyncHandler(async (req, res) => {
   const { application_id } = req.params;
   const payload = req.body;
   const application = await ApplicationService.updateApplication(
@@ -380,7 +386,7 @@ const updateApplication = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: application });
 });
 
-const withdrawApplication = asyncHandler(async (req, res) => {
+export const withdrawApplication = asyncHandler(async (req, res) => {
   const {
     params: { studentId, application_id },
     body: { closed }
@@ -418,7 +424,7 @@ const withdrawApplication = asyncHandler(async (req, res) => {
   );
 });
 
-const deleteApplication = asyncHandler(async (req, res) => {
+export const deleteApplication = asyncHandler(async (req, res) => {
   const { application_id } = req.params;
   await ApplicationService.deleteApplication(application_id);
 
@@ -428,7 +434,7 @@ const deleteApplication = asyncHandler(async (req, res) => {
   });
 });
 
-const createApplicationV2 = asyncHandler(async (req, res) => {
+export const createApplicationV2 = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId },
@@ -662,7 +668,7 @@ const createApplicationV2 = asyncHandler(async (req, res) => {
   }
 });
 
-const refreshApplication = asyncHandler(async (req, res) => {
+export const refreshApplication = asyncHandler(async (req, res) => {
   const { applicationId } = req.params;
 
   // Unlock the application by setting isLocked to false
@@ -681,18 +687,3 @@ const refreshApplication = asyncHandler(async (req, res) => {
 
   return res.json({ success: true, data: updatedApplication });
 });
-
-export = {
-  getApplications,
-  deleteApplication,
-  getActiveStudentsApplicationsPaginated,
-  getApplicationsDeadlineDistribution,
-  getApplicationProgramsUpdateStatus,
-  getMyStudentsApplicationsStats,
-  getStudentApplications,
-  updateStudentApplications,
-  updateApplication,
-  withdrawApplication,
-  createApplicationV2,
-  refreshApplication
-};

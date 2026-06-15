@@ -21,16 +21,9 @@
     "strict": true,
     "types": ["node", "jest"]
   },
+  // Includes tests so the editor resolves the `jest` global (types below) in
+  // `.test.ts` files. The BUILD (tsconfig.build.json) still excludes tests, so
+  // compiled output is unaffected.
   "include": ["**/*.js", "**/*.ts"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "built",
-    "coverage",
-    "__tests__",
-    "docs",
-    "python",
-    "cdk.out",
-    "**/*.test.js"
-  ]
+  "exclude": ["node_modules", "dist", "built", "coverage", "docs", "python", "cdk.out"]
 }

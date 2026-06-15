@@ -6,8 +6,8 @@
 // composed return value.
 jest.mock('../../dao/program.dao');
 
-const ProgramDAO = require('../../dao/program.dao');
-const ProgramService = require('../../services/programs');
+import ProgramDAO from '../../dao/program.dao';
+import ProgramService from '../../services/programs';
 
 beforeEach(() => {
   jest.clearAllMocks();

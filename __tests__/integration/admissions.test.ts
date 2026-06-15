@@ -86,15 +86,15 @@ jest.mock('../../dao/student.dao');
 
 // ── Imports ───────────────────────────────────────────────────────────────────
 
-const request = require('supertest');
+import request from 'supertest';
 
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { getS3Object } = require('../../aws/s3');
-const ApplicationDAO = require('../../dao/application.dao');
-const StudentDAO = require('../../dao/student.dao');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, student } = require('../mock/user');
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { getS3Object } from '../../aws/s3';
+import ApplicationDAO from '../../dao/application.dao';
+import StudentDAO from '../../dao/student.dao';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, student } from '../mock/user';
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();

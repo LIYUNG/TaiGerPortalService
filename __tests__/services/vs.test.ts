@@ -4,8 +4,8 @@
 // exact args and returns the DAO's result.
 jest.mock('../../dao/vc.dao');
 
-const VCDAO = require('../../dao/vc.dao');
-const VCService = require('../../services/vs');
+import VCDAO from '../../dao/vc.dao';
+import VCService from '../../services/vs';
 
 beforeEach(() => {
   jest.clearAllMocks();

@@ -22,19 +22,17 @@ jest.mock('../../utils/modelHelper/programChange', () => ({
   findStudentDeltaGet: jest.fn()
 }));
 
-const TeamService = require('../../services/teams');
-const StudentService = require('../../services/students');
-const UserService = require('../../services/users');
-const PermissionService = require('../../services/permissions');
-const InterviewService = require('../../services/interviews');
-const DocumentThreadService = require('../../services/documentthreads');
-const ProgramService = require('../../services/programs');
-const { getStudentsByProgram } = require('../../controllers/programs');
-const {
-  findStudentDeltaGet
-} = require('../../utils/modelHelper/programChange');
-const { ten_minutes_cache } = require('../../cache/node-cache');
-const {
+import TeamService from '../../services/teams';
+import StudentService from '../../services/students';
+import UserService from '../../services/users';
+import PermissionService from '../../services/permissions';
+import InterviewService from '../../services/interviews';
+import DocumentThreadService from '../../services/documentthreads';
+import ProgramService from '../../services/programs';
+import { getStudentsByProgram } from '../../controllers/programs';
+import { findStudentDeltaGet } from '../../utils/modelHelper/programChange';
+import { ten_minutes_cache } from '../../cache/node-cache';
+import {
   getTeamMembers,
   getIsManager,
   getTasksOverview,
@@ -48,9 +46,9 @@ const {
   getStatisticsResponseTime,
   getAgentProfile,
   putAgentProfile
-} = require('../../controllers/teams');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, agent } = require('../mock/user');
+} from '../../controllers/teams';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, agent } from '../mock/user';
 
 beforeEach(() => {
   jest.clearAllMocks();

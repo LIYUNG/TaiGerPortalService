@@ -25,12 +25,12 @@ jest.mock('../../services/logger', () => ({
   info: jest.fn()
 }));
 
-const { Role } = require('../../constants');
-const { getPostgresDb } = require('../../database');
-const { openAIClient } = require('../../services/openai');
-const { getPermission } = require('../../utils/queryFunctions');
-const logger = require('../../services/logger');
-const {
+import { Role } from '../../constants';
+import { getPostgresDb } from '../../database';
+import { openAIClient } from '../../services/openai';
+import { getPermission } from '../../utils/queryFunctions';
+import logger from '../../services/logger';
+import {
   createConversation,
   archiveConversation,
   getConversation,
@@ -41,21 +41,15 @@ const {
   sendFirstMessage,
   updateConversation,
   searchStudents
-} = require('../../controllers/ai_assist');
-const StudentService = require('../../services/students');
-const ApplicationService = require('../../services/applications');
-const CommunicationService = require('../../services/communications');
-const ComplaintService = require('../../services/complaints');
-const {
-  aiAssistConversations,
-  aiAssistMessages,
-  aiAssistToolCalls
-} = require('../../drizzle/schema/schema');
-const {
-  getAccessibleStudentFilter
-} = require('../../services/ai-assist/studentAccess');
-const { runAiAssist } = require('../../services/ai-assist/orchestrator');
-const aiAssistTools = require('../../services/ai-assist/tools');
+} from '../../controllers/ai_assist';
+import StudentService from '../../services/students';
+import ApplicationService from '../../services/applications';
+import CommunicationService from '../../services/communications';
+import ComplaintService from '../../services/complaints';
+import { aiAssistConversations } from '../../drizzle/schema/schema';
+import { getAccessibleStudentFilter } from '../../services/ai-assist/studentAccess';
+import { runAiAssist } from '../../services/ai-assist/orchestrator';
+import aiAssistTools from '../../services/ai-assist/tools';
 
 const { runTool } = aiAssistTools;
 

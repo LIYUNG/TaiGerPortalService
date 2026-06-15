@@ -48,17 +48,17 @@ jest.mock('../../services/complaints');
 jest.mock('../../services/documentthreads');
 jest.mock('../../services/programs');
 
-const multer = require('multer');
-const StudentService = require('../../services/students');
-const ApplicationService = require('../../services/applications');
-const ComplaintService = require('../../services/complaints');
-const DocumentThreadService = require('../../services/documentthreads');
-const ProgramService = require('../../services/programs');
-const { ErrorResponse } = require('../../common/errors');
+import multer from 'multer';
+import StudentService from '../../services/students';
+import ApplicationService from '../../services/applications';
+import ComplaintService from '../../services/complaints';
+import DocumentThreadService from '../../services/documentthreads';
+import ProgramService from '../../services/programs';
+import { ErrorResponse } from '../../common/errors';
 
 // Require the module under test AFTER the mocks so its top-level multer /
 // multer-s3 calls are captured.
-const fileUpload = require('../../middlewares/file-upload');
+import fileUpload from '../../middlewares/file-upload';
 
 // Helper: find a captured multer-s3 config by a substring of the literal it
 // returns from its `key` builder, by matching the multer() config that wraps it.

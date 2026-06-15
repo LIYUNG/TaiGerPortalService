@@ -18,9 +18,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const mongoose = require('mongoose');
-const { Interview } = require('../../models');
-const InterviewDAO = require('../../dao/interview.dao');
+import { Interview } from '../../models';
+import InterviewDAO from '../../dao/interview.dao';
 
 // A query chain that is both chainable (populate returns the same chain) and
 // thenable, so `await chain` (for the raw, non-lean methods) resolves to

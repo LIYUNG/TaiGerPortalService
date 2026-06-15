@@ -1,4 +1,4 @@
-const InterviewQueryBuilder = require('../../builders/InterviewQueryBuilder');
+import InterviewQueryBuilder from '../../builders/InterviewQueryBuilder';
 
 describe('InterviewQueryBuilder', () => {
   it('builds an empty filter by default with default options', () => {

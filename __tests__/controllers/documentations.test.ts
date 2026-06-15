@@ -24,10 +24,10 @@ jest.mock('../../aws/s3', () => ({
 }));
 
 const { ObjectId } = require('mongoose').Types;
-const DocumentationService = require('../../services/documentations');
-const { ten_minutes_cache } = require('../../cache/node-cache');
-const { getS3Object } = require('../../aws/s3');
-const {
+import DocumentationService from '../../services/documentations';
+import { ten_minutes_cache } from '../../cache/node-cache';
+import { getS3Object } from '../../aws/s3';
+import {
   getAllDocumentations,
   getAllInternalDocumentations,
   getDocumentation,
@@ -45,9 +45,9 @@ const {
   updateDocumentationPage,
   uploadDocImage,
   uploadDocDocs
-} = require('../../controllers/documentations');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin } = require('../mock/user');
+} from '../../controllers/documentations';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin } from '../mock/user';
 
 const authorStamp = `${admin.firstname} ${admin.lastname}`;
 

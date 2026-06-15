@@ -1,13 +1,11 @@
-const { Role } = require('@taiger-common/core');
+import { Role } from '@taiger-common/core';
 
-const {
-  chatMultitenantFilter
-} = require('../../middlewares/chatMultitenantFilter');
-const { ErrorResponse } = require('../../common/errors');
-const { ten_minutes_cache } = require('../../cache/node-cache');
-const { getPermission } = require('../../utils/queryFunctions');
-const StudentService = require('../../services/students');
-const logger = require('../../services/logger');
+import { chatMultitenantFilter } from '../../middlewares/chatMultitenantFilter';
+import { ErrorResponse } from '../../common/errors';
+import { ten_minutes_cache } from '../../cache/node-cache';
+import { getPermission } from '../../utils/queryFunctions';
+import StudentService from '../../services/students';
+import logger from '../../services/logger';
 
 jest.mock('../../utils/queryFunctions');
 jest.mock('../../services/students');

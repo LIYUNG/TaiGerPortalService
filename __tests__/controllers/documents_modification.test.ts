@@ -75,17 +75,17 @@ jest.mock('../../cache/node-cache', () => ({
 }));
 
 const { ObjectId } = require('mongoose').Types;
-const DocumentThreadService = require('../../services/documentthreads');
-const StudentService = require('../../services/students');
-const SurveyInputService = require('../../services/surveyInputs');
-const UserService = require('../../services/users');
-const ApplicationService = require('../../services/applications');
-const PermissionService = require('../../services/permissions');
-const InterviewService = require('../../services/interviews');
-const AuditService = require('../../services/audit');
-const { informOnSurveyUpdate } = require('../../utils/informEditor');
-const { userChangesHelperFunction } = require('../../utils/utils_function');
-const {
+import DocumentThreadService from '../../services/documentthreads';
+import StudentService from '../../services/students';
+import SurveyInputService from '../../services/surveyInputs';
+import UserService from '../../services/users';
+import ApplicationService from '../../services/applications';
+import PermissionService from '../../services/permissions';
+import InterviewService from '../../services/interviews';
+import AuditService from '../../services/audit';
+import { informOnSurveyUpdate } from '../../utils/informEditor';
+import { userChangesHelperFunction } from '../../utils/utils_function';
+import {
   getActiveThreads,
   getActiveThreadsPaginated,
   getActiveThreadsCounts,
@@ -114,9 +114,9 @@ const {
   getMyStudentMetrics,
   checkDocumentPattern,
   clearEssayWriters
-} = require('../../controllers/documents_modification');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, student } = require('../mock/user');
+} from '../../controllers/documents_modification';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
 
 const studentId = student._id.toString();
 

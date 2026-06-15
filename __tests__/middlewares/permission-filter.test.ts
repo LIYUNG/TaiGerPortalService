@@ -1,7 +1,7 @@
-const { Role } = require('@taiger-common/core');
+import { Role } from '@taiger-common/core';
 
-const { getPermission } = require('../../utils/queryFunctions');
-const {
+import { getPermission } from '../../utils/queryFunctions';
+import {
   permission_canAssignEditor_filter,
   permission_canAssignAgent_filter,
   permission_canModifyDocs_filter,
@@ -10,9 +10,9 @@ const {
   permission_canUseTaiGerAI_filter,
   permission_canModifyProgramList_filter,
   permission_canModifyTicketList_filter
-} = require('../../middlewares/permission-filter'); // Update with the correct path
-const { ErrorResponse } = require('../../common/errors');
-const logger = require('../../services/logger');
+} from '../../middlewares/permission-filter'; // Update with the correct path
+import { ErrorResponse } from '../../common/errors';
+import logger from '../../services/logger';
 
 jest.mock('../../utils/queryFunctions'); // Mock the getPermission module
 jest.mock('../../common/errors'); // Mock the ErrorResponse module

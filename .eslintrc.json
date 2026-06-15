@@ -96,7 +96,9 @@
       },
       "rules": {
         "@typescript-eslint/no-require-imports": "off",
-        "unused-imports/no-unused-vars": "off"
+        "unused-imports/no-unused-vars": "off",
+        "import/first": "off",
+        "import/newline-after-import": "off"
       }
     }
   ]

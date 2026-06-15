@@ -16,8 +16,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { KeywordSet } = require('../../models');
-const KeywordSetDAO = require('../../dao/keywordset.dao');
+import { KeywordSet } from '../../models';
+import KeywordSetDAO from '../../dao/keywordset.dao';
 
 // A query chain that is BOTH chainable and thenable (awaiting it without a
 // terminal `.lean()` resolves to `value`). `.sort()` returns the same chain.

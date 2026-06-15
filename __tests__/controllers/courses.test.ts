@@ -29,18 +29,18 @@ jest.mock('../../aws/s3', () => ({
   uploadJsonToS3: jest.fn().mockResolvedValue(undefined)
 }));
 
-const CourseService = require('../../services/course');
-const StudentService = require('../../services/students');
-const { getS3Object } = require('../../aws/s3');
-const {
+import CourseService from '../../services/course';
+import StudentService from '../../services/students';
+import { getS3Object } from '../../aws/s3';
+import {
   getMycourses,
   putMycourses,
   deleteMyCourse,
   downloadJson,
   processTranscript_api_gatway
-} = require('../../controllers/course');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, student } = require('../mock/user');
+} from '../../controllers/course';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
 
 const studentId = student._id.toString();
 

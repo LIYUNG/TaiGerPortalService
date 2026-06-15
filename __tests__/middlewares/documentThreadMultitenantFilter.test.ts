@@ -1,13 +1,13 @@
-const { Role } = require('@taiger-common/core');
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   docThreadMultitenant_filter,
   surveyMultitenantFilter
-} = require('../../middlewares/documentThreadMultitenantFilter');
-const { ErrorResponse } = require('../../common/errors');
-const DocumentThreadService = require('../../services/documentthreads');
-const SurveyInputService = require('../../services/surveyInputs');
-const logger = require('../../services/logger');
+} from '../../middlewares/documentThreadMultitenantFilter';
+import { ErrorResponse } from '../../common/errors';
+import DocumentThreadService from '../../services/documentthreads';
+import SurveyInputService from '../../services/surveyInputs';
+import logger from '../../services/logger';
 
 jest.mock('../../services/documentthreads');
 jest.mock('../../services/surveyInputs');

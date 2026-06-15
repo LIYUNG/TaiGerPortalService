@@ -4,8 +4,8 @@
 // returns the DAO's result unchanged.
 jest.mock('../../dao/surveyInput.dao');
 
-const SurveyInputDAO = require('../../dao/surveyInput.dao');
-const SurveyInputService = require('../../services/surveyInputs');
+import SurveyInputDAO from '../../dao/surveyInput.dao';
+import SurveyInputService from '../../services/surveyInputs';
 
 beforeEach(() => {
   jest.clearAllMocks();

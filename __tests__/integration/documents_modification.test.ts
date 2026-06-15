@@ -12,13 +12,13 @@
 // and shape the response from the DAO's (mocked) return. Real query/aggregation
 // construction is covered by the DAO unit tests.
 
-const request = require('supertest');
+import request from 'supertest';
 const { ObjectId } = require('mongoose').Types;
 
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, agent, student } = require('../mock/user');
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, agent, student } from '../mock/user';
 
 const requestWithSupertest = request(app);
 
@@ -165,8 +165,8 @@ jest.mock('../../dao/documentthread.dao');
 jest.mock('../../dao/student.dao');
 jest.mock('../../dao/surveyInput.dao');
 
-const DocumentthreadDAO = require('../../dao/documentthread.dao');
-const StudentDAO = require('../../dao/student.dao');
+import DocumentthreadDAO from '../../dao/documentthread.dao';
+import StudentDAO from '../../dao/student.dao';
 
 const threadId = new ObjectId().toHexString();
 

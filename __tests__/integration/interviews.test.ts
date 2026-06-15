@@ -75,19 +75,19 @@ jest.mock('../../dao/documentthread.dao');
 jest.mock('../../dao/permission.dao');
 jest.mock('../../dao/audit.dao');
 
-const request = require('supertest');
-const InterviewDAO = require('../../dao/interview.dao');
-const InterviewSurveyResponseDAO = require('../../dao/interviewSurveyResponse.dao');
-const StudentDAO = require('../../dao/student.dao');
-const DocumentthreadDAO = require('../../dao/documentthread.dao');
-const PermissionDAO = require('../../dao/permission.dao');
-const AuditDAO = require('../../dao/audit.dao');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, student3 } = require('../mock/user');
-const { app } = require('../../app');
-const { interview1, interview3 } = require('../mock/interviews');
-const { program4 } = require('../mock/programs');
+import request from 'supertest';
+import InterviewDAO from '../../dao/interview.dao';
+import InterviewSurveyResponseDAO from '../../dao/interviewSurveyResponse.dao';
+import StudentDAO from '../../dao/student.dao';
+import DocumentthreadDAO from '../../dao/documentthread.dao';
+import PermissionDAO from '../../dao/permission.dao';
+import AuditDAO from '../../dao/audit.dao';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, student3 } from '../mock/user';
+import { app } from '../../app';
+import { interview1, interview3 } from '../mock/interviews';
+import { program4 } from '../mock/programs';
 
 const requestWithSupertest = request(app);
 

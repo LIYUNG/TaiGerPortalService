@@ -57,21 +57,21 @@ jest.mock('../../dao/programRequirement.dao');
 jest.mock('../../dao/program.dao');
 jest.mock('../../dao/keywordset.dao');
 
-const request = require('supertest');
-const ProgramRequirementDAO = require('../../dao/programRequirement.dao');
-const ProgramDAO = require('../../dao/program.dao');
-const KeywordSetDAO = require('../../dao/keywordset.dao');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin } = require('../mock/user');
-const { app } = require('../../app');
-const { program4 } = require('../mock/programs');
-const {
+import request from 'supertest';
+import ProgramRequirementDAO from '../../dao/programRequirement.dao';
+import ProgramDAO from '../../dao/program.dao';
+import KeywordSetDAO from '../../dao/keywordset.dao';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin } from '../mock/user';
+import { app } from '../../app';
+import { program4 } from '../mock/programs';
+import {
   programRequirements1,
   programRequirements2,
   programRequirementss,
   programRequirementsNew
-} = require('../mock/programRequirements');
+} from '../mock/programRequirements';
 
 const requestWithSupertest = request(app);
 

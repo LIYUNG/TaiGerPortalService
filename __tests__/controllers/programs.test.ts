@@ -14,12 +14,12 @@ jest.mock('../../services/vs');
 jest.mock('../../services/programRequirements');
 jest.mock('../../services/tickets');
 
-const ProgramService = require('../../services/programs');
-const ApplicationService = require('../../services/applications');
-const VCService = require('../../services/vs');
-const ProgramRequirementService = require('../../services/programRequirements');
-const TicketService = require('../../services/tickets');
-const {
+import ProgramService from '../../services/programs';
+import ApplicationService from '../../services/applications';
+import VCService from '../../services/vs';
+import ProgramRequirementService from '../../services/programRequirements';
+import TicketService from '../../services/tickets';
+import {
   getPrograms,
   getSameProgramStudents,
   getProgram,
@@ -31,9 +31,9 @@ const {
   updateBatchSchoolAttributes,
   getSchoolsDistribution,
   getProgramsOverview
-} = require('../../controllers/programs');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, agent, editor, student } = require('../mock/user');
+} from '../../controllers/programs';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, agent, student } from '../mock/user';
 
 beforeEach(() => {
   jest.clearAllMocks();

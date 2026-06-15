@@ -29,10 +29,10 @@ jest.mock('../../../services/documentthreads', () => ({
   findThreads: (...args) => mockFindThreads(...args)
 }));
 
-const {
+import {
   findStudentDelta,
   findStudentDeltaGet
-} = require('../../../utils/modelHelper/programChange');
+} from '../../../utils/modelHelper/programChange';
 
 // Helper to build the Documentthread.find().select().lean() chain.
 const mockThreadQuery = (threads) => {

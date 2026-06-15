@@ -47,7 +47,7 @@ import DocumentThreadService from '../services/documentthreads';
 import ComplaintService from '../services/complaints';
 
 // Tested: redundant image is deleted
-const threadS3GarbageCollector = async (
+export const threadS3GarbageCollector = async (
   req,
   collection,
   userFolder,
@@ -202,7 +202,7 @@ const threadS3GarbageCollector = async (
   }
 };
 
-const TasksReminderEmails_Editor_core = async () => {
+export const TasksReminderEmails_Editor_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -242,7 +242,7 @@ const TasksReminderEmails_Editor_core = async () => {
   }
 };
 
-const TasksReminderEmails_Student_core = async () => {
+export const TasksReminderEmails_Student_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -271,12 +271,12 @@ const TasksReminderEmails_Student_core = async () => {
 };
 
 // Weekly called.
-const TasksReminderEmails = asyncHandler(async () => {
+export const TasksReminderEmails = asyncHandler(async () => {
   await TasksReminderEmails_Editor_core();
   await TasksReminderEmails_Student_core();
 });
 
-const _UrgentTasksReminderEmails_Student_core = async () => {
+export const _UrgentTasksReminderEmails_Student_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -326,7 +326,7 @@ const _UrgentTasksReminderEmails_Student_core = async () => {
   }
 };
 
-const _UrgentTasksReminderEmails_Agent_core = async () => {
+export const _UrgentTasksReminderEmails_Agent_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -418,7 +418,7 @@ const _UrgentTasksReminderEmails_Agent_core = async () => {
   }
 };
 
-const _UrgentTasksReminderEmails_Editor_core = async () => {
+export const _UrgentTasksReminderEmails_Editor_core = async () => {
   // Only inform active student
   // TODO: deactivate or change email frequency (default 1 week.)
   try {
@@ -497,7 +497,7 @@ const _UrgentTasksReminderEmails_Editor_core = async () => {
   }
 };
 
-const UrgentTasksReminderEmails = async () => {
+export const UrgentTasksReminderEmails = async () => {
   const UrgentTaskPromises = [
     // UrgentTasksReminderEmails_Editor_core(), // TODO: check if this is needed
     // UrgentTasksReminderEmails_Student_core(), // TODO: check if this is needed
@@ -507,7 +507,7 @@ const UrgentTasksReminderEmails = async () => {
   await Promise.all(UrgentTaskPromises);
 };
 
-const NextSemesterCourseSelectionStudentReminderEmails = async () => {
+export const NextSemesterCourseSelectionStudentReminderEmails = async () => {
   // Only inform active student
   try {
     const studentsWithCourses = await StudentService.getStudentsWithCourses();
@@ -535,7 +535,7 @@ const NextSemesterCourseSelectionStudentReminderEmails = async () => {
   }
 };
 
-const _NextSemesterCourseSelectionAgentReminderEmails = async () => {
+export const _NextSemesterCourseSelectionAgentReminderEmails = async () => {
   // Only inform active student
   try {
     const studentsWithCourses =
@@ -568,12 +568,12 @@ const _NextSemesterCourseSelectionAgentReminderEmails = async () => {
   }
 };
 
-const NextSemesterCourseSelectionReminderEmails = async () => {
+export const NextSemesterCourseSelectionReminderEmails = async () => {
   await NextSemesterCourseSelectionStudentReminderEmails();
   // await NextSemesterCourseSelectionAgentReminderEmails();
 };
 
-const numStudentYearDistribution = (students) =>
+export const numStudentYearDistribution = (students) =>
   students.reduce((acc, student) => {
     const date =
       student.application_preference.expected_application_date || 'TBD';
@@ -581,7 +581,7 @@ const numStudentYearDistribution = (students) =>
     return acc;
   }, {});
 
-// const UpdateStatisticsData = asyncHandler(async () => {
+// export const UpdateStatisticsData = asyncHandler(async () => {
 //   const documents_cv = await Documentthread.find({
 //     isFinalVersion: false,
 //     file_type: 'CV'
@@ -685,7 +685,7 @@ const numStudentYearDistribution = (students) =>
 //   };
 // });
 
-const add_portals_registered_status = (applications) => {
+export const add_portals_registered_status = (applications) => {
   const new_applications = [];
   for (let i = 0; i < applications.length; i += 1) {
     const application = applications[i];
@@ -729,7 +729,7 @@ const add_portals_registered_status = (applications) => {
   return new_applications;
 };
 
-const MeetingDailyReminderChecker = async () => {
+export const MeetingDailyReminderChecker = async () => {
   try {
     const currentDate = new Date();
     const twentyFourHoursLater = new Date(currentDate);
@@ -812,7 +812,7 @@ const MeetingDailyReminderChecker = async () => {
 };
 
 // every day reminder
-const UnconfirmedMeetingDailyReminderChecker = async () => {
+export const UnconfirmedMeetingDailyReminderChecker = async () => {
   try {
     const currentDate = new Date();
 
@@ -883,13 +883,13 @@ const UnconfirmedMeetingDailyReminderChecker = async () => {
   }
 };
 
-function CalculateInterval(message1, message2) {
+export const CalculateInterval = (message1, message2) => {
   const intervalInDay =
     Math.abs(message1.createdAt - message2.createdAt) / (1000 * 60 * 60 * 24);
   return parseFloat(intervalInDay.toFixed(4));
-}
+};
 
-const GroupCommunicationByStudent = async () => {
+export const GroupCommunicationByStudent = async () => {
   try {
     const communications =
       await CommunicationService.getAllForIntervalGrouping();
@@ -914,7 +914,7 @@ const GroupCommunicationByStudent = async () => {
   }
 };
 
-const CreateIntervalMessageOperation = (student_id, msg1, msg2) => {
+export const CreateIntervalMessageOperation = (student_id, msg1, msg2) => {
   const intervalValue = CalculateInterval(msg1, msg2);
   const intervalData = {
     student_id,
@@ -975,7 +975,7 @@ const CreateIntervalMessageOperation = (student_id, msg1, msg2) => {
  * - Messages are processed in chronological order
  * - Only first non-student response is used for interval calculation
  */
-const ProcessMessages = (student, messages) => {
+export const ProcessMessages = (student, messages) => {
   const bulkOps = [];
   const now = new Date();
 
@@ -1031,7 +1031,7 @@ const ProcessMessages = (student, messages) => {
   return bulkOps;
 };
 
-const ProcessThread = (thread) => {
+export const ProcessThread = (thread) => {
   const bulkOps = [];
   const now = new Date();
 
@@ -1091,7 +1091,7 @@ const ProcessThread = (thread) => {
   return bulkOps;
 };
 
-const FindIntervalInCommunicationsAndSave = async () => {
+export const FindIntervalInCommunicationsAndSave = async () => {
   try {
     // TODO: active student's message only (should already done, please check GroupCommunicationByStudent)
     const groupCommunication = await GroupCommunicationByStudent();
@@ -1114,7 +1114,7 @@ const FindIntervalInCommunicationsAndSave = async () => {
   }
 };
 
-const CreateIntervalOperation = (thread, msg1, msg2) => {
+export const CreateIntervalOperation = (thread, msg1, msg2) => {
   const intervalValue = CalculateInterval(msg1, msg2);
   const intervalData = {
     thread_id: thread._id,
@@ -1143,10 +1143,10 @@ const CreateIntervalOperation = (thread, msg1, msg2) => {
   };
 };
 
-const FetchStudentsForDocumentThreads = async (filter) =>
+export const FetchStudentsForDocumentThreads = async (filter) =>
   StudentService.getStudentsForDocumentThreadIntervals(filter);
 
-const FindIntervalInDocumentThreadAndSave = async () => {
+export const FindIntervalInDocumentThreadAndSave = async () => {
   try {
     // calculate active student only
     const students = await FetchStudentsForDocumentThreads({
@@ -1191,7 +1191,7 @@ const FindIntervalInDocumentThreadAndSave = async () => {
   }
 };
 
-const GroupIntervals = async () => {
+export const GroupIntervals = async () => {
   try {
     const intervals = await IntervalService.findAllPopulated();
     const studentGroupInterval = {};
@@ -1217,7 +1217,7 @@ const GroupIntervals = async () => {
   }
 };
 
-const patternMatched = async (fileBuffer, extension, patterns) => {
+export const patternMatched = async (fileBuffer, extension, patterns) => {
   const lowerCasePatterns = patterns.map((pattern) => pattern.toLowerCase());
   const extractText = async () => {
     let data = null;
@@ -1238,7 +1238,7 @@ const patternMatched = async (fileBuffer, extension, patterns) => {
   return lowerCasePatterns.some((pattern) => text.includes(pattern));
 };
 
-const CalculateAverageResponseTimeAndSave = async () => {
+export const CalculateAverageResponseTimeAndSave = async () => {
   try {
     const [studentGroupInterval, documentThreadGroupInterval] =
       await GroupIntervals();
@@ -1320,13 +1320,13 @@ const CalculateAverageResponseTimeAndSave = async () => {
   }
 };
 
-const DailyCalculateAverageResponseTime = async () => {
+export const DailyCalculateAverageResponseTime = async () => {
   await FindIntervalInCommunicationsAndSave();
   await FindIntervalInDocumentThreadAndSave();
   await CalculateAverageResponseTimeAndSave();
 };
 
-const DailyInterviewSurveyChecker = async () => {
+export const DailyInterviewSurveyChecker = async () => {
   try {
     // TODO: find today meeting and send email reminder (only once)
     const currentDate = new Date();
@@ -1364,69 +1364,70 @@ const DailyInterviewSurveyChecker = async () => {
 
 // every day reminder
 // TODO: (O)no trainer, no date.
-const NoInterviewTrainerOrTrainingDateDailyReminderChecker = async () => {
-  try {
-    const currentDate = new Date();
-    const currentDateString = currentDate.toISOString().split('T')[0]; // Converts to 'YYYY-MM-DD' format
+export const NoInterviewTrainerOrTrainingDateDailyReminderChecker =
+  async () => {
+    try {
+      const currentDate = new Date();
+      const currentDateString = currentDate.toISOString().split('T')[0]; // Converts to 'YYYY-MM-DD' format
 
-    // Only future meeting within 24 hours, not past
-    const interviewRequests = await InterviewService.findInterviews(
-      {
-        $and: [
-          {
-            interview_date: {
-              $gte: currentDateString
-            }
-          },
-          {
-            $or: [
-              {
-                trainer_id: {
-                  $exists: false
-                }
-              },
-              {
-                trainer_id: {
-                  $size: 0
-                }
+      // Only future meeting within 24 hours, not past
+      const interviewRequests = await InterviewService.findInterviews(
+        {
+          $and: [
+            {
+              interview_date: {
+                $gte: currentDateString
               }
-            ]
-          }
-        ]
-      },
-      [['student_id', 'firstname lastname role email'], ['program_id']]
-    );
-
-    // TODO: reminder agent as well
-
-    if (interviewRequests?.length > 0) {
-      const permissions = await PermissionService.findPermissionsWithUser({
-        canAssignEditors: true
-      });
-      const sendEmailPromises = permissions.map((permission) =>
-        sendNoTrainerInterviewRequestsReminderEmail(
-          {
-            firstname: permission.user_id.firstname,
-            lastname: permission.user_id.lastname,
-            address: permission.user_id.email
-          },
-          {
-            interviewRequests
-          }
-        )
+            },
+            {
+              $or: [
+                {
+                  trainer_id: {
+                    $exists: false
+                  }
+                },
+                {
+                  trainer_id: {
+                    $size: 0
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        [['student_id', 'firstname lastname role email'], ['program_id']]
       );
-      await Promise.all(sendEmailPromises);
-      logger.info('No interviewer tasks reminder sent.');
-    }
-  } catch (error) {
-    logger.error(
-      'Error in NoInterviewTrainerOrTrainingDateDailyReminderChecker:',
-      error
-    );
-  }
-};
 
-const userChangesHelperFunction = async (req, newUserIds, existingUsers) => {
+      // TODO: reminder agent as well
+
+      if (interviewRequests?.length > 0) {
+        const permissions = await PermissionService.findPermissionsWithUser({
+          canAssignEditors: true
+        });
+        const sendEmailPromises = permissions.map((permission) =>
+          sendNoTrainerInterviewRequestsReminderEmail(
+            {
+              firstname: permission.user_id.firstname,
+              lastname: permission.user_id.lastname,
+              address: permission.user_id.email
+            },
+            {
+              interviewRequests
+            }
+          )
+        );
+        await Promise.all(sendEmailPromises);
+        logger.info('No interviewer tasks reminder sent.');
+      }
+    } catch (error) {
+      logger.error(
+        'Error in NoInterviewTrainerOrTrainingDateDailyReminderChecker:',
+        error
+      );
+    }
+  };
+
+export const userChangesHelperFunction = async (newUserIds, existingUsers) => {
   const newUserIdsArr = Object.keys(newUserIds);
   const updatedUserIds = newUserIdsArr.filter(
     (editorId) => newUserIds[editorId]
@@ -1488,21 +1489,4 @@ const userChangesHelperFunction = async (req, newUserIds, existingUsers) => {
     toBeInformedUsers,
     updatedUserIds
   };
-};
-
-export = {
-  threadS3GarbageCollector,
-  TasksReminderEmails,
-  UrgentTasksReminderEmails,
-  NextSemesterCourseSelectionReminderEmails,
-  numStudentYearDistribution,
-  // UpdateStatisticsData,
-  add_portals_registered_status,
-  MeetingDailyReminderChecker,
-  UnconfirmedMeetingDailyReminderChecker,
-  DailyCalculateAverageResponseTime,
-  DailyInterviewSurveyChecker,
-  patternMatched,
-  NoInterviewTrainerOrTrainingDateDailyReminderChecker,
-  userChangesHelperFunction
 };

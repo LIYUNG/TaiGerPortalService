@@ -4,8 +4,8 @@
 // DAO method with the exact args and returns the DAO's result.
 jest.mock('../../dao/token.dao');
 
-const TokenDAO = require('../../dao/token.dao');
-const TokenService = require('../../services/tokens');
+import TokenDAO from '../../dao/token.dao';
+import TokenService from '../../services/tokens';
 
 beforeEach(() => {
   jest.clearAllMocks();

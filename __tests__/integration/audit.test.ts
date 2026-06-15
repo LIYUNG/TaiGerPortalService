@@ -36,12 +36,12 @@ jest.mock('../../middlewares/limit_archiv_user', () => ({
 // The data boundary: mock the DAO the audit service delegates to.
 jest.mock('../../dao/audit.dao');
 
-const request = require('supertest');
+import request from 'supertest';
 
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const AuditDAO = require('../../dao/audit.dao');
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import AuditDAO from '../../dao/audit.dao';
 
 const requestWithSupertest = request(app);
 

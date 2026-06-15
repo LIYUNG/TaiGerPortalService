@@ -13,11 +13,9 @@
 
 jest.mock('../../services/applications');
 
-const ApplicationService = require('../../services/applications');
-const {
-  getApplicationConflicts
-} = require('../../controllers/student_applications');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
+import ApplicationService from '../../services/applications';
+import { getApplicationConflicts } from '../../controllers/student_applications';
+import { mockReq, mockRes } from '../helpers/httpMocks';
 
 beforeEach(() => {
   jest.clearAllMocks();

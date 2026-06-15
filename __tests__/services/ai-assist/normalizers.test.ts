@@ -1,9 +1,9 @@
-const {
+import {
   normalizeApplication,
   normalizeMessage,
   normalizeProfileDocument,
   normalizeUser
-} = require('../../../services/ai-assist/normalizers');
+} from '../../../services/ai-assist/normalizers';
 
 describe('ai-assist normalizers', () => {
   describe('normalizeUser', () => {

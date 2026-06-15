@@ -67,13 +67,13 @@ jest.mock('../../middlewares/limit_archiv_user', () => {
 jest.mock('../../dao/student.dao');
 jest.mock('../../dao/user.dao');
 
-const request = require('supertest');
-const StudentDAO = require('../../dao/student.dao');
-const UserDAO = require('../../dao/user.dao');
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, agent, student } = require('../mock/user');
+import request from 'supertest';
+import StudentDAO from '../../dao/student.dao';
+import UserDAO from '../../dao/user.dao';
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, agent, student } from '../mock/user';
 
 const requestWithSupertest = request(app);
 

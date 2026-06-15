@@ -4,8 +4,8 @@
 // the exact args and returns the DAO's (mocked) value.
 jest.mock('../../dao/communication.dao');
 
-const CommunicationDAO = require('../../dao/communication.dao');
-const CommunicationService = require('../../services/communications');
+import CommunicationDAO from '../../dao/communication.dao';
+import CommunicationService from '../../services/communications';
 
 beforeEach(() => {
   jest.clearAllMocks();

@@ -16,8 +16,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Documentation, User, Internaldoc, Program } = require('../../models');
-const SearchDAO = require('../../dao/search.dao');
+import { Documentation, User, Internaldoc, Program } from '../../models';
+import SearchDAO from '../../dao/search.dao';
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (sort/limit/select) return the same chain so they compose.

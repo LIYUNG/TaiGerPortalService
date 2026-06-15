@@ -10,16 +10,16 @@
 
 jest.mock('../../services/programRequirements');
 
-const ProgramRequirementService = require('../../services/programRequirements');
-const {
+import ProgramRequirementService from '../../services/programRequirements';
+import {
   getDistinctProgramsAndKeywordSets,
   getProgramRequirements,
   getProgramRequirement,
   createProgramRequirement,
   updateProgramRequirement,
   deleteProgramRequirement
-} = require('../../controllers/program_requirements');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
+} from '../../controllers/program_requirements';
+import { mockReq, mockRes } from '../helpers/httpMocks';
 
 beforeEach(() => {
   jest.clearAllMocks();

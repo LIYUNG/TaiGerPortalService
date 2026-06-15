@@ -6,15 +6,15 @@ jest.mock('../../../utils/queryFunctions', () => ({
   getPermission: jest.fn().mockResolvedValue({})
 }));
 
-const { Role } = require('../../../constants');
-const { getPostgresDb } = require('../../../database');
-const StudentService = require('../../../services/students');
-const ApplicationService = require('../../../services/applications');
-const CommunicationService = require('../../../services/communications');
-const ComplaintService = require('../../../services/complaints');
-const DocumentThreadService = require('../../../services/documentthreads');
-const ProgramService = require('../../../services/programs');
-const tools = require('../../../services/ai-assist/tools');
+import { Role } from '../../../constants';
+import { getPostgresDb } from '../../../database';
+import StudentService from '../../../services/students';
+import ApplicationService from '../../../services/applications';
+import CommunicationService from '../../../services/communications';
+import ComplaintService from '../../../services/complaints';
+import DocumentThreadService from '../../../services/documentthreads';
+import ProgramService from '../../../services/programs';
+import tools from '../../../services/ai-assist/tools';
 
 const { runTool, hasTool, AI_ASSIST_TOOL_NAMES, normalizeStudentPickerRow } =
   tools;

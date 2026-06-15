@@ -44,17 +44,17 @@ jest.mock('../../dao/interview.dao');
 jest.mock('../../dao/documentthread.dao');
 jest.mock('../../dao/user.dao');
 
-const request = require('supertest');
-const TeamDAO = require('../../dao/team.dao');
-const PermissionDAO = require('../../dao/permission.dao');
-const StudentDAO = require('../../dao/student.dao');
-const InterviewDAO = require('../../dao/interview.dao');
-const DocumentthreadDAO = require('../../dao/documentthread.dao');
-const UserDAO = require('../../dao/user.dao');
-const { protect } = require('../../middlewares/auth');
-const { app } = require('../../app');
-const { TENANT_ID } = require('../fixtures/constants');
-const { agent } = require('../mock/user');
+import request from 'supertest';
+import TeamDAO from '../../dao/team.dao';
+import PermissionDAO from '../../dao/permission.dao';
+import StudentDAO from '../../dao/student.dao';
+import InterviewDAO from '../../dao/interview.dao';
+import DocumentthreadDAO from '../../dao/documentthread.dao';
+import UserDAO from '../../dao/user.dao';
+import { protect } from '../../middlewares/auth';
+import { app } from '../../app';
+import { TENANT_ID } from '../fixtures/constants';
+import { agent } from '../mock/user';
 
 const api = request(app);
 

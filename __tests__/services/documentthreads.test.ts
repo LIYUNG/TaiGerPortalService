@@ -12,9 +12,9 @@
 jest.mock('../../dao/documentthread.dao');
 jest.mock('../../services/students');
 
-const DocumentthreadDAO = require('../../dao/documentthread.dao');
-const StudentService = require('../../services/students');
-const DocumentThreadService = require('../../services/documentthreads');
+import DocumentthreadDAO from '../../dao/documentthread.dao';
+import StudentService from '../../services/students';
+import DocumentThreadService from '../../services/documentthreads';
 
 beforeEach(() => {
   jest.clearAllMocks();

@@ -14,8 +14,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { VC } = require('../../models');
-const VCDAO = require('../../dao/vc.dao');
+import { VC } from '../../models';
+import VCDAO from '../../dao/vc.dao';
 
 // A query chain whose terminal `.lean()` resolves to `value`.
 const leanChain = (value) => {

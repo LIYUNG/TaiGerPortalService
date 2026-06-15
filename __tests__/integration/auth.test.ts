@@ -10,12 +10,12 @@
 // and token lookups are driven by the mocked TokenDAO. Fully deterministic — no
 // database engine, no seeding.
 
-const request = require('supertest');
+import request from 'supertest';
 
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { student, admin } = require('../mock/user');
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { student, admin } from '../mock/user';
 
 const requestWithSupertest = request(app);
 
@@ -73,8 +73,8 @@ jest.mock('../../services/email', () => ({
 jest.mock('../../dao/user.dao');
 jest.mock('../../dao/token.dao');
 
-const UserDAO = require('../../dao/user.dao');
-const TokenDAO = require('../../dao/token.dao');
+import UserDAO from '../../dao/user.dao';
+import TokenDAO from '../../dao/token.dao';
 
 beforeEach(() => {
   jest.clearAllMocks();

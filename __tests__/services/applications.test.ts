@@ -7,8 +7,8 @@
 // getApplicationStatusStats, getApplications) also have a test for the defaults.
 jest.mock('../../dao/application.dao');
 
-const ApplicationDAO = require('../../dao/application.dao');
-const ApplicationService = require('../../services/applications');
+import ApplicationDAO from '../../dao/application.dao';
+import ApplicationService from '../../services/applications';
 
 beforeEach(() => {
   jest.clearAllMocks();

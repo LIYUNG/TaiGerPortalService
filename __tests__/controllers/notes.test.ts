@@ -11,13 +11,10 @@
 
 jest.mock('../../services/notes');
 
-const NoteService = require('../../services/notes');
-const {
-  getStudentNotes,
-  updateStudentNotes
-} = require('../../controllers/notes');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { student } = require('../mock/user');
+import NoteService from '../../services/notes';
+import { getStudentNotes, updateStudentNotes } from '../../controllers/notes';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { student } from '../mock/user';
 
 const studentId = student._id.toString();
 

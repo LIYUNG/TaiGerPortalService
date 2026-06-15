@@ -17,8 +17,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Communication } = require('../../models');
-const CommunicationDAO = require('../../dao/communication.dao');
+import { Communication } from '../../models';
+import CommunicationDAO from '../../dao/communication.dao';
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (populate/sort/skip/limit) return the same chain so they

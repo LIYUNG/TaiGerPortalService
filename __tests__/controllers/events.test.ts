@@ -24,10 +24,10 @@ jest.mock('../../services/email', () => ({
 }));
 
 const { ObjectId } = require('mongoose').Types;
-const EventService = require('../../services/events');
-const UserService = require('../../services/users');
-const { scheduleInviteTA } = require('../../utils/meeting-assistant.service');
-const {
+import EventService from '../../services/events';
+import UserService from '../../services/users';
+import { scheduleInviteTA } from '../../utils/meeting-assistant.service';
+import {
   getEvents,
   getEventsPaginated,
   buildEventScopeFilter,
@@ -38,9 +38,9 @@ const {
   confirmEvent,
   updateEvent,
   deleteEvent
-} = require('../../controllers/events');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, agent, student } = require('../mock/user');
+} from '../../controllers/events';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, agent, student } from '../mock/user';
 
 // `agents`/`editors` arrays the controller reads off req.user.
 const studentUser = { ...student, agents: [agent._id], editors: [] };

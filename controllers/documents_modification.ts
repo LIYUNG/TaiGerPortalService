@@ -1847,7 +1847,6 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
     toBeInformedUsers: toBeInformedEditors,
     updatedUserIds: updatedEditorIds
   } = await userChangesHelperFunction(
-    req,
     editorsId,
     essayDocumentThreads.outsourced_user_id
   );

@@ -13,17 +13,17 @@ jest.mock('../../services/applications');
 jest.mock('../../services/students');
 jest.mock('../../aws/s3');
 
-const ApplicationService = require('../../services/applications');
-const StudentService = require('../../services/students');
-const { getS3Object } = require('../../aws/s3');
-const {
+import ApplicationService from '../../services/applications';
+import StudentService from '../../services/students';
+import { getS3Object } from '../../aws/s3';
+import {
   getAdmissionsOverview,
   getAdmissions,
   getAdmissionLetter,
   getAdmissionsYear
-} = require('../../controllers/admissions');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { student } = require('../mock/user');
+} from '../../controllers/admissions';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { student } from '../mock/user';
 
 const studentId = student._id.toString();
 

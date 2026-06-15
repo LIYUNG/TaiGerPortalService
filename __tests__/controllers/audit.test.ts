@@ -10,9 +10,9 @@
 
 jest.mock('../../services/audit');
 
-const AuditService = require('../../services/audit');
-const { getAuditLogs } = require('../../controllers/audit');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
+import AuditService from '../../services/audit';
+import { getAuditLogs } from '../../controllers/audit';
+import { mockReq, mockRes } from '../helpers/httpMocks';
 
 beforeEach(() => {
   jest.clearAllMocks();

@@ -2,8 +2,8 @@
 // the DAO is mocked so no database is touched.
 jest.mock('../../dao/programAI.dao');
 
-const ProgramAIDAO = require('../../dao/programAI.dao');
-const ProgramAIService = require('../../services/programAIs');
+import ProgramAIDAO from '../../dao/programAI.dao';
+import ProgramAIService from '../../services/programAIs';
 
 beforeEach(() => {
   jest.clearAllMocks();

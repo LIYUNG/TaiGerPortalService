@@ -15,8 +15,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Course } = require('../../models');
-const CourseDAO = require('../../dao/course.dao');
+import { Course } from '../../models';
+import CourseDAO from '../../dao/course.dao';
 
 // A query chain that is both chainable (populate/lean return the same chain)
 // and thenable, so `await chain` (when a method ends in .populate() without a

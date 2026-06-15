@@ -11,16 +11,16 @@
 jest.mock('../../services/students');
 jest.mock('../../services/users');
 
-const { Role } = require('@taiger-common/core');
-const StudentService = require('../../services/students');
-const UserService = require('../../services/users');
-const {
+import { Role } from '@taiger-common/core';
+import StudentService from '../../services/students';
+import UserService from '../../services/users';
+import {
   getExpenses,
   getExpense,
   syncExpense
-} = require('../../controllers/expenses');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, agent, editor, student } = require('../mock/user');
+} from '../../controllers/expenses';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, agent, editor, student } from '../mock/user';
 
 beforeEach(() => {
   jest.clearAllMocks();

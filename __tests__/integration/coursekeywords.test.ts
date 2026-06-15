@@ -8,12 +8,12 @@
 // query construction is covered by the DAO unit tests. Fully deterministic —
 // no engine flake.
 
-const request = require('supertest');
+import request from 'supertest';
 
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { subjects, subject1, subject2 } = require('../mock/allcourses');
-const { agent } = require('../mock/user');
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { subjects, subject1, subject2 } from '../mock/allcourses';
+import { agent } from '../mock/user';
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -41,9 +41,9 @@ jest.mock('../../middlewares/auth', () => {
 jest.mock('../../dao/keywordset.dao');
 jest.mock('../../dao/programRequirement.dao');
 
-const KeywordSetDAO = require('../../dao/keywordset.dao');
-const ProgramRequirementDAO = require('../../dao/programRequirement.dao');
-const { app } = require('../../app');
+import KeywordSetDAO from '../../dao/keywordset.dao';
+import ProgramRequirementDAO from '../../dao/programRequirement.dao';
+import { app } from '../../app';
 
 const requestWithSupertest = request(app);
 

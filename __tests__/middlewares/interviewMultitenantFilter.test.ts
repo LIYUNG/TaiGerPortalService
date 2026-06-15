@@ -1,12 +1,12 @@
-const { Role } = require('@taiger-common/core');
+import { Role } from '@taiger-common/core';
 
-const {
+import {
   interviewMultitenantFilter,
   interviewMultitenantReadOnlyFilter
-} = require('../../middlewares/interviewMultitenantFilter');
-const { ErrorResponse } = require('../../common/errors');
-const { getPermission } = require('../../utils/queryFunctions');
-const InterviewService = require('../../services/interviews');
+} from '../../middlewares/interviewMultitenantFilter';
+import { ErrorResponse } from '../../common/errors';
+import { getPermission } from '../../utils/queryFunctions';
+import InterviewService from '../../services/interviews';
 
 jest.mock('../../utils/queryFunctions');
 jest.mock('../../services/interviews');

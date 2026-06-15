@@ -411,7 +411,7 @@ const assignAgentToStudent = asyncHandler(async (req, res, next) => {
       updatedUsers: updatedAgents,
       toBeInformedUsers: toBeInformedAgents,
       updatedUserIds: updatedAgentIds
-    } = await userChangesHelperFunction(req, agentsId, student.agents);
+    } = await userChangesHelperFunction(agentsId, student.agents);
 
     // Update student's agents
     if (addedAgents.length > 0 || removedAgents.length > 0) {
@@ -546,7 +546,7 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
       updatedUsers: updatedEditors,
       toBeInformedUsers: toBeInformedEditors,
       updatedUserIds: updatedEditorIds
-    } = await userChangesHelperFunction(req, editorsId, student.editors);
+    } = await userChangesHelperFunction(editorsId, student.editors);
 
     // Update student's editors
     if (addedEditors.length > 0 || removedEditors.length > 0) {

@@ -1,4 +1,4 @@
-const { DocumentStatusType } = require('@taiger-common/core');
+import { DocumentStatusType } from '@taiger-common/core';
 
 // Mock the send boundary so no real SMTP/SES is used. `sendEmail` is used by
 // most templates; `transporter.sendMail` is used by the calendar-event emails.
@@ -7,11 +7,8 @@ jest.mock('../../services/email/configuration', () => ({
   transporter: { sendMail: jest.fn() }
 }));
 
-const {
-  sendEmail,
-  transporter
-} = require('../../services/email/configuration');
-const email = require('../../services/email');
+import { sendEmail, transporter } from '../../services/email/configuration';
+import * as email from '../../services/email';
 
 const oid = (id) => ({ toString: () => id });
 

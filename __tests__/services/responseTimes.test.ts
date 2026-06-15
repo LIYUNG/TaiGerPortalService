@@ -3,8 +3,8 @@
 // get*Populated methods map onto differently-named DAO find*Populated methods.
 jest.mock('../../dao/responseTime.dao');
 
-const ResponseTimeDAO = require('../../dao/responseTime.dao');
-const ResponseTimeService = require('../../services/responseTimes');
+import ResponseTimeDAO from '../../dao/responseTime.dao';
+import ResponseTimeService from '../../services/responseTimes';
 
 beforeEach(() => {
   jest.clearAllMocks();

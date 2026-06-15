@@ -20,10 +20,10 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Docspage, Documentation, Internaldoc } = require('../../models');
-const DocspageDAO = require('../../dao/docspage.dao');
-const DocumentationDAO = require('../../dao/documentation.dao');
-const InternaldocDAO = require('../../dao/internaldoc.dao');
+import { Docspage, Documentation, Internaldoc } from '../../models';
+import DocspageDAO from '../../dao/docspage.dao';
+import DocumentationDAO from '../../dao/documentation.dao';
+import InternaldocDAO from '../../dao/internaldoc.dao';
 
 // A query chain that is both chainable (select returns the same chain) and
 // thenable, so `await chain` resolves to `value` when the method ends in

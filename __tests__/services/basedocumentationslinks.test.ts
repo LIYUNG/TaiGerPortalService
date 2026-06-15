@@ -5,8 +5,8 @@
 // (mocked) value.
 jest.mock('../../dao/basedocumentationslink.dao');
 
-const BasedocumentationslinkDAO = require('../../dao/basedocumentationslink.dao');
-const BasedocumentationslinkService = require('../../services/basedocumentationslinks');
+import BasedocumentationslinkDAO from '../../dao/basedocumentationslink.dao';
+import BasedocumentationslinkService from '../../services/basedocumentationslinks';
 
 beforeEach(() => {
   jest.clearAllMocks();

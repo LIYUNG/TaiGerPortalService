@@ -13,12 +13,10 @@ jest.mock('@taiger-common/core', () => ({
 jest.mock('../../models', () => ({}));
 jest.mock('../../services/documentthreads');
 
-const { is_TaiGer_Agent, is_TaiGer_Editor } = require('@taiger-common/core');
-const DocumentThreadService = require('../../services/documentthreads');
-const { ErrorResponse } = require('../../common/errors');
-const {
-  editorIdsBodyFilter
-} = require('../../middlewares/editorIdsBodyFilter');
+import { is_TaiGer_Agent, is_TaiGer_Editor } from '@taiger-common/core';
+import DocumentThreadService from '../../services/documentthreads';
+import { ErrorResponse } from '../../common/errors';
+import { editorIdsBodyFilter } from '../../middlewares/editorIdsBodyFilter';
 
 const makeReq = (user, body, messagesThreadId = 'thread-1') => ({
   user,

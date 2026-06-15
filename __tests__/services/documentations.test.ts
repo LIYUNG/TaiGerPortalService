@@ -7,10 +7,10 @@ jest.mock('../../dao/docspage.dao');
 jest.mock('../../dao/documentation.dao');
 jest.mock('../../dao/internaldoc.dao');
 
-const DocspageDAO = require('../../dao/docspage.dao');
-const DocumentationDAO = require('../../dao/documentation.dao');
-const InternaldocDAO = require('../../dao/internaldoc.dao');
-const DocumentationService = require('../../services/documentations');
+import DocspageDAO from '../../dao/docspage.dao';
+import DocumentationDAO from '../../dao/documentation.dao';
+import InternaldocDAO from '../../dao/internaldoc.dao';
+import DocumentationService from '../../services/documentations';
 
 beforeEach(() => {
   jest.clearAllMocks();

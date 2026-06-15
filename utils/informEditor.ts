@@ -14,7 +14,7 @@ import PermissionService from '../services/permissions';
 // Internal helpers — invoked directly with domain args (NOT Express
 // middleware), so they must NOT be wrapped in asyncHandler (its (req,res,next)
 // wrapper would drop every positional arg past the third).
-const addMessageInThread = async (message, threadId, userId) => {
+export const addMessageInThread = async (message, threadId, userId) => {
   const thread = await DocumentThreadService.getThreadDocById(threadId);
   if (!thread) {
     throw new ErrorResponse(403, 'Invalid message thread id');
@@ -113,7 +113,7 @@ const informNoEditor = async (student) => {
   );
 };
 
-const informOnSurveyUpdate = async (user, survey, thread) => {
+export const informOnSurveyUpdate = async (user, survey, thread) => {
   // placeholder for automatic notification user id
   const notificationUser = undefined;
 
@@ -182,5 +182,3 @@ const informOnSurveyUpdate = async (user, survey, thread) => {
     );
   }
 };
-
-export = { informOnSurveyUpdate, addMessageInThread };

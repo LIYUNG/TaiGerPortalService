@@ -8,7 +8,7 @@
 // shape the HTTP response from the DAO's (mocked) return. The actual DB
 // query/nested-update construction is covered by the DAO unit tests.
 
-const request = require('supertest');
+import request from 'supertest';
 const { ObjectId } = require('mongoose').Types;
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
@@ -72,12 +72,12 @@ jest.mock('../../middlewares/limit_archiv_user', () => {
 jest.mock('../../dao/student.dao');
 jest.mock('../../dao/application.dao');
 
-const StudentDAO = require('../../dao/student.dao');
-const ApplicationDAO = require('../../dao/application.dao');
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, student } = require('../mock/user');
+import StudentDAO from '../../dao/student.dao';
+import ApplicationDAO from '../../dao/application.dao';
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, student } from '../mock/user';
 
 const requestWithSupertest = request(app);
 

@@ -46,14 +46,14 @@ jest.mock('../../middlewares/limit_archiv_user', () => {
 jest.mock('../../dao/programChangeRequest.dao');
 jest.mock('../../dao/program.dao');
 
-const request = require('supertest');
+import request from 'supertest';
 const { ObjectId } = require('mongoose').Types;
-const ProgramChangeRequestDAO = require('../../dao/programChangeRequest.dao');
-const ProgramDAO = require('../../dao/program.dao');
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin } = require('../mock/user');
+import ProgramChangeRequestDAO from '../../dao/programChangeRequest.dao';
+import ProgramDAO from '../../dao/program.dao';
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin } from '../mock/user';
 
 const requestWithSupertest = request(app);
 const programId = new ObjectId().toHexString();

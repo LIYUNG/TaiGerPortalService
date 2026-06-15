@@ -11,15 +11,15 @@ jest.mock('../../models', () => ({
   Documentthread: { find: jest.fn() }
 }));
 
-const {
+import {
   Application,
   User,
   Student,
   Interval,
   ResponseTime,
   Documentthread
-} = require('../../models');
-const TeamDAO = require('../../dao/team.dao');
+} from '../../models';
+import TeamDAO from '../../dao/team.dao';
 
 // A query chain that is both thenable (resolves to `value` for queries not
 // ending in .lean()) and chainable (populate/select/lean compose).

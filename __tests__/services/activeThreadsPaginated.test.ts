@@ -5,8 +5,8 @@
 // (__tests__/integration/documentthread.test.js, "overview/all" happy path).
 jest.mock('../../dao/documentthread.dao');
 
-const DocumentthreadDAO = require('../../dao/documentthread.dao');
-const DocumentThreadService = require('../../services/documentthreads');
+import DocumentthreadDAO from '../../dao/documentthread.dao';
+import DocumentThreadService from '../../services/documentthreads';
 
 beforeEach(() => {
   jest.clearAllMocks();

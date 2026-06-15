@@ -21,12 +21,12 @@ jest.mock('../../services/logger', () => ({
 jest.mock('../../services/permissions');
 jest.mock('../../services/students');
 
-const PermissionService = require('../../services/permissions');
-const StudentService = require('../../services/students');
-const {
+import PermissionService from '../../services/permissions';
+import StudentService from '../../services/students';
+import {
   getPermission,
   getCachedStudentPermission
-} = require('../../utils/queryFunctions');
+} from '../../utils/queryFunctions';
 
 const user = { _id: { toString: () => 'user-1' } };
 

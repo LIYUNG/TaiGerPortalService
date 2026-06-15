@@ -16,12 +16,12 @@ jest.mock('../../services/programs');
 jest.mock('../../services/documentthreads');
 jest.mock('../../services/email');
 
-const ApplicationService = require('../../services/applications');
-const StudentService = require('../../services/students');
-const ProgramService = require('../../services/programs');
-const DocumentThreadService = require('../../services/documentthreads');
-const EmailService = require('../../services/email');
-const {
+import ApplicationService from '../../services/applications';
+import StudentService from '../../services/students';
+import ProgramService from '../../services/programs';
+import DocumentThreadService from '../../services/documentthreads';
+import * as EmailService from '../../services/email';
+import {
   getApplications,
   deleteApplication,
   getActiveStudentsApplicationsPaginated,
@@ -33,9 +33,9 @@ const {
   updateApplication,
   createApplicationV2,
   refreshApplication
-} = require('../../controllers/applications');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { agent, admin, student } = require('../mock/user');
+} from '../../controllers/applications';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { agent, admin, student } from '../mock/user';
 
 // 24-hex ObjectId strings (createApplicationV2 wraps program ids in
 // new mongoose.Types.ObjectId(...), which requires a valid hex string).

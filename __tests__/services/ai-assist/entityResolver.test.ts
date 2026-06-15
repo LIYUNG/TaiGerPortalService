@@ -6,14 +6,14 @@ jest.mock('../../../services/ai-assist/tools', () => ({
   requireAccessibleStudent: jest.fn()
 }));
 
-const {
+import {
   searchAccessibleStudents,
   requireAccessibleStudent
-} = require('../../../services/ai-assist/tools');
-const {
+} from '../../../services/ai-assist/tools';
+import {
   resolveStudent,
   resolveStudentById
-} = require('../../../services/ai-assist/entityResolver');
+} from '../../../services/ai-assist/entityResolver';
 
 const REQ = { user: { role: 'Admin', _id: 'admin_1' } };
 

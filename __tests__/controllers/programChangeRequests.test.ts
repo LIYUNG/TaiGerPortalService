@@ -11,15 +11,15 @@
 jest.mock('../../services/programChangeRequests');
 jest.mock('../../services/programs');
 
-const ProgramChangeRequestService = require('../../services/programChangeRequests');
-const ProgramService = require('../../services/programs');
-const {
+import ProgramChangeRequestService from '../../services/programChangeRequests';
+import ProgramService from '../../services/programs';
+import {
   getProgramChangeRequests,
   submitProgramChangeRequests,
   reviewProgramChangeRequest
-} = require('../../controllers/programChangeRequests');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin } = require('../mock/user');
+} from '../../controllers/programChangeRequests';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin } from '../mock/user';
 
 const programId = 'prog-1';
 const requestId = 'req-1';

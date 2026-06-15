@@ -11,8 +11,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Docspage } = require('../../models');
-const DocspageDAO = require('../../dao/docspage.dao');
+import { Docspage } from '../../models';
+import DocspageDAO from '../../dao/docspage.dao';
 
 beforeEach(() => {
   jest.clearAllMocks();

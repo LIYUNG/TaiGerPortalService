@@ -7,11 +7,11 @@ jest.mock('../../../services/openai', () => ({
   OpenAiModel: { GPT_4_o: 'gpt-4o' }
 }));
 
-const { openAIClient } = require('../../../services/openai');
-const {
+import { openAIClient } from '../../../services/openai';
+import {
   classifyIntent,
   INTENTS
-} = require('../../../services/ai-assist/intentRouter');
+} from '../../../services/ai-assist/intentRouter';
 
 beforeEach(() => {
   jest.clearAllMocks();

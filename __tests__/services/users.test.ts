@@ -6,8 +6,8 @@
 // which is covered explicitly.
 jest.mock('../../dao/user.dao');
 
-const UserDAO = require('../../dao/user.dao');
-const UserService = require('../../services/users');
+import UserDAO from '../../dao/user.dao';
+import UserService from '../../services/users';
 
 beforeEach(() => {
   jest.clearAllMocks();

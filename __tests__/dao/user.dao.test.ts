@@ -36,8 +36,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Role } = require('@taiger-common/core');
-const {
+import { Role } from '@taiger-common/core';
+import {
   User,
   Agent,
   Editor,
@@ -52,8 +52,8 @@ const {
   Interview,
   surveyInput,
   Ticket
-} = require('../../models');
-const UserDAO = require('../../dao/user.dao');
+} from '../../models';
+import UserDAO from '../../dao/user.dao';
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (select/sort/skip/limit) return the same chain so they compose.

@@ -4,8 +4,8 @@
 // DAO's result unchanged.
 jest.mock('../../dao/interval.dao');
 
-const IntervalDAO = require('../../dao/interval.dao');
-const IntervalService = require('../../services/intervals');
+import IntervalDAO from '../../dao/interval.dao';
+import IntervalService from '../../services/intervals';
 
 beforeEach(() => {
   jest.clearAllMocks();

@@ -39,8 +39,8 @@ jest.mock('../../config', () => ({
 jest.mock('../../models', () => ({}));
 jest.mock('../../services/users');
 
-const UserService = require('../../services/users');
-require('../../middlewares/passport');
+import UserService from '../../services/users';
+import '../../middlewares/passport';
 
 const localStrategy = mockStrategies.find((s) => s.name === 'local');
 const jwtStrategy = mockStrategies.find((s) => s.name === 'jwt');

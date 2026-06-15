@@ -16,8 +16,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Complaint } = require('../../models');
-const ComplaintDAO = require('../../dao/complaint.dao');
+import { Complaint } from '../../models';
+import ComplaintDAO from '../../dao/complaint.dao';
 
 // A query chain that is both chainable (populate/sort/select/limit/lean return
 // the same chain) and thenable, so `await chain` (when no terminal .lean() is

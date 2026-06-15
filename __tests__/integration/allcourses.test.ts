@@ -7,13 +7,13 @@
 // shape the HTTP response from the DAO's (mocked) return. Fully deterministic —
 // no database engine, no seeding.
 
-const request = require('supertest');
+import request from 'supertest';
 
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { subjects, subject1, subject3 } = require('../mock/allcourses');
-const { agent } = require('../mock/user');
-const { app } = require('../../app');
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { subjects, subject1, subject3 } from '../mock/allcourses';
+import { agent } from '../mock/user';
+import { app } from '../../app';
 
 const requestWithSupertest = request(app);
 
@@ -42,7 +42,7 @@ jest.mock('../../middlewares/auth', () => {
 // The data boundary: mock the DAO the allcourse service delegates to.
 jest.mock('../../dao/allcourse.dao');
 
-const AllcourseDAO = require('../../dao/allcourse.dao');
+import AllcourseDAO from '../../dao/allcourse.dao';
 
 beforeEach(() => {
   jest.clearAllMocks();

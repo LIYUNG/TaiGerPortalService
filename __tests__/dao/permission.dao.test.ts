@@ -15,8 +15,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Permission } = require('../../models');
-const PermissionDAO = require('../../dao/permission.dao');
+import { Permission } from '../../models';
+import PermissionDAO from '../../dao/permission.dao';
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (populate) return the same chain so they compose.

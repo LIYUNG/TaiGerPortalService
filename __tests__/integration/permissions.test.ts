@@ -9,7 +9,7 @@
 // query/upsert construction is covered by the DAO unit tests
 // (__tests__/dao/permission.dao.test.js).
 
-const request = require('supertest');
+import request from 'supertest';
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -73,12 +73,12 @@ jest.mock('../../services/email', () => ({
 // The data boundary: mock the DAO the permission service delegates to.
 jest.mock('../../dao/permission.dao');
 
-const PermissionDAO = require('../../dao/permission.dao');
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, agent } = require('../mock/user');
-const { updatePermissionNotificationEmail } = require('../../services/email');
+import PermissionDAO from '../../dao/permission.dao';
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, agent } from '../mock/user';
+import { updatePermissionNotificationEmail } from '../../services/email';
 
 const requestWithSupertest = request(app);
 

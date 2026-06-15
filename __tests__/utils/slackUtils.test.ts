@@ -17,10 +17,10 @@ jest.mock('../../services/logger', () => ({
   error: jest.fn()
 }));
 
-const axios = require('axios');
-const logger = require('../../services/logger');
+import axios from 'axios';
+import logger from '../../services/logger';
 
-const slackUtils = require('../../utils/slackUtils');
+import slackUtils from '../../utils/slackUtils';
 
 beforeEach(() => {
   jest.clearAllMocks();

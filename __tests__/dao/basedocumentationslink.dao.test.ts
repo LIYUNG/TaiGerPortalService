@@ -12,8 +12,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Basedocumentationslink } = require('../../models');
-const BasedocumentationslinkDAO = require('../../dao/basedocumentationslink.dao');
+import { Basedocumentationslink } from '../../models';
+import BasedocumentationslinkDAO from '../../dao/basedocumentationslink.dao';
 
 beforeEach(() => {
   jest.clearAllMocks();

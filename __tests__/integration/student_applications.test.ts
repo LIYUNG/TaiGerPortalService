@@ -13,7 +13,7 @@
 // construction itself is covered by the DAO unit tests. Fully deterministic — no
 // engine flake.
 
-const request = require('supertest');
+import request from 'supertest';
 
 jest.mock('../../middlewares/tenantMiddleware', () => ({
   ...jest.requireActual('../../middlewares/tenantMiddleware'),
@@ -38,16 +38,16 @@ jest.mock('../../dao/team.dao');
 jest.mock('../../dao/program.dao');
 jest.mock('../../dao/documentthread.dao');
 
-const ApplicationDAO = require('../../dao/application.dao');
-const TeamDAO = require('../../dao/team.dao');
-const ProgramDAO = require('../../dao/program.dao');
-const DocumentthreadDAO = require('../../dao/documentthread.dao');
-const { protect } = require('../../middlewares/auth');
-const { app } = require('../../app');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin } = require('../mock/user');
-const { generateProgram, generateUser } = require('../fixtures/faker');
-const { Role } = require('../../constants');
+import ApplicationDAO from '../../dao/application.dao';
+import TeamDAO from '../../dao/team.dao';
+import ProgramDAO from '../../dao/program.dao';
+import DocumentthreadDAO from '../../dao/documentthread.dao';
+import { protect } from '../../middlewares/auth';
+import { app } from '../../app';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin } from '../mock/user';
+import { generateProgram, generateUser } from '../fixtures/faker';
+import { Role } from '../../constants';
 
 const api = request(app);
 

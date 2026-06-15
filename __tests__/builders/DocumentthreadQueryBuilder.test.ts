@@ -1,7 +1,7 @@
 // Unit tests for builders/DocumentthreadQueryBuilder. Pure query-object builder
 // (extends BaseQueryBuilder) — no DB, no mocks needed. Each `withX` toggles a
 // branch of the built `filter`; `withoutLimit` strips pagination from `options`.
-const DocumentthreadQueryBuilder = require('../../builders/DocumentthreadQueryBuilder');
+import DocumentthreadQueryBuilder from '../../builders/DocumentthreadQueryBuilder';
 
 describe('DocumentthreadQueryBuilder', () => {
   describe('withIsFinalVersion', () => {

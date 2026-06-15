@@ -35,11 +35,9 @@ jest.mock('../../utils/modelHelper/versionControl', () => ({
   createApplicationThreadV2: jest.fn()
 }));
 
-const { Documentthread } = require('../../models');
-const {
-  createApplicationThreadV2
-} = require('../../utils/modelHelper/versionControl');
-const DocumentthreadDAO = require('../../dao/documentthread.dao');
+import { Documentthread } from '../../models';
+import { createApplicationThreadV2 } from '../../utils/modelHelper/versionControl';
+import DocumentthreadDAO from '../../dao/documentthread.dao';
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls return the same chain so they compose.

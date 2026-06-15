@@ -1,4 +1,4 @@
-const { Role } = require('@taiger-common/core');
+import { Role } from '@taiger-common/core';
 
 // Mock the send boundary so no real SMTP/SES is used.
 jest.mock('../../services/email/configuration', () => ({
@@ -6,8 +6,8 @@ jest.mock('../../services/email/configuration', () => ({
   transporter: { sendMail: jest.fn() }
 }));
 
-const { sendEmail } = require('../../services/email/configuration');
-const {
+import { sendEmail } from '../../services/email/configuration';
+import {
   StudentTasksReminderEmail,
   EditorTasksReminderEmail,
   StudentApplicationsDeadline_Within30Days_DailyReminderEmail,
@@ -18,7 +18,7 @@ const {
   AgentCVMLRLEssay_NoReplyAfterXDays_DailyReminderEmail,
   EditorCVMLRLEssayDeadline_Within30Days_DailyReminderEmail,
   AgentApplicationsDeadline_Within30Days_DailyReminderEmail
-} = require('../../services/regular_system_emails');
+} from '../../services/regular_system_emails';
 
 const recipient = {
   _id: { toString: () => '507f1f77bcf86cd799439011' },

@@ -10,7 +10,7 @@
 // query/aggregation/pagination construction is covered by the DAO unit tests.
 // Fully deterministic — no engine flake.
 
-const request = require('supertest');
+import request from 'supertest';
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -46,17 +46,17 @@ jest.mock('../../dao/application.dao');
 jest.mock('../../dao/programRequirement.dao');
 jest.mock('../../dao/ticket.dao');
 
-const ProgramDAO = require('../../dao/program.dao');
-const VCDAO = require('../../dao/vc.dao');
-const ApplicationDAO = require('../../dao/application.dao');
-const ProgramRequirementDAO = require('../../dao/programRequirement.dao');
-const TicketDAO = require('../../dao/ticket.dao');
-const { app } = require('../../app');
-const { generateProgram } = require('../fixtures/faker');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin } = require('../mock/user');
-const { programs } = require('../mock/programs');
+import ProgramDAO from '../../dao/program.dao';
+import VCDAO from '../../dao/vc.dao';
+import ApplicationDAO from '../../dao/application.dao';
+import ProgramRequirementDAO from '../../dao/programRequirement.dao';
+import TicketDAO from '../../dao/ticket.dao';
+import { app } from '../../app';
+import { generateProgram } from '../fixtures/faker';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin } from '../mock/user';
+import { programs } from '../mock/programs';
 
 const requestWithSupertest = request(app);
 

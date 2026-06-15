@@ -4,8 +4,8 @@
 // DAO's result unchanged.
 jest.mock('../../dao/note.dao');
 
-const NoteDAO = require('../../dao/note.dao');
-const NoteService = require('../../services/notes');
+import NoteDAO from '../../dao/note.dao';
+import NoteService from '../../services/notes';
 
 beforeEach(() => {
   jest.clearAllMocks();

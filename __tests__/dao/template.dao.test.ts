@@ -14,8 +14,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Template } = require('../../models');
-const TemplateDAO = require('../../dao/template.dao');
+import { Template } from '../../models';
+import TemplateDAO from '../../dao/template.dao';
 
 beforeEach(() => {
   jest.clearAllMocks();

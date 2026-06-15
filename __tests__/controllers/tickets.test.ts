@@ -20,18 +20,18 @@ jest.mock('../../services/email', () => ({
   TicketResolvedRequesterReminderEmail: jest.fn()
 }));
 
-const TicketService = require('../../services/tickets');
-const ProgramService = require('../../services/programs');
-const StudentService = require('../../services/students');
-const {
+import TicketService from '../../services/tickets';
+import ProgramService from '../../services/programs';
+import StudentService from '../../services/students';
+import {
   getTickets,
   getTicketsOverview,
   createTicket,
   updateTicket,
   deleteTicket
-} = require('../../controllers/tickets');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, student } = require('../mock/user');
+} from '../../controllers/tickets';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
 
 const adminId = admin._id.toString();
 

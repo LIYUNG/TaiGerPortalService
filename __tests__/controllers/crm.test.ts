@@ -92,10 +92,10 @@ jest.mock('../../cache/node-cache', () => ({
 }));
 
 const { ObjectId } = require('mongoose').Types;
-const { getPostgresDb } = require('../../database');
-const UserService = require('../../services/users');
-const { instantInviteTA } = require('../../utils/meeting-assistant.service');
-const {
+import { getPostgresDb } from '../../database';
+import UserService from '../../services/users';
+import { instantInviteTA } from '../../utils/meeting-assistant.service';
+import {
   getCRMStats,
   getLeads,
   getLead,
@@ -115,9 +115,9 @@ const {
   createDeal,
   updateDeal,
   instantInviteMeetingAssistant
-} = require('../../controllers/crm');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, student } = require('../mock/user');
+} from '../../controllers/crm';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
 
 const postgres = getPostgresDb();
 

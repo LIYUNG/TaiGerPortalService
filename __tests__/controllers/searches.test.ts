@@ -10,13 +10,13 @@
 
 jest.mock('../../services/search');
 
-const SearchService = require('../../services/search');
-const {
+import SearchService from '../../services/search';
+import {
   getQueryResults,
   getQueryStudentsResults,
   getQueryPublicResults
-} = require('../../controllers/search');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
+} from '../../controllers/search';
+import { mockReq, mockRes } from '../helpers/httpMocks';
 
 beforeEach(() => {
   jest.clearAllMocks();

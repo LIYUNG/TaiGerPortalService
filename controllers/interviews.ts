@@ -522,7 +522,7 @@ const updateInterview = asyncHandler(async (req, res, next) => {
     updatedUsers: _updatedInterviewers,
     toBeInformedUsers: _toBeInformedInterviewers,
     updatedUserIds: _updatedInterviewerIds
-  } = await userChangesHelperFunction(req, trainerObj, beforeUpdate.trainer_id);
+  } = await userChangesHelperFunction(trainerObj, beforeUpdate.trainer_id);
 
   if (payload.isClosed === true || payload.isClosed === false) {
     await DocumentThreadService.updateThreadFields(

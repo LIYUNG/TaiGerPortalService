@@ -4,8 +4,8 @@
 // service returns the DAO result.
 jest.mock('../../dao/event.dao');
 
-const EventDAO = require('../../dao/event.dao');
-const EventService = require('../../services/events');
+import EventDAO from '../../dao/event.dao';
+import EventService from '../../services/events';
 
 beforeEach(() => {
   jest.clearAllMocks();

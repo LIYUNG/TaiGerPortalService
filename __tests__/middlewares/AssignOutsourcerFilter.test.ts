@@ -17,14 +17,12 @@ jest.mock('../../models', () => ({}));
 jest.mock('../../services/documentthreads');
 jest.mock('../../services/students');
 
-const { is_TaiGer_Editor, is_TaiGer_Agent } = require('@taiger-common/core');
-const { getPermission } = require('../../utils/queryFunctions');
-const DocumentThreadService = require('../../services/documentthreads');
-const StudentService = require('../../services/students');
-const { ErrorResponse } = require('../../common/errors');
-const {
-  AssignOutsourcerFilter
-} = require('../../middlewares/AssignOutsourcerFilter');
+import { is_TaiGer_Editor, is_TaiGer_Agent } from '@taiger-common/core';
+import { getPermission } from '../../utils/queryFunctions';
+import DocumentThreadService from '../../services/documentthreads';
+import StudentService from '../../services/students';
+import { ErrorResponse } from '../../common/errors';
+import { AssignOutsourcerFilter } from '../../middlewares/AssignOutsourcerFilter';
 
 const makeReq = (user, messagesThreadId = 'thread-1') => ({
   user,

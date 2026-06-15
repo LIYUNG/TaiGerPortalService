@@ -3,8 +3,8 @@
 // is touched.
 jest.mock('../../dao/programChangeRequest.dao');
 
-const ProgramChangeRequestDAO = require('../../dao/programChangeRequest.dao');
-const ProgramChangeRequestService = require('../../services/programChangeRequests');
+import ProgramChangeRequestDAO from '../../dao/programChangeRequest.dao';
+import ProgramChangeRequestService from '../../services/programChangeRequests';
 
 beforeEach(() => {
   jest.clearAllMocks();

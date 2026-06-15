@@ -13,8 +13,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Audit } = require('../../models');
-const AuditDAO = require('../../dao/audit.dao');
+import { Audit } from '../../models';
+import AuditDAO from '../../dao/audit.dao';
 
 // A query chain that terminates in `.sort()` resolving to `value`. Intermediate
 // builder calls (populate/limit/skip) return the same chain so they compose.

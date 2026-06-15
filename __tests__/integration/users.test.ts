@@ -55,13 +55,13 @@ jest.mock('../../services/email', () => ({
 // The data boundary: mock the DAO the user service delegates to.
 jest.mock('../../dao/user.dao');
 
-const request = require('supertest');
-const { Role } = require('@taiger-common/core');
-const UserDAO = require('../../dao/user.dao');
-const { app } = require('../../app');
-const { generateUser } = require('../fixtures/faker');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
+import request from 'supertest';
+import { Role } from '@taiger-common/core';
+import UserDAO from '../../dao/user.dao';
+import { app } from '../../app';
+import { generateUser } from '../fixtures/faker';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
 
 const requestWithSupertest = request(app);
 

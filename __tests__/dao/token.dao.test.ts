@@ -8,8 +8,8 @@ jest.mock('../../models', () => ({
   }
 }));
 
-const { Token } = require('../../models');
-const TokenDAO = require('../../dao/token.dao');
+import { Token } from '../../models';
+import TokenDAO from '../../dao/token.dao';
 
 beforeEach(() => {
   jest.clearAllMocks();

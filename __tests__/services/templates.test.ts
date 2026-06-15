@@ -4,8 +4,8 @@
 // DAO method with the exact args and returns the DAO's result.
 jest.mock('../../dao/template.dao');
 
-const TemplateDAO = require('../../dao/template.dao');
-const TemplateService = require('../../services/templates');
+import TemplateDAO from '../../dao/template.dao';
+import TemplateService from '../../services/templates';
 
 beforeEach(() => {
   jest.clearAllMocks();

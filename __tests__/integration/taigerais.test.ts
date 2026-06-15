@@ -130,19 +130,19 @@ jest.mock('../../dao/application.dao');
 jest.mock('../../dao/student.dao');
 jest.mock('../../dao/permission.dao');
 
-const request = require('supertest');
-const ProgramDAO = require('../../dao/program.dao');
-const ProgramAIDAO = require('../../dao/programAI.dao');
-const CommunicationDAO = require('../../dao/communication.dao');
-const ApplicationDAO = require('../../dao/application.dao');
-const StudentDAO = require('../../dao/student.dao');
-const PermissionDAO = require('../../dao/permission.dao');
-const { protect } = require('../../middlewares/auth');
-const { app } = require('../../app');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, agent, student } = require('../mock/user');
+import request from 'supertest';
+import ProgramDAO from '../../dao/program.dao';
+import ProgramAIDAO from '../../dao/programAI.dao';
+import CommunicationDAO from '../../dao/communication.dao';
+import ApplicationDAO from '../../dao/application.dao';
+import StudentDAO from '../../dao/student.dao';
+import PermissionDAO from '../../dao/permission.dao';
+import { protect } from '../../middlewares/auth';
+import { app } from '../../app';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, agent, student } from '../mock/user';
 const { ObjectId } = require('mongoose').Types;
-const { generateProgram } = require('../fixtures/faker');
+import { generateProgram } from '../fixtures/faker';
 
 const requestWithSupertest = request(app);
 

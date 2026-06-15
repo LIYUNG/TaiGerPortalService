@@ -44,21 +44,21 @@ jest.mock('../../../models', () => {
 });
 
 // eslint-disable-next-line global-require
-const {
-  Student: StudentMock,
-  Application: ApplicationMock,
-  Documentthread: DocumentthreadMock,
-  surveyInput: surveyInputMock
-} = require('../../../models');
+import {
+  Student as StudentMock,
+  Application as ApplicationMock,
+  Documentthread as DocumentthreadMock,
+  surveyInput as surveyInputMock
+} from '../../../models';
 
-const {
+import {
   emptyS3Directory,
   createApplicationThread,
   createApplicationThreadV2,
   deleteApplicationThread,
   handleProgramChanges,
   enableVersionControl
-} = require('../../../utils/modelHelper/versionControl');
+} from '../../../utils/modelHelper/versionControl';
 
 beforeEach(() => {
   jest.clearAllMocks();

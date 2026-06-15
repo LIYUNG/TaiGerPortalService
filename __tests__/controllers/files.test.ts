@@ -28,17 +28,17 @@ jest.mock('../../cache/node-cache', () => ({
   ten_minutes_cache: { get: jest.fn(), set: jest.fn() }
 }));
 
-const { deleteS3Object, getS3Object } = require('../../aws/s3');
-const EmailService = require('../../services/email');
-const ApplicationService = require('../../services/applications');
-const TemplateService = require('../../services/templates');
-const StudentService = require('../../services/students');
-const UserService = require('../../services/users');
-const BasedocumentationslinkService = require('../../services/basedocumentationslinks');
-const { sendSlackMessageToWinChannel } = require('../../utils/slackUtils');
-const { ten_minutes_cache } = require('../../cache/node-cache');
+import { deleteS3Object, getS3Object } from '../../aws/s3';
+import * as EmailService from '../../services/email';
+import ApplicationService from '../../services/applications';
+import TemplateService from '../../services/templates';
+import StudentService from '../../services/students';
+import UserService from '../../services/users';
+import BasedocumentationslinkService from '../../services/basedocumentationslinks';
+import { sendSlackMessageToWinChannel } from '../../utils/slackUtils';
+import { ten_minutes_cache } from '../../cache/node-cache';
 
-const {
+import {
   getTemplates,
   deleteTemplate,
   uploadTemplate,
@@ -57,9 +57,9 @@ const {
   removeNotification,
   removeAgentNotification,
   getMyAcademicBackground
-} = require('../../controllers/files');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, student } = require('../mock/user');
+} from '../../controllers/files';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
 
 const studentId = student._id.toString();
 

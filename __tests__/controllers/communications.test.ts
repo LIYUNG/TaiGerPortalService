@@ -31,10 +31,10 @@ jest.mock('../../aws/s3', () => ({
   getS3Object: jest.fn().mockResolvedValue(Buffer.from(''))
 }));
 
-const CommunicationService = require('../../services/communications');
-const StudentService = require('../../services/students');
-const { ten_minutes_cache } = require('../../cache/node-cache');
-const {
+import CommunicationService from '../../services/communications';
+import StudentService from '../../services/students';
+import { ten_minutes_cache } from '../../cache/node-cache';
+import {
   getSearchUserMessages,
   getSearchMessageKeywords,
   getUnreadNumberMessages,
@@ -46,10 +46,10 @@ const {
   updateAMessageInThread,
   deleteAMessageInCommunicationThread,
   IgnoreMessage
-} = require('../../controllers/communications');
-const { deleteS3Objects } = require('../../aws/s3');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, agent, editor, student } = require('../mock/user');
+} from '../../controllers/communications';
+import { deleteS3Objects } from '../../aws/s3';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, agent, editor, student } from '../mock/user';
 
 const studentId = student._id.toString();
 const messageId = '6f9f1b9b9b9b9b9b9b9b9b9b';

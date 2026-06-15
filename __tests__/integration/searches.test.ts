@@ -30,12 +30,12 @@ jest.mock('../../middlewares/auth', () => ({
 // The data boundary: mock the DAO the search service delegates to.
 jest.mock('../../dao/search.dao');
 
-const request = require('supertest');
-const SearchDAO = require('../../dao/search.dao');
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin } = require('../mock/user');
+import request from 'supertest';
+import SearchDAO from '../../dao/search.dao';
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin } from '../mock/user';
 
 const api = request(app);
 

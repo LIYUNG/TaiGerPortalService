@@ -12,18 +12,18 @@
 jest.mock('../../services/users');
 jest.mock('../../services/email');
 
-const UserService = require('../../services/users');
-const { updateCredentialsEmail } = require('../../services/email');
-const {
+import UserService from '../../services/users';
+import { updateCredentialsEmail } from '../../services/email';
+import {
   updateOfficehours,
   updateCredentials,
   updateAcademicBackground,
   updateLanguageSkill,
   updateApplicationPreferenceSkill,
   updatePersonalData
-} = require('../../controllers/account');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { student, agent } = require('../mock/user');
+} from '../../controllers/account';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { student, agent } from '../mock/user';
 
 const studentId = student._id.toString();
 

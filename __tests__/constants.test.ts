@@ -1,4 +1,4 @@
-const {
+import {
   Role,
   TicketStatus,
   ManagerType,
@@ -42,7 +42,7 @@ const {
   SCHOOL_TAG_KEYS,
   CV_MUST_HAVE_PATTERNS,
   TAIGER_SIGNATURE
-} = require('../constants');
+} from '../constants';
 
 // Helpers to build representative test objects ------------------------------
 

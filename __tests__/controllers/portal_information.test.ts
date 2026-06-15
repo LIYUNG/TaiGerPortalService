@@ -11,14 +11,14 @@
 jest.mock('../../services/students');
 jest.mock('../../services/applications');
 
-const StudentService = require('../../services/students');
-const ApplicationService = require('../../services/applications');
-const {
+import StudentService from '../../services/students';
+import ApplicationService from '../../services/applications';
+import {
   getPortalCredentials,
   createPortalCredentials
-} = require('../../controllers/portal_informations');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { student } = require('../mock/user');
+} from '../../controllers/portal_informations';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { student } from '../mock/user';
 
 const studentId = student._id.toString();
 const applicationId = '5f9f1b9b9c9d440000d1d1d1';

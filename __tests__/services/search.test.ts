@@ -5,8 +5,8 @@
 // right args) and the real sort/combine behaviour.
 jest.mock('../../dao/search.dao');
 
-const SearchDAO = require('../../dao/search.dao');
-const SearchService = require('../../services/search');
+import SearchDAO from '../../dao/search.dao';
+import SearchService from '../../services/search';
 
 beforeEach(() => {
   jest.clearAllMocks();

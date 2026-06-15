@@ -54,20 +54,20 @@ jest.mock('../../services/applications');
 jest.mock('../../services/permissions');
 jest.mock('../../services/students');
 
-const { spawn } = require('child_process');
-const { openAIClient } = require('../../services/openai');
-const ProgramService = require('../../services/programs');
-const CommunicationService = require('../../services/communications');
-const ApplicationService = require('../../services/applications');
-const PermissionService = require('../../services/permissions');
-const StudentService = require('../../services/students');
-const {
+import { spawn } from 'child_process';
+import { openAIClient } from '../../services/openai';
+import ProgramService from '../../services/programs';
+import CommunicationService from '../../services/communications';
+import ApplicationService from '../../services/applications';
+import PermissionService from '../../services/permissions';
+import StudentService from '../../services/students';
+import {
   TaiGerAiChat,
   cvmlrlAi,
   processProgramListAi
-} = require('../../controllers/taigerais');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { admin, student } = require('../mock/user');
+} from '../../controllers/taigerais';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
 
 const studentId = student._id.toString();
 

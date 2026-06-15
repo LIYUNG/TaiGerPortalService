@@ -9,7 +9,7 @@
 // by driving the DAO mock with a fake live document. Fully deterministic — no
 // database engine, no seeding.
 
-const request = require('supertest');
+import request from 'supertest';
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
   const passthrough = async (req, res, next) => {
@@ -74,11 +74,11 @@ jest.mock('../../services/email', () => ({
 // The data boundary: mock the DAO the user service delegates to.
 jest.mock('../../dao/user.dao');
 
-const UserDAO = require('../../dao/user.dao');
-const { protect } = require('../../middlewares/auth');
-const { app } = require('../../app');
-const { TENANT_ID } = require('../fixtures/constants');
-const { student, agent } = require('../mock/user');
+import UserDAO from '../../dao/user.dao';
+import { protect } from '../../middlewares/auth';
+import { app } from '../../app';
+import { TENANT_ID } from '../fixtures/constants';
+import { student, agent } from '../mock/user';
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();

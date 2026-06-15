@@ -18,8 +18,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Ticket } = require('../../models');
-const TicketDAO = require('../../dao/ticket.dao');
+import { Ticket } from '../../models';
+import TicketDAO from '../../dao/ticket.dao';
 
 // A query chain whose terminal `.sort()` resolves to `value`. Intermediate
 // builder calls (populate) return the same chain so they compose.

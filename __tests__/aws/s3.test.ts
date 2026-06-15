@@ -65,7 +65,7 @@ jest.mock('../../services/logger', () => ({
   debug: jest.fn()
 }));
 
-const sdk = require('@aws-sdk/client-s3');
+import sdk from '@aws-sdk/client-s3';
 
 const {
   __send: send,
@@ -78,8 +78,8 @@ const {
   ListObjectsCommand,
   waitUntilObjectNotExists
 } = sdk;
-const logger = require('../../services/logger');
-const s3 = require('../../aws/s3');
+import logger from '../../services/logger';
+import s3 from '../../aws/s3';
 
 beforeEach(() => {
   jest.clearAllMocks();

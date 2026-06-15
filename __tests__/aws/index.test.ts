@@ -29,10 +29,10 @@ jest.mock('../../services/logger', () => ({
   error: jest.fn()
 }));
 
-const axios = require('axios');
-const { SignatureV4 } = require('@aws-sdk/signature-v4');
-const logger = require('../../services/logger');
-const awsIndex = require('../../aws/index');
+import axios from 'axios';
+import { SignatureV4 } from '@aws-sdk/signature-v4';
+import logger from '../../services/logger';
+import awsIndex from '../../aws/index';
 
 const creds = {
   AccessKeyId: 'AKIA',

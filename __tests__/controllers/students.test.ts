@@ -31,15 +31,15 @@ jest.mock('../../utils/utils_function', () => ({
   userChangesHelperFunction: jest.fn()
 }));
 
-const StudentService = require('../../services/students');
-const ApplicationService = require('../../services/applications');
-const UserService = require('../../services/users');
-const PermissionService = require('../../services/permissions');
-const BasedocumentationslinkService = require('../../services/basedocumentationslinks');
-const { getAuditLogs } = require('../../services/audit');
-const { getPermission } = require('../../utils/queryFunctions');
-const { userChangesHelperFunction } = require('../../utils/utils_function');
-const {
+import StudentService from '../../services/students';
+import ApplicationService from '../../services/applications';
+import UserService from '../../services/users';
+import PermissionService from '../../services/permissions';
+import BasedocumentationslinkService from '../../services/basedocumentationslinks';
+import { getAuditLogs } from '../../services/audit';
+import { getPermission } from '../../utils/queryFunctions';
+import { userChangesHelperFunction } from '../../utils/utils_function';
+import {
   getStudent,
   getActiveStudents,
   getStudentsV3,
@@ -52,10 +52,10 @@ const {
   assignAttributesToStudent,
   assignAgentToStudent,
   assignEditorToStudent
-} = require('../../controllers/students');
-const { mockReq, mockRes } = require('../helpers/httpMocks');
-const { Role } = require('@taiger-common/core');
-const { admin, agent, editor, student } = require('../mock/user');
+} from '../../controllers/students';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { Role } from '@taiger-common/core';
+import { admin, agent, editor, student } from '../mock/user';
 
 const studentId = student._id.toString();
 

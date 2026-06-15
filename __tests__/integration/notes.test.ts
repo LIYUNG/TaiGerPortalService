@@ -8,7 +8,7 @@
 // query construction is covered by the DAO unit tests
 // (__tests__/dao/note.dao.test.js). Fully deterministic — no engine flake.
 
-const request = require('supertest');
+import request from 'supertest';
 
 jest.mock('../../middlewares/tenantMiddleware', () => ({
   ...jest.requireActual('../../middlewares/tenantMiddleware'),
@@ -34,11 +34,11 @@ jest.mock('../../middlewares/limit_archiv_user', () => ({
 // The data boundary: mock the DAO the note service delegates to.
 jest.mock('../../dao/note.dao');
 
-const NoteDAO = require('../../dao/note.dao');
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, student } = require('../mock/user');
+import NoteDAO from '../../dao/note.dao';
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, student } from '../mock/user';
 
 const api = request(app);
 const studentId = student._id.toString();

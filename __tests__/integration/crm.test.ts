@@ -147,15 +147,15 @@ jest.mock('../../dao/user.dao');
 
 // ── Imports ───────────────────────────────────────────────────────────────────
 
-const request = require('supertest');
+import request from 'supertest';
 const { ObjectId } = require('mongoose').Types;
 
-const { app } = require('../../app');
-const { protect } = require('../../middlewares/auth');
-const { getPostgresDb } = require('../../database');
-const UserDAO = require('../../dao/user.dao');
-const { TENANT_ID } = require('../fixtures/constants');
-const { admin, student } = require('../mock/user');
+import { app } from '../../app';
+import { protect } from '../../middlewares/auth';
+import { getPostgresDb } from '../../database';
+import UserDAO from '../../dao/user.dao';
+import { TENANT_ID } from '../fixtures/constants';
+import { admin, student } from '../mock/user';
 
 const postgres = getPostgresDb();
 

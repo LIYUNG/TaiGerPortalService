@@ -29,21 +29,21 @@ jest.mock('../../constants', () => ({
   isNotArchiv: jest.fn()
 }));
 
-const { Role } = require('@taiger-common/core');
-const {
+import { Role } from '@taiger-common/core';
+import {
   sendNewApplicationMessageInThreadEmail,
   sendAssignEditorReminderEmail,
   sendNewGeneraldocMessageInThreadEmail
-} = require('../../services/email');
-const DocumentThreadService = require('../../services/documentthreads');
-const StudentService = require('../../services/students');
-const PermissionService = require('../../services/permissions');
-const { isArchiv, isNotArchiv } = require('../../constants');
-const { ErrorResponse } = require('../../common/errors');
-const {
+} from '../../services/email';
+import DocumentThreadService from '../../services/documentthreads';
+import StudentService from '../../services/students';
+import PermissionService from '../../services/permissions';
+import { isArchiv, isNotArchiv } from '../../constants';
+import { ErrorResponse } from '../../common/errors';
+import {
   informOnSurveyUpdate,
   addMessageInThread
-} = require('../../utils/informEditor');
+} from '../../utils/informEditor';
 
 // informOnSurveyUpdate calls informNoEditor WITHOUT awaiting it, so its async
 // side-effects settle on later microtasks. Flush them before asserting.

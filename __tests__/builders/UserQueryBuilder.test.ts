@@ -1,4 +1,4 @@
-const UserQueryBuilder = require('../../builders/UserQueryBuilder');
+import UserQueryBuilder from '../../builders/UserQueryBuilder';
 
 describe('UserQueryBuilder', () => {
   describe('withAgents', () => {

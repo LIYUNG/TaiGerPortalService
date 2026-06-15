@@ -13,11 +13,11 @@ jest.mock('../../config', () => ({
   FIREFLIES_GOOGLE_INVITE_N8N_URL: 'https://n8n.test/invite'
 }));
 
-const axios = require('axios');
-const {
+import axios from 'axios';
+import {
   scheduleInviteTA,
   instantInviteTA
-} = require('../../utils/meeting-assistant.service');
+} from '../../utils/meeting-assistant.service';
 
 beforeEach(() => {
   jest.clearAllMocks();

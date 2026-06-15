@@ -1,12 +1,7 @@
-const passport = require('passport');
+import passport from 'passport';
 
-const {
-  localAuth,
-  protect,
-  permit,
-  prohibit
-} = require('../../middlewares/auth');
-const { ErrorResponse } = require('../../common/errors');
+import { localAuth, protect, permit, prohibit } from '../../middlewares/auth';
+import { ErrorResponse } from '../../common/errors';
 
 jest.mock('passport');
 

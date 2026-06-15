@@ -4,8 +4,8 @@
 // with the exact args and that the service returns the DAO's result unchanged.
 jest.mock('../../dao/team.dao');
 
-const TeamDAO = require('../../dao/team.dao');
-const TeamService = require('../../services/teams');
+import TeamDAO from '../../dao/team.dao';
+import TeamService from '../../services/teams';
 
 beforeEach(() => {
   jest.clearAllMocks();

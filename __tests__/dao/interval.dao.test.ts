@@ -12,8 +12,8 @@ jest.mock('../../models', () => {
   };
 });
 
-const { Interval } = require('../../models');
-const IntervalDAO = require('../../dao/interval.dao');
+import { Interval } from '../../models';
+import IntervalDAO from '../../dao/interval.dao';
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (select/populate) return the same chain so they compose.

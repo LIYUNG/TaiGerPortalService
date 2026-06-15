@@ -1,10 +1,10 @@
 import axios from 'axios';
 import {
-  isDev,
   SLACK_BOT_TOKEN,
   SLACK_TAIGER_WIN_CHANNEL_ID,
   SLACK_DEVELOPER_ID,
-  SLACK_NOTIFICATIONS_LOG_CHANNEL_ID
+  SLACK_NOTIFICATIONS_LOG_CHANNEL_ID,
+  isLocal
 } from '../config';
 
 import {
@@ -229,7 +229,7 @@ async function sendApplicationWithdrawNotificationToEditors(
     let skipSend = false;
     let devRedirectNote;
 
-    if (isDev()) {
+    if (isLocal()) {
       if (!SLACK_DEVELOPER_ID) {
         skipSend = true;
         logger.info(

@@ -123,7 +123,7 @@ const processTranscript_api_gatway = asyncHandler(async (req, res) => {
       courses_taiger_guided: stringified_courses_taiger_guided,
       requirement_ids: JSON.stringify(requirementIds)
     });
-    console.log(response);
+    logger.info('course response', { response });
     // TODO: update json to S3
     await uploadJsonToS3(
       response.result,

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import logger from '../services/logger';
-import { CRM_API_TARGET, isDev } from '../config';
+import { CRM_API_TARGET, isLocal } from '../config';
 
 import accountRouter from './account';
 import applicationsRouter from './applications';
@@ -36,7 +36,7 @@ import widgetsRouter from './widget';
 import CRMRouter from './crm';
 
 function setupCrmProxy(app, target) {
-  if (!isDev()) return;
+  if (!isLocal()) return;
 
   if (!target) {
     logger.warn('CRM_API_TARGET not set, skipping CRM proxy');

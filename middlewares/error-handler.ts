@@ -1,11 +1,27 @@
+import type {
+  ErrorRequestHandler,
+  NextFunction,
+  Request,
+  Response
+} from 'express';
+
 import { isProd } from '../config';
 import { ErrorResponse } from '../common/errors';
 import logger from '../services/logger';
 
-export const asyncHandler = (handler) => (req, res, next) =>
-  Promise.resolve(handler(req, res, next)).catch(next);
+// `handler` is typed as a variadic any-callback (NOT RequestHandler): asyncHandler
+// is also (mis)used to wrap non-(req,res,next) helpers, so RequestHandler would
+// mistype those. This still gives the wrapped callbacks an explicit param type,
+// clearing their implicit-any (TS7006) without surfacing the misuse as TS2339.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const asyncHandler =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-export const errorHandler = (err, req, res, next) => {
+    (handler: (...args: any[]) => any) =>
+    (req: Request, res: Response, next: NextFunction) =>
+      Promise.resolve(handler(req, res, next)).catch(next);
+
+export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   if (res.headersSent) {
     return next(err);
   }

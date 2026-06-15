@@ -3,14 +3,15 @@ import dotenv from 'dotenv';
 
 const isProd = () => process.env.NODE_ENV === 'production';
 const isTest = () => process.env.NODE_ENV === 'test';
+const isLocal = () => process.env.NODE_ENV === 'local';
 const isDev = () =>
   process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
 
 // TODO: if later use Docker CICD, .env is not needed and env variables are
 // injected from secret manager during deployment
-if (isDev() || isTest() || isProd()) {
+if (isLocal() || isTest()) {
   dotenv.config({
-    path: path.join(__dirname, `./.env.${process.env.NODE_ENV}`)
+    path: path.join(__dirname, `./.env.${isLocal() ? 'development' : 'test'}`)
   });
 }
 
@@ -19,6 +20,7 @@ const env = (name, default_) => process.env[name] || default_;
 
 export = {
   isProd,
+  isLocal,
   isTest,
   isDev,
   PORT: env('PORT', 3000),

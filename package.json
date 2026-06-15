@@ -5,7 +5,7 @@
   "scripts": {
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "prod": "NODE_ENV=production node dist/index.js",
-    "dev": "cross-env NODE_ENV=development nodemon --watch . --ext ts,js,json --ignore dist --ignore coverage --exec \"ts-node --transpile-only index.ts\"",
+    "dev": "cross-env NODE_ENV=local nodemon --watch . --ext ts,js,json --ignore dist --ignore coverage --exec \"ts-node --transpile-only index.ts\"",
     "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles --verbose --coverage --logHeapUsage --watchAll --no-cache --clearMocks --no-compilation-cache --bail",
     "test:ci": "cross-env NODE_ENV=test jest --ci --verbose --watchAll=false --coverage",
     "typecheck": "tsc --noEmit",

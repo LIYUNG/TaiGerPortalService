@@ -677,9 +677,7 @@ export const refreshApplication = asyncHandler(async (req, res) => {
   );
 
   if (!updatedApplication) {
-    console.error(
-      `[refreshApplication] Application ${applicationId} not found`
-    );
+    logger.error(`[refreshApplication] Application ${applicationId} not found`);
     return res
       .status(404)
       .json({ success: false, message: 'Application not found' });

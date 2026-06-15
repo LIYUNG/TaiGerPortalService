@@ -496,7 +496,7 @@ export const deleteAMessageInCommunicationThread = asyncHandler(
     );
 
     try {
-      console.log('msg.files', msg.files);
+      logger.info('msg.files', { files: msg.files });
       if (msg.files?.filter((file) => file.path !== '')?.length > 0) {
         await deleteS3Objects({
           bucketName: AWS_S3_BUCKET_NAME,

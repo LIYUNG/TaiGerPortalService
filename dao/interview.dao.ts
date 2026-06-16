@@ -37,6 +37,10 @@ const TRAINER_NAME_FILTER_KEY = 'trainerName';
 const TRAINER_NAME_PATHS = ['trainer.firstname', 'trainer.lastname'];
 const PROGRAM_NAME_FILTER_KEY = 'program';
 const PROGRAM_NAME_PATHS = ['program.school', 'program.program_name'];
+// Agent (顧問/consultant) is linked on the STUDENT (student.agents), not on the
+// interview — so we join the student's agents and filter on their names.
+const AGENT_NAME_FILTER_KEY = 'agentName';
+const AGENT_NAME_PATHS = ['agent.firstname', 'agent.lastname'];
 
 // Fields a free-text `search` query is matched against (regex, case-insensitive).
 const GLOBAL_SEARCH_FIELDS = [
@@ -47,7 +51,9 @@ const GLOBAL_SEARCH_FIELDS = [
   'program.degree',
   'program.semester',
   'trainer.firstname',
-  'trainer.lastname'
+  'trainer.lastname',
+  'agent.firstname',
+  'agent.lastname'
 ];
 
 const escapeRegex = (value) =>
@@ -188,7 +194,8 @@ const parseInterviewsQuery = (query = {}) => {
   [
     STUDENT_NAME_FILTER_KEY,
     TRAINER_NAME_FILTER_KEY,
-    PROGRAM_NAME_FILTER_KEY
+    PROGRAM_NAME_FILTER_KEY,
+    AGENT_NAME_FILTER_KEY
   ].forEach((key) => {
     if (query[key] !== undefined && query[key] !== '') {
       filters[key] = String(query[key]).trim();
@@ -344,7 +351,8 @@ const InterviewDAO = {
     [
       { key: STUDENT_NAME_FILTER_KEY, paths: STUDENT_NAME_PATHS },
       { key: TRAINER_NAME_FILTER_KEY, paths: TRAINER_NAME_PATHS },
-      { key: PROGRAM_NAME_FILTER_KEY, paths: PROGRAM_NAME_PATHS }
+      { key: PROGRAM_NAME_FILTER_KEY, paths: PROGRAM_NAME_PATHS },
+      { key: AGENT_NAME_FILTER_KEY, paths: AGENT_NAME_PATHS }
     ].forEach(({ key, paths }) => {
       if (filters[key]) {
         const pattern = escapeRegex(filters[key]);
@@ -401,12 +409,25 @@ const InterviewDAO = {
           let: { sid: '$student_id' },
           pipeline: [
             { $match: { $expr: { $eq: ['$_id', '$$sid'] } } },
-            { $project: { firstname: 1, lastname: 1, email: 1 } }
+            { $project: { firstname: 1, lastname: 1, email: 1, agents: 1 } }
           ],
           as: 'student'
         }
       },
       { $unwind: { path: '$student', preserveNullAndEmptyArrays: true } },
+      {
+        // The student's assigned agent(s) (顧問). Used by the agent-name filter
+        // and surfaced as a column so an agent can find their own students.
+        $lookup: {
+          from: 'users',
+          let: { aids: { $ifNull: ['$student.agents', []] } },
+          pipeline: [
+            { $match: { $expr: { $in: ['$_id', '$$aids'] } } },
+            { $project: { firstname: 1, lastname: 1, email: 1 } }
+          ],
+          as: 'agent'
+        }
+      },
       {
         $lookup: {
           from: 'users',
@@ -523,7 +544,8 @@ const InterviewDAO = {
                 _id: 1,
                 status: 1,
                 isDuplicate: 1,
-                surveySubmitted: 1
+                surveySubmitted: 1,
+                agents: '$agent'
               }
             }
           ],
@@ -547,7 +569,8 @@ const InterviewDAO = {
         {
           status: row.status,
           isDuplicate: row.isDuplicate,
-          surveySubmitted: row.surveySubmitted
+          surveySubmitted: row.surveySubmitted,
+          agents: row.agents ?? []
         }
       ])
     );

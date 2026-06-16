@@ -373,6 +373,38 @@ describe('InterviewDAO (mocked models)', () => {
       expect(and.filter((c) => c.$or)).toHaveLength(4);
     });
 
+    it('joins the student agents and adds an agentName $or filter over their names', async () => {
+      Interview.aggregate.mockReturnValue(aggChain([{ rows: [], total: [] }]));
+
+      await InterviewDAO.getInterviewsPaginated({
+        filter: {},
+        query: { agentName: 'leo' }
+      });
+
+      const pipeline = Interview.aggregate.mock.calls[0][0];
+      // The agent lookup (student.agents -> users) is present and aliased 'agent'.
+      const agentLookup = pipeline.find(
+        (s) => s.$lookup && s.$lookup.as === 'agent'
+      );
+      expect(agentLookup).toBeDefined();
+
+      // The page projection carries the agents through to hydration.
+      const facetStage = pipeline.find((s) => s.$facet);
+      const projection = facetStage.$facet.rows.find(
+        (s) => s.$project
+      ).$project;
+      expect(projection.agents).toBe('$agent');
+
+      // The post-match carries an $or over the agent-name paths.
+      const and = pipeline.find((s) => s.$match && s.$match.$and).$match.$and;
+      expect(and).toContainEqual({
+        $or: [
+          { 'agent.firstname': { $regex: 'leo', $options: 'i' } },
+          { 'agent.lastname': { $regex: 'leo', $options: 'i' } }
+        ]
+      });
+    });
+
     it('adds inclusive eventStart / interview_date range conditions for date filters', async () => {
       Interview.aggregate.mockReturnValue(aggChain([{ rows: [], total: [] }]));
 

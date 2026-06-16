@@ -5,6 +5,16 @@ const POPULATE = [
   'firstname lastname role pictureUrl'
 ];
 
+// Escape regex metacharacters so a user's query is matched literally (also
+// guards against invalid-regex crashes / ReDoS from attacker input).
+const escapeRegex = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Populate/select used by the context + adjacent-page queries — produces the
+// same message shape the chat thread renders.
+const CTX_POPULATE = 'student_id user_id readBy ignoredMessageBy';
+const CTX_SELECT = 'firstname lastname role pictureUrl';
+
 /**
  * CommunicationDAO — data access for the Communication model (central
  * default-connection model). Plain params, no req.
@@ -105,6 +115,101 @@ const CommunicationDAO = {
     })
       .populate(...POPULATE)
       .lean();
+  },
+
+  // Search one student's chat history. Messages are stored as EditorJS JSON
+  // strings, so the visible text lives inside the `message` field — a
+  // case-insensitive regex on it matches what the user reads. Returns matches
+  // newest-first with the author populated, plus the total match count.
+  async searchThread(studentId, q, { limit = 50 } = {}) {
+    const filter = {
+      student_id: studentId,
+      message: { $regex: escapeRegex(q), $options: 'i' }
+    };
+    const [messages, total] = await Promise.all([
+      Communication.find(filter)
+        .populate('user_id', 'firstname lastname role pictureUrl')
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean(),
+      Communication.countDocuments(filter)
+    ]);
+    return { messages, total };
+  },
+
+  // A window of messages centered on `messageId` (Instagram "jump to message"):
+  // `before` older + the target + `after` newer, returned oldest-first (the
+  // thread display order). `hasOlder`/`hasNewer` tell the client whether more
+  // exists beyond the window. Returns null when the message isn't in the thread.
+  async getThreadContext(studentId, messageId, { before = 5, after = 5 } = {}) {
+    const target = await Communication.findOne({
+      _id: messageId,
+      student_id: studentId
+    })
+      .populate(CTX_POPULATE, CTX_SELECT)
+      .lean();
+    if (!target) {
+      return null;
+    }
+
+    const [olderDesc, newerAsc] = await Promise.all([
+      Communication.find({
+        student_id: studentId,
+        createdAt: { $lt: target.createdAt }
+      })
+        .populate(CTX_POPULATE, CTX_SELECT)
+        .sort({ createdAt: -1 })
+        .limit(before)
+        .lean(),
+      Communication.find({
+        student_id: studentId,
+        createdAt: { $gt: target.createdAt }
+      })
+        .populate(CTX_POPULATE, CTX_SELECT)
+        .sort({ createdAt: 1 })
+        .limit(after)
+        .lean()
+    ]);
+
+    return {
+      messages: [...olderDesc.reverse(), target, ...newerAsc],
+      hasOlder: olderDesc.length === before,
+      hasNewer: newerAsc.length === after,
+      targetId: messageId
+    };
+  },
+
+  // A chunk of messages immediately before/after a cursor message (Messenger-
+  // style scroll-up / scroll-down from a jumped-to position). `before` returns
+  // older messages oldest-first (to prepend); `after` returns newer messages
+  // oldest-first (to append). `hasMore` signals whether the chunk hit the limit.
+  async getAdjacentMessages(studentId, messageId, direction, limit = 5) {
+    const anchor = await Communication.findOne({
+      _id: messageId,
+      student_id: studentId
+    })
+      .select('createdAt')
+      .lean();
+    if (!anchor) {
+      return { messages: [], hasMore: false };
+    }
+
+    const isBefore = direction === 'before';
+    const docs = await Communication.find({
+      student_id: studentId,
+      createdAt: isBefore
+        ? { $lt: anchor.createdAt }
+        : { $gt: anchor.createdAt }
+    })
+      .populate(CTX_POPULATE, CTX_SELECT)
+      .sort({ createdAt: isBefore ? -1 : 1 })
+      .limit(limit)
+      .lean();
+
+    return {
+      messages: isBefore ? docs.reverse() : docs,
+      hasMore: docs.length === limit
+    };
   }
 };
 

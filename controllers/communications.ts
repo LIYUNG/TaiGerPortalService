@@ -309,6 +309,72 @@ export const getMessages = asyncHandler(async (req, res) => {
   });
 });
 
+// Search a single student's chat history (this conversation only). Access is
+// already scoped by multitenant_filter + chatMultitenantFilter on the route.
+export const searchThreadMessages = asyncHandler(async (req, res) => {
+  const {
+    params: { studentId },
+    query: { q }
+  } = req;
+
+  const term = typeof q === 'string' ? q.trim() : '';
+  // Require at least 2 chars to avoid scanning the whole thread for noise.
+  if (term.length < 2) {
+    return res.status(200).send({ success: true, data: [], total: 0 });
+  }
+
+  const { messages, total } = await CommunicationService.searchThread(
+    studentId,
+    term
+  );
+
+  res.status(200).send({ success: true, data: messages, total });
+});
+
+// Messages around a specific message (Instagram-style "jump to message" from a
+// search result). Access scoped by multitenant_filter + chatMultitenantFilter.
+export const getThreadContextMessages = asyncHandler(async (req, res) => {
+  const {
+    params: { studentId, messageId }
+  } = req;
+
+  const context = await CommunicationService.getThreadContext(
+    studentId,
+    messageId
+  );
+  if (!context) {
+    throw new ErrorResponse(404, 'Message not found');
+  }
+
+  res.status(200).send({
+    success: true,
+    data: context.messages,
+    hasOlder: context.hasOlder,
+    hasNewer: context.hasNewer,
+    targetId: context.targetId
+  });
+});
+
+// A chunk of messages before/after a cursor message — lets the client load
+// older (scroll up) or newer (scroll down) chunks from a jumped-to position.
+export const getAdjacentThreadMessages = asyncHandler(async (req, res) => {
+  const {
+    params: { studentId, messageId },
+    query: { direction }
+  } = req;
+
+  const dir = direction === 'before' ? 'before' : 'after';
+  const { messages, hasMore } = await CommunicationService.getAdjacentMessages(
+    studentId,
+    messageId,
+    dir
+  );
+
+  res
+    .status(200)
+    .send({ success: true, data: messages, hasMore, direction: dir });
+});
+
 export const getChatFile = asyncHandler(async (req, res) => {
   const {
     params: { studentId, fileName }

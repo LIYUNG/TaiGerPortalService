@@ -19,6 +19,9 @@ import {
   getMyMessages,
   loadMessages,
   getSearchUserMessages,
+  searchThreadMessages,
+  getThreadContextMessages,
+  getAdjacentThreadMessages,
   getUnreadNumberMessages,
   IgnoreMessage,
   getChatFile
@@ -52,6 +55,39 @@ router
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     getMyMessages
+  );
+
+router
+  .route('/:studentId/search')
+  .get(
+    validateStudentId,
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    multitenant_filter,
+    chatMultitenantFilter,
+    searchThreadMessages
+  );
+
+router
+  .route('/:studentId/context/:messageId')
+  .get(
+    validateStudentId,
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    multitenant_filter,
+    chatMultitenantFilter,
+    getThreadContextMessages
+  );
+
+router
+  .route('/:studentId/adjacent/:messageId')
+  .get(
+    validateStudentId,
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    multitenant_filter,
+    chatMultitenantFilter,
+    getAdjacentThreadMessages
   );
 
 router

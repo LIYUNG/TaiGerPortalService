@@ -51,6 +51,23 @@ const CommunicationService = {
 
   findThreadPopulated(studentId, options) {
     return CommunicationDAO.findThreadPopulated(studentId, options);
+  },
+
+  searchThread(studentId, q, options) {
+    return CommunicationDAO.searchThread(studentId, q, options);
+  },
+
+  getThreadContext(studentId, messageId, options) {
+    return CommunicationDAO.getThreadContext(studentId, messageId, options);
+  },
+
+  getAdjacentMessages(studentId, messageId, direction, limit) {
+    return CommunicationDAO.getAdjacentMessages(
+      studentId,
+      messageId,
+      direction,
+      limit
+    );
   }
 };
 

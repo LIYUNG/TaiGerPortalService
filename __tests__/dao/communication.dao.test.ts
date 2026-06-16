@@ -10,6 +10,7 @@ jest.mock('../../models', () => {
     findOne: jest.fn(),
     findByIdAndUpdate: jest.fn(),
     findByIdAndDelete: jest.fn(),
+    countDocuments: jest.fn(),
     create: jest.fn()
   });
   return {
@@ -26,6 +27,7 @@ import CommunicationDAO from '../../dao/communication.dao';
 const leanChain = (value) => {
   const chain = {
     populate: jest.fn(() => chain),
+    select: jest.fn(() => chain),
     sort: jest.fn(() => chain),
     skip: jest.fn(() => chain),
     limit: jest.fn(() => chain),
@@ -262,5 +264,129 @@ describe('CommunicationDAO (mocked models)', () => {
     expect(chain.skip).not.toHaveBeenCalled();
     expect(chain.limit).not.toHaveBeenCalled();
     expect(result).toBe(chain);
+  });
+
+  it('searchThread builds a scoped case-insensitive regex query, newest-first, with a total count', async () => {
+    const messages = [{ _id: 'm2' }, { _id: 'm1' }];
+    const chain = leanChain(messages);
+    Communication.find.mockReturnValue(chain);
+    Communication.countDocuments.mockResolvedValue(2);
+
+    const result = await CommunicationDAO.searchThread('s1', 'ielts');
+
+    const filter = Communication.find.mock.calls[0][0];
+    expect(filter.student_id).toBe('s1');
+    expect(filter.message).toEqual({ $regex: 'ielts', $options: 'i' });
+    expect(chain.sort).toHaveBeenCalledWith({ createdAt: -1 });
+    expect(chain.limit).toHaveBeenCalledWith(50);
+    expect(Communication.countDocuments).toHaveBeenCalledWith(filter);
+    expect(result).toEqual({ messages, total: 2 });
+  });
+
+  it('searchThread escapes regex metacharacters in the query', async () => {
+    Communication.find.mockReturnValue(leanChain([]));
+    Communication.countDocuments.mockResolvedValue(0);
+
+    await CommunicationDAO.searchThread('s1', 'C++ (a)');
+
+    expect(Communication.find.mock.calls[0][0].message.$regex).toBe(
+      'C\\+\\+ \\(a\\)'
+    );
+  });
+
+  it('getThreadContext returns null when the message is not in the student thread', async () => {
+    Communication.findOne.mockReturnValue(leanChain(null));
+
+    const result = await CommunicationDAO.getThreadContext('s1', 'missing');
+
+    expect(Communication.findOne).toHaveBeenCalledWith({
+      _id: 'missing',
+      student_id: 's1'
+    });
+    expect(result).toBeNull();
+  });
+
+  it('getThreadContext returns older + target + newer in oldest-first order with hasMore flags', async () => {
+    const target = { _id: 't', createdAt: new Date('2024-06-15') };
+    Communication.findOne.mockReturnValue(leanChain(target));
+    // First find() call = older (desc), second = newer (asc).
+    const olderDesc = [
+      { _id: 'o2', createdAt: new Date('2024-06-14') },
+      { _id: 'o1', createdAt: new Date('2024-06-13') }
+    ];
+    const newerAsc = [{ _id: 'n1', createdAt: new Date('2024-06-16') }];
+    Communication.find
+      .mockReturnValueOnce(leanChain(olderDesc))
+      .mockReturnValueOnce(leanChain(newerAsc));
+
+    const result = await CommunicationDAO.getThreadContext('s1', 't', {
+      before: 2,
+      after: 2
+    });
+
+    // older reversed to ascending, then target, then newer ascending
+    expect(result.messages.map((m) => m._id)).toEqual(['o1', 'o2', 't', 'n1']);
+    // olderDesc filled the `before` limit (2) -> hasOlder; newer did not -> false
+    expect(result.hasOlder).toBe(true);
+    expect(result.hasNewer).toBe(false);
+    expect(result.targetId).toBe('t');
+  });
+
+  it('getAdjacentMessages (before) returns older messages oldest-first with hasMore', async () => {
+    const anchor = { createdAt: new Date('2024-06-15') };
+    Communication.findOne.mockReturnValue(leanChain(anchor));
+    const olderDesc = [
+      { _id: 'o2', createdAt: new Date('2024-06-14') },
+      { _id: 'o1', createdAt: new Date('2024-06-13') }
+    ];
+    Communication.find.mockReturnValue(leanChain(olderDesc));
+
+    const result = await CommunicationDAO.getAdjacentMessages(
+      's1',
+      'cursor',
+      'before',
+      2
+    );
+
+    const filter = Communication.find.mock.calls[0][0];
+    expect(filter.student_id).toBe('s1');
+    expect(filter.createdAt).toEqual({ $lt: anchor.createdAt });
+    // reversed to ascending (oldest-first) for prepending
+    expect(result.messages.map((m) => m._id)).toEqual(['o1', 'o2']);
+    expect(result.hasMore).toBe(true);
+  });
+
+  it('getAdjacentMessages (after) returns newer messages oldest-first; hasMore false when under limit', async () => {
+    Communication.findOne.mockReturnValue(
+      leanChain({ createdAt: new Date('2024-06-15') })
+    );
+    const newerAsc = [{ _id: 'n1', createdAt: new Date('2024-06-16') }];
+    Communication.find.mockReturnValue(leanChain(newerAsc));
+
+    const result = await CommunicationDAO.getAdjacentMessages(
+      's1',
+      'cursor',
+      'after',
+      15
+    );
+
+    expect(Communication.find.mock.calls[0][0].createdAt).toEqual({
+      $gt: expect.any(Date)
+    });
+    expect(result.messages.map((m) => m._id)).toEqual(['n1']);
+    expect(result.hasMore).toBe(false);
+  });
+
+  it('getAdjacentMessages returns empty when the cursor message is missing', async () => {
+    Communication.findOne.mockReturnValue(leanChain(null));
+
+    const result = await CommunicationDAO.getAdjacentMessages(
+      's1',
+      'missing',
+      'before'
+    );
+
+    expect(result).toEqual({ messages: [], hasMore: false });
+    expect(Communication.find).not.toHaveBeenCalled();
   });
 });

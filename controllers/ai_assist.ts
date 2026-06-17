@@ -960,6 +960,9 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
           ? error.message
           : undefined;
       if (mappedError) {
+        logger.warn(
+          `[AI Assist] streaming sendFirstMessage failed: ${mappedError.warningDetail}`
+        );
         writeSse(res, 'error', {
           message: mappedError.clientMessage,
           detail

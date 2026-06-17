@@ -488,13 +488,15 @@ const InterviewDAO = {
           isDuplicate: { $gt: [{ $size: '$studentInterviews' }, 1] },
           eventStart: '$event.start',
           // Trained = the student has any event-bearing interview (mirrors
-          // distinctTrainedStudentIds: event_id exists & not null).
+          // distinctTrainedStudentIds: event_id exists & not null). Use $type
+          // so a missing event_id is not treated as a real id (a missing field
+          // is not reliably equal to null in $ne comparisons).
           studentTrained: {
             $anyElementTrue: {
               $map: {
                 input: '$studentInterviews',
                 as: 'si',
-                in: { $ne: ['$$si.event_id', null] }
+                in: { $eq: [{ $type: '$$si.event_id' }, 'objectId'] }
               }
             }
           }
@@ -507,16 +509,22 @@ const InterviewDAO = {
               branches: [
                 { case: { $eq: ['$isClosed', true] }, then: 'Closed' },
                 {
+                  // Only a real interview_date in the past => "Interviewed".
+                  // $type guards against a missing date (which is not reliably
+                  // != null in $ne and would otherwise sort below `now`).
                   case: {
                     $and: [
-                      { $ne: ['$interview_date', null] },
+                      { $eq: [{ $type: '$interview_date' }, 'date'] },
                       { $lt: ['$interview_date', now] }
                     ]
                   },
                   then: 'Interviewed'
                 },
                 {
-                  case: { $ne: ['$eventStart', null] },
+                  // Only a real event start => "Trained"/"Scheduled". Without
+                  // the $type guard a missing eventStart slips through and
+                  // ($lt: [missing, now]) wrongly yields "Trained".
+                  case: { $eq: [{ $type: '$eventStart' }, 'date'] },
                   then: {
                     $cond: [
                       { $lt: ['$eventStart', now] },

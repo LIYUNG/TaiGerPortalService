@@ -24,6 +24,7 @@ import {
 const router = Router();
 
 router.use(
+  GeneralGETRequestRateLimiter,
   protect,
   permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor)
 );

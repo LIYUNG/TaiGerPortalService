@@ -1,10 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 import { ANTHROPIC_API_KEY } from '../../../config';
+import type { LlmProvider, StreamParams, StreamResult } from './types';
 
-// Anthropic implementation of the provider-neutral LlmProvider interface.
+// Anthropic implementation of the LlmProvider strategy.
 // One call to `stream` == one model turn. The orchestrator owns the multi-round
-// tool loop. See ./index.ts for the neutral shapes (Turn, LlmTool, LlmToolCall).
+// tool loop. See ./types.ts for the neutral shapes (Turn, LlmTool, LlmToolCall).
 
 const DEFAULT_MODEL = 'claude-opus-4-8';
 const MAX_OUTPUT_TOKENS = 16000;
@@ -81,10 +82,10 @@ const safeEmitToken = async (onToken, token) => {
   }
 };
 
-const stream = async (
-  { system, turns, tools, model } = {},
+const stream: LlmProvider['stream'] = async (
+  { system, turns, tools, model }: StreamParams = {} as StreamParams,
   { onToken } = {}
-) => {
+): Promise<StreamResult> => {
   const resolvedModel = model || DEFAULT_MODEL;
   const client = getClient();
 
@@ -133,8 +134,10 @@ const stream = async (
   };
 };
 
-export = {
+const anthropicProvider: LlmProvider = {
   name: 'anthropic',
   defaultModel: DEFAULT_MODEL,
   stream
 };
+
+export = anthropicProvider;

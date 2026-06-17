@@ -1,8 +1,9 @@
 import { openAIClient, OpenAiModel } from '../../openai';
+import type { LlmProvider, StreamParams, StreamResult } from './types';
 
-// OpenAI implementation of the provider-neutral LlmProvider interface, built on
-// the Responses API. One call to `stream` == one model turn. The orchestrator
-// owns the multi-round tool loop. See ./index.ts for the neutral shapes.
+// OpenAI implementation of the LlmProvider strategy, built on the Responses API.
+// One call to `stream` == one model turn. The orchestrator owns the multi-round
+// tool loop. See ./types.ts for the neutral shapes.
 
 const DEFAULT_MODEL = OpenAiModel.GPT_5_4_mini || 'gpt-5.4-mini';
 
@@ -94,10 +95,10 @@ const safeEmitToken = async (onToken, token) => {
   }
 };
 
-const stream = async (
-  { system, turns, tools, model } = {},
+const stream: LlmProvider['stream'] = async (
+  { system, turns, tools, model }: StreamParams = {} as StreamParams,
   { onToken } = {}
-) => {
+): Promise<StreamResult> => {
   const resolvedModel = model || DEFAULT_MODEL;
   const requestPayload = {
     model: resolvedModel,
@@ -134,8 +135,10 @@ const stream = async (
   };
 };
 
-export = {
+const openaiProvider: LlmProvider = {
   name: 'openai',
   defaultModel: DEFAULT_MODEL,
   stream
 };
+
+export = openaiProvider;

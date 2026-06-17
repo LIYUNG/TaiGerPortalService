@@ -11,6 +11,7 @@ import {
   archiveConversation,
   createConversation,
   getConversation,
+  getOverview,
   listConversations,
   listMyStudents,
   listRecentStudents,
@@ -22,12 +23,17 @@ import {
 
 const router = Router();
 
-router.use(protect, permit(Role.Admin, Role.Agent, Role.Editor));
+router.use(
+  protect,
+  permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor)
+);
 
 router
   .route('/conversations')
   .get(GeneralGETRequestRateLimiter, listConversations)
   .post(GeneralPOSTRequestRateLimiter, createConversation);
+
+router.route('/overview').get(GeneralGETRequestRateLimiter, getOverview);
 
 router
   .route('/students/recent')

@@ -1,285 +1,120 @@
 import { desc, eq } from 'drizzle-orm';
-import { OpenAiModel, openAIClient } from '../openai';
+import { Role } from '@taiger-common/core';
+
 import {
   aiAssistConversations,
   aiAssistMessages,
   aiAssistToolCalls
 } from '../../drizzle/schema/schema';
+import aiTools from './aiTools';
+import { extractAnswerReferences } from './answerComposer';
 import {
-  aiAssistToolDefinitions,
-  aiAssistToolDefinitionsByName
-} from './toolDefinitions';
-import tools from './tools';
-import { classifyIntent } from './intentRouter';
-import { resolveStudent, resolveStudentById } from './entityResolver';
-import {
-  composeAnswer,
-  generateAnswerFromInput,
-  extractAnswerReferences
-} from './answerComposer';
+  getLlmProvider,
+  getConfiguredModel,
+  getModelLabel
+} from './llm';
 
-const DEFAULT_MODEL = OpenAiModel.GPT_4_o || 'gpt-4o';
-const MAX_TOOL_ROUNDS = 6;
-const DEFAULT_SKILL_MESSAGE_LIMIT = 10;
+// AI Assist orchestrator — a single provider-neutral agentic tool loop.
+// One model turn per round; tools execute between rounds until the model
+// produces a final answer (no tool calls) or MAX_TOOL_ROUNDS is reached.
 
-const instructions =
-  'You are TaiGer AI Assist. Answer only from TaiGer Portal data returned by tools. Match the user\'s current language and writing system exactly. Do not switch scripts or translate the user\'s chosen language unless asked. Use tools whenever the user asks about TaiGer students, applications, communications, documents, tickets, or programs. Start by searching for a student when you need a studentId. Use conversationContext to resolve follow-up references such as numbers, names, emails, "he", "she", "他", "她", "這位", or "that student". If multiple students match, ask the user to choose one and list concise candidates. Do not invent tool names, IDs, facts, or future tool calls.';
+const MAX_TOOL_ROUNDS = 8;
+const RECENT_MESSAGE_WINDOW = 12;
 
-const languagePolicyInstructions =
-  'Follow responseLanguageInstruction exactly. If it says to use the extra user prompt language, match that language and writing system exactly.';
+const baseInstructions =
+  'You are TaiGer AI Assist, an assistant for the TaiGer study-abroad application platform used by internal staff (agents, editors, managers). ' +
+  'Answer ONLY from data returned by tools. Never invent students, applications, programs, ids, deadlines, statuses, or document content. ' +
+  'Resolve a student with find_students before calling student-specific tools. ' +
+  'For one student use get_student_overview (profile, applications, documents, threads), get_communications, or get_document_threads. ' +
+  'For portfolio-wide "what needs my attention" or "what is due soon" questions use get_my_overview or find_upcoming_deadlines (these span ALL the user\'s students and need no studentId). ' +
+  'To review a CV, essay, motivation letter, or recommendation letter, call read_document to read its text and get_program for the program\'s requirements, then give specific, structured feedback (strengths, gaps vs. requirements, missing sections, concrete fixes). ' +
+  'If several students match, ask the user to choose and list concise candidates. ' +
+  'Be concise and specific, say which student/application the information is about, and do not expose internal database ids unless needed to disambiguate. ' +
+  'Respond with your final answer directly, without narrating internal reasoning.';
 
-const INTENT_TOOL_PLAN = Object.freeze({
-  student_lookup: ['get_student_context'],
-  student_applications: ['get_application_context'],
-  student_communications: ['get_recent_communication_context'],
-  admissions_overview: ['get_application_context'],
-  support_tickets: ['get_support_ticket_context'],
-  student_documents: ['get_document_context']
-});
-
-const buildStudentToolStep =
-  (toolName, extraArgs = {}) =>
-  (student) => ({
-    toolName,
-    args: {
-      studentId: student.id,
-      ...extraArgs
-    }
-  });
-
-const SKILL_PLANS = Object.freeze({
-  summarize_student: {
-    steps: [
-      buildStudentToolStep('get_student_summary'),
-      buildStudentToolStep('get_student_applications')
-    ],
-    synthesisInstruction:
-      'Summarize the student using only the provided data. Cover the student profile, active applications, and the most important next-step context.'
-  },
-  identify_risk: {
-    steps: [
-      buildStudentToolStep('get_student_applications'),
-      buildStudentToolStep('get_latest_communications', {
-        limit: DEFAULT_SKILL_MESSAGE_LIMIT
-      })
-    ],
-    synthesisInstruction:
-      'Identify concrete risks, blockers, delays, or missing items supported by the provided data. Prioritize the most urgent issues first.'
-  },
-  review_messages: {
-    steps: [
-      buildStudentToolStep('get_latest_communications', {
-        limit: DEFAULT_SKILL_MESSAGE_LIMIT
-      })
-    ],
-    synthesisInstruction:
-      'Review the recent communications and summarize the key themes, requests, decisions, and pending follow-ups using only the provided data.'
-  },
-  review_messages_recent: {
-    steps: [
-      buildStudentToolStep('get_recent_communication_context', {
-        limit: DEFAULT_SKILL_MESSAGE_LIMIT,
-        days: 30
-      })
-    ],
-    synthesisInstruction:
-      'Summarize recent communications from the last 30 days only. Focus on key updates, requests, blockers, decisions, and next follow-ups.'
-  },
-  review_messages_all: {
-    steps: [
-      buildStudentToolStep('get_all_communication_context', {
-        limit: 120
-      })
-    ],
-    synthesisInstruction:
-      'Summarize all available communications (capped). Provide a concise timeline and highlight recurring issues, major decisions, and pending work.'
-  },
-  review_document_threads: {
-    steps: [buildStudentToolStep('get_document_thread_context')],
-    synthesisInstruction:
-      'Review document thread status and messages. Highlight open threads, pending owner, risk flags, and immediate next actions.'
-  },
-  summarize_lead_meetings: {
-    steps: [
-      buildStudentToolStep('get_crm_lead_meeting_context', {
-        limit: 8
-      })
-    ],
-    synthesisInstruction:
-      'Summarize CRM lead meeting transcripts and meeting summaries. Extract student goals, concerns, objections, agreed actions, and latest momentum.'
-  },
-  review_open_tasks: {
-    steps: [
-      buildStudentToolStep('get_student_applications'),
-      buildStudentToolStep('get_profile_documents'),
-      buildStudentToolStep('get_support_tickets', {
-        limit: DEFAULT_SKILL_MESSAGE_LIMIT
-      })
-    ],
-    synthesisInstruction:
-      'Review open tasks using only the provided data. Highlight pending application work, incomplete documents, unresolved support issues, and the clearest next actions.'
+const roleGuidance = (role) => {
+  if (role === Role.Editor) {
+    return ' As an editor, prioritize the document-thread queue (threads waiting on the team) and reviewing document quality against each program\'s requirements.';
   }
-});
-
-const insertReturningOne = async (postgres, table, values) => {
-  const [row] = await postgres.insert(table).values(values).returning();
-  return row;
+  if (role === Role.Manager) {
+    return ' As a manager, prioritize team-level rollups: students at risk, upcoming deadlines across the team, and workflow bottlenecks.';
+  }
+  if (role === Role.Agent) {
+    return ' As an agent, prioritize application progress, upcoming deadlines, missing documents, and the clearest next actions per student.';
+  }
+  return '';
 };
 
-const createUserMessage = (postgres, { conversationId, content, skillTrace }) =>
-  insertReturningOne(postgres, aiAssistMessages, {
-    conversationId,
-    role: 'user',
-    content,
-    skillTrace
-  });
-
-const createAssistantMessage = (
-  postgres,
-  { conversationId, content, response, skillTrace, linkHints }
-) =>
-  insertReturningOne(postgres, aiAssistMessages, {
-    conversationId,
-    role: 'assistant',
-    content,
-    model: DEFAULT_MODEL,
-    responseId: response?.id,
-    usage: response?.usage,
-    linkHints: linkHints || {},
-    skillTrace
-  });
-
-const buildSkillTrace = (assistContext = {}) => {
-  if (
-    !assistContext.requestedSkill &&
-    !assistContext.resolvedSkill &&
-    !assistContext.unknownSkillText &&
-    !assistContext.fallbackReason
-  ) {
-    return undefined;
-  }
-
-  return {
-    requestedSkill: assistContext.requestedSkill || null,
-    resolvedSkill: assistContext.resolvedSkill || null,
-    mode: assistContext.mode || 'general',
-    student: assistContext.student || null,
-    status: assistContext.status || 'fallback',
-    steps: assistContext.steps || [],
-    fallbackReason: assistContext.fallbackReason || null
-  };
+const languageNameFromPreference = (preferredLanguage = 'en') => {
+  const normalized = String(preferredLanguage || 'en').toLowerCase();
+  if (normalized.startsWith('zh-tw')) return 'Traditional Chinese';
+  if (normalized.startsWith('zh-cn')) return 'Simplified Chinese';
+  if (normalized.startsWith('zh')) return 'Chinese';
+  return 'English';
 };
-
-const buildUserMessageSkillTrace = ({
-  assistContext = {},
-  resolvedAssistContext = {}
-}) => {
-  const mentionedStudent = assistContext.mentionedStudent?.id
-    ? {
-        id: assistContext.mentionedStudent.id,
-        displayName: assistContext.mentionedStudent.displayName || null
-      }
-    : null;
-
-  if (
-    !mentionedStudent &&
-    !assistContext.requestedSkill &&
-    !assistContext.unknownSkillText
-  ) {
-    return undefined;
-  }
-
-  return {
-    requestedSkill: assistContext.requestedSkill || null,
-    resolvedSkill: resolvedAssistContext.resolvedSkill || null,
-    mode: 'composer',
-    student: mentionedStudent,
-    status: 'captured',
-    steps: [],
-    fallbackReason: resolvedAssistContext.fallbackReason || null
-  };
-};
-
-const createToolCall = (postgres, values) =>
-  insertReturningOne(postgres, aiAssistToolCalls, values);
 
 const escapeRegExp = (value = '') =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const stripAssistControlTokens = (message = '', assistContext = {}) => {
-  let promptText = message;
-  const displayName = assistContext.mentionedStudent?.displayName;
-
+  let promptText = String(message || '');
+  const displayName = assistContext?.mentionedStudent?.displayName;
   if (displayName) {
     promptText = promptText.replace(
       new RegExp(`@${escapeRegExp(displayName)}`, 'gi'),
       ' '
     );
   }
-
-  return promptText
-    .replace(/#[a-z_]+/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return promptText.replace(/\s+/g, ' ').trim();
 };
 
-const languageNameFromPreference = (preferredLanguage = 'en') => {
-  const normalized = String(preferredLanguage || 'en').toLowerCase();
-
-  if (normalized.startsWith('zh-tw')) {
-    return 'Traditional Chinese';
-  }
-
-  if (normalized.startsWith('zh-cn')) {
-    return 'Simplified Chinese';
-  }
-
-  if (normalized.startsWith('zh')) {
-    return 'Chinese';
-  }
-
-  return 'English';
-};
-
-const buildResponseLanguageInstruction = ({
-  message,
-  assistContext,
-  preferredLanguage
-}) => {
+const buildLanguageInstruction = ({ message, assistContext, preferredLanguage }) => {
   const extraPromptText = stripAssistControlTokens(message, assistContext);
-
   if (extraPromptText) {
-    return 'Use the language of the extra user prompt.';
+    return ' Match the language and writing system of the user\'s message exactly; do not translate unless asked.';
   }
-
-  return `Respond in ${languageNameFromPreference(preferredLanguage)}.`;
+  return ` Respond in ${languageNameFromPreference(preferredLanguage)}.`;
 };
 
-const parseArguments = (rawArguments) => {
-  if (!rawArguments) {
-    return {};
-  }
+const buildSystemPrompt = ({ role, languageInstruction }) =>
+  `${baseInstructions}${roleGuidance(role)}${languageInstruction}`;
 
-  if (typeof rawArguments === 'object') {
-    return rawArguments;
-  }
+// ---- Persistence helpers ----------------------------------------------------
 
-  return JSON.parse(rawArguments);
+const insertReturningOne = async (postgres, table, values) => {
+  const [row] = await postgres.insert(table).values(values).returning();
+  return row;
 };
 
-const stringifyToolOutput = (value) => JSON.stringify(value, null, 2);
+const createUserMessage = (postgres, { conversationId, content }) =>
+  insertReturningOne(postgres, aiAssistMessages, {
+    conversationId,
+    role: 'user',
+    content
+  });
+
+const createAssistantMessage = (
+  postgres,
+  { conversationId, content, model, usage, linkHints }
+) =>
+  insertReturningOne(postgres, aiAssistMessages, {
+    conversationId,
+    role: 'assistant',
+    content,
+    model,
+    usage,
+    linkHints: linkHints || {}
+  });
+
+const createToolCall = (postgres, values) =>
+  insertReturningOne(postgres, aiAssistToolCalls, values);
 
 const loadConversationContext = async (postgres, conversationId) => {
   if (!postgres.select) {
-    return {
-      boundStudentId: undefined,
-      boundStudentDisplayName: undefined,
-      recentMessages: [],
-      recentToolCalls: []
-    };
+    return { boundStudentId: undefined, boundStudentDisplayName: undefined, recentMessages: [] };
   }
 
-  const [conversation, messages, toolCalls] = await Promise.all([
+  const [conversation, messages] = await Promise.all([
     postgres
       .select()
       .from(aiAssistConversations)
@@ -290,13 +125,7 @@ const loadConversationContext = async (postgres, conversationId) => {
       .from(aiAssistMessages)
       .where(eq(aiAssistMessages.conversationId, conversationId))
       .orderBy(desc(aiAssistMessages.createdAt))
-      .limit(12),
-    postgres
-      .select()
-      .from(aiAssistToolCalls)
-      .where(eq(aiAssistToolCalls.conversationId, conversationId))
-      .orderBy(desc(aiAssistToolCalls.createdAt))
-      .limit(12)
+      .limit(RECENT_MESSAGE_WINDOW)
   ]);
 
   const conversationRow = conversation?.[0] || null;
@@ -310,49 +139,16 @@ const loadConversationContext = async (postgres, conversationId) => {
     recentMessages: messages
       .slice()
       .reverse()
-      .map((message) => ({
-        role: message.role,
-        content: message.content
-      })),
-    recentToolCalls: toolCalls
-      .slice()
-      .reverse()
-      .map((toolCall) => ({
-        toolName: toolCall.toolName,
-        arguments: toolCall.arguments,
-        result: toolCall.result,
-        status: toolCall.status
-      }))
+      .map((message) => ({ role: message.role, content: message.content }))
   };
 };
 
-const buildInitialInput = ({
-  message,
-  conversationContext,
-  responseLanguageInstruction
-}) => [
-  {
-    role: 'user',
-    content: JSON.stringify(
-      {
-        currentUserMessage: message,
-        responseLanguageInstruction,
-        conversationContext
-      },
-      null,
-      2
-    )
-  }
-];
+// ---- Link-hint candidate collection ----------------------------------------
 
 const addStudentCandidate = (student, byKey) => {
   const studentId = student?.id;
   const studentName = student?.displayName || student?.name;
-
-  if (!studentId || !studentName) {
-    return;
-  }
-
+  if (!studentId || !studentName) return;
   byKey.set(`student:${studentId}`, {
     entityType: 'student',
     entityId: studentId,
@@ -360,137 +156,73 @@ const addStudentCandidate = (student, byKey) => {
   });
 };
 
-const collectProgramCandidatesFromValue = (value, byKey) => {
-  if (!value || typeof value !== 'object') {
-    return;
-  }
+const collectCandidatesFromValue = (value, byKey) => {
+  if (!value || typeof value !== 'object') return;
 
   if (Array.isArray(value)) {
-    value.forEach((item) => collectProgramCandidatesFromValue(item, byKey));
+    value.forEach((item) => collectCandidatesFromValue(item, byKey));
     return;
   }
 
   const record = value;
-  const program = record.program || null;
-  const id = typeof program?.id === 'string' ? program.id : '';
-  const name = typeof program?.name === 'string' ? program.name : '';
-  const school = typeof program?.school === 'string' ? program.school : '';
 
-  if (id && name) {
-    byKey.set(`program:${id}`, {
+  // Student shape: { id, name | displayName, email }
+  if (
+    typeof record.id === 'string' &&
+    (typeof record.name === 'string' || typeof record.displayName === 'string') &&
+    (record.email !== undefined || record.role !== undefined)
+  ) {
+    addStudentCandidate(record, byKey);
+  }
+
+  // Program shape: { program: { id, name, school } } or { id, school, name }
+  const program = record.program || null;
+  if (program?.id && program?.name) {
+    byKey.set(`program:${program.id}`, {
       entityType: 'program',
-      entityId: id,
-      displayName: name,
-      school
+      entityId: program.id,
+      displayName: program.name,
+      school: program.school
     });
   }
 
   Object.values(record).forEach((nested) =>
-    collectProgramCandidatesFromValue(nested, byKey)
+    collectCandidatesFromValue(nested, byKey)
   );
 };
 
-const autoDetectSkill = (message = '') => {
-  const normalizedMessage = message.toLowerCase();
-  const explicitSkillMatch = normalizedMessage.match(/#([a-z_]+)/);
+// ---- Tool execution ---------------------------------------------------------
 
-  if (explicitSkillMatch?.[1] && SKILL_PLANS[explicitSkillMatch[1]]) {
-    return explicitSkillMatch[1];
+const safeEmitProgress = async (onProgress, event) => {
+  if (typeof onProgress !== 'function') return;
+  try {
+    await onProgress({ timestamp: new Date().toISOString(), ...event });
+  } catch {
+    // Progress events are best-effort.
   }
-
-  return null;
 };
 
-const resolveAssistContext = ({
-  assistContext = {},
-  conversationContext,
-  message
-}) => {
-  const requestedSkill = assistContext.requestedSkill || null;
-  const unknownSkillText = assistContext.unknownSkillText || null;
-  const explicitStudent = assistContext.mentionedStudent?.id
-    ? {
-        id: assistContext.mentionedStudent.id,
-        displayName: assistContext.mentionedStudent.displayName || null
-      }
-    : null;
-  const contextStudent =
-    !explicitStudent && conversationContext?.boundStudentId
-      ? {
-          id: conversationContext.boundStudentId,
-          displayName: conversationContext.boundStudentDisplayName || null
-        }
-      : null;
-  const student = explicitStudent || contextStudent;
-  const studentSource = explicitStudent
-    ? 'assist_context'
-    : contextStudent
-    ? 'conversation_active'
-    : null;
-  const candidateSkill =
-    requestedSkill || (!unknownSkillText ? autoDetectSkill(message) : null);
-  let resolvedSkill = candidateSkill;
-  let fallbackReason = null;
-
-  if (unknownSkillText) {
-    fallbackReason = `Unsupported skill request: ${unknownSkillText}`;
-    resolvedSkill = null;
-  } else if (candidateSkill && !SKILL_PLANS[candidateSkill]) {
-    fallbackReason = `Unsupported skill request: ${candidateSkill}`;
-    resolvedSkill = null;
-  } else if (candidateSkill && !student?.id) {
-    fallbackReason = 'Skill mode requires a message-level @student.';
-    resolvedSkill = null;
+const stringifyToolOutput = (value) => {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return '{}';
   }
-
-  return {
-    requestedSkill,
-    resolvedSkill,
-    unknownSkillText,
-    student,
-    studentSource,
-    fallbackReason
-  };
 };
 
-const getFunctionCalls = (response) =>
-  (response?.output || []).filter((item) => item.type === 'function_call');
-
-const getResponseText = (response) => {
-  if (response?.output_text) {
-    return response.output_text;
-  }
-
-  const message = (response?.output || []).find(
-    (item) => item.type === 'message'
-  );
-  const textParts = message?.content || [];
-  return textParts
-    .map((part) => part.text || part.content || '')
-    .filter(Boolean)
-    .join('\n');
-};
-
-const executeFunctionCall = async (req, functionCall, { onProgress } = {}) => {
+const executeToolCall = async (req, toolCall, { onProgress } = {}) => {
   const startedAt = Date.now();
-  const toolName = functionCall.name;
-  let args;
+  const toolName = toolCall.name;
+  const args = toolCall.input || {};
+
+  await safeEmitProgress(onProgress, { type: 'tool_start', toolName, arguments: args });
 
   try {
-    args = parseArguments(functionCall.arguments);
-    await safeEmitProgress(onProgress, {
-      type: 'tool_start',
-      toolName,
-      arguments: args
-    });
-
-    if (!tools.hasTool(toolName)) {
+    if (!aiTools.hasTool(toolName)) {
       throw new Error(`Unknown AI Assist tool: ${toolName}`);
     }
-
-    const result = await tools.runTool(req, toolName, args);
+    const result = await aiTools.runTool(req, toolName, args);
     const durationMs = Date.now() - startedAt;
-
     await safeEmitProgress(onProgress, {
       type: 'tool_done',
       toolName,
@@ -508,764 +240,188 @@ const executeFunctionCall = async (req, functionCall, { onProgress } = {}) => {
         durationMs,
         permissionOutcome: { inheritedUserPermission: true }
       },
-      output: {
-        type: 'function_call_output',
-        call_id: functionCall.call_id,
-        output: stringifyToolOutput(result)
-      }
+      output: stringifyToolOutput(result)
     };
   } catch (error) {
-    const result = {
-      error: error instanceof Error ? error.message : 'Tool execution failed'
-    };
+    const message = error instanceof Error ? error.message : 'Tool execution failed';
     const durationMs = Date.now() - startedAt;
-    const safeArgs =
-      args && typeof args === 'object'
-        ? args
-        : { _raw: functionCall.arguments || null };
-
     await safeEmitProgress(onProgress, {
       type: 'tool_done',
       toolName,
-      arguments: safeArgs,
+      arguments: args,
       status: 'failed',
       durationMs,
-      errorMessage: result.error
+      errorMessage: message
     });
 
     return {
       trace: {
         toolName,
-        arguments: safeArgs,
-        result,
+        arguments: args,
+        result: { error: message },
         status: 'failed',
         durationMs,
-        errorMessage: result.error,
+        errorMessage: message,
         permissionOutcome: { inheritedUserPermission: true }
       },
-      output: {
-        type: 'function_call_output',
-        call_id: functionCall.call_id,
-        output: stringifyToolOutput(result)
-      }
+      output: JSON.stringify({ error: message }),
+      isError: true
     };
   }
 };
 
-const executeSkillStep = async (req, step, { onProgress } = {}) => {
-  const startedAt = Date.now();
-  await safeEmitProgress(onProgress, {
-    type: 'tool_start',
-    toolName: step.toolName,
-    arguments: step.args
-  });
+// ---- Turn construction ------------------------------------------------------
 
-  if (!tools.hasTool(step.toolName)) {
-    throw new Error(`Unknown AI Assist skill tool: ${step.toolName}`);
-  }
-
-  const result = await tools.runTool(req, step.toolName, step.args);
-  const durationMs = Date.now() - startedAt;
-  await safeEmitProgress(onProgress, {
-    type: 'tool_done',
-    toolName: step.toolName,
-    arguments: step.args,
-    status: 'success',
-    durationMs
-  });
-
-  return {
-    toolName: step.toolName,
-    arguments: step.args,
-    result,
-    status: 'success',
-    durationMs,
-    permissionOutcome: { inheritedUserPermission: true }
-  };
-};
-
-const executeIntentTool = async (
-  req,
-  toolName,
-  args = {},
-  { onProgress } = {}
-) => {
-  const startedAt = Date.now();
-  await safeEmitProgress(onProgress, {
-    type: 'tool_start',
-    toolName,
-    arguments: args
-  });
-  const result = await tools.runTool(req, toolName, args);
-  const durationMs = Date.now() - startedAt;
-  await safeEmitProgress(onProgress, {
-    type: 'tool_done',
-    toolName,
-    arguments: args,
-    status: 'success',
-    durationMs
-  });
-
-  return {
-    toolName,
-    arguments: args,
-    result,
-    status: 'success',
-    durationMs,
-    permissionOutcome: { inheritedUserPermission: true }
-  };
-};
-
-const formatStudentCandidate = (student) => {
-  const pieces = [student.name];
-
-  if (student.chineseName) {
-    pieces.push(student.chineseName);
-  }
-
-  if (student.email) {
-    pieces.push(student.email);
-  }
-
-  if (student.id) {
-    pieces.push(`id: ${student.id}`);
-  }
-
-  return pieces.filter(Boolean).join(' | ');
-};
-
-const buildStudentResolutionReply = (resolutionResult) => {
-  if (resolutionResult.status === 'not_found') {
-    return 'No accessible student matched. Please provide full name or email.';
-  }
-
-  if (resolutionResult.status === 'ambiguous') {
-    const options = (resolutionResult.candidates || [])
-      .slice(0, 5)
-      .map(
-        (candidate, index) =>
-          `${index + 1}. ${formatStudentCandidate(candidate)}`
-      )
-      .join('\n');
-
-    return `Multiple students matched. Please choose one:\n${options}`;
-  }
-
-  return 'Please provide student name or email.';
-};
-
-const resolveIntentStudent = async ({
-  req,
-  assistContext,
-  intentResult,
-  conversationContext
-}) => {
-  if (assistContext?.mentionedStudent?.id) {
-    return {
-      status: 'resolved',
-      student: {
-        id: assistContext.mentionedStudent.id,
-        name: assistContext.mentionedStudent.displayName || null
-      },
-      source: 'explicit_mention',
-      trace: []
-    };
-  }
-
-  if (!intentResult.needsStudentResolution) {
-    return {
-      status: 'not_needed',
-      student: null,
-      source: 'intent_not_needed',
-      trace: []
-    };
-  }
-
-  if (conversationContext?.boundStudentId && !intentResult.studentQuery) {
-    const resolvedFromConversation = await resolveStudentById(
-      req,
-      conversationContext.boundStudentId,
-      conversationContext.boundStudentDisplayName
-    );
-
-    return {
-      ...resolvedFromConversation,
-      source: 'conversation_active',
-      trace: []
-    };
-  }
-
-  const resolution = await resolveStudent(req, intentResult.studentQuery);
-  const trace = [
-    {
-      toolName: 'search_accessible_students',
-      arguments: { query: intentResult.studentQuery, limit: 10 },
-      result: resolution.searchResult || { data: [] },
-      status: 'success',
-      durationMs: 0,
-      permissionOutcome: { inheritedUserPermission: true }
-    }
-  ];
-
-  return {
-    ...resolution,
-    source: 'student_search',
-    trace
-  };
-};
-
-const runIntentPlan = async ({
-  req,
-  intentResult,
-  resolvedStudent,
-  onProgress
-}) => {
-  const toolNames = INTENT_TOOL_PLAN[intentResult.intent] || [];
-  const trace = [];
-  const toolContext = {};
-
-  for (const toolName of toolNames) {
-    const toolTrace = await executeIntentTool(
-      req,
-      toolName,
-      {
-        studentId: resolvedStudent?.student?.id
-      },
-      { onProgress }
-    );
-    trace.push(toolTrace);
-    toolContext[toolName] = toolTrace.result;
-  }
-
-  return {
-    trace,
-    toolContext
-  };
-};
-
-const runIntentFirstFlow = async ({
-  message,
-  req,
-  assistContext,
-  conversationContext,
-  responseLanguageInstruction,
-  onProgress,
-  onToken
-}) => {
-  await safeEmitProgress(onProgress, {
-    type: 'thinking',
-    phase: 'intent_routing',
-    message: 'Classifying intent'
-  });
-  const intentResult = await classifyIntent({
-    message,
-    conversationContext
-  });
-  await safeEmitProgress(onProgress, {
-    type: 'status',
-    phase: 'intent_routing',
-    intent: intentResult.intent
-  });
-
-  await safeEmitProgress(onProgress, {
-    type: 'thinking',
-    phase: 'entity_resolution',
-    message: 'Resolving student'
-  });
-  const resolvedStudent = await resolveIntentStudent({
-    req,
-    assistContext,
-    intentResult,
-    conversationContext
-  });
-  await safeEmitProgress(onProgress, {
-    type: 'status',
-    phase: 'entity_resolution',
-    resolutionStatus: resolvedStudent.status
-  });
-
-  if (
-    intentResult.needsStudentResolution &&
-    resolvedStudent.status !== 'resolved'
-  ) {
-    return {
-      response: undefined,
-      answer: buildStudentResolutionReply(resolvedStudent),
-      trace: resolvedStudent.trace || [],
-      activeStudent: null,
-      activeStudentSource: resolvedStudent.source || null,
-      skillTrace: {
-        mode: 'general',
-        status: 'fallback',
-        steps: [],
-        fallbackReason: `student_resolution_${resolvedStudent.status}`,
-        student: null
-      }
-    };
-  }
-
-  const intentExecution =
-    intentResult.intent === 'general'
-      ? { trace: [], toolContext: {} }
-      : await runIntentPlan({
-          req,
-          intentResult,
-          resolvedStudent,
-          onProgress
-        });
-  await safeEmitProgress(onProgress, {
-    type: 'thinking',
-    phase: 'answer_composer',
-    message: 'Composing answer'
-  });
-  const composed = await composeAnswer({
-    message,
-    intentResult,
-    conversationContext,
-    resolvedStudent: resolvedStudent.student || null,
-    toolContext: intentExecution.toolContext,
-    responseLanguageInstruction,
-    onToken
-  });
-
-  return {
-    response: composed.response,
-    answer: composed.answer,
-    trace: [...(resolvedStudent.trace || []), ...intentExecution.trace],
-    activeStudent:
-      resolvedStudent.status === 'resolved' ? resolvedStudent.student : null,
-    activeStudentSource: resolvedStudent.source || null,
-    linkHintCandidates: (() => {
-      const byKey = new Map();
-      if (resolvedStudent.status === 'resolved') {
-        addStudentCandidate(resolvedStudent.student, byKey);
-      }
-      Object.values(intentExecution.toolContext || {}).forEach((toolResult) =>
-        collectProgramCandidatesFromValue(toolResult, byKey)
-      );
-      return Array.from(byKey.values());
-    })()
-  };
-};
-
-const buildSkillSynthesisInput = ({
-  message,
-  conversationContext,
-  resolvedAssistContext,
-  toolTrace,
-  synthesisInstruction,
-  responseLanguageInstruction
-}) => [
-  {
-    role: 'user',
-    content: JSON.stringify(
-      {
-        currentUserMessage: message,
-        responseLanguageInstruction,
-        conversationContext,
-        skillContext: {
-          requestedSkill: resolvedAssistContext.requestedSkill,
-          resolvedSkill: resolvedAssistContext.resolvedSkill,
-          student: resolvedAssistContext.student,
-          synthesisInstruction,
-          toolResults: toolTrace.map((step) => ({
-            toolName: step.toolName,
-            description:
-              aiAssistToolDefinitionsByName[step.toolName]?.description || null,
-            arguments: step.arguments,
-            result: step.result,
-            status: step.status
-          }))
-        }
-      },
-      null,
-      2
-    )
-  }
-];
-
-const buildSkillTraceSteps = (trace = []) =>
-  trace.map((step) => ({
-    toolName: step.toolName,
-    status: step.status,
-    arguments: step.arguments,
-    description:
-      aiAssistToolDefinitionsByName[step.toolName]?.description || null
-  }));
-
-const runSkillPlan = async ({
-  message,
-  req,
-  conversationContext,
-  resolvedAssistContext,
-  responseLanguageInstruction,
-  onProgress,
-  onToken
-}) => {
-  const plan = SKILL_PLANS[resolvedAssistContext.resolvedSkill];
-  const trace = [];
-
-  for (const createStep of plan.steps) {
-    trace.push(
-      await executeSkillStep(req, createStep(resolvedAssistContext.student), {
-        onProgress
-      })
-    );
-  }
-
-  await safeEmitProgress(onProgress, {
-    type: 'thinking',
-    phase: 'answer_composer',
-    message: 'Composing skill answer'
-  });
-  const { response, answer } = await generateAnswerFromInput({
-    onToken,
-    instructions: `${instructions} ${languagePolicyInstructions} ${plan.synthesisInstruction} Use only the provided skill data. Do not call tools.`,
-    input: buildSkillSynthesisInput({
-      message,
-      conversationContext,
-      resolvedAssistContext,
-      toolTrace: trace,
-      synthesisInstruction: plan.synthesisInstruction,
-      responseLanguageInstruction
-    })
-  });
-
-  return {
-    response,
-    answer,
-    trace,
-    activeStudent: resolvedAssistContext.student || null,
-    activeStudentSource: resolvedAssistContext.studentSource || null,
-    linkHintCandidates: (() => {
-      const byKey = new Map();
-      addStudentCandidate(resolvedAssistContext.student, byKey);
-      trace.forEach((step) =>
-        collectProgramCandidatesFromValue(step.result, byKey)
-      );
-      return Array.from(byKey.values());
-    })(),
-    skillTrace: {
-      requestedSkill: resolvedAssistContext.requestedSkill || null,
-      resolvedSkill: resolvedAssistContext.resolvedSkill,
-      mode: 'skill',
-      student: resolvedAssistContext.student,
-      status: 'completed',
-      steps: buildSkillTraceSteps(trace),
-      fallbackReason: null
-    }
-  };
-};
-
-const runResponsesToolLoop = async ({
-  message,
-  req,
-  conversationContext,
-  responseLanguageInstruction,
-  onProgress
-}) => {
-  let input = buildInitialInput({
-    message,
-    conversationContext,
-    responseLanguageInstruction
-  });
-  const trace = [];
-  let response;
-
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    await safeEmitProgress(onProgress, {
-      type: 'thinking',
-      phase: 'legacy_tool_loop',
-      round: round + 1,
-      message: 'Model thinking'
-    });
-    response = await openAIClient.responses.create({
-      model: DEFAULT_MODEL,
-      instructions: `${instructions} ${languagePolicyInstructions}`,
-      input,
-      tools: aiAssistToolDefinitions
-    });
-
-    const functionCalls = getFunctionCalls(response);
-    if (!functionCalls.length) {
-      return {
-        response,
-        answer: getResponseText(response),
-        trace,
-        activeStudent: null,
-        activeStudentSource: null,
-        linkHintCandidates: (() => {
-          const byKey = new Map();
-          trace.forEach((step) =>
-            collectProgramCandidatesFromValue(step.result, byKey)
-          );
-          return Array.from(byKey.values());
-        })()
-      };
-    }
-
-    const toolResults = await Promise.all(
-      functionCalls.map((functionCall) =>
-        executeFunctionCall(req, functionCall, { onProgress })
-      )
-    );
-    trace.push(...toolResults.map((toolResult) => toolResult.trace));
-    input = [
-      ...input,
-      ...functionCalls,
-      ...toolResults.map((item) => item.output)
-    ];
-  }
-
-  return {
-    response,
-    answer:
-      'AI Assist reached the maximum number of tool calls before producing an answer.',
-    trace,
-    activeStudent: null,
-    activeStudentSource: null,
-    linkHintCandidates: (() => {
-      const byKey = new Map();
-      trace.forEach((step) =>
-        collectProgramCandidatesFromValue(step.result, byKey)
-      );
-      return Array.from(byKey.values());
-    })()
-  };
-};
-
-const runChatFallback = async ({ message, onProgress, onToken }) => {
-  await safeEmitProgress(onProgress, {
-    type: 'thinking',
-    phase: 'chat_fallback',
-    message: 'Model thinking'
-  });
-  if (typeof onToken === 'function') {
-    const stream = await openAIClient.chat.completions.create({
-      model: DEFAULT_MODEL,
-      messages: [
-        {
-          role: 'system',
-          content: instructions
-        },
-        { role: 'user', content: message }
-      ],
-      temperature: 0.2,
-      stream: true
-    });
-
-    let answer = '';
-    for await (const part of stream) {
-      const chunk = part.choices?.[0]?.delta?.content || '';
-      if (chunk) {
-        answer += chunk;
-        try {
-          await onToken(chunk);
-        } catch {
-          // Token streaming is best-effort.
-        }
-      }
-    }
-
-    return {
-      response: {
-        id: undefined,
-        usage: undefined
-      },
-      answer,
-      trace: [],
-      activeStudent: null,
-      activeStudentSource: null,
-      linkHintCandidates: []
-    };
-  }
-
-  const response = await openAIClient.chat.completions.create({
-    model: DEFAULT_MODEL,
-    messages: [
-      {
-        role: 'system',
-        content: instructions
-      },
-      { role: 'user', content: message }
-    ],
-    temperature: 0.2
-  });
-
-  return {
-    response: {
-      id: response.id,
-      usage: response.usage
-    },
-    answer: response.choices?.[0]?.message?.content || '',
-    trace: [],
-    activeStudent: null,
-    activeStudentSource: null,
-    linkHintCandidates: []
-  };
-};
-
-const shouldRunSkillMode = (resolvedAssistContext) =>
-  Boolean(
-    resolvedAssistContext?.resolvedSkill &&
-      !resolvedAssistContext?.fallbackReason &&
-      resolvedAssistContext?.student?.id
+const buildTurns = ({ recentMessages, message, hints }) => {
+  const turns = (recentMessages || []).map((entry) =>
+    entry.role === 'assistant'
+      ? { role: 'assistant', text: entry.content, toolCalls: [] }
+      : { role: 'user', content: entry.content }
   );
 
-const shouldUseLegacyToolLoop = (resolvedAssistContext) =>
-  Boolean(resolvedAssistContext?.fallbackReason);
-
-const safeEmitProgress = async (onProgress, event) => {
-  if (typeof onProgress !== 'function') {
-    return;
-  }
-
-  try {
-    await onProgress({
-      timestamp: new Date().toISOString(),
-      ...event
-    });
-  } catch (error) {
-    // Progress events are best-effort.
-  }
+  const composed = hints.length ? `${hints.join(' ')}\n\n${message}` : message;
+  turns.push({ role: 'user', content: composed });
+  return turns;
 };
+
+// ---- Main entry -------------------------------------------------------------
 
 const runAiAssist = async (
   postgres,
-  {
-    conversationId,
-    message,
-    req,
-    assistContext,
-    preferredLanguage,
-    onProgress,
-    onToken
-  }
+  { conversationId, message, req, assistContext = {}, preferredLanguage, onProgress, onToken }
 ) => {
-  await safeEmitProgress(onProgress, {
-    type: 'status',
-    phase: 'start',
-    message: 'Request received'
-  });
-  const conversationContext = await loadConversationContext(
-    postgres,
-    conversationId
-  );
-  const resolvedAssistContext = resolveAssistContext({
-    assistContext,
-    conversationContext,
-    message
-  });
+  await safeEmitProgress(onProgress, { type: 'status', phase: 'start' });
+
+  const conversationContext = await loadConversationContext(postgres, conversationId);
+
   const userMessage = await createUserMessage(postgres, {
     conversationId,
-    content: message,
-    skillTrace: buildUserMessageSkillTrace({
-      assistContext,
-      resolvedAssistContext
-    })
+    content: message
   });
-  const responseLanguageInstruction = buildResponseLanguageInstruction({
+
+  const languageInstruction = buildLanguageInstruction({
     message,
     assistContext,
     preferredLanguage
   });
-  const useSkillMode =
-    openAIClient.responses?.create && shouldRunSkillMode(resolvedAssistContext);
-  let result;
+  const system = buildSystemPrompt({
+    role: req?.user?.role,
+    languageInstruction
+  });
 
-  if (useSkillMode) {
-    await safeEmitProgress(onProgress, {
-      type: 'status',
-      phase: 'mode',
-      mode: 'skill'
-    });
-    result = await runSkillPlan({
-      message,
-      req,
-      conversationContext,
-      resolvedAssistContext,
-      responseLanguageInstruction,
-      onProgress,
-      onToken
-    });
-  } else if (
-    openAIClient.responses?.create &&
-    shouldUseLegacyToolLoop(resolvedAssistContext)
-  ) {
-    await safeEmitProgress(onProgress, {
-      type: 'status',
-      phase: 'mode',
-      mode: 'legacy_tool_loop'
-    });
-    result = await runResponsesToolLoop({
-      message,
-      req,
-      conversationContext,
-      responseLanguageInstruction,
-      onProgress
-    });
-  } else if (openAIClient.responses?.create) {
-    await safeEmitProgress(onProgress, {
-      type: 'status',
-      phase: 'mode',
-      mode: 'intent_first'
-    });
-    result = await runIntentFirstFlow({
-      message,
-      req,
-      assistContext,
-      conversationContext,
-      responseLanguageInstruction,
-      onProgress,
-      onToken
-    });
-  } else {
-    await safeEmitProgress(onProgress, {
-      type: 'status',
-      phase: 'mode',
-      mode: 'chat_fallback'
-    });
-    result = await runChatFallback({ message, onProgress, onToken });
+  // Context hints injected into the current user turn.
+  const explicitStudent = assistContext?.mentionedStudent?.id
+    ? {
+        id: assistContext.mentionedStudent.id,
+        displayName: assistContext.mentionedStudent.displayName || null
+      }
+    : null;
+  const boundStudent =
+    !explicitStudent && conversationContext.boundStudentId
+      ? {
+          id: conversationContext.boundStudentId,
+          displayName: conversationContext.boundStudentDisplayName || null
+        }
+      : null;
+  const hints = [];
+  if (explicitStudent) {
+    hints.push(
+      `The user is asking about student ${explicitStudent.displayName || ''} (id: ${explicitStudent.id}).`
+    );
+  } else if (boundStudent) {
+    hints.push(
+      `Active student in this conversation: ${boundStudent.displayName || ''} (id: ${boundStudent.id}).`
+    );
   }
-  const answer = result.answer || 'No answer was returned by AI Assist.';
+
+  const turns = buildTurns({
+    recentMessages: conversationContext.recentMessages,
+    message,
+    hints
+  });
+
+  const provider = getLlmProvider();
+  const model = getConfiguredModel();
+  const trace = [];
+  const candidatesByKey = new Map();
+  let answer = '';
+  let usage;
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    await safeEmitProgress(onProgress, {
+      type: 'thinking',
+      phase: 'model',
+      round: round + 1
+    });
+
+    // eslint-disable-next-line no-await-in-loop
+    const turn = await provider.stream(
+      { system, turns, tools: aiTools.definitions, model },
+      { onToken }
+    );
+    usage = turn.usage || usage;
+    answer = turn.text || answer;
+
+    if (!turn.toolCalls || !turn.toolCalls.length) {
+      break;
+    }
+
+    turns.push({ role: 'assistant', text: turn.text, toolCalls: turn.toolCalls });
+
+    // eslint-disable-next-line no-await-in-loop
+    const executed = await Promise.all(
+      turn.toolCalls.map((toolCall) =>
+        executeToolCall(req, toolCall, { onProgress })
+      )
+    );
+
+    const results = [];
+    executed.forEach((execution, index) => {
+      const toolCall = turn.toolCalls[index];
+      trace.push(execution.trace);
+      collectCandidatesFromValue(execution.trace.result, candidatesByKey);
+      results.push({
+        id: toolCall.id,
+        name: toolCall.name,
+        output: execution.output,
+        isError: execution.isError
+      });
+    });
+
+    turns.push({ role: 'tool', results });
+  }
+
+  if (!answer) {
+    answer =
+      'I could not produce an answer from the available TaiGer data. Please rephrase or narrow the request.';
+  }
+
   await safeEmitProgress(onProgress, {
     type: 'status',
     phase: 'annotation',
     status: 'annotating_references'
   });
-  const answerReferences = await extractAnswerReferences({
-    answer,
-    candidates: result.linkHintCandidates || []
-  });
+
+  const candidates = Array.from(candidatesByKey.values());
+  const answerReferences = await extractAnswerReferences({ answer, candidates });
   const normalizedAnswer = answerReferences?.answer || answer;
   const linkHints =
-    answerReferences?.linkHints &&
-    typeof answerReferences.linkHints === 'object'
+    answerReferences?.linkHints && typeof answerReferences.linkHints === 'object'
       ? answerReferences.linkHints
       : {};
-  const fallbackReason =
-    result.skillTrace?.fallbackReason || resolvedAssistContext.fallbackReason;
-  const nonSkillStatus = fallbackReason ? 'fallback' : 'completed';
+
+  const modelLabel = getModelLabel(provider, model);
+
   const assistantMessage = await createAssistantMessage(postgres, {
     conversationId,
     content: normalizedAnswer,
-    response: result.response,
-    linkHints,
-    skillTrace:
-      result.skillTrace ||
-      buildSkillTrace({
-        requestedSkill: resolvedAssistContext.requestedSkill,
-        resolvedSkill: resolvedAssistContext.resolvedSkill,
-        unknownSkillText: resolvedAssistContext.unknownSkillText,
-        mode: useSkillMode ? 'skill' : 'general',
-        student: result.activeStudent || resolvedAssistContext.student,
-        status: useSkillMode ? 'completed' : nonSkillStatus,
-        steps: [],
-        fallbackReason
-      })
+    model: modelLabel,
+    usage,
+    linkHints
   });
-  const trace = await Promise.all(
-    result.trace.map((toolCall) =>
+
+  const persistedTrace = await Promise.all(
+    trace.map((toolCall) =>
       createToolCall(postgres, {
         conversationId,
         assistantMessageId: assistantMessage.id,
@@ -1280,28 +436,38 @@ const runAiAssist = async (
     )
   );
 
+  // Resolve the conversation's active student: explicit mention, conversation
+  // binding, or the first student surfaced by the tools this turn.
+  const firstStudentCandidate = candidates.find(
+    (candidate) => candidate.entityType === 'student'
+  );
+  const activeStudent =
+    explicitStudent ||
+    boundStudent ||
+    (firstStudentCandidate
+      ? {
+          id: firstStudentCandidate.entityId,
+          displayName: firstStudentCandidate.displayName
+        }
+      : null);
+
   await safeEmitProgress(onProgress, {
     type: 'status',
     phase: 'completed',
-    traceCount: trace.length
+    traceCount: persistedTrace.length
   });
 
   return {
     userMessage,
     assistantMessage,
     answer: normalizedAnswer,
-    trace,
-    activeStudent:
-      result.activeStudent || resolvedAssistContext.student || null,
-    activeStudentSource:
-      result.activeStudentSource || resolvedAssistContext.studentSource || null,
-    skillTrace: assistantMessage?.skillTrace || result.skillTrace || null,
-    usage: result.response?.usage
+    trace: persistedTrace,
+    activeStudent,
+    skillTrace: null,
+    usage
   };
 };
 
 export = {
-  autoDetectSkill,
-  resolveAssistContext,
   runAiAssist
 };

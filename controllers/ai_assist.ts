@@ -14,6 +14,7 @@ import {
   searchAccessibleStudents
 } from '../services/ai-assist/tools';
 import { getAccessibleStudentFilter } from '../services/ai-assist/studentAccess';
+import { buildOverview } from '../services/ai-assist/overview';
 import { withPostgresRetry } from '../services/ai-assist/postgresRetry';
 import { openAIClient, OpenAiModel } from '../services/openai';
 import logger from '../services/logger';
@@ -591,6 +592,16 @@ const listRecentStudents = asyncHandler(async (req, res) => {
   });
 });
 
+const getOverview = asyncHandler(async (req, res) => {
+  const days = Number(req.query?.days) || undefined;
+  const overview = await buildOverview(req, { deadlineWindowDays: days });
+
+  res.status(200).send({
+    success: true,
+    data: overview
+  });
+});
+
 const listMyStudents = asyncHandler(async (req, res) => {
   const filter = await getAccessibleStudentFilter(req);
   const students = await StudentService.findStudentsSelect(
@@ -770,13 +781,19 @@ const sendMessage = asyncHandler(async (req, res) => {
       writeSse(res, 'done', { ok: true });
       queueAiTitleRefinement(titleRefinementPayload || {});
     } catch (error) {
+      logger.error('[AI Assist] streaming sendMessage failed', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       const mappedError = mapAiAssistExecutionError(error);
+      const detail =
+        process.env.NODE_ENV !== 'production' && error instanceof Error
+          ? error.message
+          : undefined;
       if (mappedError) {
-        logger.warn(
-          `[AI Assist] streaming sendMessage failed: ${mappedError.warningDetail}`
-        );
         writeSse(res, 'error', {
-          message: mappedError.clientMessage
+          message: mappedError.clientMessage,
+          detail
         });
       } else {
         writeSse(res, 'error', {
@@ -933,13 +950,19 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
       writeSse(res, 'done', { ok: true });
       queueAiTitleRefinement(titleRefinementPayload || {});
     } catch (error) {
+      logger.error('[AI Assist] streaming sendFirstMessage failed', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       const mappedError = mapAiAssistExecutionError(error);
+      const detail =
+        process.env.NODE_ENV !== 'production' && error instanceof Error
+          ? error.message
+          : undefined;
       if (mappedError) {
-        logger.warn(
-          `[AI Assist] streaming sendFirstMessage failed: ${mappedError.warningDetail}`
-        );
         writeSse(res, 'error', {
-          message: mappedError.clientMessage
+          message: mappedError.clientMessage,
+          detail
         });
       } else {
         writeSse(res, 'error', {
@@ -1025,6 +1048,7 @@ export = {
   archiveConversation,
   createConversation,
   getConversation,
+  getOverview,
   listConversations,
   listMyStudents,
   listRecentStudents,

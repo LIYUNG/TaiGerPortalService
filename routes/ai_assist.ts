@@ -11,6 +11,7 @@ import {
   archiveConversation,
   createConversation,
   getConversation,
+  getLatestStudentAnalysis,
   getOverview,
   listConversations,
   listMyStudents,
@@ -47,6 +48,10 @@ router
 router
   .route('/students/search')
   .get(GeneralGETRequestRateLimiter, searchStudents);
+
+router
+  .route('/students/:studentId/latest-analysis')
+  .get(GeneralGETRequestRateLimiter, getLatestStudentAnalysis);
 
 router
   .route('/conversations/:conversationId/messages')

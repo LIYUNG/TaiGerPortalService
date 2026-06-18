@@ -614,6 +614,56 @@ const getOverview = asyncHandler(async (req, res) => {
   });
 });
 
+const getLatestStudentAnalysis = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  // Access check: 404s if the student is not visible to this user.
+  await requireAccessibleStudent(req, studentId);
+
+  const postgres = getPostgresDb();
+  const [conversation] = await postgres
+    .select()
+    .from(aiAssistConversations)
+    .where(
+      and(
+        eq(aiAssistConversations.ownerUserId, currentUserId(req)),
+        eq(aiAssistConversations.studentId, studentId),
+        eq(aiAssistConversations.analysisMode, true),
+        eq(aiAssistConversations.status, ACTIVE_STATUS)
+      )
+    )
+    .orderBy(desc(aiAssistConversations.updatedAt))
+    .limit(1);
+
+  if (!conversation) {
+    res.status(200).send({ success: true, data: null });
+    return;
+  }
+
+  const [assistantMessage] = await postgres
+    .select()
+    .from(aiAssistMessages)
+    .where(
+      and(
+        eq(aiAssistMessages.conversationId, conversation.id),
+        eq(aiAssistMessages.role, 'assistant')
+      )
+    )
+    .orderBy(desc(aiAssistMessages.createdAt))
+    .limit(1);
+
+  res.status(200).send({
+    success: true,
+    data: assistantMessage
+      ? {
+          conversationId: conversation.id,
+          content: assistantMessage.content,
+          analyzedAt: assistantMessage.createdAt,
+          conversation
+        }
+      : null
+  });
+});
+
 const listMyStudents = asyncHandler(async (req, res) => {
   const filter = await getAccessibleStudentFilter(req);
   const students = await StudentService.findStudentsSelect(
@@ -885,6 +935,9 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
   }
   const preferredLanguage = resolvePreferredLanguage(req);
   const assistContext = await resolveAssistContextPayload(req);
+  const conversationSeed = {
+    analysisMode: Boolean(assistContext?.analysisMode)
+  };
   let titleRefinementPayload = null;
 
   if (isStreamingRequest(req)) {
@@ -893,7 +946,11 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
 
     try {
       // Create conversation first (fast write, outside AI transaction).
-      const [conversation] = await createConversationRecord(postgres, req);
+      const [conversation] = await createConversationRecord(
+        postgres,
+        req,
+        conversationSeed
+      );
 
       // Run AI outside any DB transaction — tool loops can take minutes and
       // would exceed any reasonable statement/transaction timeout.
@@ -980,7 +1037,11 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
   let result;
   try {
     result = await postgres.transaction(async (tx) => {
-      const [conversation] = await createConversationRecord(tx, req);
+      const [conversation] = await createConversationRecord(
+        tx,
+        req,
+        conversationSeed
+      );
 
       const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
         conversationId: conversation.id,
@@ -1045,6 +1106,7 @@ export = {
   archiveConversation,
   createConversation,
   getConversation,
+  getLatestStudentAnalysis,
   getOverview,
   listConversations,
   listMyStudents,

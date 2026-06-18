@@ -517,6 +517,55 @@ describe('sendMessage', () => {
 
     expect(requireAccessibleStudent).toHaveBeenCalledWith(req, 's1');
   });
+
+  it('forwards analysisMode to the orchestrator for student deep-dives', async () => {
+    db._setSelect([{ id: 'conv_1' }]);
+    orchestrator.runAiAssist.mockResolvedValue({
+      answer: 'ok',
+      assistantMessage: { linkHints: {} }
+    });
+    const req = baseReq({
+      body: {
+        message: 'analyze',
+        assistContext: {
+          mentionedStudent: { id: 's1', displayName: 'Ada' },
+          analysisMode: true
+        }
+      }
+    });
+
+    await controller.sendMessage(req, mockRes(), jest.fn());
+
+    expect(orchestrator.runAiAssist).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        assistContext: expect.objectContaining({ analysisMode: true })
+      })
+    );
+  });
+
+  it('defaults analysisMode to false when a context omits it', async () => {
+    db._setSelect([{ id: 'conv_1' }]);
+    orchestrator.runAiAssist.mockResolvedValue({
+      answer: 'ok',
+      assistantMessage: { linkHints: {} }
+    });
+    const req = baseReq({
+      body: {
+        message: 'go',
+        assistContext: { mentionedStudent: { id: 's1', displayName: 'Ada' } }
+      }
+    });
+
+    await controller.sendMessage(req, mockRes(), jest.fn());
+
+    expect(orchestrator.runAiAssist).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        assistContext: expect.objectContaining({ analysisMode: false })
+      })
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

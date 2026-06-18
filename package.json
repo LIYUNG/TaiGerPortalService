@@ -2,6 +2,9 @@
   "name": "api",
   "version": "0.0.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "prod": "NODE_ENV=production node dist/index.js",
@@ -21,6 +24,7 @@
     ]
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.2",
     "@aws-crypto/sha256-browser": "^5.2.0",
     "@aws-sdk/client-s3": "^3.665.0",
     "@aws-sdk/client-ses": "^3.665.0",

@@ -14,6 +14,10 @@ import {
   searchAccessibleStudents
 } from '../services/ai-assist/tools';
 import { getAccessibleStudentFilter } from '../services/ai-assist/studentAccess';
+import {
+  buildOverview,
+  PORTFOLIO_BUCKET_LIMIT
+} from '../services/ai-assist/overview';
 import { withPostgresRetry } from '../services/ai-assist/postgresRetry';
 import { openAIClient, OpenAiModel } from '../services/openai';
 import logger from '../services/logger';
@@ -240,7 +244,11 @@ const resolveAssistContextPayload = async (req) => {
     unknownSkillText:
       raw.requestedSkill && !requestedSkill
         ? raw.requestedSkill
-        : raw.unknownSkillText || null
+        : raw.unknownSkillText || null,
+    // When true, the orchestrator injects the structured deep-dive output
+    // format (HEALTH / BLOCKERS / RISKS / ACTIONS / ANALYSIS) the frontend
+    // AnalysisDisplay parses. Sent by the Student Analysis view.
+    analysisMode: Boolean(raw.analysisMode)
   };
 };
 
@@ -591,6 +599,71 @@ const listRecentStudents = asyncHandler(async (req, res) => {
   });
 });
 
+const getOverview = asyncHandler(async (req, res) => {
+  const days = Number(req.query?.days) || undefined;
+  // The portfolio view needs the full at-risk list (not the small chat sample)
+  // so triage does not silently drop students beyond the first few per bucket.
+  const overview = await buildOverview(req, {
+    deadlineWindowDays: days,
+    sampleSize: PORTFOLIO_BUCKET_LIMIT
+  });
+
+  res.status(200).send({
+    success: true,
+    data: overview
+  });
+});
+
+const getLatestStudentAnalysis = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  // Access check: 404s if the student is not visible to this user.
+  await requireAccessibleStudent(req, studentId);
+
+  const postgres = getPostgresDb();
+  const [conversation] = await postgres
+    .select()
+    .from(aiAssistConversations)
+    .where(
+      and(
+        eq(aiAssistConversations.ownerUserId, currentUserId(req)),
+        eq(aiAssistConversations.studentId, studentId),
+        eq(aiAssistConversations.analysisMode, true),
+        eq(aiAssistConversations.status, ACTIVE_STATUS)
+      )
+    )
+    .orderBy(desc(aiAssistConversations.updatedAt))
+    .limit(1);
+
+  if (!conversation) {
+    res.status(200).send({ success: true, data: null });
+    return;
+  }
+
+  const [assistantMessage] = await postgres
+    .select()
+    .from(aiAssistMessages)
+    .where(
+      and(
+        eq(aiAssistMessages.conversationId, conversation.id),
+        eq(aiAssistMessages.role, 'assistant')
+      )
+    )
+    .orderBy(desc(aiAssistMessages.createdAt))
+    .limit(1);
+
+  res.status(200).send({
+    success: true,
+    data: assistantMessage
+      ? {
+          conversationId: conversation.id,
+          content: assistantMessage.content,
+          analyzedAt: assistantMessage.createdAt,
+          conversation
+        }
+      : null
+  });
+});
+
 const listMyStudents = asyncHandler(async (req, res) => {
   const filter = await getAccessibleStudentFilter(req);
   const students = await StudentService.findStudentsSelect(
@@ -708,75 +781,72 @@ const sendMessage = asyncHandler(async (req, res) => {
     initSse(res);
 
     try {
-      const result = await postgres.transaction(async (tx) => {
-        const conversation = await requireActiveConversationOwner(
-          tx,
-          conversationId,
-          currentUserId(req)
-        );
+      // Verify conversation before starting (fast read, no transaction needed).
+      const conversation = await requireActiveConversationOwner(
+        postgres,
+        conversationId,
+        currentUserId(req)
+      );
 
-        const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
+      // Run AI outside any DB transaction — tool loops can take minutes and
+      // would exceed any reasonable statement/transaction timeout.
+      const assistantResult = await aiAssistOrchestrator.runAiAssist(postgres, {
+        conversationId,
+        message,
+        assistContext,
+        preferredLanguage,
+        req,
+        onProgress: async (event) => {
+          writeSse(res, 'progress', event);
+        },
+        onToken: async (text) => {
+          writeSse(res, 'token', { text });
+        }
+      });
+
+      const conversationUpdates = buildConversationUpdateValues({
+        conversation,
+        message,
+        assistContext,
+        assistantResult
+      });
+      await updateOwnedActiveConversation(
+        postgres,
+        conversationId,
+        currentUserId(req),
+        conversationUpdates
+      );
+      if (conversationUpdates.title) {
+        titleRefinementPayload = {
           conversationId,
-          message,
-          assistContext,
-          preferredLanguage,
-          req,
-          onProgress: async (event) => {
-            writeSse(res, 'progress', event);
-          },
-          onToken: async (text) => {
-            writeSse(res, 'token', { text });
-          }
-        });
-        const conversationUpdates = buildConversationUpdateValues({
-          conversation,
+          ownerUserId: currentUserId(req),
+          seedTitle: conversationUpdates.title,
           message,
           assistContext,
           assistantResult
-        });
+        };
+      }
 
-        await updateOwnedActiveConversation(
-          tx,
-          conversationId,
-          currentUserId(req),
-          conversationUpdates
-        );
-        if (conversationUpdates.title) {
-          titleRefinementPayload = {
-            conversationId,
-            ownerUserId: currentUserId(req),
-            seedTitle: conversationUpdates.title,
-            message,
-            assistContext,
-            assistantResult
-          };
-        }
-
-        return assistantResult;
-      });
-
-      writeSse(res, 'progress', {
-        type: 'status',
-        phase: 'annotation',
-        status: 'annotating_references'
-      });
-      writeSse(res, 'references', {
-        references: result?.assistantMessage?.linkHints ?? {}
-      });
       writeSse(res, 'final', {
         success: true,
-        data: result
+        data: assistantResult
       });
       writeSse(res, 'done', { ok: true });
       queueAiTitleRefinement(titleRefinementPayload || {});
     } catch (error) {
+      logger.error('[AI Assist] streaming sendMessage failed', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       const mappedError = mapAiAssistExecutionError(error);
+      const detail =
+        process.env.NODE_ENV !== 'production' && error instanceof Error
+          ? error.message
+          : undefined;
       if (mappedError) {
-        logger.warn(
-          `[AI Assist] streaming sendMessage failed: ${mappedError.warningDetail}`
-        );
         writeSse(res, 'error', {
-          message: mappedError.clientMessage
+          message: mappedError.clientMessage,
+          detail
         });
       } else {
         writeSse(res, 'error', {
@@ -865,6 +935,9 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
   }
   const preferredLanguage = resolvePreferredLanguage(req);
   const assistContext = await resolveAssistContextPayload(req);
+  const conversationSeed = {
+    analysisMode: Boolean(assistContext?.analysisMode)
+  };
   let titleRefinementPayload = null;
 
   if (isStreamingRequest(req)) {
@@ -872,74 +945,78 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
     initSse(res);
 
     try {
-      const result = await postgres.transaction(async (tx) => {
-        const [conversation] = await createConversationRecord(tx, req);
+      // Create conversation first (fast write, outside AI transaction).
+      const [conversation] = await createConversationRecord(
+        postgres,
+        req,
+        conversationSeed
+      );
 
-        const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
+      // Run AI outside any DB transaction — tool loops can take minutes and
+      // would exceed any reasonable statement/transaction timeout.
+      const assistantResult = await aiAssistOrchestrator.runAiAssist(postgres, {
+        conversationId: conversation.id,
+        message,
+        assistContext,
+        preferredLanguage,
+        req,
+        onProgress: async (event) => {
+          writeSse(res, 'progress', event);
+        },
+        onToken: async (text) => {
+          writeSse(res, 'token', { text });
+        }
+      });
+
+      const conversationUpdates = buildConversationUpdateValues({
+        conversation,
+        message,
+        assistContext,
+        assistantResult
+      });
+      const updatedConversation = await updateOwnedActiveConversation(
+        postgres,
+        conversation.id,
+        currentUserId(req),
+        conversationUpdates
+      );
+      if (conversationUpdates.title) {
+        titleRefinementPayload = {
           conversationId: conversation.id,
-          message,
-          assistContext,
-          preferredLanguage,
-          req,
-          onProgress: async (event) => {
-            writeSse(res, 'progress', event);
-          },
-          onToken: async (text) => {
-            writeSse(res, 'token', { text });
-          }
-        });
-        const conversationUpdates = buildConversationUpdateValues({
-          conversation,
+          ownerUserId: currentUserId(req),
+          seedTitle: conversationUpdates.title,
           message,
           assistContext,
           assistantResult
-        });
-
-        const updatedConversation = await updateOwnedActiveConversation(
-          tx,
-          conversation.id,
-          currentUserId(req),
-          conversationUpdates
-        );
-        if (conversationUpdates.title) {
-          titleRefinementPayload = {
-            conversationId: conversation.id,
-            ownerUserId: currentUserId(req),
-            seedTitle: conversationUpdates.title,
-            message,
-            assistContext,
-            assistantResult
-          };
-        }
-
-        return {
-          conversation: updatedConversation,
-          ...assistantResult
         };
-      });
+      }
 
-      writeSse(res, 'progress', {
-        type: 'status',
-        phase: 'annotation',
-        status: 'annotating_references'
-      });
-      writeSse(res, 'references', {
-        references: result?.assistantMessage?.linkHints ?? {}
-      });
       writeSse(res, 'final', {
         success: true,
-        data: result
+        data: {
+          conversation: updatedConversation,
+          ...assistantResult
+        }
       });
       writeSse(res, 'done', { ok: true });
       queueAiTitleRefinement(titleRefinementPayload || {});
     } catch (error) {
+      logger.error('[AI Assist] streaming sendFirstMessage failed', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       const mappedError = mapAiAssistExecutionError(error);
+      const detail =
+        process.env.NODE_ENV !== 'production' && error instanceof Error
+          ? error.message
+          : undefined;
       if (mappedError) {
         logger.warn(
           `[AI Assist] streaming sendFirstMessage failed: ${mappedError.warningDetail}`
         );
         writeSse(res, 'error', {
-          message: mappedError.clientMessage
+          message: mappedError.clientMessage,
+          detail
         });
       } else {
         writeSse(res, 'error', {
@@ -960,7 +1037,11 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
   let result;
   try {
     result = await postgres.transaction(async (tx) => {
-      const [conversation] = await createConversationRecord(tx, req);
+      const [conversation] = await createConversationRecord(
+        tx,
+        req,
+        conversationSeed
+      );
 
       const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
         conversationId: conversation.id,
@@ -1025,6 +1106,8 @@ export = {
   archiveConversation,
   createConversation,
   getConversation,
+  getLatestStudentAnalysis,
+  getOverview,
   listConversations,
   listMyStudents,
   listRecentStudents,

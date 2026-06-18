@@ -92,8 +92,32 @@ const buildLanguageInstruction = ({ message, assistContext, preferredLanguage })
   return ` Respond in ${languageNameFromPreference(preferredLanguage)}.`;
 };
 
-const buildSystemPrompt = ({ role, languageInstruction }) =>
-  `${baseInstructions}${roleGuidance(role)}${languageInstruction}`;
+const ANALYSIS_FORMAT_INSTRUCTION = `
+
+STRUCTURED OUTPUT FORMAT — when performing a student deep-dive, you MUST output in this EXACT format (section headers must match exactly):
+
+**HEALTH:** [Healthy|On Track|Minor Risk|Medium Risk|High Risk|Critical|Stalled]
+
+**BLOCKERS:**
+- [BLOCKER] <what is stuck> | ROOT CAUSE: <why it is stuck> | SINCE: <ISO date or "unknown"> | WAITING ON: <student|team|editor|agent>
+
+**RISKS:**
+- [RISK:HIGH] <risk description with evidence>
+- [RISK:MEDIUM] <risk description>
+- [RISK:LOW] <risk description>
+
+**ACTIONS:**
+- [ACTION:AGENT:IMMEDIATE] <what the agent should do right now>
+- [ACTION:STUDENT:URGENT] <what the student should do>
+- [ACTION:EDITOR:NORMAL] <what the editor should do>
+
+**ANALYSIS:**
+<full evidence-based reasoning, timeline, cross-references, supporting data>
+
+Rules: Use only urgency levels IMMEDIATE, URGENT, NORMAL. Use only target roles AGENT, STUDENT, EDITOR, TEAM. If no blockers, write "- None identified." under BLOCKERS. Sections must appear in this exact order.`;
+
+const buildSystemPrompt = ({ role, languageInstruction, analysisMode = false }) =>
+  `${baseInstructions}${roleGuidance(role)}${languageInstruction}${analysisMode ? ANALYSIS_FORMAT_INSTRUCTION : ''}`;
 
 // ---- Persistence helpers ----------------------------------------------------
 
@@ -322,7 +346,8 @@ const runAiAssist = async (
   });
   const system = buildSystemPrompt({
     role: req?.user?.role,
-    languageInstruction
+    languageInstruction,
+    analysisMode: Boolean(assistContext?.analysisMode)
   });
 
   // Context hints injected into the current user turn.

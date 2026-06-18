@@ -7,6 +7,7 @@ import { application_deadline_V2_calculator } from '../../constants';
 import StudentService from '../students';
 import ApplicationService from '../applications';
 import DocumentThreadService from '../documentthreads';
+import CommunicationService from '../communications';
 
 // Cross-portfolio "what needs my attention" aggregation. Shared by the
 // get_my_overview AI Assist tool (chat) and the GET /api/ai-assist/overview REST
@@ -14,7 +15,16 @@ import DocumentThreadService from '../documentthreads';
 
 const MAX_PORTFOLIO_STUDENTS = 600;
 const DEFAULT_DEADLINE_WINDOW_DAYS = 30;
+// Small sample for the chat tool (get_my_overview) — keeps the LLM context lean.
 const SAMPLE_SIZE = 8;
+// Larger cap for the REST portfolio view, which needs the full at-risk list to
+// triage rather than a handful of examples. Still bounded to avoid huge payloads.
+const PORTFOLIO_BUCKET_LIMIT = 200;
+// Thresholds for the behaviour-based (not status-based) risk signals. These
+// surface the "who has gone quiet / what is stuck" questions that pure status
+// fields cannot answer.
+const COMMUNICATION_GAP_DAYS = 21;
+const THREAD_STALL_DAYS = 7;
 
 const OVERVIEW_STUDENT_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count';
@@ -29,6 +39,12 @@ const toIdString = (value) => {
   if (!value) return '';
   if (typeof value === 'string') return value;
   return value.toString?.() || '';
+};
+
+const safeDate = (value) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 };
 
 const isTruthyFlag = (value) => value === true || value === 'O' || value === 'Y';
@@ -165,8 +181,9 @@ const collectAdmittedNotConfirmed = (applications, studentById) =>
       };
     });
 
-const collectThreadsWaitingOnTeam = (threads, studentById) =>
-  (threads || [])
+const collectThreadsWaitingOnTeam = (threads, studentById) => {
+  const today = new Date();
+  return (threads || [])
     .filter((thread) => {
       if (thread.isFinalVersion) return false;
       const latestBy = toIdString(thread.latest_message_left_by_id);
@@ -176,12 +193,60 @@ const collectThreadsWaitingOnTeam = (threads, studentById) =>
     })
     .map((thread) => {
       const student = studentById.get(toIdString(thread.student_id));
+      const updatedDate = safeDate(thread.updatedAt);
+      const stalledDays = updatedDate
+        ? Math.max(differenceInDays(today, updatedDate), 0)
+        : null;
       return {
         student: student ? studentLabel(student) : { id: toIdString(thread.student_id) },
         fileType: thread.file_type,
-        updatedAt: thread.updatedAt
+        updatedAt: thread.updatedAt,
+        stalledDays
       };
-    });
+    })
+    // Most-stalled first so the capped sample surfaces the worst cases.
+    .sort((a, b) => (b.stalledDays ?? 0) - (a.stalledDays ?? 0));
+};
+
+// Students with at least one in-progress application who have not exchanged any
+// message in COMMUNICATION_GAP_DAYS (or have never been messaged). This is the
+// "the student went quiet" signal — derived from real activity, not a status.
+const collectCommunicationGaps = (
+  students,
+  applications,
+  latestMessageAtById
+) => {
+  const today = new Date();
+  const activeStudentIds = new Set(
+    (applications || [])
+      .filter((application) => deriveStatus(application) === 'in_progress')
+      .map((application) => toIdString(application.studentId))
+  );
+
+  const items = [];
+  (students || []).forEach((student) => {
+    const id = toIdString(student._id || student.id);
+    if (!activeStudentIds.has(id)) return;
+
+    const latestAt = latestMessageAtById.get(id);
+    const lastContactDays = latestAt
+      ? Math.max(differenceInDays(today, latestAt), 0)
+      : null;
+
+    // Flag when silent past the threshold, or no message has ever been logged.
+    if (lastContactDays === null || lastContactDays >= COMMUNICATION_GAP_DAYS) {
+      items.push({
+        student: studentLabel(student),
+        lastContactDays
+      });
+    }
+  });
+
+  // Longest silence first (nulls — never contacted — sort to the top).
+  return items.sort(
+    (a, b) => (b.lastContactDays ?? Infinity) - (a.lastContactDays ?? Infinity)
+  );
+};
 
 const collectMissingBaseDocuments = (students) => {
   const items = [];
@@ -199,16 +264,40 @@ const collectMissingBaseDocuments = (students) => {
   return items;
 };
 
-const bucket = (items) => ({
+const bucket = (items, sampleSize = SAMPLE_SIZE) => ({
+  // `count` is always the true total; `items` is a capped slice. The portfolio
+  // view passes a large sampleSize so the at-risk list is not silently truncated.
   count: items.length,
-  items: items.slice(0, SAMPLE_SIZE)
+  items: items.slice(0, sampleSize)
 });
 
-const buildOverview = async (req, { deadlineWindowDays } = {}) => {
+const buildOverview = async (
+  req,
+  { deadlineWindowDays, sampleSize = SAMPLE_SIZE } = {}
+) => {
   const role = req?.user?.role;
   const days = deadlineWindowDays || DEFAULT_DEADLINE_WINDOW_DAYS;
   const { students, studentById, applications, threads } =
     await loadPortfolio(req);
+
+  // Latest message timestamp per student (single aggregation) → communication
+  // gaps. Best-effort: a failure here must not break the rest of the overview.
+  const latestMessageAtById = new Map();
+  try {
+    const studentObjectIds = (students || [])
+      .map((student) => student._id || student.id)
+      .filter(Boolean);
+    const latestRows =
+      await CommunicationService.getLatestMessageAtForStudents(studentObjectIds);
+    (latestRows || []).forEach((row) => {
+      const date = safeDate(row?.latestAt);
+      if (date) {
+        latestMessageAtById.set(toIdString(row._id), date);
+      }
+    });
+  } catch {
+    // Leave the map empty; communicationGaps will simply be conservative.
+  }
 
   const upcomingDeadlines = collectUpcomingDeadlines(
     applications,
@@ -221,14 +310,29 @@ const buildOverview = async (req, { deadlineWindowDays } = {}) => {
   );
   const threadsWaitingOnTeam = collectThreadsWaitingOnTeam(threads, studentById);
   const missingBaseDocuments = collectMissingBaseDocuments(students);
+  const communicationGaps = collectCommunicationGaps(
+    students,
+    applications,
+    latestMessageAtById
+  );
 
   // Role-aware emphasis: which buckets matter most for this user.
   const emphasis =
     role === Role.Editor
-      ? ['threadsWaitingOnTeam', 'upcomingDeadlines']
+      ? ['threadsWaitingOnTeam', 'communicationGaps', 'upcomingDeadlines']
       : role === Role.Manager
-      ? ['upcomingDeadlines', 'admittedNotConfirmed', 'threadsWaitingOnTeam']
-      : ['upcomingDeadlines', 'missingBaseDocuments', 'admittedNotConfirmed'];
+      ? [
+          'upcomingDeadlines',
+          'communicationGaps',
+          'admittedNotConfirmed',
+          'threadsWaitingOnTeam'
+        ]
+      : [
+          'upcomingDeadlines',
+          'communicationGaps',
+          'missingBaseDocuments',
+          'admittedNotConfirmed'
+        ];
 
   return {
     role,
@@ -236,10 +340,11 @@ const buildOverview = async (req, { deadlineWindowDays } = {}) => {
     deadlineWindowDays: days,
     emphasis,
     buckets: {
-      upcomingDeadlines: bucket(upcomingDeadlines),
-      threadsWaitingOnTeam: bucket(threadsWaitingOnTeam),
-      admittedNotConfirmed: bucket(admittedNotConfirmed),
-      missingBaseDocuments: bucket(missingBaseDocuments)
+      upcomingDeadlines: bucket(upcomingDeadlines, sampleSize),
+      threadsWaitingOnTeam: bucket(threadsWaitingOnTeam, sampleSize),
+      communicationGaps: bucket(communicationGaps, sampleSize),
+      admittedNotConfirmed: bucket(admittedNotConfirmed, sampleSize),
+      missingBaseDocuments: bucket(missingBaseDocuments, sampleSize)
     }
   };
 };
@@ -248,5 +353,8 @@ export = {
   buildOverview,
   loadPortfolio,
   collectUpcomingDeadlines,
-  parseDeadline
+  collectThreadsWaitingOnTeam,
+  collectCommunicationGaps,
+  parseDeadline,
+  PORTFOLIO_BUCKET_LIMIT
 };

@@ -321,7 +321,7 @@ const definitions = [
   ),
   makeTool(
     'get_my_overview',
-    'Get a cross-portfolio attention summary for the current user: upcoming deadlines, document threads waiting on the team, admitted-but-not-confirmed applications, and students missing required base documents. Use for "what needs my attention" questions.',
+    'Get a cross-portfolio attention summary for the current user: upcoming deadlines, document threads waiting on the team (with how many days each has stalled), students who have gone quiet (no message in 3+ weeks), admitted-but-not-confirmed applications, and students missing required base documents. Use for "what needs my attention" and "who is at risk / has gone silent" questions.',
     { days: int('Deadline window in days for the overview (default 30).', 365) }
   ),
   makeTool(

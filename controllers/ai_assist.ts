@@ -14,7 +14,10 @@ import {
   searchAccessibleStudents
 } from '../services/ai-assist/tools';
 import { getAccessibleStudentFilter } from '../services/ai-assist/studentAccess';
-import { buildOverview } from '../services/ai-assist/overview';
+import {
+  buildOverview,
+  PORTFOLIO_BUCKET_LIMIT
+} from '../services/ai-assist/overview';
 import { withPostgresRetry } from '../services/ai-assist/postgresRetry';
 import { openAIClient, OpenAiModel } from '../services/openai';
 import logger from '../services/logger';
@@ -241,7 +244,11 @@ const resolveAssistContextPayload = async (req) => {
     unknownSkillText:
       raw.requestedSkill && !requestedSkill
         ? raw.requestedSkill
-        : raw.unknownSkillText || null
+        : raw.unknownSkillText || null,
+    // When true, the orchestrator injects the structured deep-dive output
+    // format (HEALTH / BLOCKERS / RISKS / ACTIONS / ANALYSIS) the frontend
+    // AnalysisDisplay parses. Sent by the Student Analysis view.
+    analysisMode: Boolean(raw.analysisMode)
   };
 };
 
@@ -594,7 +601,12 @@ const listRecentStudents = asyncHandler(async (req, res) => {
 
 const getOverview = asyncHandler(async (req, res) => {
   const days = Number(req.query?.days) || undefined;
-  const overview = await buildOverview(req, { deadlineWindowDays: days });
+  // The portfolio view needs the full at-risk list (not the small chat sample)
+  // so triage does not silently drop students beyond the first few per bucket.
+  const overview = await buildOverview(req, {
+    deadlineWindowDays: days,
+    sampleSize: PORTFOLIO_BUCKET_LIMIT
+  });
 
   res.status(200).send({
     success: true,

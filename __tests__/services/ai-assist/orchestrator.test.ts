@@ -168,6 +168,56 @@ describe('runAiAssist - single agentic loop', () => {
     expect(result.answer).toBe('I could not read that document.');
   });
 
+  it('forces the preferred language for an analysisMode deep-dive even when the prompt is English', async () => {
+    const provider = makeProvider();
+    provider.stream.mockResolvedValueOnce({
+      text: 'ok',
+      toolCalls: [],
+      usage: {}
+    });
+    getLlmProvider.mockReturnValue(provider);
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'Perform a full deep-dive analysis of student @Alice (id: s1).',
+      req: REQ,
+      assistContext: {
+        mentionedStudent: { id: 's1', displayName: 'Alice' },
+        analysisMode: true
+      },
+      preferredLanguage: 'zh-TW'
+    });
+
+    const { system } = provider.stream.mock.calls[0][0];
+    expect(system).toContain('Respond in Traditional Chinese');
+    expect(system).not.toContain('Match the language and writing system');
+    expect(system).toContain('STRUCTURED OUTPUT FORMAT');
+  });
+
+  it('matches the user message language for a normal (non-analysis) chat', async () => {
+    const provider = makeProvider();
+    provider.stream.mockResolvedValueOnce({
+      text: 'ok',
+      toolCalls: [],
+      usage: {}
+    });
+    getLlmProvider.mockReturnValue(provider);
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'What is the application deadline?',
+      req: REQ,
+      assistContext: {},
+      preferredLanguage: 'zh-TW'
+    });
+
+    const { system } = provider.stream.mock.calls[0][0];
+    expect(system).toContain('Match the language and writing system');
+    expect(system).not.toContain('STRUCTURED OUTPUT FORMAT');
+  });
+
   it('uses an explicitly mentioned student as the active student', async () => {
     const provider = makeProvider();
     provider.stream.mockResolvedValueOnce({

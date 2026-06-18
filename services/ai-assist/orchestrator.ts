@@ -84,7 +84,19 @@ const stripAssistControlTokens = (message = '', assistContext = {}) => {
   return promptText.replace(/\s+/g, ' ').trim();
 };
 
-const buildLanguageInstruction = ({ message, assistContext, preferredLanguage }) => {
+const buildLanguageInstruction = ({
+  message,
+  assistContext,
+  preferredLanguage,
+  analysisMode = false
+}) => {
+  // For an auto-triggered deep-dive the "message" is a system-generated English
+  // instruction, not the user's own writing — so the "match the message
+  // language" heuristic would wrongly force the analysis into English. Honour
+  // the staff member's preferred language instead.
+  if (analysisMode) {
+    return ` Respond in ${languageNameFromPreference(preferredLanguage)}.`;
+  }
   const extraPromptText = stripAssistControlTokens(message, assistContext);
   if (extraPromptText) {
     return ' Match the language and writing system of the user\'s message exactly; do not translate unless asked.';
@@ -114,7 +126,7 @@ STRUCTURED OUTPUT FORMAT — when performing a student deep-dive, you MUST outpu
 **ANALYSIS:**
 <full evidence-based reasoning, timeline, cross-references, supporting data>
 
-Rules: Use only urgency levels IMMEDIATE, URGENT, NORMAL. Use only target roles AGENT, STUDENT, EDITOR, TEAM. If no blockers, write "- None identified." under BLOCKERS. Sections must appear in this exact order.`;
+Rules: Use only urgency levels IMMEDIATE, URGENT, NORMAL. Use only target roles AGENT, STUDENT, EDITOR, TEAM. If no blockers, write "- None identified." under BLOCKERS. Sections must appear in this exact order. CRITICAL: keep the section headers and all bracket/label tokens — HEALTH, BLOCKERS, RISKS, ACTIONS, ANALYSIS, ROOT CAUSE, SINCE, WAITING ON, [BLOCKER], [RISK:...], [ACTION:...] — in English exactly as shown, even when the rest of your answer is in another language (e.g. Chinese). Only the descriptive prose after each token should follow the user's language. Always include all five section headers, including **ANALYSIS:**.`;
 
 const buildSystemPrompt = ({ role, languageInstruction, analysisMode = false }) =>
   `${baseInstructions}${roleGuidance(role)}${languageInstruction}${analysisMode ? ANALYSIS_FORMAT_INSTRUCTION : ''}`;
@@ -342,7 +354,8 @@ const runAiAssist = async (
   const languageInstruction = buildLanguageInstruction({
     message,
     assistContext,
-    preferredLanguage
+    preferredLanguage,
+    analysisMode: Boolean(assistContext?.analysisMode)
   });
   const system = buildSystemPrompt({
     role: req?.user?.role,

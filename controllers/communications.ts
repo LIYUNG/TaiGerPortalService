@@ -658,9 +658,22 @@ export const postMessages = asyncHandler(async (req, res) => {
   });
 
   // The draft's files now belong to the message — delete the draft DOCUMENT
-  // only (do NOT delete the S3 objects).
+  // only (do NOT delete the S3 objects). Best-effort: the message is already
+  // created, so a draft-delete failure must NOT fail the request (which would
+  // make the client think the send failed and re-send, duplicating it). The
+  // daily sweep reclaims any leftover.
   if (draft) {
-    await CommunicationDraftService.deleteDraft(user._id.toString(), studentId);
+    try {
+      await CommunicationDraftService.deleteDraft(
+        user._id.toString(),
+        studentId
+      );
+    } catch (err) {
+      logger.error('postMessages: failed to delete consumed draft', {
+        studentId,
+        message: err?.message
+      });
+    }
   }
 
   const communication_latest = await CommunicationService.findThreadPopulated(

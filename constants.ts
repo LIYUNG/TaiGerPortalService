@@ -34,50 +34,50 @@ const PASSWORD_RESET_URL = new URL('/account/reset-password', ORIGIN).href;
 const FORGOT_PASSWORD_URL = new URL('/forgot-password', ORIGIN).href;
 
 const CVMLRL_CENTER_URL = new URL('/cv-ml-rl-center', ORIGIN).href;
-const CVMLRL_FOR_EDITOR_URL = (studentId) =>
+const CVMLRL_FOR_EDITOR_URL = (studentId: string) =>
   new URL(`/student-database/${studentId}#cvmlrl`, ORIGIN).href;
 const UNI_ASSIST_FOR_STUDENT_URL = new URL('/uni-assist', ORIGIN).href;
-const UNI_ASSIST_FOR_AGENT_URL = (studentId) =>
+const UNI_ASSIST_FOR_AGENT_URL = (studentId: string) =>
   new URL(`/student-database/${studentId}#uniassist`, ORIGIN).href;
 const THREAD_URL = new URL('/document-modification', ORIGIN).href;
-const THREAD_ID_URL = (thread_id) =>
+const THREAD_ID_URL = (thread_id: string) =>
   new URL(`/document-modification/${thread_id}`, ORIGIN).href;
 const ARCHIVED_STUDENTS_URL = new URL('/archiv/students', ORIGIN).href;
 const BASE_DOCUMENT_URL = new URL('/base-documents', ORIGIN).href;
-const BASE_DOCUMENT_FOR_AGENT_URL = (studentId) =>
+const BASE_DOCUMENT_FOR_AGENT_URL = (studentId: string) =>
   new URL(`/student-database/${studentId}#profile`, ORIGIN).href;
-const STUDENT_COMMUNICATION_THREAD_URL = (studentId) =>
+const STUDENT_COMMUNICATION_THREAD_URL = (studentId: string) =>
   new URL(`/communications/std/${studentId}`, ORIGIN).href;
-const INTERNAL_COMMUNICATION_THREAD_URL = (studentId) =>
+const INTERNAL_COMMUNICATION_THREAD_URL = (studentId: string) =>
   new URL(`/communications/t/${studentId}`, ORIGIN).href;
 const INTERVIEW_CENTER_URL = new URL('/interview-training', ORIGIN).href;
-const SINGLE_INTERVIEW_THREAD_URL = (interview_id) =>
+const SINGLE_INTERVIEW_THREAD_URL = (interview_id: string) =>
   new URL(`/interview-training/${interview_id}`, ORIGIN).href;
-const SINGLE_INTERVIEW_SURVEY_THREAD_URL = (interview_id) =>
+const SINGLE_INTERVIEW_SURVEY_THREAD_URL = (interview_id: string) =>
   new URL(`/interview-training/${interview_id}/survey`, ORIGIN).href;
 const TEMPLATE_DOWNLOAD_URL = new URL('/download', ORIGIN).href;
 const STUDENT_APPLICATION_URL = new URL('/student-applications', ORIGIN).href;
-const STUDENT_APPLICATION_STUDENT_URL = (student_id) =>
+const STUDENT_APPLICATION_STUDENT_URL = (student_id: string) =>
   new URL(`/student-applications/${student_id}`, ORIGIN).href;
 const STUDENT_SURVEY_URL = new URL('/survey', ORIGIN).href;
-const SURVEY_URL_FOR_AGENT_URL = (studentId) =>
+const SURVEY_URL_FOR_AGENT_URL = (studentId: string) =>
   new URL(`/student-database/${studentId}#survey`, ORIGIN).href;
 const SETTINGS_URL = new URL('/settings', ORIGIN).href;
 const PROFILE_URL = new URL('/profile', ORIGIN).href;
 const TEAMS_URL = new URL('/teams', ORIGIN).href;
-const STUDENT_PROFILE_FOR_AGENT_URL = (studentId) =>
+const STUDENT_PROFILE_FOR_AGENT_URL = (studentId: string) =>
   new URL(`/student-database/${studentId}#profile`, ORIGIN).href;
-const STUDENT_COURSE_URL = (studentId) =>
+const STUDENT_COURSE_URL = (studentId: string) =>
   new URL(`/my-courses/${studentId}`, ORIGIN).href;
-const STUDENT_ANALYSED_COURSE_URL = (studentId) =>
+const STUDENT_ANALYSED_COURSE_URL = (studentId: string) =>
   new URL(`/my-courses/analysis/${studentId}`, ORIGIN).href;
-const AGENT_CALENDAR_EVENTS_URL = (taigerAgentId) =>
+const AGENT_CALENDAR_EVENTS_URL = (taigerAgentId: string) =>
   new URL(`/events/taiger/${taigerAgentId}`, ORIGIN).href;
-const STUDENT_CALENDAR_EVENTS_URL = (studentId) =>
+const STUDENT_CALENDAR_EVENTS_URL = (studentId: string) =>
   new URL(`/events/students/${studentId}`, ORIGIN).href;
-const PROGRAM_URL = (program_id) =>
+const PROGRAM_URL = (program_id: string) =>
   new URL(`/programs/${program_id}`, ORIGIN).href;
-const JITSI_MEET_URL = (studentId) =>
+const JITSI_MEET_URL = (studentId: string) =>
   new URL(`https://meet.jit.si/${studentId}`, ORIGIN).href;
 const JITSI_MEET_INSTRUCTIONS_URL = new URL(
   '/docs/search/64eb25ec89ea0d1fcb39df73',

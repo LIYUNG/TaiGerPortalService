@@ -298,7 +298,7 @@ describe('updateAcademicBackground', () => {
     const {
       ProfileNameType,
       DocumentStatusType
-    } = require('@taiger-common/core');
+    } = require('@taiger-common/model');
     const doc = makeStudentDoc({
       academic_background: {
         university: {

@@ -1,4 +1,4 @@
-import { DocumentStatusType } from '@taiger-common/core';
+import { DocumentStatusType } from '@taiger-common/model';
 
 // Mock the send boundary so no real SMTP/SES is used. `sendEmail` is used by
 // most templates; `transporter.sendMail` is used by the calendar-event emails.

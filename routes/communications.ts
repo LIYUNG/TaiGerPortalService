@@ -27,13 +27,39 @@ import {
   getChatFile,
   getCommunicationDraft,
   upsertCommunicationDraft,
-  deleteCommunicationDraft
+  deleteCommunicationDraft,
+  uploadCommunicationDraftFiles,
+  deleteCommunicationDraftFile
 } from '../controllers/communications';
 import { chatMultitenantFilter } from '../middlewares/chatMultitenantFilter';
 import { MessagesChatUpload } from '../middlewares/file-upload';
 import { validateStudentId } from '../common/validation';
+import { ErrorResponse } from '../common/errors';
+import logger from '../services/logger';
 
 const router = Router();
+
+// multer-S3 errors (file filter, size, or an S3 upload failure) can otherwise
+// escape as an uncaught exception. Run the upload, then forward any error as a
+// clean response so the client sees a real message instead of a dead request.
+const safeChatUpload = (req, res, next) => {
+  MessagesChatUpload(req, res, (err) => {
+    if (err) {
+      logger.error('chat draft upload failed', {
+        name: err?.name,
+        code: err?.code ?? err?.Code,
+        message: err?.message
+      });
+      return next(
+        new ErrorResponse(
+          err?.statusCode || 500,
+          err?.message || 'Upload failed'
+        )
+      );
+    }
+    next();
+  });
+};
 
 router.use(protect);
 router
@@ -122,6 +148,29 @@ router
     multitenant_filter,
     chatMultitenantFilter,
     deleteCommunicationDraft
+  );
+
+// Draft attachments (upload-on-attach). Registered before '/:studentId/:messageId'.
+router
+  .route('/:studentId/draft/files')
+  .post(
+    validateStudentId,
+    filter_archiv_user,
+    postMessagesImageRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    multitenant_filter,
+    chatMultitenantFilter,
+    safeChatUpload,
+    uploadCommunicationDraftFiles
+  )
+  .delete(
+    validateStudentId,
+    filter_archiv_user,
+    postMessagesImageRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    multitenant_filter,
+    chatMultitenantFilter,
+    deleteCommunicationDraftFile
   );
 
 router

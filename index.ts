@@ -42,6 +42,7 @@ import {
   NoInterviewTrainerOrTrainingDateDailyReminderChecker,
   DailyInterviewSurveyChecker
 } from './utils/utils_function';
+import { sweepStaleCommunicationDrafts } from './utils/communicationDraftCleanup';
 // const { UserS3GarbageCollector } = require('./controllers/users');
 
 // process.on('SIGINT', () => {
@@ -56,11 +57,21 @@ import {
 // effect (e.g. a notification email) could take the server down. Individual
 // fire-and-forget calls should still use `fireAndForget()` for context; this is
 // the last line of defence.
+// Error message/stack are non-enumerable, so `{ error }` serialises to `{}`.
+// Pull them out explicitly so the log is actually useful.
+const describeError = (err) => ({
+  name: err?.name,
+  message: err?.message,
+  code: err?.code ?? err?.Code,
+  stack: err?.stack
+});
 process.on('unhandledRejection', (reason) => {
-  logger.error('Unhandled promise rejection', { reason });
+  logger.error('Unhandled promise rejection', {
+    reason: describeError(reason)
+  });
 });
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught exception', { error });
+  logger.error('Uncaught exception', { error: describeError(error) });
 });
 
 const launch = async () => {
@@ -174,6 +185,12 @@ const launch = async () => {
   const _job16 = schedule.scheduleJob(
     DAILY_TASKS_REMINDER_SCHEDULE,
     DailyInterviewSurveyChecker
+  );
+
+  // Daily: remove abandoned message drafts + their orphaned S3 attachments.
+  const _job17 = schedule.scheduleJob(
+    DAILY_TASKS_REMINDER_SCHEDULE,
+    sweepStaleCommunicationDrafts
   );
 
   logger.info(`isProd : ${isProd()}`);

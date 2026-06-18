@@ -2,7 +2,9 @@ import path from 'path';
 import _ from 'lodash';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
-import uuid from 'uuid';
+// Namespace import: `uuid` has no default export, so `import uuid from 'uuid'`
+// resolves to undefined and `uuid.v4()` throws at runtime.
+import * as uuid from 'uuid';
 import { ErrorResponse } from '../common/errors';
 import { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } from '../config';
 import { s3Client } from '../aws';
@@ -448,17 +450,11 @@ const storage_messagesChat_file_s3 = multerS3({
   },
   key: (req, file, cb) => {
     const { studentId } = req.params;
-
-    const date = new Date();
-    const formattedDate = formatDate(date);
-    StudentService.getStudentByIdLean(studentId).then((student) => {
-      let temp_name = `${student.lastname}_${
-        student.firstname
-      }_Attachment_${formattedDate}${path.extname(file.originalname)}`;
-      temp_name = temp_name.replace(/ /g, '_');
-      temp_name = temp_name.replace(/\//g, '_');
-      cb(null, `${studentId}/chat/${temp_name}`);
-    });
+    // Opaque, unique storage key — guarantees no two attachments ever collide
+    // or overwrite each other. The human-friendly display/download name is set
+    // separately on the message record (controllers/communications.postMessages).
+    const fileName = `${uuid.v4()}${path.extname(file.originalname)}`;
+    cb(null, `${studentId}/chat/${fileName}`);
   }
 });
 

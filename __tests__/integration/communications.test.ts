@@ -88,6 +88,7 @@ jest.mock('../../services/email', () => ({
 // The data boundary: mock the DAOs the communication/student services delegate
 // to. PermissionDAO is touched by the cached getPermission() helper.
 jest.mock('../../dao/communication.dao');
+jest.mock('../../dao/communicationDraft.dao');
 jest.mock('../../dao/student.dao');
 jest.mock('../../dao/permission.dao');
 

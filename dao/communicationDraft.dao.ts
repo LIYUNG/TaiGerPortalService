@@ -25,6 +25,30 @@ const CommunicationDraftDAO = {
       user_id: userId,
       student_id: studentId
     });
+  },
+
+  // Attach: push file refs, creating the draft if none exists yet (a user can
+  // attach before typing any text).
+  async addDraftFiles(userId, studentId, files) {
+    return CommunicationDraft.findOneAndUpdate(
+      { user_id: userId, student_id: studentId },
+      { $push: { files: { $each: files } } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean();
+  },
+
+  // Unattach: remove a single file (by its S3 key) from the draft.
+  async removeDraftFile(userId, studentId, filePath) {
+    return CommunicationDraft.findOneAndUpdate(
+      { user_id: userId, student_id: studentId },
+      { $pull: { files: { path: filePath } } },
+      { new: true }
+    ).lean();
+  },
+
+  // Sweep: drafts not touched since `before` (their staged files are orphaned).
+  async findStaleDrafts(before) {
+    return CommunicationDraft.find({ updatedAt: { $lt: before } }).lean();
   }
 };
 

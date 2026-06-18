@@ -50,7 +50,9 @@ import {
   IgnoreMessage,
   getCommunicationDraft,
   upsertCommunicationDraft,
-  deleteCommunicationDraft
+  deleteCommunicationDraft,
+  uploadCommunicationDraftFiles,
+  deleteCommunicationDraftFile
 } from '../../controllers/communications';
 import { deleteS3Objects } from '../../aws/s3';
 import { mockReq, mockRes } from '../helpers/httpMocks';
@@ -66,6 +68,10 @@ beforeEach(() => {
   // node-cache is used by getChatFile / delete handlers; flush so each test is
   // isolated from a previously-cached value.
   ten_minutes_cache.flushAll();
+  // Default: no draft. clearAllMocks resets call records but NOT a prior test's
+  // mockResolvedValue, so re-assert the default each test (postMessages now
+  // reads the draft on every send).
+  CommunicationDraftService.getDraft.mockResolvedValue(null);
 });
 
 describe('getSearchUserMessages', () => {
@@ -447,6 +453,26 @@ describe('getChatFile', () => {
     expect(res.end).toHaveBeenCalledTimes(1);
   });
 
+  it('uses the ?name= query as the download filename (decoupled from the key)', async () => {
+    const res = mockRes();
+    res.attachment = jest.fn(() => res);
+
+    await getChatFile(
+      mockReq({
+        params: { studentId, fileName: 'b1c2-uuid.pdf' },
+        query: { name: 'Smith_Ann_Attachment_20240101120000.pdf' },
+        originalUrl: `/api/x/y/z/${studentId}/b1c2-uuid.pdf`
+      }),
+      res,
+      jest.fn()
+    );
+
+    // Friendly name from the query, not the opaque storage key segment.
+    expect(res.attachment).toHaveBeenCalledWith(
+      'Smith_Ann_Attachment_20240101120000.pdf'
+    );
+  });
+
   it('serves from the cache on a hit (no S3 fetch)', async () => {
     const { getS3Object } = require('../../aws/s3');
     // Controller derives the cache key from req.originalUrl.split('/')[5].
@@ -499,6 +525,91 @@ describe('postMessages', () => {
     expect(CommunicationService.createCommunication).toHaveBeenCalledWith(
       expect.objectContaining({ student_id: studentId, message: validMessage })
     );
+  });
+
+  it('moves the draft files onto the message and deletes the draft (no S3 delete)', async () => {
+    CommunicationService.createCommunication.mockResolvedValue({ _id: 'new1' });
+    CommunicationService.findThreadPopulated.mockResolvedValue([
+      { _id: 'new1' }
+    ]);
+    StudentService.getStudentById.mockResolvedValue({
+      _id: studentId,
+      agents: [],
+      firstname: 'Ann',
+      lastname: 'Smith'
+    });
+    const draftFile = {
+      name: 'Smith_Ann_Attachment_1.pdf',
+      path: `${studentId}/chat/u1.pdf`
+    };
+    CommunicationDraftService.getDraft.mockResolvedValue({
+      files: [draftFile]
+    });
+
+    await postMessages(
+      mockReq({
+        user: admin,
+        params: { studentId },
+        body: { message: validMessage }
+      }),
+      mockRes(),
+      jest.fn()
+    );
+
+    const arg = CommunicationService.createCommunication.mock.calls[0][0];
+    expect(arg.files).toEqual([draftFile]);
+    // Draft document removed; its S3 files now belong to the message (not deleted).
+    expect(CommunicationDraftService.deleteDraft).toHaveBeenCalledWith(
+      admin._id.toString(),
+      studentId
+    );
+    expect(deleteS3Objects).not.toHaveBeenCalled();
+  });
+
+  it('stores attachments with a uuid storage path and a friendly display name', async () => {
+    CommunicationService.createCommunication.mockResolvedValue({ _id: 'new1' });
+    CommunicationService.findThreadPopulated.mockResolvedValue([
+      { _id: 'new1' }
+    ]);
+    StudentService.getStudentById.mockResolvedValue({
+      _id: studentId,
+      firstname: 'Ann',
+      lastname: 'Smith',
+      agents: []
+    });
+    const res = mockRes();
+
+    await postMessages(
+      mockReq({
+        user: admin,
+        params: { studentId },
+        body: { message: validMessage },
+        files: [
+          {
+            key: `${studentId}/chat/b1c2-uuid.pdf`,
+            originalname: 'my cv.pdf',
+            mimetype: 'application/pdf'
+          },
+          {
+            key: `${studentId}/chat/d3e4-uuid.pdf`,
+            originalname: 'cover.pdf',
+            mimetype: 'application/pdf'
+          }
+        ]
+      }),
+      res,
+      jest.fn()
+    );
+
+    const arg = CommunicationService.createCommunication.mock.calls[0][0];
+    // Two same-extension files are allowed now (no overwrite — uuid keys).
+    expect(arg.files).toHaveLength(2);
+    // Storage path is the opaque uuid key.
+    expect(arg.files[0].path).toBe(`${studentId}/chat/b1c2-uuid.pdf`);
+    expect(arg.files[1].path).toBe(`${studentId}/chat/d3e4-uuid.pdf`);
+    // Friendly, distinct display names derived from the student + index.
+    expect(arg.files[0].name).toMatch(/^Smith_Ann_Attachment_\d+_1\.pdf$/);
+    expect(arg.files[1].name).toMatch(/^Smith_Ann_Attachment_\d+_2\.pdf$/);
   });
 
   it('forwards a 400 ErrorResponse to next() for a non-JSON message body', async () => {
@@ -611,18 +722,26 @@ describe('postMessages', () => {
       jest.fn()
     );
 
-    expect(CommunicationService.createCommunication).toHaveBeenCalledWith(
-      expect.objectContaining({
-        files: [
-          { name: 'a.pdf', path: `${studentId}/chat/a.pdf` },
-          { name: 'b.docx', path: `${studentId}/chat/b.docx` }
-        ]
-      })
-    );
+    const arg = CommunicationService.createCommunication.mock.calls[0][0];
+    // Storage path is the opaque key; display name is friendly + indexed.
+    expect(arg.files[0].path).toBe(`${studentId}/chat/a.pdf`);
+    expect(arg.files[1].path).toBe(`${studentId}/chat/b.docx`);
+    expect(arg.files[0].name).toMatch(/^Smith_Ann_Attachment_\d+_1\.pdf$/);
+    expect(arg.files[1].name).toMatch(/^Smith_Ann_Attachment_\d+_2\.docx$/);
     expect(res.status).toHaveBeenCalledWith(200);
   });
 
-  it('forwards a 423 ErrorResponse when two uploaded files share an extension', async () => {
+  it('allows two uploaded files that share an extension (uuid keys never overwrite)', async () => {
+    CommunicationService.createCommunication.mockResolvedValue({ _id: 'new1' });
+    CommunicationService.findThreadPopulated.mockResolvedValue([
+      { _id: 'new1' }
+    ]);
+    StudentService.getStudentById.mockResolvedValue({
+      _id: studentId,
+      agents: [],
+      firstname: 'Ann',
+      lastname: 'Smith'
+    });
     const next = jest.fn();
 
     await postMessages(
@@ -631,16 +750,19 @@ describe('postMessages', () => {
         params: { studentId },
         body: { message: validMessage },
         files: [
-          { key: `${studentId}/chat/a.pdf`, mimetype: 'application/pdf' },
-          { key: `${studentId}/chat/b.pdf`, mimetype: 'application/pdf' }
+          { key: `${studentId}/chat/u1.pdf`, mimetype: 'application/pdf' },
+          { key: `${studentId}/chat/u2.pdf`, mimetype: 'application/pdf' }
         ]
       }),
       mockRes(),
       next
     );
 
-    expect(next.mock.calls[0][0].statusCode).toBe(423);
-    expect(CommunicationService.createCommunication).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    const arg = CommunicationService.createCommunication.mock.calls[0][0];
+    expect(arg.files).toHaveLength(2);
+    expect(arg.files[0].path).toBe(`${studentId}/chat/u1.pdf`);
+    expect(arg.files[1].path).toBe(`${studentId}/chat/u2.pdf`);
   });
 
   it('student: 429 when the last three messages are all by the student', async () => {
@@ -945,5 +1067,123 @@ describe('communication drafts', () => {
       studentId
     );
     expect(res.send.mock.calls[0][0]).toEqual({ success: true });
+  });
+
+  it('upsertCommunicationDraft keeps an empty-text draft that still has files', async () => {
+    CommunicationDraftService.getDraft.mockResolvedValue({
+      files: [{ name: 'a.pdf', path: `${studentId}/chat/u1.pdf` }]
+    });
+    CommunicationDraftService.upsertDraft.mockResolvedValue({ message: '' });
+    const res = mockRes();
+
+    await upsertCommunicationDraft(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { message: '{"blocks":[]}' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    // Not discarded — text cleared, files preserved.
+    expect(CommunicationDraftService.deleteDraft).not.toHaveBeenCalled();
+    expect(CommunicationDraftService.upsertDraft).toHaveBeenCalledWith(
+      agent._id.toString(),
+      studentId,
+      ''
+    );
+  });
+
+  it('deleteCommunicationDraft (discard) deletes the staged S3 files', async () => {
+    CommunicationDraftService.getDraft.mockResolvedValue({
+      files: [{ name: 'a.pdf', path: `${studentId}/chat/u1.pdf` }]
+    });
+    CommunicationDraftService.deleteDraft.mockResolvedValue({
+      deletedCount: 1
+    });
+    const res = mockRes();
+
+    await deleteCommunicationDraft(
+      mockReq({ user: agent, params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(deleteS3Objects).toHaveBeenCalledWith({
+      bucketName: expect.anything(),
+      objectKeys: [{ Key: `${studentId}/chat/u1.pdf` }]
+    });
+    expect(CommunicationDraftService.deleteDraft).toHaveBeenCalled();
+  });
+
+  it('uploadCommunicationDraftFiles records friendly-named refs on the draft', async () => {
+    StudentService.getStudentById.mockResolvedValue({
+      _id: studentId,
+      firstname: 'Ann',
+      lastname: 'Smith'
+    });
+    CommunicationDraftService.addDraftFiles.mockResolvedValue({ files: [] });
+    const res = mockRes();
+
+    await uploadCommunicationDraftFiles(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        files: [{ key: `${studentId}/chat/u1.pdf`, originalname: 'cv.pdf' }]
+      }),
+      res,
+      jest.fn()
+    );
+
+    const [, , files] = CommunicationDraftService.addDraftFiles.mock.calls[0];
+    expect(files[0].path).toBe(`${studentId}/chat/u1.pdf`);
+    expect(files[0].name).toMatch(/^Smith_Ann_Attachment_\d+\.pdf$/);
+  });
+
+  it('deleteCommunicationDraftFile rejects a path not in the user draft', async () => {
+    CommunicationDraftService.getDraft.mockResolvedValue({
+      files: [{ name: 'a.pdf', path: `${studentId}/chat/u1.pdf` }]
+    });
+    const next = jest.fn();
+
+    await deleteCommunicationDraftFile(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { path: `${studentId}/chat/SOMEONE_ELSE.pdf` }
+      }),
+      mockRes(),
+      next
+    );
+
+    expect(next.mock.calls[0][0].statusCode).toBe(404);
+    expect(deleteS3Objects).not.toHaveBeenCalled();
+    expect(CommunicationDraftService.removeDraftFile).not.toHaveBeenCalled();
+  });
+
+  it('deleteCommunicationDraftFile deletes S3 + pulls a path the user owns', async () => {
+    const filePath = `${studentId}/chat/u1.pdf`;
+    CommunicationDraftService.getDraft.mockResolvedValue({
+      files: [{ name: 'a.pdf', path: filePath }]
+    });
+    CommunicationDraftService.removeDraftFile.mockResolvedValue({ files: [] });
+    const res = mockRes();
+
+    await deleteCommunicationDraftFile(
+      mockReq({ user: agent, params: { studentId }, body: { path: filePath } }),
+      res,
+      jest.fn()
+    );
+
+    expect(deleteS3Objects).toHaveBeenCalledWith({
+      bucketName: expect.anything(),
+      objectKeys: [{ Key: filePath }]
+    });
+    expect(CommunicationDraftService.removeDraftFile).toHaveBeenCalledWith(
+      agent._id.toString(),
+      studentId,
+      filePath
+    );
   });
 });

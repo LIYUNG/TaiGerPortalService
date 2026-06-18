@@ -15,6 +15,18 @@ const CommunicationDraftService = {
 
   deleteDraft(userId, studentId) {
     return CommunicationDraftDAO.deleteDraft(userId, studentId);
+  },
+
+  addDraftFiles(userId, studentId, files) {
+    return CommunicationDraftDAO.addDraftFiles(userId, studentId, files);
+  },
+
+  removeDraftFile(userId, studentId, filePath) {
+    return CommunicationDraftDAO.removeDraftFile(userId, studentId, filePath);
+  },
+
+  findStaleDrafts(before) {
+    return CommunicationDraftDAO.findStaleDrafts(before);
   }
 };
 

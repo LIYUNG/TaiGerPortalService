@@ -90,6 +90,21 @@ const CommunicationDAO = {
       .lean();
   },
 
+  // Latest message timestamp per student across many students, in one
+  // aggregation. Used by the AI-assist portfolio overview to detect
+  // communication gaps (students who have gone silent) without N queries.
+  // `studentIds` should be ObjectId instances. Returns
+  // [{ _id: <studentObjectId>, latestAt: <Date> }].
+  async getLatestMessageAtForStudents(studentIds) {
+    if (!studentIds || !studentIds.length) {
+      return [];
+    }
+    return Communication.aggregate([
+      { $match: { student_id: { $in: studentIds } } },
+      { $group: { _id: '$student_id', latestAt: { $max: '$createdAt' } } }
+    ]);
+  },
+
   // A student's chat thread, newest-first, with the given populate spec.
   // Returns live documents unless `lean` is set (callers that mark-as-read
   // mutate + .save() the returned docs).

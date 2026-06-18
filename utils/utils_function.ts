@@ -1217,25 +1217,45 @@ export const GroupIntervals = async () => {
   }
 };
 
-export const patternMatched = async (fileBuffer, extension, patterns) => {
-  const lowerCasePatterns = patterns.map((pattern) => pattern.toLowerCase());
-  const extractText = async () => {
-    let data = null;
-    if (extension === 'pdf') {
+// Extract plain text from a document buffer. Supports pdf/docx (via pdf-parse /
+// mammoth) and plain text formats. Returns '' for unsupported types or on
+// extraction failure. Shared by patternMatched and the AI Assist read_document
+// tool.
+export const extractTextFromBuffer = async (fileBuffer, extension) => {
+  const ext = String(extension || '')
+    .toLowerCase()
+    .replace(/^\./, '');
+
+  try {
+    if (ext === 'pdf') {
       const result = await PdfParse(fileBuffer);
-      data = result.text.toLowerCase();
-    } else if (extension === 'docx') {
-      const result = await mammoth.extractRawText({ buffer: fileBuffer });
-      data = result.value.toLowerCase();
+      return result?.text || '';
     }
 
-    return data;
-  };
+    if (ext === 'docx') {
+      const result = await mammoth.extractRawText({ buffer: fileBuffer });
+      return result?.value || '';
+    }
 
-  const text = await extractText();
+    if (ext === 'txt' || ext === 'md' || ext === 'csv') {
+      return Buffer.isBuffer(fileBuffer)
+        ? fileBuffer.toString('utf8')
+        : Buffer.from(fileBuffer).toString('utf8');
+    }
+  } catch (error) {
+    logger.error('extractTextFromBuffer failed', { error });
+  }
+
+  return '';
+};
+
+export const patternMatched = async (fileBuffer, extension, patterns) => {
+  const text = (await extractTextFromBuffer(fileBuffer, extension)).toLowerCase();
   if (!text) return false; // Early return if text extraction failed
 
-  return lowerCasePatterns.some((pattern) => text.includes(pattern));
+  return patterns
+    .map((pattern) => pattern.toLowerCase())
+    .some((pattern) => text.includes(pattern));
 };
 
 export const CalculateAverageResponseTimeAndSave = async () => {

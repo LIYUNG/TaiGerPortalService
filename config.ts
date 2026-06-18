@@ -85,6 +85,12 @@ export = {
     'https://beta.course.taigerconsultancy-portal.com/analyze'
   ),
   OPENAI_API_KEY: env('OPENAI_API_KEY', ''),
+  ANTHROPIC_API_KEY: env('ANTHROPIC_API_KEY', ''),
+  // AI Assist LLM provider selection. 'openai' (default) or 'anthropic'.
+  AI_ASSIST_PROVIDER: env('AI_ASSIST_PROVIDER', 'openai'),
+  // Model override for the selected provider. Defaults to OpenAI's latest mini
+  // model; set empty to let the provider pick its own default.
+  AI_ASSIST_MODEL: env('AI_ASSIST_MODEL', 'gpt-5.4-mini'),
   GOOGLE_CLIENT_ID: env('GOOGLE_CLIENT_ID', ''),
   GOOGLE_CLIENT_SECRET: env('GOOGLE_CLIENT_SECRET', ''),
   GOOGLE_REDIRECT_URL: env('GOOGLE_REDIRECT_URL', ''),

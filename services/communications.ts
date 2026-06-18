@@ -49,6 +49,10 @@ const CommunicationService = {
     return CommunicationDAO.getLatestByStudentId(studentId);
   },
 
+  getLatestMessageAtForStudents(studentIds) {
+    return CommunicationDAO.getLatestMessageAtForStudents(studentIds);
+  },
+
   findThreadPopulated(studentId, options) {
     return CommunicationDAO.findThreadPopulated(studentId, options);
   },

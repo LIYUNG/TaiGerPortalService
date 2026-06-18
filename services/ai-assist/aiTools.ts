@@ -197,6 +197,48 @@ const readDocument = async (req, args = {}) => {
   };
 };
 
+const extractMsgText = (msg: any): string =>
+  msg.message || msg.text || msg.content || msg.body || '';
+
+const extractMsgAt = (msg: any): string | null => {
+  const d = msg.createdAt ? new Date(msg.createdAt) : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toISOString() : null;
+};
+
+const getThreadMessages = async (req, args: any = {}) => {
+  if (!args.threadId) {
+    throw new ErrorResponse(400, 'threadId is required');
+  }
+  const thread = await DocumentThreadService.getThreadByIdLean(args.threadId);
+  if (!thread) {
+    throw new ErrorResponse(404, 'Document thread not found');
+  }
+  await tools.requireAccessibleStudent(req, toIdString(thread.student_id));
+
+  const messages = (Array.isArray(thread.messages) ? thread.messages : [])
+    .map((msg) => ({
+      text: extractMsgText(msg),
+      authorId: toIdString(msg.user_id || msg.userId),
+      createdAt: extractMsgAt(msg),
+      hasFile: Array.isArray(msg.file) && msg.file.length > 0,
+      fileName:
+        Array.isArray(msg.file) && msg.file.length > 0
+          ? (msg.file[msg.file.length - 1]?.name || null)
+          : null
+    }))
+    .filter((msg) => msg.text || msg.hasFile);
+
+  return {
+    data: {
+      threadId: args.threadId,
+      fileType: thread.file_type || null,
+      isFinalVersion: Boolean(thread.isFinalVersion),
+      messageCount: messages.length,
+      messages
+    }
+  };
+};
+
 // ---- Registry ---------------------------------------------------------------
 
 const registry = {
@@ -206,6 +248,7 @@ const registry = {
     tools.runTool(req, 'get_latest_communications', args),
   get_document_threads: (req, args) =>
     tools.runTool(req, 'get_document_thread_context', args),
+  get_thread_messages: getThreadMessages,
   get_support_tickets: (req, args) =>
     tools.runTool(req, 'get_support_tickets', args),
   get_program: getProgram,
@@ -280,6 +323,14 @@ const definitions = [
     'get_my_overview',
     'Get a cross-portfolio attention summary for the current user: upcoming deadlines, document threads waiting on the team, admitted-but-not-confirmed applications, and students missing required base documents. Use for "what needs my attention" questions.',
     { days: int('Deadline window in days for the overview (default 30).', 365) }
+  ),
+  makeTool(
+    'get_thread_messages',
+    'Get the FULL message history inside a specific document thread (CV, ML, RL, essay, etc). Use this when a thread looks stalled, has riskFlags, or pendingOwner = "team" and you need to understand WHY it is not progressing. The thread id comes from get_document_threads or get_student_overview output.',
+    {
+      threadId: str('Thread id from get_document_threads or get_student_overview output.')
+    },
+    ['threadId']
   ),
   makeTool(
     'read_document',

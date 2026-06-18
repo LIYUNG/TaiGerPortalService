@@ -719,64 +719,55 @@ const sendMessage = asyncHandler(async (req, res) => {
     initSse(res);
 
     try {
-      const result = await postgres.transaction(async (tx) => {
-        const conversation = await requireActiveConversationOwner(
-          tx,
-          conversationId,
-          currentUserId(req)
-        );
+      // Verify conversation before starting (fast read, no transaction needed).
+      const conversation = await requireActiveConversationOwner(
+        postgres,
+        conversationId,
+        currentUserId(req)
+      );
 
-        const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
+      // Run AI outside any DB transaction — tool loops can take minutes and
+      // would exceed any reasonable statement/transaction timeout.
+      const assistantResult = await aiAssistOrchestrator.runAiAssist(postgres, {
+        conversationId,
+        message,
+        assistContext,
+        preferredLanguage,
+        req,
+        onProgress: async (event) => {
+          writeSse(res, 'progress', event);
+        },
+        onToken: async (text) => {
+          writeSse(res, 'token', { text });
+        }
+      });
+
+      const conversationUpdates = buildConversationUpdateValues({
+        conversation,
+        message,
+        assistContext,
+        assistantResult
+      });
+      await updateOwnedActiveConversation(
+        postgres,
+        conversationId,
+        currentUserId(req),
+        conversationUpdates
+      );
+      if (conversationUpdates.title) {
+        titleRefinementPayload = {
           conversationId,
-          message,
-          assistContext,
-          preferredLanguage,
-          req,
-          onProgress: async (event) => {
-            writeSse(res, 'progress', event);
-          },
-          onToken: async (text) => {
-            writeSse(res, 'token', { text });
-          }
-        });
-        const conversationUpdates = buildConversationUpdateValues({
-          conversation,
+          ownerUserId: currentUserId(req),
+          seedTitle: conversationUpdates.title,
           message,
           assistContext,
           assistantResult
-        });
+        };
+      }
 
-        await updateOwnedActiveConversation(
-          tx,
-          conversationId,
-          currentUserId(req),
-          conversationUpdates
-        );
-        if (conversationUpdates.title) {
-          titleRefinementPayload = {
-            conversationId,
-            ownerUserId: currentUserId(req),
-            seedTitle: conversationUpdates.title,
-            message,
-            assistContext,
-            assistantResult
-          };
-        }
-
-        return assistantResult;
-      });
-
-      writeSse(res, 'progress', {
-        type: 'status',
-        phase: 'annotation',
-        status: 'annotating_references'
-      });
-      writeSse(res, 'references', {
-        references: result?.assistantMessage?.linkHints ?? {}
-      });
       writeSse(res, 'final', {
         success: true,
-        data: result
+        data: assistantResult
       });
       writeSse(res, 'done', { ok: true });
       queueAiTitleRefinement(titleRefinementPayload || {});
@@ -889,63 +880,54 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
     initSse(res);
 
     try {
-      const result = await postgres.transaction(async (tx) => {
-        const [conversation] = await createConversationRecord(tx, req);
+      // Create conversation first (fast write, outside AI transaction).
+      const [conversation] = await createConversationRecord(postgres, req);
 
-        const assistantResult = await aiAssistOrchestrator.runAiAssist(tx, {
+      // Run AI outside any DB transaction — tool loops can take minutes and
+      // would exceed any reasonable statement/transaction timeout.
+      const assistantResult = await aiAssistOrchestrator.runAiAssist(postgres, {
+        conversationId: conversation.id,
+        message,
+        assistContext,
+        preferredLanguage,
+        req,
+        onProgress: async (event) => {
+          writeSse(res, 'progress', event);
+        },
+        onToken: async (text) => {
+          writeSse(res, 'token', { text });
+        }
+      });
+
+      const conversationUpdates = buildConversationUpdateValues({
+        conversation,
+        message,
+        assistContext,
+        assistantResult
+      });
+      const updatedConversation = await updateOwnedActiveConversation(
+        postgres,
+        conversation.id,
+        currentUserId(req),
+        conversationUpdates
+      );
+      if (conversationUpdates.title) {
+        titleRefinementPayload = {
           conversationId: conversation.id,
-          message,
-          assistContext,
-          preferredLanguage,
-          req,
-          onProgress: async (event) => {
-            writeSse(res, 'progress', event);
-          },
-          onToken: async (text) => {
-            writeSse(res, 'token', { text });
-          }
-        });
-        const conversationUpdates = buildConversationUpdateValues({
-          conversation,
+          ownerUserId: currentUserId(req),
+          seedTitle: conversationUpdates.title,
           message,
           assistContext,
           assistantResult
-        });
-
-        const updatedConversation = await updateOwnedActiveConversation(
-          tx,
-          conversation.id,
-          currentUserId(req),
-          conversationUpdates
-        );
-        if (conversationUpdates.title) {
-          titleRefinementPayload = {
-            conversationId: conversation.id,
-            ownerUserId: currentUserId(req),
-            seedTitle: conversationUpdates.title,
-            message,
-            assistContext,
-            assistantResult
-          };
-        }
-
-        return {
-          conversation: updatedConversation,
-          ...assistantResult
         };
-      });
+      }
 
-      writeSse(res, 'progress', {
-        type: 'status',
-        phase: 'annotation',
-        status: 'annotating_references'
-      });
-      writeSse(res, 'references', {
-        references: result?.assistantMessage?.linkHints ?? {}
-      });
       writeSse(res, 'final', {
         success: true,
-        data: result
+        data: {
+          conversation: updatedConversation,
+          ...assistantResult
+        }
       });
       writeSse(res, 'done', { ok: true });
       queueAiTitleRefinement(titleRefinementPayload || {});

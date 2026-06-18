@@ -699,6 +699,7 @@ const getDocumentThreadContext = async (req, args = {}) => {
     const isFinalVersion = Boolean(thread.isFinalVersion);
 
     return {
+      id: toObjectIdString(thread._id),
       threadType: applicationId ? 'application' : 'general',
       fileType: thread.file_type || null,
       program: applicationId
@@ -712,7 +713,7 @@ const getDocumentThreadContext = async (req, args = {}) => {
         isFinalVersion,
         latestMessageAt
       }),
-      recentMessages: normalizeThreadMessages(thread.messages, 3)
+      recentMessages: normalizeThreadMessages(thread.messages, 5)
     };
   });
 

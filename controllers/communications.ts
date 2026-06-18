@@ -22,9 +22,73 @@ import { ten_minutes_cache } from '../cache/node-cache';
 import { deleteS3Objects, getS3Object } from '../aws/s3';
 import { TENANT_SHORT_NAME } from '../constants/common';
 import CommunicationService from '../services/communications';
+import CommunicationDraftService from '../services/communicationDraft';
 import StudentService from '../services/students';
 
 const pageSize = 5;
+
+// A draft holds EditorJS OutputData as a JSON string; it is "empty" when there
+// is no text or no content blocks. Empty drafts are deleted rather than stored.
+const isDraftEmpty = (message) => {
+  if (
+    typeof message !== 'string' ||
+    message.trim() === '' ||
+    message === '{}'
+  ) {
+    return true;
+  }
+  try {
+    const parsed = JSON.parse(message);
+    return !Array.isArray(parsed?.blocks) || parsed.blocks.length === 0;
+  } catch {
+    // Non-JSON but non-empty content — keep it.
+    return false;
+  }
+};
+
+// GET /api/communications/:studentId/draft — the current user's saved draft for
+// this student conversation (null when none).
+export const getCommunicationDraft = asyncHandler(async (req, res) => {
+  const {
+    user,
+    params: { studentId }
+  } = req;
+  const draft = await CommunicationDraftService.getDraft(
+    user._id.toString(),
+    studentId
+  );
+  res.status(200).send({ success: true, data: draft ?? null });
+});
+
+// PUT /api/communications/:studentId/draft — upsert the draft; an empty draft is
+// deleted so it doesn't linger.
+export const upsertCommunicationDraft = asyncHandler(async (req, res) => {
+  const {
+    user,
+    params: { studentId },
+    body: { message }
+  } = req;
+  if (isDraftEmpty(message)) {
+    await CommunicationDraftService.deleteDraft(user._id.toString(), studentId);
+    return res.status(200).send({ success: true, data: null });
+  }
+  const draft = await CommunicationDraftService.upsertDraft(
+    user._id.toString(),
+    studentId,
+    message
+  );
+  return res.status(200).send({ success: true, data: draft });
+});
+
+// DELETE /api/communications/:studentId/draft — clear the draft (e.g. on send).
+export const deleteCommunicationDraft = asyncHandler(async (req, res) => {
+  const {
+    user,
+    params: { studentId }
+  } = req;
+  await CommunicationDraftService.deleteDraft(user._id.toString(), studentId);
+  res.status(200).send({ success: true });
+});
 
 // TODO
 export const getSearchUserMessages = asyncHandler(async (req, res) => {

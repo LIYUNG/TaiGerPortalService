@@ -13,6 +13,7 @@
 // __tests__/integration/communications.test.js.
 
 jest.mock('../../services/communications');
+jest.mock('../../services/communicationDraft');
 jest.mock('../../services/students');
 jest.mock('../../services/email', () => ({
   sendAgentNewMessageReminderEmail: jest.fn(),
@@ -32,6 +33,7 @@ jest.mock('../../aws/s3', () => ({
 }));
 
 import CommunicationService from '../../services/communications';
+import CommunicationDraftService from '../../services/communicationDraft';
 import StudentService from '../../services/students';
 import { ten_minutes_cache } from '../../cache/node-cache';
 import {
@@ -45,7 +47,10 @@ import {
   postMessages,
   updateAMessageInThread,
   deleteAMessageInCommunicationThread,
-  IgnoreMessage
+  IgnoreMessage,
+  getCommunicationDraft,
+  upsertCommunicationDraft,
+  deleteCommunicationDraft
 } from '../../controllers/communications';
 import { deleteS3Objects } from '../../aws/s3';
 import { mockReq, mockRes } from '../helpers/httpMocks';
@@ -839,5 +844,106 @@ describe('IgnoreMessage', () => {
     );
 
     expect(next.mock.calls[0][0].statusCode).toBe(400);
+  });
+});
+
+describe('communication drafts', () => {
+  it('getCommunicationDraft returns the current user draft for the student', async () => {
+    const draft = { _id: 'd1', message: validMessage };
+    CommunicationDraftService.getDraft.mockResolvedValue(draft);
+    const res = mockRes();
+
+    await getCommunicationDraft(
+      mockReq({ user: agent, params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(CommunicationDraftService.getDraft).toHaveBeenCalledWith(
+      agent._id.toString(),
+      studentId
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send.mock.calls[0][0]).toEqual({ success: true, data: draft });
+  });
+
+  it('getCommunicationDraft returns null when there is no draft', async () => {
+    CommunicationDraftService.getDraft.mockResolvedValue(null);
+    const res = mockRes();
+
+    await getCommunicationDraft(
+      mockReq({ user: agent, params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(res.send.mock.calls[0][0]).toEqual({ success: true, data: null });
+  });
+
+  it('upsertCommunicationDraft upserts a non-empty draft', async () => {
+    const draft = { _id: 'd1', message: validMessage };
+    CommunicationDraftService.upsertDraft.mockResolvedValue(draft);
+    const res = mockRes();
+
+    await upsertCommunicationDraft(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { message: validMessage }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(CommunicationDraftService.upsertDraft).toHaveBeenCalledWith(
+      agent._id.toString(),
+      studentId,
+      validMessage
+    );
+    expect(CommunicationDraftService.deleteDraft).not.toHaveBeenCalled();
+    expect(res.send.mock.calls[0][0]).toEqual({ success: true, data: draft });
+  });
+
+  it('upsertCommunicationDraft deletes the draft when the message is empty', async () => {
+    CommunicationDraftService.deleteDraft.mockResolvedValue({
+      deletedCount: 1
+    });
+    const res = mockRes();
+
+    await upsertCommunicationDraft(
+      mockReq({
+        user: agent,
+        params: { studentId },
+        body: { message: '{"blocks":[]}' }
+      }),
+      res,
+      jest.fn()
+    );
+
+    expect(CommunicationDraftService.deleteDraft).toHaveBeenCalledWith(
+      agent._id.toString(),
+      studentId
+    );
+    expect(CommunicationDraftService.upsertDraft).not.toHaveBeenCalled();
+    expect(res.send.mock.calls[0][0]).toEqual({ success: true, data: null });
+  });
+
+  it('deleteCommunicationDraft clears the draft', async () => {
+    CommunicationDraftService.deleteDraft.mockResolvedValue({
+      deletedCount: 1
+    });
+    const res = mockRes();
+
+    await deleteCommunicationDraft(
+      mockReq({ user: agent, params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    expect(CommunicationDraftService.deleteDraft).toHaveBeenCalledWith(
+      agent._id.toString(),
+      studentId
+    );
+    expect(res.send.mock.calls[0][0]).toEqual({ success: true });
   });
 });

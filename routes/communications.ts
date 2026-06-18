@@ -24,7 +24,10 @@ import {
   getAdjacentThreadMessages,
   getUnreadNumberMessages,
   IgnoreMessage,
-  getChatFile
+  getChatFile,
+  getCommunicationDraft,
+  upsertCommunicationDraft,
+  deleteCommunicationDraft
 } from '../controllers/communications';
 import { chatMultitenantFilter } from '../middlewares/chatMultitenantFilter';
 import { MessagesChatUpload } from '../middlewares/file-upload';
@@ -88,6 +91,37 @@ router
     multitenant_filter,
     chatMultitenantFilter,
     getAdjacentThreadMessages
+  );
+
+// NOTE: must be registered BEFORE '/:studentId/:messageId' so that "draft" is
+// not captured as a messageId.
+router
+  .route('/:studentId/draft')
+  .get(
+    validateStudentId,
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    multitenant_filter,
+    chatMultitenantFilter,
+    getCommunicationDraft
+  )
+  .put(
+    validateStudentId,
+    filter_archiv_user,
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    multitenant_filter,
+    chatMultitenantFilter,
+    upsertCommunicationDraft
+  )
+  .delete(
+    validateStudentId,
+    filter_archiv_user,
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
+    multitenant_filter,
+    chatMultitenantFilter,
+    deleteCommunicationDraft
   );
 
 router

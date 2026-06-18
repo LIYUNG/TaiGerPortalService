@@ -23,6 +23,7 @@ import { applicationSchema } from './Application';
 import { auditSchema } from './Audit';
 import { basedocumentationslinksSchema } from './Basedocumentationslink';
 import { communicationsSchema } from './Communication';
+import { communicationDraftSchema } from './CommunicationDraft';
 import { complaintSchema } from './Complaint';
 import { coursesSchema } from './Course';
 import { documentationsSchema } from './Documentation';
@@ -67,6 +68,7 @@ const models = {
     basedocumentationslinksSchema
   ),
   Communication: compile('Communication', communicationsSchema),
+  CommunicationDraft: compile('CommunicationDraft', communicationDraftSchema),
   Complaint: compile('Complaint', complaintSchema),
   Course: compile('Course', coursesSchema),
   Documentation: compile('Documentation', documentationsSchema),

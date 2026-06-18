@@ -37,6 +37,19 @@ describe('UserService (mocked DAO)', () => {
     expect(result).toBe(daoResult);
   });
 
+  it('findUsersByIds delegates ids + select and returns the result', async () => {
+    const daoResult = [{ _id: 'a' }, { _id: 'b' }];
+    UserDAO.findUsersByIds.mockResolvedValue(daoResult);
+
+    const result = await UserService.findUsersByIds(['a', 'b'], 'email role');
+
+    expect(UserDAO.findUsersByIds).toHaveBeenCalledWith(
+      ['a', 'b'],
+      'email role'
+    );
+    expect(result).toBe(daoResult);
+  });
+
   it('getUsers delegates with query and returns its result', async () => {
     const query = { role: 'Agent' };
     const daoResult = [{ _id: 'u1' }];

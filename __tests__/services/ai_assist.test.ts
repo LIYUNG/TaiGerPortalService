@@ -456,11 +456,11 @@ describe('AI Assist Postgres persistence', () => {
     expect(runAiAssistSpy).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        assistContext: {
+        assistContext: expect.objectContaining({
           mentionedStudent: { id: 'student_abby', displayName: 'abby Student' },
           requestedSkill: 'summarize_student',
           unknownSkillText: null
-        }
+        })
       })
     );
   });
@@ -496,11 +496,11 @@ describe('AI Assist Postgres persistence', () => {
     expect(runAiAssistSpy).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        assistContext: {
+        assistContext: expect.objectContaining({
           mentionedStudent: { id: 'student_abby', displayName: 'Abby Student' },
           requestedSkill: 'identify_risk',
           unknownSkillText: null
-        }
+        })
       })
     );
   });
@@ -1599,7 +1599,6 @@ describe('AI Assist Postgres persistence', () => {
     expect(updateReturning).toHaveBeenCalled();
     expect(StudentService.findStudentsSelect).toHaveBeenCalled();
   });
-
 });
 
 describe('AI Assist student access filters', () => {

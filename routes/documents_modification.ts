@@ -14,6 +14,7 @@ import {
 } from '../middlewares/rate_limiter';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import { multitenant_filter } from '../middlewares/multitenant-filter';
+import { chatMultitenantFilter } from '../middlewares/chatMultitenantFilter';
 import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
 import { doc_thread_ops_validator } from '../middlewares/docs_thread_operation_validation';
 import { protect, permit } from '../middlewares/auth';
@@ -49,7 +50,8 @@ import {
   checkDocumentPattern,
   getMyStudentMetrics,
   getThreadsByStudent,
-  getMyStudentsThreads
+  getMyStudentsThreads,
+  forwardStudentDocuments
 } from '../controllers/documents_modification';
 import {
   docThreadMultitenant_filter,
@@ -221,6 +223,23 @@ router
     permit(Role.Student),
     multitenant_filter,
     putOriginAuthorConfirmedByStudent
+  );
+
+// Forward a student's documents by email. Registered BEFORE the generic
+// '/:messagesThreadId/:studentId' route so "forward-documents" is not captured
+// as a :studentId. chatMultitenantFilter restricts to staff assigned to the
+// student (or canAccessAllChat) — preventing forwarding of an unassigned
+// student's documents.
+router
+  .route('/:studentId/forward-documents')
+  .post(
+    validateStudentId,
+    filter_archiv_user,
+    GeneralPOSTRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    multitenant_filter,
+    chatMultitenantFilter,
+    forwardStudentDocuments
   );
 
 // TODO: to find a better filter considering essay writer

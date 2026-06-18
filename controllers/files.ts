@@ -1,5 +1,6 @@
 import path from 'path';
-import { DocumentStatusType, is_TaiGer_Student } from '@taiger-common/core';
+import { is_TaiGer_Student } from '@taiger-common/core';
+import { DocumentStatusType } from '@taiger-common/model';
 
 import { asyncHandler } from '../middlewares/error-handler';
 import { ten_minutes_cache } from '../cache/node-cache';

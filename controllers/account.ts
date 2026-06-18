@@ -1,5 +1,6 @@
 // const path = require('path');
-import { ProfileNameType, DocumentStatusType } from '@taiger-common/core';
+import { ProfileNameType } from '@taiger-common/core';
+import { DocumentStatusType } from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';

@@ -126,6 +126,14 @@ const UserDAO = {
     return User.find(query).lean();
   },
 
+  // Batch lookup by ids — used to resolve client-supplied recipient ids into
+  // validated user records (so emails are never trusted from the client).
+  async findUsersByIds(ids, select) {
+    return User.find({ _id: { $in: ids } })
+      .select(select)
+      .lean();
+  },
+
   async getUsersPaginated({ filter, page, limit, skip, search, sort }) {
     const queryFilter = appendSearchFilter(filter, search);
 

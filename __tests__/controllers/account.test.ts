@@ -295,10 +295,8 @@ describe('updateAcademicBackground', () => {
     // isGraduated graduated + high_school graduated => desiredStatus = Missing.
     // Seed the profile with an existing Bachelor_Certificate doc currently
     // marked NotNeeded so the "flip to Missing" else-if branch runs.
-    const {
-      ProfileNameType,
-      DocumentStatusType
-    } = require('@taiger-common/core');
+    const { ProfileNameType } = require('@taiger-common/core');
+    const { DocumentStatusType } = require('@taiger-common/model');
     const doc = makeStudentDoc({
       academic_background: {
         university: {
@@ -378,10 +376,8 @@ describe('updateLanguageSkill', () => {
   });
 
   it("creates NotNeeded certificate docs for '--' skills and flips existing NotNeeded docs to Missing", async () => {
-    const {
-      ProfileNameType,
-      DocumentStatusType
-    } = require('@taiger-common/core');
+    const { ProfileNameType } = require('@taiger-common/core');
+    const { DocumentStatusType } = require('@taiger-common/model');
     const doc = makeStudentDoc({
       academic_background: {
         language: {
@@ -418,10 +414,8 @@ describe('updateLanguageSkill', () => {
   });
 
   it("flips an existing Missing cert to NotNeeded when the skill becomes '--'", async () => {
-    const {
-      ProfileNameType,
-      DocumentStatusType
-    } = require('@taiger-common/core');
+    const { ProfileNameType } = require('@taiger-common/core');
+    const { DocumentStatusType } = require('@taiger-common/model');
     const doc = makeStudentDoc({
       academic_background: {
         language: {

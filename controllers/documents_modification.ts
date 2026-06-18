@@ -61,6 +61,7 @@ import SurveyInputService from '../services/surveyInputs';
 import PermissionService from '../services/permissions';
 import InterviewService from '../services/interviews';
 import AuditService from '../services/audit';
+import ForwardDocumentsService from '../services/forwardDocuments';
 import DocumentthreadQueryBuilder from '../builders/DocumentthreadQueryBuilder';
 
 const getActiveThreads = asyncHandler(async (req, res) => {
@@ -2035,6 +2036,40 @@ const getMyStudentMetrics = asyncHandler(async (req, res) => {
   });
 });
 
+// Forward a student's documents (base "My Documents" + latest CV/ML/RL files)
+// by email to other TaiGer staff. Authorization (requester may access this
+// student) is enforced by the route middleware (multitenant_filter +
+// chatMultitenantFilter); recipient emails are resolved from ids server-side.
+const forwardStudentDocuments = asyncHandler(async (req, res) => {
+  const {
+    params: { studentId },
+    body: {
+      recipientIds,
+      ccIds,
+      bccIds,
+      threadIds,
+      baseDocumentNames,
+      subject,
+      message,
+      confirmMissing
+    }
+  } = req;
+
+  const result = await ForwardDocumentsService.forwardStudentDocuments({
+    studentId,
+    recipientIds,
+    ccIds,
+    bccIds,
+    threadIds,
+    baseDocumentNames,
+    subject,
+    message,
+    confirmMissing
+  });
+
+  res.status(200).send({ success: true, data: result });
+});
+
 export = {
   getActiveThreads,
   getActiveThreadsPaginated,
@@ -2063,5 +2098,6 @@ export = {
   deleteAMessageInThread,
   assignEssayWritersToEssayTask,
   clearEssayWriters,
-  IgnoreMessageInDocumentThread
+  IgnoreMessageInDocumentThread,
+  forwardStudentDocuments
 };

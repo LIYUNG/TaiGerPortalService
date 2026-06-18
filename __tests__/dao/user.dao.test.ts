@@ -132,6 +132,18 @@ describe('UserDAO (mocked models)', () => {
     expect(result).toBe(docs);
   });
 
+  it('findUsersByIds queries by _id $in with the projection (lean)', async () => {
+    const docs = [{ _id: 'a' }, { _id: 'b' }];
+    const chain = leanChain(docs);
+    User.find.mockReturnValue(chain);
+
+    const result = await UserDAO.findUsersByIds(['a', 'b'], 'email role');
+
+    expect(User.find).toHaveBeenCalledWith({ _id: { $in: ['a', 'b'] } });
+    expect(chain.select).toHaveBeenCalledWith('email role');
+    expect(result).toBe(docs);
+  });
+
   it('updateUser uses findByIdAndUpdate with { new: true } and returns the doc', async () => {
     const updated = { _id: 'u1', firstname: 'Renamed' };
     User.findByIdAndUpdate.mockReturnValue(leanChain(updated));

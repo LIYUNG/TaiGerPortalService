@@ -22,9 +22,175 @@ import { ten_minutes_cache } from '../cache/node-cache';
 import { deleteS3Objects, getS3Object } from '../aws/s3';
 import { TENANT_SHORT_NAME } from '../constants/common';
 import CommunicationService from '../services/communications';
+import CommunicationDraftService from '../services/communicationDraft';
 import StudentService from '../services/students';
 
 const pageSize = 5;
+
+// Friendly, human-readable display/download name for a chat attachment. The S3
+// storage key is an opaque uuid (see middlewares/file-upload), so this name is
+// what the recipient sees when downloading. Mirrors the legacy format.
+const formatChatDate = (date) => {
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(
+    date.getDate()
+  )}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+};
+
+const buildChatAttachmentName = (student, ext, formattedDate, suffix) => {
+  const name = `${student?.lastname ?? ''}_${
+    student?.firstname ?? ''
+  }_Attachment_${formattedDate}${suffix}${ext}`;
+  return name.replace(/ /g, '_').replace(/\//g, '_');
+};
+
+// A draft holds EditorJS OutputData as a JSON string; it is "empty" when there
+// is no text or no content blocks. Empty drafts are deleted rather than stored.
+const isDraftEmpty = (message) => {
+  if (
+    typeof message !== 'string' ||
+    message.trim() === '' ||
+    message === '{}'
+  ) {
+    return true;
+  }
+  try {
+    const parsed = JSON.parse(message);
+    return !Array.isArray(parsed?.blocks) || parsed.blocks.length === 0;
+  } catch {
+    // Non-JSON but non-empty content — keep it.
+    return false;
+  }
+};
+
+// GET /api/communications/:studentId/draft — the current user's saved draft for
+// this student conversation (null when none).
+export const getCommunicationDraft = asyncHandler(async (req, res) => {
+  const {
+    user,
+    params: { studentId }
+  } = req;
+  const draft = await CommunicationDraftService.getDraft(
+    user._id.toString(),
+    studentId
+  );
+  res.status(200).send({ success: true, data: draft ?? null });
+});
+
+// PUT /api/communications/:studentId/draft — upsert the draft; an empty draft is
+// deleted so it doesn't linger.
+export const upsertCommunicationDraft = asyncHandler(async (req, res) => {
+  const {
+    user,
+    params: { studentId },
+    body: { message }
+  } = req;
+  const userId = user._id.toString();
+  if (isDraftEmpty(message)) {
+    // An empty-text draft is only discarded when it has no attachments;
+    // otherwise keep the draft (with its files) and just clear the text.
+    const existing = await CommunicationDraftService.getDraft(
+      userId,
+      studentId
+    );
+    if (!existing?.files?.length) {
+      await CommunicationDraftService.deleteDraft(userId, studentId);
+      return res.status(200).send({ success: true, data: null });
+    }
+    const cleared = await CommunicationDraftService.upsertDraft(
+      userId,
+      studentId,
+      ''
+    );
+    return res.status(200).send({ success: true, data: cleared });
+  }
+  const draft = await CommunicationDraftService.upsertDraft(
+    userId,
+    studentId,
+    message
+  );
+  return res.status(200).send({ success: true, data: draft });
+});
+
+// DELETE /api/communications/:studentId/draft — discard the draft: delete its
+// staged attachments from S3 (they were never sent), then remove the document.
+export const deleteCommunicationDraft = asyncHandler(async (req, res) => {
+  const {
+    user,
+    params: { studentId }
+  } = req;
+  const userId = user._id.toString();
+  const existing = await CommunicationDraftService.getDraft(userId, studentId);
+  if (existing?.files?.length) {
+    await deleteS3Objects({
+      bucketName: AWS_S3_BUCKET_NAME,
+      objectKeys: existing.files.map((file) => ({ Key: file.path }))
+    });
+  }
+  await CommunicationDraftService.deleteDraft(userId, studentId);
+  res.status(200).send({ success: true });
+});
+
+// POST /api/communications/:studentId/draft/files — attach. The files are
+// already in S3 (MessagesChatUpload uploaded them to `<studentId>/chat/<uuid>`).
+// Record friendly-named refs on the draft.
+export const uploadCommunicationDraftFiles = asyncHandler(async (req, res) => {
+  const {
+    user,
+    params: { studentId }
+  } = req;
+  if (!req.files || req.files.length === 0) {
+    throw new ErrorResponse(400, 'No file uploaded.');
+  }
+  const student = await StudentService.getStudentById(studentId);
+  const formattedDate = formatChatDate(new Date());
+  const multiple = req.files.length > 1;
+  const files = req.files.map((file, i) => ({
+    name: buildChatAttachmentName(
+      student,
+      path.extname(file.originalname || file.key || ''),
+      formattedDate,
+      multiple ? `_${i + 1}` : ''
+    ),
+    path: file.key
+  }));
+  const draft = await CommunicationDraftService.addDraftFiles(
+    user._id.toString(),
+    studentId,
+    files
+  );
+  res.status(200).send({ success: true, data: { files, draft } });
+});
+
+// DELETE /api/communications/:studentId/draft/files — unattach. Delete the
+// staged S3 object and remove it from the draft. The path must belong to THIS
+// user's draft (no deleting arbitrary keys).
+export const deleteCommunicationDraftFile = asyncHandler(async (req, res) => {
+  const {
+    user,
+    params: { studentId },
+    body: { path: filePath }
+  } = req;
+  if (!filePath || typeof filePath !== 'string') {
+    throw new ErrorResponse(400, 'File path is required.');
+  }
+  const id = user._id.toString();
+  const existing = await CommunicationDraftService.getDraft(id, studentId);
+  const owns = existing?.files?.some((file) => file.path === filePath);
+  if (!owns) {
+    throw new ErrorResponse(404, 'File not found in draft.');
+  }
+  await deleteS3Objects({
+    bucketName: AWS_S3_BUCKET_NAME,
+    objectKeys: [{ Key: filePath }]
+  });
+  const draft = await CommunicationDraftService.removeDraftFile(
+    id,
+    studentId,
+    filePath
+  );
+  res.status(200).send({ success: true, data: draft });
+});
 
 // TODO
 export const getSearchUserMessages = asyncHandler(async (req, res) => {
@@ -380,6 +546,13 @@ export const getChatFile = asyncHandler(async (req, res) => {
     params: { studentId, fileName }
   } = req;
 
+  // `fileName` is the (opaque) storage key segment. The friendly download name
+  // is decoupled from storage and passed as `?name=`; fall back to `fileName`
+  // for legacy files (where the stored name equalled the key segment).
+  const downloadName =
+    typeof req.query?.name === 'string' && req.query.name
+      ? req.query.name
+      : fileName;
   const fileKey = path.join(studentId, 'chat', fileName).replace(/\\/g, '/');
 
   const cache_key = `chat-${studentId}${req.originalUrl.split('/')[5]}`;
@@ -390,11 +563,11 @@ export const getChatFile = asyncHandler(async (req, res) => {
     if (success) {
       logger.info('image cache set successfully');
     }
-    res.attachment(fileName);
+    res.attachment(downloadName);
     return res.end(response);
   }
   logger.info('cache hit');
-  res.attachment(fileName);
+  res.attachment(downloadName);
   return res.end(value);
 });
 
@@ -443,38 +616,65 @@ export const postMessages = asyncHandler(async (req, res) => {
     logger.error(`message collapse ${message}`);
     throw new ErrorResponse(400, 'message collapse');
   }
+  // Attachments: the S3 key (file.key) is an opaque uuid, so files never
+  // overwrite each other (no duplicate-extension restriction needed). We store
+  // the storage key as `path` and a friendly, human-readable `name` for display
+  // and download. A per-file index keeps display names distinct when several
+  // files are attached at once.
   const newfile = [];
-  if (req.files) {
+  if (req.files && req.files.length > 0) {
+    const student = await StudentService.getStudentById(studentId);
+    const formattedDate = formatChatDate(new Date());
+    const multiple = req.files.length > 1;
     for (let i = 0; i < req.files.length; i += 1) {
-      const filePath = req.files[i].key.split('/');
-      const fileName = filePath[2];
+      const ext = path.extname(
+        req.files[i].originalname || req.files[i].key || ''
+      );
+      const suffix = multiple ? `_${i + 1}` : '';
       newfile.push({
-        name: fileName,
+        name: buildChatAttachmentName(student, ext, formattedDate, suffix),
         path: req.files[i].key
       });
-      // Check for duplicate file extensions
-      const fileExtensions = req.files.map(
-        (file) => file.mimetype.split('/')[1]
-      );
-      const uniqueFileExtensions = new Set(fileExtensions);
-      if (fileExtensions.length !== uniqueFileExtensions.size) {
-        logger.error('Error: Duplicate file extensions found!');
-        throw new ErrorResponse(
-          423,
-          'Error: Duplicate file extensions found. Due to the system automatical naming mechanism, the files with same extension (said .pdf) will be overwritten. You can not upload 2 same files extension (2 .pdf or 2 .docx) at the same message. But 1 .pdf and 1 .docx are allowed.'
-        );
-      }
     }
   }
+  // Files staged on the draft (upload-on-attach) are moved onto the message.
+  // `newfile` covers any files sent directly with this request (legacy /
+  // upload-on-send); both are merged.
+  const draft = await CommunicationDraftService.getDraft(
+    user._id.toString(),
+    studentId
+  );
+  const draftFiles = draft?.files ?? [];
+  const allFiles = [...newfile, ...draftFiles];
+
   await CommunicationService.createCommunication({
     student_id: studentId,
     user_id: user._id,
     message,
     readBy: [new mongoose.Types.ObjectId(user._id)],
     timeStampReadBy: { [user._id?.toString()]: new Date() },
-    files: newfile,
+    files: allFiles,
     createdAt: new Date()
   });
+
+  // The draft's files now belong to the message — delete the draft DOCUMENT
+  // only (do NOT delete the S3 objects). Best-effort: the message is already
+  // created, so a draft-delete failure must NOT fail the request (which would
+  // make the client think the send failed and re-send, duplicating it). The
+  // daily sweep reclaims any leftover.
+  if (draft) {
+    try {
+      await CommunicationDraftService.deleteDraft(
+        user._id.toString(),
+        studentId
+      );
+    } catch (err) {
+      logger.error('postMessages: failed to delete consumed draft', {
+        studentId,
+        message: err?.message
+      });
+    }
+  }
 
   const communication_latest = await CommunicationService.findThreadPopulated(
     studentId,

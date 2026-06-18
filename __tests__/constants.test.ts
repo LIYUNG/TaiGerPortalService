@@ -798,7 +798,7 @@ describe('cvmlrl_deadline_within30days_escalation_summary', () => {
 });
 
 describe('base_documents_summary', () => {
-  const { DocumentStatusType } = require('@taiger-common/core');
+  const { DocumentStatusType } = require('@taiger-common/model');
 
   it('returns empty when all accepted', () => {
     const profile = profile_keys_list.map((name) => ({

@@ -1,6 +1,6 @@
 import ical from 'ical-generator';
 import queryString from 'query-string';
-import { DocumentStatusType } from '@taiger-common/core';
+import { DocumentStatusType } from '@taiger-common/model';
 
 import {
   ACCOUNT_ACTIVATION_URL,

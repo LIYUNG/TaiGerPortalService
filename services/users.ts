@@ -18,6 +18,10 @@ const UserService = {
     return UserDAO.getUsers(query);
   },
 
+  findUsersByIds(ids, select) {
+    return UserDAO.findUsersByIds(ids, select);
+  },
+
   getUsersPaginated(args) {
     return UserDAO.getUsersPaginated(args);
   },

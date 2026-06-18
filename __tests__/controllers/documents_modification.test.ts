@@ -22,6 +22,7 @@ jest.mock('../../services/applications');
 jest.mock('../../services/permissions');
 jest.mock('../../services/interviews');
 jest.mock('../../services/audit');
+jest.mock('../../services/forwardDocuments');
 jest.mock('../../utils/informEditor', () => ({
   informOnSurveyUpdate: jest.fn().mockResolvedValue({})
 }));
@@ -83,6 +84,7 @@ import ApplicationService from '../../services/applications';
 import PermissionService from '../../services/permissions';
 import InterviewService from '../../services/interviews';
 import AuditService from '../../services/audit';
+import ForwardDocumentsService from '../../services/forwardDocuments';
 import { informOnSurveyUpdate } from '../../utils/informEditor';
 import { userChangesHelperFunction } from '../../utils/utils_function';
 import {
@@ -113,7 +115,8 @@ import {
   IgnoreMessageInDocumentThread,
   getMyStudentMetrics,
   checkDocumentPattern,
-  clearEssayWriters
+  clearEssayWriters,
+  forwardStudentDocuments
 } from '../../controllers/documents_modification';
 import { mockReq, mockRes } from '../helpers/httpMocks';
 import { admin, student } from '../mock/user';
@@ -201,6 +204,54 @@ describe('getThreadsByStudent', () => {
       success: true,
       data: { threads }
     });
+  });
+});
+
+describe('forwardStudentDocuments', () => {
+  it('200: forwards studentId + body to the service and wraps the result', async () => {
+    const summary = {
+      sentTo: 2,
+      ccCount: 1,
+      bccCount: 0,
+      attachmentCount: 3
+    };
+    ForwardDocumentsService.forwardStudentDocuments.mockResolvedValue(summary);
+    const res = mockRes();
+    const body = {
+      recipientIds: ['a1', 'a2'],
+      ccIds: ['c1'],
+      bccIds: [],
+      threadIds: ['t1'],
+      baseDocumentNames: ['cv.pdf'],
+      subject: 'Docs',
+      message: 'Hello'
+    };
+
+    await forwardStudentDocuments(
+      mockReq({ params: { studentId }, body }),
+      res,
+      jest.fn()
+    );
+
+    expect(
+      ForwardDocumentsService.forwardStudentDocuments
+    ).toHaveBeenCalledWith({ studentId, ...body });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ success: true, data: summary });
+  });
+
+  it('forwards a service error to next()', async () => {
+    const err = new Error('forbidden');
+    ForwardDocumentsService.forwardStudentDocuments.mockRejectedValue(err);
+    const next = jest.fn();
+
+    await forwardStudentDocuments(
+      mockReq({ params: { studentId }, body: { recipientIds: ['a1'] } }),
+      mockRes(),
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 

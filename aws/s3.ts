@@ -1,8 +1,10 @@
 import {
   S3Client,
   NoSuchKey,
+  NotFound,
   S3ServiceException,
   GetObjectCommand,
+  HeadObjectCommand,
   DeleteObjectCommand,
   waitUntilObjectNotExists,
   DeleteObjectsCommand,
@@ -67,6 +69,39 @@ const getS3Object = async (bucketName, objectKey) => {
     } else {
       throw caught;
     }
+  }
+};
+
+// Lightweight metadata lookup (HeadObject) — returns headers only, no body, so
+// it is far cheaper than GetObject for validating that a file is present and
+// reading its size. Returns the object size in bytes if it exists, or null if
+// it is absent.
+const headS3ObjectSize = async (bucketName, objectKey) => {
+  try {
+    const response = await s3Client.send(
+      new HeadObjectCommand({
+        Bucket: bucketName,
+        Key: objectKey
+      })
+    );
+    return typeof response.ContentLength === 'number'
+      ? response.ContentLength
+      : 0;
+  } catch (caught) {
+    if (
+      caught instanceof NotFound ||
+      caught instanceof NoSuchKey ||
+      caught?.$metadata?.httpStatusCode === 404
+    ) {
+      return null;
+    }
+    if (caught instanceof S3ServiceException) {
+      logger.error(
+        `Error from S3 while heading object "${objectKey}" from "${bucketName}".  ${caught.name}: ${caught.message}`
+      );
+      return null;
+    }
+    throw caught;
   }
 };
 
@@ -198,6 +233,7 @@ export = {
   putS3Object,
   uploadJsonToS3,
   getS3Object,
+  headS3ObjectSize,
   deleteS3Object,
   deleteS3Objects,
   listS3ObjectsV2

@@ -47,4 +47,26 @@ const sendEmail = isTest()
       }
     };
 
-export = { transporter, sendEmail };
+// Sends a single email with file attachments and explicit cc/bcc support.
+// Unlike `sendEmail`, this re-throws on failure so callers can surface the
+// error to the user (e.g. an agent forwarding documents). `to`/`cc`/`bcc` are
+// arrays of already-validated email strings; `attachments` are nodemailer
+// `{ filename, content: Buffer }` entries. The no-reply mailbox is always
+// bcc'd to keep an audit copy (mirrors `sendEmail`).
+const sendEmailWithAttachments = isTest()
+  ? async (_args) => ({ accepted: [], messageId: 'test' })
+  : async ({ to, cc, bcc, subject, message, attachments }) => {
+      const mail = {
+        from: senderName,
+        to,
+        ...(cc && cc.length ? { cc } : {}),
+        bcc: [taigerNotReplyGmail, ...(bcc || [])],
+        subject,
+        html: htmlContent(message),
+        attachments
+      };
+
+      return limiter.schedule(() => transporter.sendMail(mail));
+    };
+
+export = { transporter, sendEmail, sendEmailWithAttachments };

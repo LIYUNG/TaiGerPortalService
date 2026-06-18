@@ -27,7 +27,7 @@ const COMMUNICATION_GAP_DAYS = 21;
 const THREAD_STALL_DAYS = 7;
 
 const OVERVIEW_STUDENT_FIELDS =
-  'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count';
+  'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count createdAt';
 const OVERVIEW_APPLICATION_FIELDS =
   'programId studentId admission decided closed finalEnrolment application_year uni_assist admission_letter';
 const OVERVIEW_APPLICATION_POPULATE = {
@@ -121,7 +121,10 @@ const studentLabel = (student) => {
     id: normalized?.id,
     name: normalized?.name,
     chineseName: normalized?.chineseName,
-    email: normalized?.email
+    email: normalized?.email,
+    joinedAt: student.createdAt ?? null,
+    applyingProgramCount: student.applying_program_count ?? 0,
+    hasEditors: Array.isArray(student.editors) && student.editors.length > 0
   };
 };
 
@@ -300,6 +303,24 @@ const buildOverview = async (
     // Leave the map empty; communicationGaps will simply be conservative.
   }
 
+  // Per-student offer/reject counts from applications.
+  const statsById: Record<string, { offerCount: number; rejectCount: number }> = {};
+  (applications || []).forEach((app) => {
+    const id = toIdString(app.studentId);
+    if (!statsById[id]) statsById[id] = { offerCount: 0, rejectCount: 0 };
+    if (app.admission === 'O') statsById[id].offerCount++;
+    if (app.admission === 'X') statsById[id].rejectCount++;
+  });
+
+  const enrichBucket = (bucket) => ({
+    count: bucket.count,
+    items: bucket.items.map((item) =>
+      item.student?.id
+        ? { ...item, student: { ...item.student, ...(statsById[item.student.id] ?? { offerCount: 0, rejectCount: 0 }) } }
+        : item
+    )
+  });
+
   const upcomingDeadlines = collectUpcomingDeadlines(
     applications,
     studentById,
@@ -341,11 +362,11 @@ const buildOverview = async (
     deadlineWindowDays: days,
     emphasis,
     buckets: {
-      upcomingDeadlines: bucket(upcomingDeadlines, sampleSize),
-      threadsWaitingOnTeam: bucket(threadsWaitingOnTeam, sampleSize),
-      communicationGaps: bucket(communicationGaps, sampleSize),
-      admittedNotConfirmed: bucket(admittedNotConfirmed, sampleSize),
-      missingBaseDocuments: bucket(missingBaseDocuments, sampleSize)
+      upcomingDeadlines: enrichBucket(bucket(upcomingDeadlines, sampleSize)),
+      threadsWaitingOnTeam: enrichBucket(bucket(threadsWaitingOnTeam, sampleSize)),
+      communicationGaps: enrichBucket(bucket(communicationGaps, sampleSize)),
+      admittedNotConfirmed: enrichBucket(bucket(admittedNotConfirmed, sampleSize)),
+      missingBaseDocuments: enrichBucket(bucket(missingBaseDocuments, sampleSize))
     }
   };
 };

@@ -4,7 +4,8 @@ jest.mock('../../models', () => {
   const model = () => ({
     findOne: jest.fn(),
     findOneAndUpdate: jest.fn(),
-    deleteOne: jest.fn()
+    deleteOne: jest.fn(),
+    find: jest.fn()
   });
   return {
     CommunicationDraft: model()
@@ -62,5 +63,51 @@ describe('CommunicationDraftDAO (mocked models)', () => {
       student_id: 's1'
     });
     expect(result).toBe(res);
+  });
+
+  it('addDraftFiles pushes files (upsert) and returns the new lean doc', async () => {
+    const files = [{ name: 'a.pdf', path: 's1/chat/u1.pdf' }];
+    const doc = { _id: 'd1', files };
+    CommunicationDraft.findOneAndUpdate.mockReturnValue(leanChain(doc));
+
+    const result = await CommunicationDraftDAO.addDraftFiles('u1', 's1', files);
+
+    expect(CommunicationDraft.findOneAndUpdate).toHaveBeenCalledWith(
+      { user_id: 'u1', student_id: 's1' },
+      { $push: { files: { $each: files } } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    expect(result).toBe(doc);
+  });
+
+  it('removeDraftFile pulls the file by path and returns the new lean doc', async () => {
+    const doc = { _id: 'd1', files: [] };
+    CommunicationDraft.findOneAndUpdate.mockReturnValue(leanChain(doc));
+
+    const result = await CommunicationDraftDAO.removeDraftFile(
+      'u1',
+      's1',
+      's1/chat/u1.pdf'
+    );
+
+    expect(CommunicationDraft.findOneAndUpdate).toHaveBeenCalledWith(
+      { user_id: 'u1', student_id: 's1' },
+      { $pull: { files: { path: 's1/chat/u1.pdf' } } },
+      { new: true }
+    );
+    expect(result).toBe(doc);
+  });
+
+  it('findStaleDrafts queries drafts older than `before` (lean)', async () => {
+    const before = new Date('2026-01-01T00:00:00.000Z');
+    const drafts = [{ _id: 'd1' }, { _id: 'd2' }];
+    CommunicationDraft.find.mockReturnValue(leanChain(drafts));
+
+    const result = await CommunicationDraftDAO.findStaleDrafts(before);
+
+    expect(CommunicationDraft.find).toHaveBeenCalledWith({
+      updatedAt: { $lt: before }
+    });
+    expect(result).toBe(drafts);
   });
 });

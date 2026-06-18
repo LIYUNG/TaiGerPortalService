@@ -1493,7 +1493,7 @@ const base_documents_summary = (student) => {
     : '';
 };
 
-const SCHOOL_TAG_KEYS = Object.keys(SCHOOL_TAGS);
+const SCHOOL_TAG_KEYS = Object.keys(SCHOOL_TAGS ?? {});
 
 const CV_MUST_HAVE_PATTERNS = [
   '- present',
@@ -1508,7 +1508,7 @@ const CV_MUST_HAVE_PATTERNS = [
   'til present'
 ];
 
-const PROGRAM_SUBJECT_KEYS = Object.keys(PROGRAM_SUBJECTS);
+const PROGRAM_SUBJECT_KEYS = Object.keys(PROGRAM_SUBJECTS ?? {});
 
 export = {
   Role,

@@ -275,6 +275,32 @@ const bucket = (items, sampleSize = SAMPLE_SIZE) => ({
   items: items.slice(0, sampleSize)
 });
 
+const buildStudentStats = (
+  applications: { studentId?: unknown; admission?: string }[]
+): Record<string, { offerCount: number; rejectCount: number }> => {
+  const stats: Record<string, { offerCount: number; rejectCount: number }> = {};
+  (applications || []).forEach((app) => {
+    const id = toIdString(app.studentId);
+    if (!id) return;
+    if (!stats[id]) stats[id] = { offerCount: 0, rejectCount: 0 };
+    if (app.admission === 'O') stats[id].offerCount++;
+    if (app.admission === 'X') stats[id].rejectCount++;
+  });
+  return stats;
+};
+
+const enrichBucketItems = (
+  bucketObj: { count: number; items: { student?: { id?: string } & Record<string, unknown> }[] },
+  statsById: Record<string, { offerCount: number; rejectCount: number }>
+) => ({
+  count: bucketObj.count,
+  items: bucketObj.items.map((item) =>
+    item.student?.id
+      ? { ...item, student: { ...item.student, ...(statsById[item.student.id] ?? { offerCount: 0, rejectCount: 0 }) } }
+      : item
+  )
+});
+
 const buildOverview = async (
   req,
   { deadlineWindowDays, sampleSize = SAMPLE_SIZE } = {}
@@ -303,23 +329,7 @@ const buildOverview = async (
     // Leave the map empty; communicationGaps will simply be conservative.
   }
 
-  // Per-student offer/reject counts from applications.
-  const statsById: Record<string, { offerCount: number; rejectCount: number }> = {};
-  (applications || []).forEach((app) => {
-    const id = toIdString(app.studentId);
-    if (!statsById[id]) statsById[id] = { offerCount: 0, rejectCount: 0 };
-    if (app.admission === 'O') statsById[id].offerCount++;
-    if (app.admission === 'X') statsById[id].rejectCount++;
-  });
-
-  const enrichBucket = (bucket) => ({
-    count: bucket.count,
-    items: bucket.items.map((item) =>
-      item.student?.id
-        ? { ...item, student: { ...item.student, ...(statsById[item.student.id] ?? { offerCount: 0, rejectCount: 0 }) } }
-        : item
-    )
-  });
+  const statsById = buildStudentStats(applications);
 
   const upcomingDeadlines = collectUpcomingDeadlines(
     applications,
@@ -362,11 +372,11 @@ const buildOverview = async (
     deadlineWindowDays: days,
     emphasis,
     buckets: {
-      upcomingDeadlines: enrichBucket(bucket(upcomingDeadlines, sampleSize)),
-      threadsWaitingOnTeam: enrichBucket(bucket(threadsWaitingOnTeam, sampleSize)),
-      communicationGaps: enrichBucket(bucket(communicationGaps, sampleSize)),
-      admittedNotConfirmed: enrichBucket(bucket(admittedNotConfirmed, sampleSize)),
-      missingBaseDocuments: enrichBucket(bucket(missingBaseDocuments, sampleSize))
+      upcomingDeadlines: enrichBucketItems(bucket(upcomingDeadlines, sampleSize), statsById),
+      threadsWaitingOnTeam: enrichBucketItems(bucket(threadsWaitingOnTeam, sampleSize), statsById),
+      communicationGaps: enrichBucketItems(bucket(communicationGaps, sampleSize), statsById),
+      admittedNotConfirmed: enrichBucketItems(bucket(admittedNotConfirmed, sampleSize), statsById),
+      missingBaseDocuments: enrichBucketItems(bucket(missingBaseDocuments, sampleSize), statsById)
     }
   };
 };
@@ -375,8 +385,17 @@ export = {
   buildOverview,
   loadPortfolio,
   collectUpcomingDeadlines,
+  collectAdmittedNotConfirmed,
+  collectMissingBaseDocuments,
   collectThreadsWaitingOnTeam,
   collectCommunicationGaps,
   parseDeadline,
-  PORTFOLIO_BUCKET_LIMIT
+  PORTFOLIO_BUCKET_LIMIT,
+  buildStudentStats,
+  enrichBucketItems,
+  toIdString,
+  safeDate,
+  isTruthyFlag,
+  deriveStatus,
+  studentLabel
 };

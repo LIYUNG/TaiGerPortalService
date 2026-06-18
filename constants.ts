@@ -1,9 +1,6 @@
 import {
-  PROGRAM_SUBJECTS,
   ProfileNameType,
-  SCHOOL_TAGS,
   Role,
-  DocumentStatusType,
   PROFILE_NAME,
   is_TaiGer_Editor,
   is_TaiGer_Student,
@@ -14,6 +11,11 @@ import {
   isProgramWithdraw
 } from '@taiger-common/core';
 import { differenceInDays } from 'date-fns';
+import {
+  DocumentStatusType,
+  SCHOOL_TAGS,
+  PROGRAM_SUBJECTS
+} from '@taiger-common/model';
 
 import { ORIGIN, ESCALATION_DEADLINE_DAYS_TRIGGER } from './config';
 import {

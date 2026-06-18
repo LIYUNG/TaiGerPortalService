@@ -120,6 +120,7 @@ const studentLabel = (student) => {
   return {
     id: normalized?.id,
     name: normalized?.name,
+    chineseName: normalized?.chineseName,
     email: normalized?.email
   };
 };

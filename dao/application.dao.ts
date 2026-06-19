@@ -308,14 +308,14 @@ const populateActiveApplications = (query: any) =>
     )
     .populate('doc_modification_thread.doc_thread_id', '-messages');
 
-const ApplicationDAO = {
+class ApplicationMongoDAO {
   async createApplication(studentId: string, programId: string) {
     const application = await Application.create({
       studentId,
       programId
     });
     return application;
-  },
+  }
   /**
    * Server-side paginated / sorted / searchable active students' applications.
    *
@@ -514,7 +514,7 @@ const ApplicationDAO = {
     );
 
     return { applications: docs, total, page, limit };
-  },
+  }
 
   /**
    * Deadline distribution for the "Open Applications Distribution" chart,
@@ -619,7 +619,7 @@ const ApplicationDAO = {
     ];
 
     return Application.aggregate(pipeline).allowDiskUse(true);
-  },
+  }
 
   /**
    * Distinct programs referenced by the given students' applications, with the
@@ -681,7 +681,7 @@ const ApplicationDAO = {
     ];
 
     return Application.aggregate(pipeline).allowDiskUse(true);
-  },
+  }
 
   /**
    * Application status counts for a set of students, computed in the DB (for the
@@ -749,19 +749,19 @@ const ApplicationDAO = {
     ]);
 
     return result || zero;
-  },
+  }
   // Live (non-lean) Application document — caller mutates doc_modification_thread
   // and calls .save().
   async createApplicationDoc(payload: Partial<IApplication>) {
     return Application.create(payload);
-  },
+  }
 
   // Existing applications for a student, with a slim program projection (lean).
   async findByStudentIdPopulatedBasic(studentId: string) {
     return Application.find({ studentId })
       .populate('programId', '_id school program_name degree semester')
       .lean();
-  },
+  }
 
   // Existing applications for a student, with program + doc-thread metadata
   // (lean) — the post-create response shape.
@@ -770,13 +770,13 @@ const ApplicationDAO = {
       .populate('programId', 'school program_name degree semester')
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
-  },
+  }
 
   // Live (non-lean) Application document with the program populated — caller
   // mutates uni_assist and calls .save().
   async getApplicationDocByIdWithProgram(applicationId: string) {
     return Application.findById(applicationId).populate('programId');
-  },
+  }
 
   // Application with both student and program populated — used by the VPD
   // upload S3-key builder.
@@ -784,11 +784,11 @@ const ApplicationDAO = {
     return Application.findById(applicationId)
       .populate('studentId')
       .populate('programId');
-  },
+  }
 
   async aggregateApplications(pipeline: PipelineStage[]) {
     return Application.aggregate(pipeline);
-  },
+  }
 
   // Generic select + optional single-populate lean read.
   async findApplicationsSelectPopulate(
@@ -801,24 +801,24 @@ const ApplicationDAO = {
       query = query.populate(populate.path, populate.select);
     }
     return query.lean();
-  },
+  }
 
   async findByStudentIdLean(studentId: string) {
     return Application.find({ studentId }).lean();
-  },
+  }
 
   // Live (non-lean) applications with only the program populated — callers may
   // mutate doc_modification_thread subdocs and call .save().
   async findByStudentIdWithProgram(studentId: string) {
     return Application.find({ studentId }).populate('programId');
-  },
+  }
 
   async findConflictApplications(filter: FilterQuery<IApplication>) {
     return Application.find(filter).populate(
       'studentId',
       'firstname lastname pictureUrl'
     );
-  },
+  }
 
   async pullDocModificationThread(applicationId: string, threadId: string) {
     return Application.findOneAndUpdate(
@@ -831,7 +831,7 @@ const ApplicationDAO = {
         }
       }
     );
-  },
+  }
 
   // Decided applications for a program, with the student (+ their team)
   // populated — feeds the "same program students" view.
@@ -846,7 +846,7 @@ const ApplicationDAO = {
         }
       })
       .lean();
-  },
+  }
 
   // Unlock an application (used by the "refresh" action).
   async unlockApplication(applicationId: string) {
@@ -855,7 +855,7 @@ const ApplicationDAO = {
       { isLocked: false },
       { new: true }
     ).lean();
-  },
+  }
 
   getApplications(
     filter: FilterQuery<IApplication> = {},
@@ -885,7 +885,7 @@ const ApplicationDAO = {
       query.select(select.join(' '));
     }
     return query;
-  },
+  }
   async getApplicationsWithStudentDetails(filter: FilterQuery<IApplication>) {
     const applications = await Application.find(filter)
       .populate({
@@ -902,11 +902,11 @@ const ApplicationDAO = {
       .populate('doc_modification_thread.doc_thread_id', '-messages')
       .lean();
     return applications;
-  },
+  }
   async getApplicationsByStudentId(studentId: string) {
     const applications = await this.getApplications({ studentId }).lean();
     return applications;
-  },
+  }
   async getApplicationsWithCredentialsByStudentId(studentId: string) {
     const applications = await this.getApplications({ studentId })
       .select(
@@ -914,17 +914,17 @@ const ApplicationDAO = {
       )
       .lean();
     return applications;
-  },
+  }
   async getApplicationsByProgramId(programId: string) {
     const applications = await this.getApplications({ programId }).lean();
     return applications;
-  },
+  }
   async getApplicationById(applicationId: string) {
     const application = await Application.findById(applicationId)
       .populate('programId')
       .populate('doc_modification_thread.doc_thread_id', '-messages');
     return application;
-  },
+  }
   async updateApplication(
     filter: FilterQuery<IApplication>,
     payload: UpdateQuery<IApplication>
@@ -935,7 +935,7 @@ const ApplicationDAO = {
       .populate('programId')
       .lean();
     return application;
-  },
+  }
   // TODO: interview threads is missing! (orphan interview threads)
   async deleteApplication(application_id: string) {
     const application = await this.getApplicationById(application_id);
@@ -970,11 +970,11 @@ const ApplicationDAO = {
     });
     // TODO: delete VPD
     await Application.findByIdAndDelete(application_id);
-  },
+  }
   async updateApplicationsBulk(updates: mongoose.AnyBulkWriteOperation[]) {
     const result = await Application.bulkWrite(updates);
     return result;
-  },
+  }
   /**
    * Aggregate admission/rejection/pending/notYetSubmitted counts across all
    * decided ('O') applications that have a program. Returns zeros when empty.
@@ -1059,7 +1059,7 @@ const ApplicationDAO = {
           pending: 0,
           notYetSubmitted: 0
         };
-  },
+  }
 
   /**
    * Per-program application counts (with program details joined) for decided +
@@ -1128,7 +1128,7 @@ const ApplicationDAO = {
     ]);
 
     return Array.isArray(result) ? result : [];
-  },
+  }
 
   async getApplicationConflicts() {
     const applicationConflicts = await Application.aggregate([
@@ -1205,6 +1205,6 @@ const ApplicationDAO = {
 
     return applicationConflicts;
   }
-};
+}
 
-export = ApplicationDAO;
+export = new ApplicationMongoDAO();

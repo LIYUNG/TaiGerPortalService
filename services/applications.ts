@@ -8,14 +8,26 @@ import { IApplication } from '@taiger-common/model';
 import ApplicationDAO from '../dao/application.dao';
 
 /**
- * ApplicationService — business/orchestration layer for applications.
- * Data access lives in dao/application.dao.js (central default-connection
- * models). Controller -> service -> dao.
+ * Strategy contract for application data access. Structural-only conversion: the
+ * contract is derived from the MongoDB DAO's shape (its public methods), so a
+ * future PostgreSQL DAO can be swapped in by matching it. Returns/behaviour are
+ * intentionally UNCHANGED from the legacy object DAO (live docs stay live for
+ * `.save()` callers, aggregations and FilterQuery params are preserved) — the
+ * domain-mapping / filter de-leaking is deferred for this large, hot domain.
  */
-const ApplicationService = {
+type IApplicationDAO = typeof ApplicationDAO;
+
+/**
+ * ApplicationService — business/orchestration layer for applications. Depends on
+ * the IApplicationDAO strategy contract via constructor injection
+ * (controller -> service -> dao).
+ */
+class ApplicationService {
+  constructor(private readonly dao: IApplicationDAO) {}
+
   createApplication(studentId: string, programId: string) {
-    return ApplicationDAO.createApplication(studentId, programId);
-  },
+    return this.dao.createApplication(studentId, programId);
+  }
 
   getActiveStudentsApplicationsPaginated({
     studentIds = [],
@@ -24,21 +36,21 @@ const ApplicationService = {
     studentIds?: string[];
     query?: Record<string, unknown>;
   }) {
-    return ApplicationDAO.getActiveStudentsApplicationsPaginated({
+    return this.dao.getActiveStudentsApplicationsPaginated({
       studentIds,
       query
     });
-  },
+  }
 
   getActiveStudentsApplicationsDeadlineDistribution({
     studentIds = []
   }: {
     studentIds?: string[];
   }) {
-    return ApplicationDAO.getActiveStudentsApplicationsDeadlineDistribution({
+    return this.dao.getActiveStudentsApplicationsDeadlineDistribution({
       studentIds
     });
-  },
+  }
 
   getApplicationProgramsUpdateStatus({
     studentIds = [],
@@ -47,15 +59,15 @@ const ApplicationService = {
     studentIds?: string[];
     decided?: string;
   }) {
-    return ApplicationDAO.getApplicationProgramsUpdateStatus({
+    return this.dao.getApplicationProgramsUpdateStatus({
       studentIds,
       decided
     });
-  },
+  }
 
   getApplicationStatusStats({ studentIds = [] }: { studentIds?: string[] }) {
-    return ApplicationDAO.getApplicationStatusStats({ studentIds });
-  },
+    return this.dao.getApplicationStatusStats({ studentIds });
+  }
 
   // Returns a Mongoose query (callers may chain .select()/.lean()).
   getApplications(
@@ -63,115 +75,114 @@ const ApplicationService = {
     select: string[] = [],
     populate: boolean | string = true
   ) {
-    return ApplicationDAO.getApplications(filter, select, populate);
-  },
+    return this.dao.getApplications(filter, select, populate);
+  }
 
   getApplicationsWithStudentDetails(filter: FilterQuery<IApplication>) {
-    return ApplicationDAO.getApplicationsWithStudentDetails(filter);
-  },
+    return this.dao.getApplicationsWithStudentDetails(filter);
+  }
 
   getApplicationsByStudentId(studentId: string) {
-    return ApplicationDAO.getApplicationsByStudentId(studentId);
-  },
+    return this.dao.getApplicationsByStudentId(studentId);
+  }
 
   createApplicationDoc(payload: Partial<IApplication>) {
-    return ApplicationDAO.createApplicationDoc(payload);
-  },
+    return this.dao.createApplicationDoc(payload);
+  }
 
   findByStudentIdPopulatedBasic(studentId: string) {
-    return ApplicationDAO.findByStudentIdPopulatedBasic(studentId);
-  },
+    return this.dao.findByStudentIdPopulatedBasic(studentId);
+  }
 
   findByStudentIdPopulatedFull(studentId: string) {
-    return ApplicationDAO.findByStudentIdPopulatedFull(studentId);
-  },
+    return this.dao.findByStudentIdPopulatedFull(studentId);
+  }
 
   unlockApplication(applicationId: string) {
-    return ApplicationDAO.unlockApplication(applicationId);
-  },
+    return this.dao.unlockApplication(applicationId);
+  }
 
   getApplicationDocByIdWithProgram(applicationId: string) {
-    return ApplicationDAO.getApplicationDocByIdWithProgram(applicationId);
-  },
+    return this.dao.getApplicationDocByIdWithProgram(applicationId);
+  }
 
   getApplicationByIdWithStudentProgram(applicationId: string) {
-    return ApplicationDAO.getApplicationByIdWithStudentProgram(applicationId);
-  },
+    return this.dao.getApplicationByIdWithStudentProgram(applicationId);
+  }
 
   aggregateApplications(pipeline: PipelineStage[]) {
-    return ApplicationDAO.aggregateApplications(pipeline);
-  },
+    return this.dao.aggregateApplications(pipeline);
+  }
 
   findApplicationsSelectPopulate(
     filter: FilterQuery<IApplication>,
     select: string,
     populate?: { path: string; select?: string }
   ) {
-    return ApplicationDAO.findApplicationsSelectPopulate(
-      filter,
-      select,
-      populate
-    );
-  },
+    return this.dao.findApplicationsSelectPopulate(filter, select, populate);
+  }
 
   findByStudentIdLean(studentId: string) {
-    return ApplicationDAO.findByStudentIdLean(studentId);
-  },
+    return this.dao.findByStudentIdLean(studentId);
+  }
 
   findByStudentIdWithProgram(studentId: string) {
-    return ApplicationDAO.findByStudentIdWithProgram(studentId);
-  },
+    return this.dao.findByStudentIdWithProgram(studentId);
+  }
 
   findConflictApplications(filter: FilterQuery<IApplication>) {
-    return ApplicationDAO.findConflictApplications(filter);
-  },
+    return this.dao.findConflictApplications(filter);
+  }
 
   pullDocModificationThread(applicationId: string, threadId: string) {
-    return ApplicationDAO.pullDocModificationThread(applicationId, threadId);
-  },
+    return this.dao.pullDocModificationThread(applicationId, threadId);
+  }
 
   getDecidedApplicationsByProgramPopulated(programId: string) {
-    return ApplicationDAO.getDecidedApplicationsByProgramPopulated(programId);
-  },
+    return this.dao.getDecidedApplicationsByProgramPopulated(programId);
+  }
 
   getApplicationsWithCredentialsByStudentId(studentId: string) {
-    return ApplicationDAO.getApplicationsWithCredentialsByStudentId(studentId);
-  },
+    return this.dao.getApplicationsWithCredentialsByStudentId(studentId);
+  }
 
   getApplicationsByProgramId(programId: string) {
-    return ApplicationDAO.getApplicationsByProgramId(programId);
-  },
+    return this.dao.getApplicationsByProgramId(programId);
+  }
 
   getApplicationById(applicationId: string) {
-    return ApplicationDAO.getApplicationById(applicationId);
-  },
+    return this.dao.getApplicationById(applicationId);
+  }
 
   updateApplication(
     filter: FilterQuery<IApplication>,
     payload: UpdateQuery<IApplication>
   ) {
-    return ApplicationDAO.updateApplication(filter, payload);
-  },
+    return this.dao.updateApplication(filter, payload);
+  }
 
   deleteApplication(application_id: string) {
-    return ApplicationDAO.deleteApplication(application_id);
-  },
+    return this.dao.deleteApplication(application_id);
+  }
 
   updateApplicationsBulk(updates: AnyBulkWriteOperation[]) {
-    return ApplicationDAO.updateApplicationsBulk(updates);
-  },
+    return this.dao.updateApplicationsBulk(updates);
+  }
 
   getApplicationConflicts() {
-    return ApplicationDAO.getApplicationConflicts();
-  },
+    return this.dao.getApplicationConflicts();
+  }
 
   getAdmissionsStatusCounts() {
-    return ApplicationDAO.getAdmissionsStatusCounts();
-  },
+    return this.dao.getAdmissionsStatusCounts();
+  }
 
   getProgramApplicationCounts() {
-    return ApplicationDAO.getProgramApplicationCounts();
+    return this.dao.getProgramApplicationCounts();
   }
-};
+}
 
-export = ApplicationService;
+// Production instance, wired to the MongoDB strategy. `export =` (not
+// `export default`) preserves the CommonJS module shape for existing
+// `require('../services/applications')` consumers.
+export = new ApplicationService(ApplicationDAO);

@@ -8,6 +8,7 @@ import {
   aiAssistToolCalls
 } from '../drizzle/schema/schema';
 import aiAssistOrchestrator from '../services/ai-assist/orchestrator';
+import signalLedger from '../services/ai-assist/signalLedger';
 import {
   normalizeStudentPickerRow,
   requireAccessibleStudent,
@@ -939,6 +940,26 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
     analysisMode: Boolean(assistContext?.analysisMode)
   };
   let titleRefinementPayload = null;
+
+  // Refresh this student's implicit-risk signal ledger on each deep-dive
+  // analysis: cold-starts the first time, then scans only messages since the
+  // last scan. Best-effort — never block or fail the analysis. So the analysis
+  // (via get_student_overview) can reason over fresh content signals. A future
+  // cron can drive signalLedger.scanCommunicationSignals() for all students.
+  if (assistContext?.analysisMode && assistContext.mentionedStudent?.id) {
+    try {
+      await signalLedger.scanStudentSignals(
+        req,
+        assistContext.mentionedStudent.id
+      );
+    } catch (error) {
+      logger.warn(
+        `[AI Assist] pre-analysis signal scan skipped: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`
+      );
+    }
+  }
 
   if (isStreamingRequest(req)) {
     const postgres = getPostgresDb();

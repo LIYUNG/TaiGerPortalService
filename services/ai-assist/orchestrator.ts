@@ -640,18 +640,21 @@ const runAiAssist = async (
     )
   );
 
-  // Resolve the conversation's active student: explicit mention, conversation
-  // binding, or the first student surfaced by the tools this turn.
-  const firstStudentCandidate = candidates.find(
+  // Resolve the conversation's active student. Only bind when it is
+  // unambiguous: an explicit mention, an existing binding, or exactly ONE
+  // student surfaced this turn. Macro/multi-student turns (e.g. portfolio
+  // overview, "compare A and B") surface many students — binding to the first
+  // would make the "Current student" chip lie, so leave it null.
+  const studentCandidates = candidates.filter(
     (candidate) => candidate.entityType === 'student'
   );
   const activeStudent =
     explicitStudent ||
     boundStudent ||
-    (firstStudentCandidate
+    (studentCandidates.length === 1
       ? {
-          id: firstStudentCandidate.entityId,
-          displayName: firstStudentCandidate.displayName
+          id: studentCandidates[0].entityId,
+          displayName: studentCandidates[0].displayName
         }
       : null);
 

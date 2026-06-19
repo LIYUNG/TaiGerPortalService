@@ -5,6 +5,7 @@ import { AWS_S3_BUCKET_NAME } from '../../config';
 import { getS3Object } from '../../aws/s3';
 import { extractTextFromBuffer } from '../../utils/utils_function';
 import tools from './tools';
+import signalLedger from './signalLedger';
 import {
   buildOverview,
   loadPortfolio,
@@ -83,6 +84,39 @@ const getStudentOverview = async (req: AiRequest, args: AiToolArgs = {}) => {
     tools.runTool(req, 'get_document_thread_context', args)
   ]);
 
+  // Implicit-risk signals mined from message content (frustration, broken
+  // promises, cooling engagement, ...). Best-effort: an empty/never-scanned
+  // ledger must not break the overview.
+  let communicationRiskSignals;
+  try {
+    const row = await signalLedger.getStudentSignalRow(args.studentId);
+    if (row) {
+      const active = (row.signals || []).filter((signal) => !signal.resolved);
+      if (active.length) {
+        communicationRiskSignals = {
+          riskLevel: row.riskLevel,
+          lastScannedAt: row.lastScannedAt,
+          signals: active.map((signal) => ({
+            type: signal.type,
+            severity: signal.severity,
+            evidence: signal.evidence,
+            sinceDays: signal.firstSeenAt
+              ? Math.max(
+                  Math.floor(
+                    (Date.now() - new Date(signal.firstSeenAt).getTime()) /
+                      86400000
+                  ),
+                  0
+                )
+              : null
+          }))
+        };
+      }
+    }
+  } catch {
+    // Leave undefined.
+  }
+
   return {
     data: {
       ...summary.data,
@@ -91,7 +125,8 @@ const getStudentOverview = async (req: AiRequest, args: AiToolArgs = {}) => {
         total: (threads.data as LeanDoc)?.totalThreads,
         open: (threads.data as LeanDoc)?.openThreadsCount,
         threads: (threads.data as LeanDoc)?.threads
-      }
+      },
+      ...(communicationRiskSignals ? { communicationRiskSignals } : {})
     }
   };
 };
@@ -302,7 +337,7 @@ const definitions = [
   ),
   makeTool(
     'get_student_overview',
-    'Get a single consolidated overview of one accessible student: profile, assigned team, base documents, applications (status/admission/deadlines/risks), and document-thread status.',
+    'Get a single consolidated overview of one accessible student: profile, assigned team, base documents, applications (status/admission/deadlines/risks), document-thread status, and communicationRiskSignals — IMPLICIT risks mined from message content (frustration, confusion, broken promises, cooling engagement, mentions of competitors/refund, declining sentiment) each with an evidence quote and how many days it has persisted; treat these as first-class risks in any health assessment.',
     { studentId: str('Student id from find_students.') },
     ['studentId']
   ),
@@ -352,7 +387,7 @@ const definitions = [
   ),
   makeTool(
     'get_my_overview',
-    'Get a cross-portfolio attention summary for the current user: upcoming deadlines, document threads waiting on the team (with how many days each has stalled), students who have gone quiet (no message in 3+ weeks), admitted-but-not-confirmed applications, and students missing required base documents. Use for "what needs my attention" and "who is at risk / has gone silent" questions.',
+    'Get a cross-portfolio attention summary for the current user: upcoming deadlines, document threads waiting on the team (with how many days each has stalled), students who have gone quiet (no message in 3+ weeks), admitted-but-not-confirmed applications, students missing required base documents, and communicationRiskSignals — IMPLICIT risks mined from message CONTENT (frustration, confusion, repeated unanswered questions, broken promises, deadline anxiety, cooling engagement, mentions of competitors/refund, declining sentiment) that the status/time buckets cannot see, each with an evidence quote and how many days it has persisted. Use for "what needs my attention", "who is at risk / has gone silent", and "what hidden/implicit risks am I missing across my students" questions.',
     { days: int('Deadline window in days for the overview (default 30).', 365) }
   ),
   makeTool(

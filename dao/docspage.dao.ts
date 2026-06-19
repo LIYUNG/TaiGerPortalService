@@ -1,22 +1,43 @@
 import { UpdateQuery } from 'mongoose';
 import { IDocspage } from '@taiger-common/model';
-import { Docspage } from '../models';
+import { Docspage as DocspageModel } from '../models';
+import type { Docspage, IDocspageDAO } from './docspage.dao.types';
 
 /**
- * DocspageDAO — data access for the Docspage model (default-connection model
- * from models/index.js). Plain params, no req.
+ * Map a Mongo doc (hydrated or lean) to the persistence-agnostic Docspage: keep
+ * ALL fields but normalize `_id` to a string when present. The only place Mongo
+ * shapes are handled.
  */
-const DocspageDAO = {
-  async upsertByCategory(category: string, fields: UpdateQuery<IDocspage>) {
-    return Docspage.findOneAndUpdate({ category }, fields, {
-      upsert: true,
-      new: true
-    });
-  },
-
-  async getByCategory(category: string) {
-    return Docspage.findOne({ category });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toDomain = (doc: any): Docspage | null => {
+  if (!doc) {
+    return null;
   }
+  const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+  const out = { ...plain };
+  if (out._id != null) {
+    out._id = String(out._id);
+  }
+  return out as Docspage;
 };
 
-export = DocspageDAO;
+class DocspageMongoDAO implements IDocspageDAO {
+  async upsertByCategory(
+    category: string,
+    fields: Partial<Docspage>
+  ): Promise<Docspage | null> {
+    return toDomain(
+      await DocspageModel.findOneAndUpdate(
+        { category },
+        fields as UpdateQuery<IDocspage>,
+        { upsert: true, new: true }
+      )
+    );
+  }
+
+  async getByCategory(category: string): Promise<Docspage | null> {
+    return toDomain(await DocspageModel.findOne({ category }));
+  }
+}
+
+export = new DocspageMongoDAO();

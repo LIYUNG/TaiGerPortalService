@@ -31,7 +31,7 @@ describe('DocspageDAO (mocked models)', () => {
       fields,
       { upsert: true, new: true }
     );
-    expect(result).toBe(updated);
+    expect(result).toEqual(updated);
   });
 
   it('getByCategory queries by category and returns the doc', async () => {
@@ -41,6 +41,6 @@ describe('DocspageDAO (mocked models)', () => {
     const result = await DocspageDAO.getByCategory('visa');
 
     expect(Docspage.findOne).toHaveBeenCalledWith({ category: 'visa' });
-    expect(result).toBe(doc);
+    expect(result).toEqual(doc);
   });
 });

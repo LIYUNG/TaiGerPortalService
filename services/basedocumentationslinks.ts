@@ -1,22 +1,34 @@
-import { IBasedocumentationslink } from '@taiger-common/model';
 import BasedocumentationslinkDAO from '../dao/basedocumentationslink.dao';
+import type {
+  Basedocumentationslink,
+  IBasedocumentationslinkDAO
+} from '../dao/basedocumentationslink.dao.types';
 
 /**
  * BasedocumentationslinkService — business layer for the base-documents / survey
- * helper links. Delegates data access to the DAO (controller -> service -> dao).
+ * helper links. Depends only on the IBasedocumentationslinkDAO strategy contract
+ * (constructor injection), so the storage engine can be swapped by constructing
+ * the service with a different DAO.
  */
-const BasedocumentationslinkService = {
+export class BasedocumentationslinkService {
+  constructor(private readonly dao: IBasedocumentationslinkDAO) {}
+
   findByCategory(category: string) {
-    return BasedocumentationslinkDAO.findByCategory(category);
-  },
+    return this.dao.findByCategory(category);
+  }
 
   upsertByCategoryKey(
     category: string,
     key: string,
-    set: Partial<IBasedocumentationslink>
+    set: Partial<Basedocumentationslink>
   ) {
-    return BasedocumentationslinkDAO.upsertByCategoryKey(category, key, set);
+    return this.dao.upsertByCategoryKey(category, key, set);
   }
-};
+}
 
-export = BasedocumentationslinkService;
+// Production instance, wired to the MongoDB strategy.
+const basedocumentationslinkService = new BasedocumentationslinkService(
+  BasedocumentationslinkDAO
+);
+
+export default basedocumentationslinkService;

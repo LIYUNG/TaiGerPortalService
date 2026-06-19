@@ -33,11 +33,6 @@ import StudentService from '../services/students';
 
 const pageSize = 5;
 
-// Shape of a communication draft document as consumed by this controller.
-interface DraftLike {
-  files?: ICommunicationFile[];
-}
-
 // A student with its agent refs populated (as returned by the populated
 // student lookups), narrowed to the fields this controller reads.
 type PopulatedStudent = IStudent & {
@@ -112,10 +107,10 @@ export const upsertCommunicationDraft = asyncHandler(async (req, res) => {
   if (isDraftEmpty(message)) {
     // An empty-text draft is only discarded when it has no attachments;
     // otherwise keep the draft (with its files) and just clear the text.
-    const existing = (await CommunicationDraftService.getDraft(
+    const existing = await CommunicationDraftService.getDraft(
       userId,
       studentId
-    )) as DraftLike | null;
+    );
     if (!existing?.files?.length) {
       await CommunicationDraftService.deleteDraft(userId, studentId);
       return res.status(200).send({ success: true, data: null });
@@ -143,10 +138,7 @@ export const deleteCommunicationDraft = asyncHandler(async (req, res) => {
     params: { studentId }
   } = req;
   const userId = user._id.toString();
-  const existing = (await CommunicationDraftService.getDraft(
-    userId,
-    studentId
-  )) as DraftLike | null;
+  const existing = await CommunicationDraftService.getDraft(userId, studentId);
   if (existing?.files?.length) {
     await deleteS3Objects({
       bucketName: AWS_S3_BUCKET_NAME,
@@ -205,10 +197,7 @@ export const deleteCommunicationDraftFile = asyncHandler(async (req, res) => {
     throw new ErrorResponse(400, 'File path is required.');
   }
   const id = user._id.toString();
-  const existing = (await CommunicationDraftService.getDraft(
-    id,
-    studentId
-  )) as DraftLike | null;
+  const existing = await CommunicationDraftService.getDraft(id, studentId);
   const owns = existing?.files?.some((file) => file.path === filePath);
   if (!owns) {
     throw new ErrorResponse(404, 'File not found in draft.');
@@ -685,10 +674,10 @@ export const postMessages = asyncHandler(async (req, res) => {
   // Files staged on the draft (upload-on-attach) are moved onto the message.
   // `newfile` covers any files sent directly with this request (legacy /
   // upload-on-send); both are merged.
-  const draft = (await CommunicationDraftService.getDraft(
+  const draft = await CommunicationDraftService.getDraft(
     user._id.toString(),
     studentId
-  )) as DraftLike | null;
+  );
   const draftFiles = draft?.files ?? [];
   const allFiles = [...newfile, ...draftFiles];
 

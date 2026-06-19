@@ -20,21 +20,25 @@ beforeEach(() => {
 });
 
 describe('BasedocumentationslinkDAO (mocked models)', () => {
-  it('findByCategory queries by category and returns the result', async () => {
-    const docs = [{ _id: 'b1', category: 'visa' }];
-    Basedocumentationslink.find.mockResolvedValue(docs);
+  it('findByCategory queries by category and returns the mapped result', async () => {
+    Basedocumentationslink.find.mockResolvedValue([
+      { _id: 'b1', category: 'visa' }
+    ]);
 
     const result = await BasedocumentationslinkDAO.findByCategory('visa');
 
     expect(Basedocumentationslink.find).toHaveBeenCalledWith({
       category: 'visa'
     });
-    expect(result).toBe(docs);
+    expect(result).toEqual([{ _id: 'b1', category: 'visa' }]);
   });
 
-  it('upsertByCategoryKey upserts by { category, key } with $set and returns the doc', async () => {
-    const updated = { _id: 'b2', category: 'visa', key: 'k1' };
-    Basedocumentationslink.findOneAndUpdate.mockResolvedValue(updated);
+  it('upsertByCategoryKey upserts by { category, key } with $set and maps the doc', async () => {
+    Basedocumentationslink.findOneAndUpdate.mockResolvedValue({
+      _id: 'b2',
+      category: 'visa',
+      key: 'k1'
+    });
 
     const set = { link: 'https://example.com' };
     const result = await BasedocumentationslinkDAO.upsertByCategoryKey(
@@ -48,6 +52,6 @@ describe('BasedocumentationslinkDAO (mocked models)', () => {
       { $set: set },
       { upsert: true }
     );
-    expect(result).toBe(updated);
+    expect(result).toMatchObject({ _id: 'b2', category: 'visa', key: 'k1' });
   });
 });

@@ -1,13 +1,19 @@
 import ProgramAIDAO from '../dao/programAI.dao';
+import type { IProgramAIDAO } from '../dao/programAI.dao.types';
 
 /**
- * ProgramAIService — business layer for AI-generated program metadata.
- * Delegates data access to the DAO (controller -> service -> dao).
+ * ProgramAIService — business layer for AI-generated program metadata. Depends
+ * only on the IProgramAIDAO strategy contract (constructor injection).
  */
-const ProgramAIService = {
-  getByProgramId(programId: string) {
-    return ProgramAIDAO.getByProgramId(programId);
-  }
-};
+export class ProgramAIService {
+  constructor(private readonly dao: IProgramAIDAO) {}
 
-export = ProgramAIService;
+  getByProgramId(programId: string) {
+    return this.dao.getByProgramId(programId);
+  }
+}
+
+// Production instance, wired to the MongoDB strategy.
+const programAIService = new ProgramAIService(ProgramAIDAO);
+
+export default programAIService;

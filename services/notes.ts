@@ -1,19 +1,24 @@
-import { UpdateQuery } from 'mongoose';
-import { INote } from '@taiger-common/model';
 import NoteDAO from '../dao/note.dao';
+import type { INoteDAO, Note } from '../dao/note.dao.types';
 
 /**
- * NoteService — business layer for student notes. Delegates data access to the
- * DAO (controller -> service -> dao).
+ * NoteService — business layer for student notes. Depends only on the INoteDAO
+ * strategy contract (constructor injection), so the storage engine can be
+ * swapped by constructing the service with a different DAO.
  */
-const NoteService = {
+export class NoteService {
+  constructor(private readonly dao: INoteDAO) {}
+
   getNoteByStudentId(studentId: string) {
-    return NoteDAO.getNoteByStudentId(studentId);
-  },
-
-  upsertNoteByStudentId(studentId: string, fields: UpdateQuery<INote>) {
-    return NoteDAO.upsertNoteByStudentId(studentId, fields);
+    return this.dao.getNoteByStudentId(studentId);
   }
-};
 
-export = NoteService;
+  upsertNoteByStudentId(studentId: string, fields: Partial<Note>) {
+    return this.dao.upsertNoteByStudentId(studentId, fields);
+  }
+}
+
+// Production instance, wired to the MongoDB strategy.
+const noteService = new NoteService(NoteDAO);
+
+export default noteService;

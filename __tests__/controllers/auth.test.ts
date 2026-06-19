@@ -199,7 +199,7 @@ describe('forgotPassword', () => {
 
 describe('resetPassword', () => {
   it('forwards a 400 ErrorResponse to next() for an invalid/expired token', async () => {
-    TokenService.findOneToken.mockResolvedValue(null);
+    TokenService.findTokenByValue.mockResolvedValue(null);
     const next = jest.fn();
 
     await resetPassword(
@@ -214,13 +214,13 @@ describe('resetPassword', () => {
       next
     );
 
-    expect(TokenService.findOneToken).toHaveBeenCalledTimes(1);
+    expect(TokenService.findTokenByValue).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledTimes(1);
     expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 400 });
   });
 
   it('forwards a 403 ErrorResponse to next() when the token does not match the email', async () => {
-    TokenService.findOneToken.mockResolvedValue({ userId: fakeUser._id });
+    TokenService.findTokenByValue.mockResolvedValue({ userId: fakeUser._id });
     UserService.getUserDocByFilter.mockResolvedValue(null);
     const next = jest.fn();
 
@@ -249,9 +249,9 @@ describe('resetPassword', () => {
       password: 'old',
       save: jest.fn().mockResolvedValue(undefined)
     };
-    TokenService.findOneToken.mockResolvedValue({
-      userId: fakeUser._id,
-      deleteOne: jest.fn().mockResolvedValue(undefined)
+    TokenService.findTokenByValue.mockResolvedValue({
+      id: 'tok1',
+      userId: fakeUser._id
     });
     UserService.getUserDocByFilter.mockResolvedValue(userDoc);
     const res = mockRes();
@@ -332,7 +332,7 @@ describe('resendActivation', () => {
 
 describe('activateAccount', () => {
   it('forwards a 400 ErrorResponse to next() for an invalid/expired token', async () => {
-    TokenService.findOneToken.mockResolvedValue(null);
+    TokenService.findTokenByValue.mockResolvedValue(null);
     const next = jest.fn();
 
     await activateAccount(
@@ -346,7 +346,7 @@ describe('activateAccount', () => {
   });
 
   it('forwards a 400 ErrorResponse when no user matches the token + email', async () => {
-    TokenService.findOneToken.mockResolvedValue({ userId: fakeUser._id });
+    TokenService.findTokenByValue.mockResolvedValue({ userId: fakeUser._id });
     UserService.getUserByFilter.mockResolvedValue(null);
     const next = jest.fn();
 
@@ -362,7 +362,7 @@ describe('activateAccount', () => {
   });
 
   it('forwards a 400 ErrorResponse when the account is already activated', async () => {
-    TokenService.findOneToken.mockResolvedValue({ userId: fakeUser._id });
+    TokenService.findTokenByValue.mockResolvedValue({ userId: fakeUser._id });
     UserService.getUserByFilter.mockResolvedValue({
       ...fakeUser,
       isAccountActivated: true
@@ -382,10 +382,10 @@ describe('activateAccount', () => {
 
   it('activates the account and responds 200 on a valid token', async () => {
     const token = {
-      userId: fakeUser._id,
-      deleteOne: jest.fn().mockResolvedValue(undefined)
+      id: 'tok1',
+      userId: fakeUser._id
     };
-    TokenService.findOneToken.mockResolvedValue(token);
+    TokenService.findTokenByValue.mockResolvedValue(token);
     UserService.getUserByFilter.mockResolvedValue({
       ...fakeUser,
       isAccountActivated: false
@@ -410,7 +410,7 @@ describe('activateAccount', () => {
       fakeUser._id,
       expect.objectContaining({ isAccountActivated: true })
     );
-    expect(token.deleteOne).toHaveBeenCalled();
+    expect(TokenService.deleteTokenById).toHaveBeenCalledWith('tok1');
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({ success: true });
   });

@@ -1,33 +1,39 @@
 import ProgramChangeRequestDAO from '../dao/programChangeRequest.dao';
+import type { IProgramChangeRequestDAO } from '../dao/programChangeRequest.dao.types';
 
 /**
  * ProgramChangeRequestService — business layer for program change requests.
- * Delegates data access to the DAO (controller -> service -> dao).
+ * Depends only on the IProgramChangeRequestDAO strategy contract (constructor
+ * injection), so the storage engine can be swapped by constructing the service
+ * with a different DAO.
  */
-const ProgramChangeRequestService = {
+export class ProgramChangeRequestService {
+  constructor(private readonly dao: IProgramChangeRequestDAO) {}
+
   getOpenChangeRequestsByProgramId(programId: string) {
-    return ProgramChangeRequestDAO.getOpenChangeRequestsByProgramId(programId);
-  },
+    return this.dao.getOpenChangeRequestsByProgramId(programId);
+  }
 
   upsertChangeRequest(
     programId: string,
     requestedBy: string,
     changes: Record<string, unknown>
   ) {
-    return ProgramChangeRequestDAO.upsertChangeRequest(
-      programId,
-      requestedBy,
-      changes
-    );
-  },
+    return this.dao.upsertChangeRequest(programId, requestedBy, changes);
+  }
 
   getChangeRequestById(requestId: string) {
-    return ProgramChangeRequestDAO.getChangeRequestById(requestId);
-  },
+    return this.dao.getChangeRequestById(requestId);
+  }
 
   updateChangeRequestById(requestId: string, payload: Record<string, unknown>) {
-    return ProgramChangeRequestDAO.updateChangeRequestById(requestId, payload);
+    return this.dao.updateChangeRequestById(requestId, payload);
   }
-};
+}
 
-export = ProgramChangeRequestService;
+// Production instance, wired to the MongoDB strategy.
+const programChangeRequestService = new ProgramChangeRequestService(
+  ProgramChangeRequestDAO
+);
+
+export default programChangeRequestService;

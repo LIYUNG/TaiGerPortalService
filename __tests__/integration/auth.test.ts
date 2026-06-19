@@ -177,7 +177,7 @@ describe('POST /auth/forgot-password', () => {
 
 describe('POST /auth/reset-password', () => {
   it('400: rejects an invalid reset token', async () => {
-    TokenDAO.findOneToken.mockResolvedValue(null);
+    TokenDAO.findTokenByValue.mockResolvedValue(null);
 
     const resp = await requestWithSupertest
       .post('/auth/reset-password')
@@ -190,7 +190,7 @@ describe('POST /auth/reset-password', () => {
 
     expect(resp.status).toBe(400);
     expect(resp.body.success).toBe(false);
-    expect(TokenDAO.findOneToken).toHaveBeenCalled();
+    expect(TokenDAO.findTokenByValue).toHaveBeenCalled();
   });
 });
 

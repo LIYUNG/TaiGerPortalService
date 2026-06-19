@@ -10,23 +10,10 @@ const getKeywordSets = asyncHandler(async (req, res) => {
 
 const createKeywordSet = asyncHandler(async (req, res) => {
   const fields = req.body;
-  const query = {
-    $or: [
-      {
-        $and: [
-          { 'keywords.zh': { $in: fields.keywords.zh } },
-          { 'antiKeywords.zh': { $in: fields.antiKeywords.zh } }
-        ]
-      },
-      {
-        $and: [
-          { 'keywords.en': { $in: fields.keywords.en } },
-          { 'antiKeywords.en': { $in: fields.antiKeywords.en } }
-        ]
-      }
-    ]
-  };
-  const existed = await KeywordSetService.findKeywordSet(query);
+  const existed = await KeywordSetService.findKeywordSet({
+    keywords: fields.keywords,
+    antiKeywords: fields.antiKeywords
+  });
   if (existed) {
     // Find out which specific keywords and antiKeywords are duplicates
     const duplicateKeywordsZh = fields.keywords.zh.filter((keyword: string) =>

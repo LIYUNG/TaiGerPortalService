@@ -105,6 +105,33 @@ const CommunicationDAO = {
     ]);
   },
 
+  // Students whose latest message was sent by themselves (not the team) and
+  // not marked as "no reply needed" (ignore_message != true). One aggregation:
+  // sort desc, group to get latest, filter where sender == student.
+  // Returns [{ _id: <studentObjectId>, latestAt: <Date> }].
+  async getUnansweredStudentMessages(studentIds) {
+    if (!studentIds?.length) return [];
+    return Communication.aggregate([
+      { $match: { student_id: { $in: studentIds } } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: '$student_id',
+          latestUserId: { $first: '$user_id' },
+          latestIgnore: { $first: '$ignore_message' },
+          latestAt: { $first: '$createdAt' }
+        }
+      },
+      {
+        $match: {
+          $expr: { $eq: ['$latestUserId', '$_id'] },
+          latestIgnore: { $ne: true }
+        }
+      },
+      { $project: { _id: 1, latestAt: 1 } }
+    ]);
+  },
+
   // A student's chat thread, newest-first, with the given populate spec.
   // Returns live documents unless `lean` is set (callers that mark-as-read
   // mutate + .save() the returned docs).

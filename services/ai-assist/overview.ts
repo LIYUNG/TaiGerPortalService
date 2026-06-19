@@ -23,7 +23,6 @@ const PORTFOLIO_BUCKET_LIMIT = 200;
 // Thresholds for the behaviour-based (not status-based) risk signals. These
 // surface the "who has gone quiet / what is stuck" questions that pure status
 // fields cannot answer.
-const COMMUNICATION_GAP_DAYS = 21;
 const THREAD_STALL_DAYS = 7;
 
 const OVERVIEW_STUDENT_FIELDS =
@@ -212,13 +211,13 @@ const collectThreadsWaitingOnTeam = (threads, studentById) => {
     .sort((a, b) => (b.stalledDays ?? 0) - (a.stalledDays ?? 0));
 };
 
-// Students with at least one in-progress application who have not exchanged any
-// message in COMMUNICATION_GAP_DAYS (or have never been messaged). This is the
-// "the student went quiet" signal — derived from real activity, not a status.
+// Students with at least one in-progress application whose latest message was
+// sent by the student themselves and has not been marked "no reply needed".
+// Urgency: ≥14d → critical, ≥7d → high, ≥3d → medium.
 const collectCommunicationGaps = (
-  students,
+  studentById,
   applications,
-  latestMessageAtById
+  unansweredRows  // [{ _id: ObjectId, latestAt: Date }]
 ) => {
   const today = new Date();
   const activeStudentIds = new Set(
@@ -228,28 +227,20 @@ const collectCommunicationGaps = (
   );
 
   const items = [];
-  (students || []).forEach((student) => {
-    const id = toIdString(student._id || student.id);
+  (unansweredRows || []).forEach((row) => {
+    const id = toIdString(row._id);
     if (!activeStudentIds.has(id)) return;
-
-    const latestAt = latestMessageAtById.get(id);
-    const lastContactDays = latestAt
+    const student = studentById.get(id);
+    if (!student) return;
+    const latestAt = safeDate(row.latestAt);
+    const daysSince = latestAt
       ? Math.max(differenceInDays(today, latestAt), 0)
-      : null;
-
-    // Flag when silent past the threshold, or no message has ever been logged.
-    if (lastContactDays === null || lastContactDays >= COMMUNICATION_GAP_DAYS) {
-      items.push({
-        student: studentLabel(student),
-        lastContactDays
-      });
-    }
+      : 0;
+    if (daysSince < 3) return;
+    items.push({ student: studentLabel(student), lastContactDays: daysSince });
   });
 
-  // Longest silence first (nulls — never contacted — sort to the top).
-  return items.sort(
-    (a, b) => (b.lastContactDays ?? Infinity) - (a.lastContactDays ?? Infinity)
-  );
+  return items.sort((a, b) => b.lastContactDays - a.lastContactDays);
 };
 
 const collectMissingBaseDocuments = (students) => {
@@ -337,23 +328,18 @@ const buildOverview = async (
   const { students, studentById, applications, threads } =
     await loadPortfolio(req);
 
-  // Latest message timestamp per student (single aggregation) → communication
-  // gaps. Best-effort: a failure here must not break the rest of the overview.
-  const latestMessageAtById = new Map();
+  // Unanswered student messages (single aggregation) — students whose last
+  // message came from themselves and is not marked "no reply needed".
+  // Best-effort: a failure here must not break the rest of the overview.
+  let unansweredRows = [];
   try {
     const studentObjectIds = (students || [])
       .map((student) => student._id || student.id)
       .filter(Boolean);
-    const latestRows =
-      await CommunicationService.getLatestMessageAtForStudents(studentObjectIds);
-    (latestRows || []).forEach((row) => {
-      const date = safeDate(row?.latestAt);
-      if (date) {
-        latestMessageAtById.set(toIdString(row._id), date);
-      }
-    });
+    unansweredRows =
+      await CommunicationService.getUnansweredStudentMessages(studentObjectIds);
   } catch {
-    // Leave the map empty; communicationGaps will simply be conservative.
+    // Leave empty; communicationGaps will be empty.
   }
 
   const statsById = buildStudentStats(applications);
@@ -371,9 +357,9 @@ const buildOverview = async (
   const threadsWaitingOnTeam = collectThreadsWaitingOnTeam(threads, studentById);
   const missingBaseDocuments = collectMissingBaseDocuments(students);
   const communicationGaps = collectCommunicationGaps(
-    students,
+    studentById,
     applications,
-    latestMessageAtById
+    unansweredRows
   );
 
   // Role-aware emphasis: which buckets matter most for this user.

@@ -2,7 +2,35 @@
 
 import signalLedger from '../../../services/ai-assist/signalLedger';
 
-const { mergeSignals, rollupRiskLevel } = signalLedger as any;
+const { mergeSignals, rollupRiskLevel, withSourceRefs } = signalLedger as any;
+
+describe('signalLedger.withSourceRefs', () => {
+  const messages = [
+    { id: 'm1', at: '2026-05-01T00:00:00.000Z' },
+    { id: 'm2', at: '2026-05-02T00:00:00.000Z' }
+  ];
+
+  it('maps a 1-based msgIndex to the source id + timestamp', () => {
+    const [a, b] = withSourceRefs(
+      [{ msgIndex: 1 }, { msgIndex: 2 }],
+      messages
+    );
+    expect(a.sourceMessageId).toBe('m1');
+    expect(a.occurredAt).toBe('2026-05-01T00:00:00.000Z');
+    expect(b.sourceMessageId).toBe('m2');
+  });
+
+  it('nulls out-of-range / missing indices', () => {
+    const [a, b, c] = withSourceRefs(
+      [{ msgIndex: 0 }, { msgIndex: 9 }, {}],
+      messages
+    );
+    [a, b, c].forEach((s) => {
+      expect(s.sourceMessageId).toBeNull();
+      expect(s.occurredAt).toBeNull();
+    });
+  });
+});
 
 describe('signalLedger.mergeSignals', () => {
   const now = new Date('2026-06-19T00:00:00.000Z');

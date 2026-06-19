@@ -53,8 +53,9 @@ const INSTRUCTIONS =
   'Return the UPDATED signal set: keep prior signals that are still relevant, set "resolved": true on any the new messages clearly address, and add new ones. ' +
   'Only report real, evidenced signals — never invent. Keep evidence to one short quote or paraphrase. ' +
   'Classify each signal under one fixed "type" category, AND write a SPECIFIC short description of the actual case (not the generic category) in BOTH English ("summaryEn") and Traditional Chinese ("summaryZh"), max ~12 words / ~20 characters, e.g. type "frustration" with "Frustrated about slow document feedback" / "對文件回覆緩慢感到不滿". ' +
+  'Also set "msgIndex" to the "i" of the single message in the NEW messages list that best evidences the signal (omit or use 0 if it comes only from prior context). ' +
   `Allowed "type" values: ${SIGNAL_TYPES.join(', ')}. Allowed "severity": ${SEVERITIES.join(', ')}. ` +
-  'Return STRICT JSON only: {"signals":[{"type":"...","severity":"low|medium|high","summaryEn":"...","summaryZh":"...","evidence":"...","resolved":false}]}. ' +
+  'Return STRICT JSON only: {"signals":[{"type":"...","severity":"low|medium|high","summaryEn":"...","summaryZh":"...","evidence":"...","msgIndex":0,"resolved":false}]}. ' +
   'If there are no signals, return {"signals":[]}.';
 
 const safeParseJson = (value) => {
@@ -97,11 +98,11 @@ const rollupRiskLevel = (signals = []) => {
 // specific bilingual description (shown on hover). Pure — unit tested.
 const mergeSignals = (priorSignals = [], llmSignals = [], now = new Date()) => {
   const nowIso = now.toISOString();
-  const firstSeenByType = new Map();
+  // Prior record by type so server time + source refs survive incremental scans
+  // that no longer include the original (old) message.
+  const priorByType = new Map();
   (priorSignals || []).forEach((signal) => {
-    if (signal?.type && signal.firstSeenAt) {
-      firstSeenByType.set(signal.type, signal.firstSeenAt);
-    }
+    if (signal?.type) priorByType.set(signal.type, signal);
   });
 
   // Normalise type/severity before validating — the model may return different
@@ -120,6 +121,8 @@ const mergeSignals = (priorSignals = [], llmSignals = [], now = new Date()) => {
       summaryEn: str(signal?.summaryEn, 120),
       summaryZh: str(signal?.summaryZh, 120),
       evidence: str(signal?.evidence, 400),
+      sourceMessageId: signal?.sourceMessageId || null,
+      occurredAt: signal?.occurredAt || null,
       resolved: Boolean(signal?.resolved)
     }))
     .filter(
@@ -127,11 +130,17 @@ const mergeSignals = (priorSignals = [], llmSignals = [], now = new Date()) => {
         SIGNAL_TYPES.includes(signal.type) &&
         SEVERITIES.includes(signal.severity)
     )
-    .map((signal) => ({
-      ...signal,
-      firstSeenAt: firstSeenByType.get(signal.type) || nowIso,
-      lastSeenAt: nowIso
-    }));
+    .map((signal) => {
+      const prior = priorByType.get(signal.type);
+      return {
+        ...signal,
+        // Keep the original source/time when this scan did not re-reference it.
+        sourceMessageId: signal.sourceMessageId || prior?.sourceMessageId || null,
+        occurredAt: signal.occurredAt || prior?.occurredAt || null,
+        firstSeenAt: prior?.firstSeenAt || nowIso,
+        lastSeenAt: nowIso
+      };
+    });
 };
 
 const extractOutputText = (response) =>
@@ -157,7 +166,13 @@ const classifySignals = async ({ priorSignals, messages }) => {
               summaryZh: signal.summaryZh,
               evidence: signal.evidence
             })),
-            messages
+            // 1-based index `i`; the id is kept server-side, not exposed.
+            messages: (messages || []).map((message, index) => ({
+              i: index + 1,
+              from: message.from,
+              at: message.at,
+              text: message.text
+            }))
           },
           null,
           2
@@ -184,20 +199,38 @@ const classifySignals = async ({ priorSignals, messages }) => {
   return signals;
 };
 
-// Build the compact message list fed to the model: text-bearing messages only,
-// capped count + length, oldest-first, with author side and timestamp.
+// Build the compact message list (server-side, with id) — text-bearing only,
+// capped count + length, oldest-first. The LLM gets a projection with a 1-based
+// index instead of the id; the server maps the index back to id + timestamp.
 const buildScanMessages = (rawMessages) =>
   (rawMessages || [])
     .map((raw) => normalizeMessage(raw))
     .filter((message) => message.text)
     .slice(-MAX_MESSAGES_PER_SCAN)
     .map((message) => ({
+      id: message.id || null,
       from: message.author?.role === Role.Student ? 'student' : 'team',
       at: message.createdAt
         ? new Date(message.createdAt).toISOString()
         : null,
       text: String(message.text).slice(0, MSG_TEXT_CAP)
     }));
+
+// Resolve each LLM signal's msgIndex (1-based, into the scanned batch) back to
+// the real source message id + timestamp. Out-of-range / missing → null.
+const withSourceRefs = (llmSignals, scanMessages) =>
+  (Array.isArray(llmSignals) ? llmSignals : []).map((signal) => {
+    const idx = Number(signal?.msgIndex);
+    const src =
+      Number.isInteger(idx) && idx >= 1 && idx <= scanMessages.length
+        ? scanMessages[idx - 1]
+        : null;
+    return {
+      ...signal,
+      sourceMessageId: src?.id || null,
+      occurredAt: src?.at || null
+    };
+  });
 
 // Scan one student: read messages, classify, return the merged signal row (or
 // null if there was nothing to look at).
@@ -239,7 +272,11 @@ const scanStudent = async (student, priorRow) => {
   }
 
   const now = new Date();
-  const signals = mergeSignals(priorRow?.signals || [], llmSignals, now);
+  const signals = mergeSignals(
+    priorRow?.signals || [],
+    withSourceRefs(llmSignals, messages),
+    now
+  );
   const lastMessageAt = messages.reduce((latest, message) => {
     const at = message.at ? new Date(message.at) : null;
     return at && (!latest || at > latest) ? at : latest;
@@ -436,5 +473,6 @@ export = {
   // exported for unit tests
   mergeSignals,
   rollupRiskLevel,
+  withSourceRefs,
   SIGNAL_TYPES
 };

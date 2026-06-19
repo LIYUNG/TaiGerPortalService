@@ -102,10 +102,15 @@ const getStudentOverview = async (req: AiRequest, args: AiToolArgs = {}) => {
             summaryEn: signal.summaryEn,
             summaryZh: signal.summaryZh,
             evidence: signal.evidence,
-            sinceDays: signal.firstSeenAt
+            occurredAt: signal.occurredAt ?? null,
+            sourceMessageId: signal.sourceMessageId ?? null,
+            sinceDays: (signal.occurredAt || signal.firstSeenAt)
               ? Math.max(
                   Math.floor(
-                    (Date.now() - new Date(signal.firstSeenAt).getTime()) /
+                    (Date.now() -
+                      new Date(
+                        signal.occurredAt || signal.firstSeenAt
+                      ).getTime()) /
                       86400000
                   ),
                   0

@@ -364,9 +364,14 @@ const collectCommunicationRiskSignals = (
         summaryEn: signal.summaryEn,
         summaryZh: signal.summaryZh,
         evidence: signal.evidence,
-        sinceDays: signal.firstSeenAt
+        occurredAt: signal.occurredAt ?? null,
+        sourceMessageId: signal.sourceMessageId ?? null,
+        sinceDays: (signal.occurredAt || signal.firstSeenAt)
           ? Math.max(
-              differenceInDays(new Date(), new Date(signal.firstSeenAt)),
+              differenceInDays(
+                new Date(),
+                new Date(signal.occurredAt || signal.firstSeenAt)
+              ),
               0
             )
           : null

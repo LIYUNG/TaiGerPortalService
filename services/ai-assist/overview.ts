@@ -24,6 +24,7 @@ const PORTFOLIO_BUCKET_LIMIT = 200;
 // surface the "who has gone quiet / what is stuck" questions that pure status
 // fields cannot answer.
 const THREAD_STALL_DAYS = 7;
+const COMMUNICATION_GAP_DAYS = 7;
 
 const OVERVIEW_STUDENT_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count createdAt';
@@ -136,7 +137,7 @@ const buildFinalizedStudentIds = (applications): Set<string> => {
 // Applications with a real (non-rolling) deadline within `days`, still in
 // progress (not closed/admitted/rejected). Sorted soonest-first.
 // Items for students who confirmed enrolment elsewhere are flagged confirmedElsewhere.
-const collectUpcomingDeadlines = (applications, studentById, days, finalizedStudentIds: Set<string>) => {
+const collectUpcomingDeadlines = (applications, studentById, days, finalizedStudentIds: Set<string> = new Set()) => {
   const today = new Date();
   const items = [];
 
@@ -196,22 +197,29 @@ const collectAdmittedNotConfirmed = (applications, studentById) =>
 // threads here are already pre-filtered by the aggregation (student sent last
 // message, not ignored). stalledDays < 3 are skipped (too fresh to surface).
 // Items for students who confirmed enrolment elsewhere are flagged confirmedElsewhere.
-const collectThreadsWaitingOnTeam = (threads, studentById, finalizedStudentIds: Set<string>) => {
+const collectThreadsWaitingOnTeam = (threads, studentById, finalizedStudentIds: Set<string> = new Set()) => {
   const today = new Date();
-  const items = (threads || []).map((thread) => {
-    const studentId = toIdString(thread.student_id);
-    const student = studentById.get(studentId);
-    const lastMsgDate = safeDate(thread.lastMsgAt);
-    const stalledDays = lastMsgDate
-      ? Math.max(differenceInDays(today, lastMsgDate), 0)
-      : 0;
-    return {
-      student: student ? studentLabel(student) : { id: studentId },
-      fileType: thread.file_type,
-      stalledDays,
-      ...(finalizedStudentIds.has(studentId) ? { confirmedElsewhere: true } : {})
-    };
-  }).filter((item) => item.stalledDays >= 3);
+  const items = (threads || [])
+    .filter(
+      (thread) =>
+        !thread.isFinalVersion &&
+        toIdString(thread.latest_message_left_by_id) === toIdString(thread.student_id)
+    )
+    .map((thread) => {
+      const studentId = toIdString(thread.student_id);
+      const student = studentById.get(studentId);
+      const lastMsgDate = safeDate(thread.lastMsgAt ?? thread.updatedAt);
+      const stalledDays = lastMsgDate
+        ? Math.max(differenceInDays(today, lastMsgDate), 0)
+        : 0;
+      return {
+        student: student ? studentLabel(student) : { id: studentId },
+        fileType: thread.file_type,
+        stalledDays,
+        ...(finalizedStudentIds.has(studentId) ? { confirmedElsewhere: true } : {})
+      };
+    })
+    .filter((item) => item.stalledDays >= 3);
 
   return items.sort((a, b) => b.stalledDays - a.stalledDays);
 };
@@ -220,9 +228,9 @@ const collectThreadsWaitingOnTeam = (threads, studentById, finalizedStudentIds: 
 // sent by the student themselves and has not been marked "no reply needed".
 // Urgency: ≥14d → critical, ≥7d → high, ≥3d → medium.
 const collectCommunicationGaps = (
-  studentById,
+  students,
   applications,
-  unansweredRows  // [{ _id: ObjectId, latestAt: Date }]
+  latestMessageAtById: Map<string, Date>  // studentId -> latest message date
 ) => {
   const today = new Date();
   const activeStudentIds = new Set(
@@ -231,21 +239,26 @@ const collectCommunicationGaps = (
       .map((application) => toIdString(application.studentId))
   );
 
+  const studentById = new Map();
+  (students || []).forEach((s) => {
+    studentById.set(toIdString(s._id || s.id), s);
+  });
+
   const items = [];
-  (unansweredRows || []).forEach((row) => {
-    const id = toIdString(row._id);
-    if (!activeStudentIds.has(id)) return;
+  activeStudentIds.forEach((id) => {
     const student = studentById.get(id);
     if (!student) return;
-    const latestAt = safeDate(row.latestAt);
+    const latestAt = latestMessageAtById.get(id) ?? null;
     const daysSince = latestAt
       ? Math.max(differenceInDays(today, latestAt), 0)
-      : 0;
-    if (daysSince < 3) return;
+      : null;
+    if (daysSince !== null && daysSince < COMMUNICATION_GAP_DAYS) return;
     items.push({ student: studentLabel(student), lastContactDays: daysSince });
   });
 
-  return items.sort((a, b) => b.lastContactDays - a.lastContactDays);
+  return items.sort(
+    (a, b) => (b.lastContactDays ?? Infinity) - (a.lastContactDays ?? Infinity)
+  );
 };
 
 const collectMissingBaseDocuments = (students) => {
@@ -333,18 +346,21 @@ const buildOverview = async (
   const { students, studentById, applications, threads } =
     await loadPortfolio(req);
 
-  // Unanswered student messages (single aggregation) — students whose last
-  // message came from themselves and is not marked "no reply needed".
-  // Best-effort: a failure here must not break the rest of the overview.
-  let unansweredRows = [];
+  // Latest message dates per student — used to surface students who have gone
+  // quiet. Best-effort: a failure here must not break the rest of the overview.
+  let latestMessageAtById = new Map<string, Date>();
   try {
     const studentObjectIds = (students || [])
       .map((student) => student._id || student.id)
       .filter(Boolean);
-    unansweredRows =
-      await CommunicationService.getUnansweredStudentMessages(studentObjectIds);
+    const rows = await CommunicationService.getLatestMessageAtForStudents(studentObjectIds);
+    (rows || []).forEach((row: any) => {
+      const id = toIdString(row._id ?? row.studentId);
+      const date = safeDate(row.latestAt);
+      if (id && date) latestMessageAtById.set(id, date);
+    });
   } catch {
-    // Leave empty; communicationGaps will be empty.
+    // Leave empty; communicationGaps will reflect no contact data.
   }
 
   const statsById = buildStudentStats(applications);
@@ -364,9 +380,9 @@ const buildOverview = async (
   const threadsWaitingOnTeam = collectThreadsWaitingOnTeam(threads, studentById, finalizedStudentIds);
   const missingBaseDocuments = collectMissingBaseDocuments(students);
   const communicationGaps = collectCommunicationGaps(
-    studentById,
+    students,
     applications,
-    unansweredRows
+    latestMessageAtById
   );
 
   // Role-aware emphasis: which buckets matter most for this user.

@@ -49,8 +49,9 @@ const INSTRUCTIONS =
   'You are given PRIOR signals already detected (older history you cannot re-read) and the NEW messages since the last scan. ' +
   'Return the UPDATED signal set: keep prior signals that are still relevant, set "resolved": true on any the new messages clearly address, and add new ones. ' +
   'Only report real, evidenced signals — never invent. Keep evidence to one short quote or paraphrase. ' +
+  'For each signal also write a SPECIFIC short label of the actual risk (not the generic category) in BOTH English ("summaryEn") and Traditional Chinese ("summaryZh"), max ~12 words / ~20 characters, e.g. "Frustrated about slow document feedback" / "對文件回覆緩慢感到不滿". ' +
   `Allowed "type" values: ${SIGNAL_TYPES.join(', ')}. Allowed "severity": ${SEVERITIES.join(', ')}. ` +
-  'Return STRICT JSON only: {"signals":[{"type":"...","severity":"low|medium|high","evidence":"...","resolved":false}]}. ' +
+  'Return STRICT JSON only: {"signals":[{"type":"...","severity":"low|medium|high","summaryEn":"...","summaryZh":"...","evidence":"...","resolved":false}]}. ' +
   'If there are no signals, return {"signals":[]}.';
 
 const safeParseJson = (value) => {
@@ -110,14 +111,16 @@ const mergeSignals = (priorSignals = [], llmSignals = [], now = new Date()) => {
       .replace(/\s+/g, '_');
   const normSeverity = (value) => String(value || '').trim().toLowerCase();
 
+  const str = (value, cap) =>
+    typeof value === 'string' ? value.trim().slice(0, cap) : '';
+
   return (Array.isArray(llmSignals) ? llmSignals : [])
     .map((signal) => ({
       type: normType(signal?.type),
       severity: normSeverity(signal?.severity),
-      evidence:
-        typeof signal?.evidence === 'string'
-          ? signal.evidence.slice(0, 400)
-          : '',
+      summaryEn: str(signal?.summaryEn, 120),
+      summaryZh: str(signal?.summaryZh, 120),
+      evidence: str(signal?.evidence, 400),
       resolved: Boolean(signal?.resolved)
     }))
     .filter(
@@ -151,6 +154,8 @@ const classifySignals = async ({ priorSignals, messages }) => {
             priorSignals: (priorSignals || []).map((signal) => ({
               type: signal.type,
               severity: signal.severity,
+              summaryEn: signal.summaryEn,
+              summaryZh: signal.summaryZh,
               evidence: signal.evidence
             })),
             messages

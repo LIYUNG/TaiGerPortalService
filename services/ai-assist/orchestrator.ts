@@ -46,7 +46,23 @@ const baseInstructions =
   '- CRM / meetings: get_crm_lead (assigned users only).\n' +
   '- If several students match, list concise candidates and ask the user to choose.\n' +
   '- Answer ONLY from tool data. Never invent students, programs, deadlines, statuses, or messages.\n' +
-  '- Do not expose internal database ids. Respond with your final answer directly.';
+  '- Do not expose internal database ids. Respond with your final answer directly.\n\n' +
+  'PLAIN LANGUAGE RULE — critical:\n' +
+  'Never expose raw field names or code values from tool results. Translate everything to natural prose:\n' +
+  '- hasFile: false → "no file uploaded yet"\n' +
+  '- hasFile: true → "file uploaded"\n' +
+  '- required: true → "required document"\n' +
+  '- isFinalVersion: false → "not yet finalized"\n' +
+  '- isFinalVersion: true → "finalized"\n' +
+  '- pendingOwner: "team" → "waiting on your team to reply"\n' +
+  '- pendingOwner: "student" → "waiting on the student"\n' +
+  '- riskFlags: ["not_finalized"] → describe the risk in plain English, not the flag name\n' +
+  '- messageCount: 0 → "no messages exchanged yet"\n' +
+  '- status: "in_progress" → "application in progress"\n' +
+  '- status: "final_enrolled" → "confirmed enrolment"\n' +
+  '- admission: "O" → "admitted"\n' +
+  '- admission: "X" → "rejected"\n' +
+  'In general: if it looks like a database field name or a code value, rewrite it as something a non-technical staff member would say.';
 
 const roleGuidance = (role) => {
   if (role === Role.Editor) {

@@ -5,7 +5,7 @@ import {
   enableVersionControl
 } from '../utils/modelHelper/versionControl';
 
-const programSchema = new Schema(programModule, { timestamps: true });
+export const programSchema = new Schema(programModule, { timestamps: true });
 
 programSchema.index({ school: 1, program_name: 1 });
 
@@ -18,9 +18,6 @@ programSchema.index({ school: 1, program_name: 1 });
 programSchema.plugin(handleProgramChanges);
 programSchema.plugin(enableVersionControl);
 
-const Program = mongoose.model('Program', programSchema);
-export = {
-  Program,
-  programSchema,
-  programModule
-};
+export const Program = mongoose.model('Program', programSchema);
+
+export { programModule };

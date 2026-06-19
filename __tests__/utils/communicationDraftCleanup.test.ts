@@ -13,9 +13,7 @@ jest.mock('../../services/logger', () => ({
 import CommunicationDraftService from '../../services/communicationDraft';
 import { deleteS3Objects } from '../../aws/s3';
 import logger from '../../services/logger';
-import communicationDraftCleanup from '../../utils/communicationDraftCleanup';
-
-const { sweepStaleCommunicationDrafts } = communicationDraftCleanup;
+import { sweepStaleCommunicationDrafts } from '../../utils/communicationDraftCleanup';
 
 beforeEach(() => {
   jest.clearAllMocks();

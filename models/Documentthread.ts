@@ -5,9 +5,6 @@ documentThreadsSchema.index(
   { student_id: 1, application_id: 1, file_type: 1 },
   { unique: true }
 );
-const Documentthread = model('Documentthread', documentThreadsSchema);
+export const Documentthread = model('Documentthread', documentThreadsSchema);
 
-export = {
-  Documentthread,
-  documentThreadsSchema
-};
+export { documentThreadsSchema };

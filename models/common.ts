@@ -1,6 +1,6 @@
 import { Schema } from 'mongoose';
 
-const attributeSchema = new Schema({
+export const attributeSchema = new Schema({
   value: {
     type: Number,
     required: true
@@ -10,7 +10,3 @@ const attributeSchema = new Schema({
     required: true
   }
 });
-
-export = {
-  attributeSchema
-};

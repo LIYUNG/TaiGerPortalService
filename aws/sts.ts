@@ -5,7 +5,7 @@ import { AWS_KEY_CONFIG } from './constants';
 
 const stsClient = new STSClient(AWS_KEY_CONFIG);
 
-const getTemporaryCredentials = async (roleToAssumeArn) => {
+export const getTemporaryCredentials = async (roleToAssumeArn) => {
   try {
     // Returns a set of temporary security credentials that you can use to
     // access Amazon Web Services resources that you might not normally
@@ -26,8 +26,4 @@ const getTemporaryCredentials = async (roleToAssumeArn) => {
   } catch (err) {
     logger.error(err);
   }
-};
-
-export = {
-  getTemporaryCredentials
 };

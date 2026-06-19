@@ -17,7 +17,7 @@ programKeys.forEach((key, _i) => {
   };
 });
 
-const programAISchema = new Schema(
+export const programAISchema = new Schema(
   {
     ...programAIModule,
     program_id: { type: ObjectId, ref: 'Program' },
@@ -28,5 +28,4 @@ const programAISchema = new Schema(
   { timestamps: true }
 );
 
-const ProgramAI = model('ProgramAI', programAISchema);
-export = { ProgramAI, programAISchema };
+export const ProgramAI = model('ProgramAI', programAISchema);

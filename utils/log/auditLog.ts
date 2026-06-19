@@ -2,7 +2,7 @@ import { asyncHandler } from '../../middlewares/error-handler';
 import logger from '../../services/logger';
 import AuditService from '../../services/audit';
 
-const auditLog = asyncHandler(async (req) => {
+export const auditLog = asyncHandler(async (req) => {
   try {
     const { user, audit } = req;
 
@@ -26,7 +26,3 @@ const auditLog = asyncHandler(async (req) => {
     logger.error(e);
   }
 });
-
-export = {
-  auditLog
-};

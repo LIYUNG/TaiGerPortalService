@@ -20,7 +20,7 @@ jest.mock('../../services/logger', () => ({
 import axios from 'axios';
 import logger from '../../services/logger';
 
-import slackUtils from '../../utils/slackUtils';
+import * as slackUtils from '../../utils/slackUtils';
 
 beforeEach(() => {
   jest.clearAllMocks();

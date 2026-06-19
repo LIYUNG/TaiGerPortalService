@@ -8,12 +8,12 @@ import {
 } from '../config';
 
 // AWS configuration
-const roleToAssumeForCourseAnalyzerAPIG = AWS_TRANSCRIPT_ANALYSER_ROLE;
+export const roleToAssumeForCourseAnalyzerAPIG = AWS_TRANSCRIPT_ANALYSER_ROLE;
 
 // Transcript Analyser API Gateway URL
-const apiGatewayUrl = AWS_TRANSCRIPT_ANALYSER_APIG_URL;
+export const apiGatewayUrl = AWS_TRANSCRIPT_ANALYSER_APIG_URL;
 
-const AWS_KEY_CONFIG = isInPipeline()
+export const AWS_KEY_CONFIG = isInPipeline()
   ? { region: AWS_REGION }
   : {
       region: AWS_REGION,
@@ -22,9 +22,3 @@ const AWS_KEY_CONFIG = isInPipeline()
         secretAccessKey: AWS_S3_ACCESS_KEY
       }
     };
-
-export = {
-  roleToAssumeForCourseAnalyzerAPIG,
-  apiGatewayUrl,
-  AWS_KEY_CONFIG
-};

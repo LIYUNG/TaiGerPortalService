@@ -2,7 +2,7 @@ import { model, Schema, Types } from 'mongoose';
 
 const { ObjectId } = Types;
 
-const expensesSchema = new Schema({
+export const expensesSchema = new Schema({
   student_id: { type: ObjectId, ref: 'User' },
   receiver_id: { type: ObjectId, ref: 'User' },
   expense_type: { type: String, default: '' },
@@ -12,5 +12,4 @@ const expensesSchema = new Schema({
   description: { type: String, default: '' },
   updatedAt: Date
 });
-const Expense = model('Expense', expensesSchema);
-export = { Expense, expensesSchema };
+export const Expense = model('Expense', expensesSchema);

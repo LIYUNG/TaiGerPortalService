@@ -32,7 +32,7 @@ jest.mock('../../services/logger', () => ({
 import axios from 'axios';
 import { SignatureV4 } from '@aws-sdk/signature-v4';
 import logger from '../../services/logger';
-import awsIndex from '../../aws/index';
+import * as awsIndex from '../../aws/index';
 
 const creds = {
   AccessKeyId: 'AKIA',

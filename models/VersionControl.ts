@@ -23,7 +23,7 @@ const changesSchema = new Schema(
   { _id: false }
 );
 
-const versionControlSchema = new Schema({
+export const versionControlSchema = new Schema({
   docId: {
     type: ObjectId,
     refPath: 'collectionName'
@@ -52,6 +52,4 @@ versionControlSchema.statics.getVersion = async function (
 
 versionControlSchema.index({ docId: 1, collectionName: 1 });
 
-const VC = model('VC', versionControlSchema);
-
-export = { VC, versionControlSchema };
+export const VC = model('VC', versionControlSchema);

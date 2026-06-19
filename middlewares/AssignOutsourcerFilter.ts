@@ -8,7 +8,7 @@ import StudentService from '../services/students';
 
 // Editor Lead, student's agents and agent lead
 // TODO: test case
-const AssignOutsourcerFilter = asyncHandler(async (req, res, next) => {
+export const AssignOutsourcerFilter = asyncHandler(async (req, res, next) => {
   const {
     user,
     params: { messagesThreadId }
@@ -58,7 +58,3 @@ const AssignOutsourcerFilter = asyncHandler(async (req, res, next) => {
   }
   next();
 });
-
-export = {
-  AssignOutsourcerFilter
-};

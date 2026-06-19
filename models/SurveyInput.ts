@@ -10,4 +10,4 @@ surveyInputSchema.index(
   { unique: true }
 );
 
-export = { surveyInputSchema };
+export { surveyInputSchema };

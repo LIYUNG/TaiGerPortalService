@@ -16,7 +16,7 @@ import {
  * @returns {Promise<any>} Resolves with the upstream service response payload.
  * @throws {Error} If the request fails, includes the underlying error message or response data.
  */
-const scheduleInviteTA = async (
+export const scheduleInviteTA = async (
   meetingSummary,
   meetingLink,
   meetingTimeFrom,
@@ -78,7 +78,7 @@ const scheduleInviteTA = async (
  *   }]
  *
  */
-const instantInviteTA = async (meetingSummary, meetingLink) => {
+export const instantInviteTA = async (meetingSummary, meetingLink) => {
   if (!FIREFLIES_API_URL || !FIREFLIES_API_TOKEN) {
     throw new Error(
       'FIREFLIES_API_URL or FIREFLIES_API_TOKEN is not configured'
@@ -175,9 +175,4 @@ const instantInviteTA = async (meetingSummary, meetingLink) => {
       error: error.message
     };
   }
-};
-
-export = {
-  scheduleInviteTA,
-  instantInviteTA
 };

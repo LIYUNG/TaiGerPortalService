@@ -9,7 +9,7 @@ import { listS3ObjectsV2, deleteS3Objects } from '../../aws/s3';
 
 // TODO: aws-sdk v3 to be tested
 // only delete first 1000 objects
-const emptyS3Directory = asyncHandler(async (bucket, dir) => {
+export const emptyS3Directory = asyncHandler(async (bucket, dir) => {
   const listParams = {
     bucketName: bucket,
     Prefix: dir
@@ -34,7 +34,11 @@ const emptyS3Directory = asyncHandler(async (bucket, dir) => {
   }
 });
 
-const createApplicationThread = async (studentId, programId, fileType) => {
+export const createApplicationThread = async (
+  studentId,
+  programId,
+  fileType
+) => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
   const { Student, Application, Documentthread } = require('../../models');
 
@@ -95,7 +99,7 @@ const createApplicationThread = async (studentId, programId, fileType) => {
 // default-connection registry — no need for the caller to inject them. Required
 // lazily inside the function to avoid the models <-> Program-plugin require cycle
 // (models/Program.js pulls this file for its hooks).
-const createApplicationThreadV2 = async (
+export const createApplicationThreadV2 = async (
   studentId,
   applicationId,
   fileType
@@ -155,7 +159,7 @@ const createApplicationThreadV2 = async (
   return newAppRecord;
 };
 
-const deleteApplicationThread = async (
+export const deleteApplicationThread = async (
   studentId,
   programId,
   messagesThreadId
@@ -309,7 +313,7 @@ const handleThreadDelta = asyncHandler(async (program) => {
 // The thread-delta helpers below pull the central default-connection models
 // themselves (the service is single-connection now), so the hook only needs to
 // detect crucial changes and forward the updated program docs.
-const handleProgramChanges = (schema) => {
+export const handleProgramChanges = (schema) => {
   schema.pre(
     ['findOneAndUpdate', 'updateOne', 'updateMany', 'update'],
     async function (_doc) {
@@ -363,7 +367,7 @@ const handleProgramChanges = (schema) => {
 // VCModel is resolved from the connection of the model that fired the hook
 // (`this.model.db`), so version control works on every connection the schema is
 // compiled on (default + per-request).
-const enableVersionControl = (schema) => {
+export const enableVersionControl = (schema) => {
   schema.pre(
     ['findOneAndUpdate', 'updateOne', 'updateMany', 'update'],
     async function () {
@@ -426,14 +430,4 @@ const enableVersionControl = (schema) => {
       }
     }
   );
-};
-
-module.default = enableVersionControl;
-export = {
-  emptyS3Directory,
-  createApplicationThread,
-  createApplicationThreadV2,
-  deleteApplicationThread,
-  handleProgramChanges,
-  enableVersionControl
 };

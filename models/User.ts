@@ -73,30 +73,40 @@ UserSchema.index({
   email: 'text'
 });
 
-const User = model('User', UserSchema);
+export const User = model('User', UserSchema);
 
-const Guest = User.discriminator('Guest', new Schema({}, options), Role.Guest);
+export const Guest = User.discriminator(
+  'Guest',
+  new Schema({}, options),
+  Role.Guest
+);
 
-const Student = User.discriminator('Student', studentSchema, Role.Student);
+export const Student = User.discriminator(
+  'Student',
+  studentSchema,
+  Role.Student
+);
 
-const External = User.discriminator('External', externalSchema, Role.External);
+export const External = User.discriminator(
+  'External',
+  externalSchema,
+  Role.External
+);
 
-const Manager = User.discriminator('Manager', managerSchema, Role.Manager);
+export const Manager = User.discriminator(
+  'Manager',
+  managerSchema,
+  Role.Manager
+);
 
-const Agent = User.discriminator('Agent', agentSchema, Role.Agent);
+export const Agent = User.discriminator('Agent', agentSchema, Role.Agent);
 
-const Editor = User.discriminator('Editor', editorSchema, Role.Editor);
+export const Editor = User.discriminator('Editor', editorSchema, Role.Editor);
 
-const Admin = User.discriminator('Admin', new Schema({}, options), Role.Admin);
+export const Admin = User.discriminator(
+  'Admin',
+  new Schema({}, options),
+  Role.Admin
+);
 
-export = {
-  User,
-  UserSchema,
-  Guest,
-  Student,
-  Agent,
-  External,
-  Editor,
-  Manager,
-  Admin
-};
+export { UserSchema };

@@ -5,6 +5,4 @@ ResponseTimeSchema.index(
   { unique: true }
 );
 
-export = {
-  ResponseTimeSchema
-};
+export { ResponseTimeSchema };

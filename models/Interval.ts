@@ -11,6 +11,4 @@ intervalSchema.index(
   { unique: true }
 );
 
-export = {
-  intervalSchema
-};
+export { intervalSchema };

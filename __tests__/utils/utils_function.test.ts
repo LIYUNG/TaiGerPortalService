@@ -93,7 +93,7 @@ jest.mock('mammoth', () => ({ extractRawText: jest.fn() }));
 import { deleteS3Objects, listS3ObjectsV2 } from '../../aws/s3';
 import * as email from '../../services/email';
 import systemEmails from '../../services/regular_system_emails';
-import constants from '../../constants';
+import * as constants from '../../constants';
 import StudentService from '../../services/students';
 import UserService from '../../services/users';
 import EventService from '../../services/events';

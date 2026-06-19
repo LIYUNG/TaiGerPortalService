@@ -289,14 +289,41 @@ const buildStudentStats = (
   return stats;
 };
 
+const buildStudentTerms = (
+  applications: { studentId?: unknown; application_year?: string | number; programId?: { semester?: string } }[]
+): Record<string, string[]> => {
+  const termsById: Record<string, Set<string>> = {};
+  (applications || []).forEach((app) => {
+    const id = toIdString(app.studentId);
+    if (!id) return;
+    const semester = app.programId?.semester;
+    const year = app.application_year;
+    if (!semester || !year) return;
+    const term = `${semester}${year}`;
+    if (!termsById[id]) termsById[id] = new Set();
+    termsById[id].add(term);
+  });
+  return Object.fromEntries(
+    Object.entries(termsById).map(([id, set]) => [id, Array.from(set).sort()])
+  );
+};
+
 const enrichBucketItems = (
   bucketObj: { count: number; items: { student?: { id?: string } & Record<string, unknown> }[] },
-  statsById: Record<string, { offerCount: number; rejectCount: number }>
+  statsById: Record<string, { offerCount: number; rejectCount: number }>,
+  termsById: Record<string, string[]> = {}
 ) => ({
   count: bucketObj.count,
   items: bucketObj.items.map((item) =>
     item.student?.id
-      ? { ...item, student: { ...item.student, ...(statsById[item.student.id] ?? { offerCount: 0, rejectCount: 0 }) } }
+      ? {
+          ...item,
+          student: {
+            ...item.student,
+            ...(statsById[item.student.id] ?? { offerCount: 0, rejectCount: 0 }),
+            applicationTerms: termsById[item.student.id] ?? []
+          }
+        }
       : item
   )
 });
@@ -330,6 +357,7 @@ const buildOverview = async (
   }
 
   const statsById = buildStudentStats(applications);
+  const termsById = buildStudentTerms(applications);
 
   const upcomingDeadlines = collectUpcomingDeadlines(
     applications,
@@ -372,11 +400,11 @@ const buildOverview = async (
     deadlineWindowDays: days,
     emphasis,
     buckets: {
-      upcomingDeadlines: enrichBucketItems(bucket(upcomingDeadlines, sampleSize), statsById),
-      threadsWaitingOnTeam: enrichBucketItems(bucket(threadsWaitingOnTeam, sampleSize), statsById),
-      communicationGaps: enrichBucketItems(bucket(communicationGaps, sampleSize), statsById),
-      admittedNotConfirmed: enrichBucketItems(bucket(admittedNotConfirmed, sampleSize), statsById),
-      missingBaseDocuments: enrichBucketItems(bucket(missingBaseDocuments, sampleSize), statsById)
+      upcomingDeadlines: enrichBucketItems(bucket(upcomingDeadlines, sampleSize), statsById, termsById),
+      threadsWaitingOnTeam: enrichBucketItems(bucket(threadsWaitingOnTeam, sampleSize), statsById, termsById),
+      communicationGaps: enrichBucketItems(bucket(communicationGaps, sampleSize), statsById, termsById),
+      admittedNotConfirmed: enrichBucketItems(bucket(admittedNotConfirmed, sampleSize), statsById, termsById),
+      missingBaseDocuments: enrichBucketItems(bucket(missingBaseDocuments, sampleSize), statsById, termsById)
     }
   };
 };
@@ -392,6 +420,7 @@ export = {
   parseDeadline,
   PORTFOLIO_BUCKET_LIMIT,
   buildStudentStats,
+  buildStudentTerms,
   enrichBucketItems,
   toIdString,
   safeDate,

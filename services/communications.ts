@@ -53,6 +53,10 @@ const CommunicationService = {
     return CommunicationDAO.getLatestMessageAtForStudents(studentIds);
   },
 
+  getUnansweredStudentMessages(studentIds) {
+    return CommunicationDAO.getUnansweredStudentMessages(studentIds);
+  },
+
   findThreadPopulated(studentId, options) {
     return CommunicationDAO.findThreadPopulated(studentId, options);
   },

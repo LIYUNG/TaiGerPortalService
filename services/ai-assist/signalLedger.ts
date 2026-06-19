@@ -99,20 +99,34 @@ const mergeSignals = (priorSignals = [], llmSignals = [], now = new Date()) => {
     }
   });
 
+  // Normalise type/severity before validating — the model may return different
+  // case ("Low", "HIGH") or spaced types ("broken promise"); dropping those
+  // silently would leave a row with no signals and riskLevel "none" despite
+  // real findings.
+  const normType = (value) =>
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_');
+  const normSeverity = (value) => String(value || '').trim().toLowerCase();
+
   return (Array.isArray(llmSignals) ? llmSignals : [])
-    .filter(
-      (signal) =>
-        SIGNAL_TYPES.includes(signal?.type) &&
-        SEVERITIES.includes(signal?.severity)
-    )
     .map((signal) => ({
-      type: signal.type,
-      severity: signal.severity,
+      type: normType(signal?.type),
+      severity: normSeverity(signal?.severity),
       evidence:
-        typeof signal.evidence === 'string'
+        typeof signal?.evidence === 'string'
           ? signal.evidence.slice(0, 400)
           : '',
-      resolved: Boolean(signal.resolved),
+      resolved: Boolean(signal?.resolved)
+    }))
+    .filter(
+      (signal) =>
+        SIGNAL_TYPES.includes(signal.type) &&
+        SEVERITIES.includes(signal.severity)
+    )
+    .map((signal) => ({
+      ...signal,
       firstSeenAt: firstSeenByType.get(signal.type) || nowIso,
       lastSeenAt: nowIso
     }));
@@ -148,8 +162,22 @@ const classifySignals = async ({ priorSignals, messages }) => {
     ]
   });
 
-  const parsed = safeParseJson(extractOutputText(response));
-  return parsed?.signals;
+  const rawText = extractOutputText(response);
+  const parsed = safeParseJson(rawText);
+  // Accept either {"signals":[...]} or a bare top-level array.
+  const signals = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.signals)
+      ? parsed.signals
+      : parsed == null
+        ? null
+        : [];
+  logger.info(
+    `[AI Assist signal] LLM raw len=${(rawText || '').length} parsedSignals=${
+      Array.isArray(signals) ? signals.length : 'null'
+    } snippet=${JSON.stringify((rawText || '').slice(0, 200))}`
+  );
+  return signals;
 };
 
 // Build the compact message list fed to the model: text-bearing messages only,
@@ -281,12 +309,16 @@ const scanStudentSignals = async (req, studentId) => {
   return row;
 };
 
-// Single read for the per-student overview tool. Null when no flagged signals.
+const hasUnresolvedSignals = (row) =>
+  Boolean(row?.signals?.some?.((signal) => !signal.resolved));
+
+// Single read for the per-student overview tool. Null when nothing to show.
+// Gated on having ≥1 unresolved signal (not on riskLevel) so a row is shown
+// whenever there is actual content, independent of the rollup.
 const getStudentSignalRow = async (studentId) => {
   const postgres = getPostgresDb();
   const row = await loadPriorRow(postgres, toIdString(studentId));
-  if (!row || row.riskLevel === 'none') return null;
-  return row;
+  return hasUnresolvedSignals(row) ? row : null;
 };
 
 // ---- Cron entry -------------------------------------------------------------
@@ -374,7 +406,7 @@ const scanCommunicationSignals = async () => {
 
 // ---- Read side (for overview) ----------------------------------------------
 
-// Returns flagged rows (riskLevel != none) for the given students, keyed by id.
+// Returns rows with ≥1 unresolved signal for the given students, keyed by id.
 const getSignalsForStudents = async (studentIds: string[]) => {
   const ids = (studentIds || []).map(toIdString).filter(Boolean);
   if (!ids.length) return new Map();
@@ -387,7 +419,7 @@ const getSignalsForStudents = async (studentIds: string[]) => {
 
   const byId = new Map<string, any>();
   rows.forEach((row) => {
-    if (row.riskLevel && row.riskLevel !== 'none') byId.set(row.studentId, row);
+    if (hasUnresolvedSignals(row)) byId.set(row.studentId, row);
   });
   return byId;
 };

@@ -15,7 +15,7 @@ const INTENTS = Object.freeze([
 const INTENT_CLASSIFIER_INSTRUCTIONS =
   'Classify user request into one intent. Return strict JSON only with keys: intent, studentQuery, needsStudentResolution. intent must be one of: student_lookup, student_applications, student_communications, admissions_overview, support_tickets, student_documents, general. studentQuery should be null when not needed.';
 
-const safeParseJson = (value) => {
+const safeParseJson = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== 'string') {
     return null;
   }
@@ -38,9 +38,16 @@ const extractFirstJsonObject = (value = '') => {
   return safeParseJson(value.slice(start, end + 1));
 };
 
-const normalizeIntentResult = (result = {}, message = '') => {
-  const normalizedIntent = INTENTS.includes(result.intent)
-    ? result.intent
+const normalizeIntentResult = (
+  result: {
+    intent?: unknown;
+    studentQuery?: unknown;
+    needsStudentResolution?: unknown;
+  } = {},
+  message = ''
+) => {
+  const normalizedIntent = INTENTS.includes(result.intent as string)
+    ? (result.intent as string)
     : 'general';
   const studentQuery =
     typeof result.studentQuery === 'string' && result.studentQuery.trim()
@@ -150,7 +157,13 @@ const classifyIntentHeuristically = (message = '') => {
   };
 };
 
-const classifyIntent = async ({ message, conversationContext }) => {
+const classifyIntent = async ({
+  message,
+  conversationContext
+}: {
+  message: string;
+  conversationContext: unknown;
+}) => {
   if (!openAIClient.responses?.create) {
     return {
       intent: 'general',

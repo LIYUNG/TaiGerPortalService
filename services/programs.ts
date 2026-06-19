@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery, PipelineStage, SortOrder } from 'mongoose';
+import { IProgram } from '@taiger-common/model';
 import ProgramDAO from '../dao/program.dao';
 
 const ACTIVE_PROGRAM_FILTER = {
@@ -68,10 +70,10 @@ const GLOBAL_SEARCH_FIELDS = [
 
 const STALE_PROGRAM_MS = 270 * 24 * 60 * 60 * 1000;
 
-const escapeRegex = (value) =>
+const escapeRegex = (value: unknown) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const parseArrayParam = (value) => {
+const parseArrayParam = (value: unknown) => {
   if (value === undefined || value === null || value === '') {
     return [];
   }
@@ -86,18 +88,34 @@ const parseArrayParam = (value) => {
     .filter(Boolean);
 };
 
-const parseProgramsQuery = (query = {}) => {
+const parseProgramsQuery = (
+  query: {
+    page?: string;
+    limit?: string;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    lockStatus?: string;
+    [key: string]: unknown;
+  } = {}
+) => {
   const { page, limit, search, sortBy, sortOrder } = query;
-  const parsedPage = parseInt(page, 10);
-  const parsedLimit = parseInt(limit, 10);
+  const parsedPage = parseInt(String(page ?? ''), 10);
+  const parsedLimit = parseInt(String(limit ?? ''), 10);
   const safePage = parsedPage > 0 ? parsedPage : DEFAULT_PAGE;
   const safeLimit =
     parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT;
-  const normalizedSortBy = ALLOWED_SORT_FIELDS.has(sortBy) ? sortBy : 'school';
+  const normalizedSortBy =
+    sortBy && ALLOWED_SORT_FIELDS.has(sortBy) ? sortBy : 'school';
   const normalizedSortOrder =
     String(sortOrder || 'asc').toLowerCase() === 'desc' ? -1 : 1;
 
-  const filters = {};
+  const sort: Record<string, SortOrder> = {
+    [normalizedSortBy]: normalizedSortOrder,
+    ...(normalizedSortBy !== 'program_name' ? { program_name: 1 } : {})
+  };
+
+  const filters: Record<string, string | string[]> = {};
 
   if (query.lockStatus === 'Locked' || query.lockStatus === 'Unlocked') {
     filters.lockStatus = query.lockStatus;
@@ -122,16 +140,19 @@ const parseProgramsQuery = (query = {}) => {
     skip: (safePage - 1) * safeLimit,
     search: typeof search === 'string' ? search.trim() : '',
     filters,
-    sort: {
-      [normalizedSortBy]: normalizedSortOrder,
-      ...(normalizedSortBy !== 'program_name' ? { program_name: 1 } : {})
-    }
+    sort
   };
 };
 
-const buildProgramsFilter = ({ search, filters = {} }) => {
-  const filter = { ...ACTIVE_PROGRAM_FILTER };
-  const andConditions = [];
+const buildProgramsFilter = ({
+  search,
+  filters = {}
+}: {
+  search?: string;
+  filters?: Record<string, string | string[] | undefined>;
+}) => {
+  const filter: FilterQuery<IProgram> = { ...ACTIVE_PROGRAM_FILTER };
+  const andConditions: Record<string, unknown>[] = [];
 
   if (search) {
     const pattern = escapeRegex(search);
@@ -179,35 +200,52 @@ const buildProgramsFilter = ({ search, filters = {} }) => {
 const ProgramService = {
   parseProgramsQuery,
 
-  getPrograms(filter = {}) {
+  getPrograms(filter: FilterQuery<IProgram> = {}) {
     return ProgramDAO.findPrograms(filter);
   },
 
-  getProgramByIdLean(programId) {
+  getProgramByIdLean(programId: string) {
     return ProgramDAO.getProgramByIdLean(programId);
   },
 
-  getProgramByIdSelect(programId, select) {
+  getProgramByIdSelect(programId: string, select: string) {
     return ProgramDAO.getProgramByIdSelect(programId, select);
   },
 
-  findPrograms(filter = {}) {
+  findPrograms(filter: FilterQuery<IProgram> = {}) {
     return ProgramDAO.findPrograms(filter);
   },
 
-  aggregatePrograms(pipeline) {
+  aggregatePrograms(pipeline: PipelineStage[]) {
     return ProgramDAO.aggregatePrograms(pipeline);
   },
 
-  countPrograms(filter = {}) {
+  countPrograms(filter: FilterQuery<IProgram> = {}) {
     return ProgramDAO.countPrograms(filter);
   },
 
-  findProgramsQuery(filter = {}, options) {
+  findProgramsQuery(
+    filter: FilterQuery<IProgram> = {},
+    options?: {
+      select?: string;
+      sort?: Record<string, SortOrder>;
+      limit?: number;
+    }
+  ) {
     return ProgramDAO.findProgramsQuery(filter, options);
   },
 
-  async getProgramsPaginated(query = {}) {
+  async getProgramsPaginated(
+    query: {
+      page?: string;
+      limit?: string;
+      search?: string;
+      sortBy?: string;
+      sortOrder?: string;
+      lockStatus?: string;
+      [key: string]: unknown;
+    } = {}
+  ) {
     const { page, limit, skip, search, filters, sort } =
       parseProgramsQuery(query);
     const filter = buildProgramsFilter({ search, filters });
@@ -223,28 +261,35 @@ const ProgramService = {
     return { programs, total, page, limit };
   },
 
-  getProgramById(programId) {
+  getProgramById(programId: string) {
     return ProgramDAO.getProgramByIdLean(programId);
   },
 
   // ── Writes (default-connection Program; VC/program-change plugins fire) ─────
-  createProgram(payload) {
+  createProgram(payload: Partial<IProgram>) {
     return ProgramDAO.createProgram(payload);
   },
 
-  updateProgramOne(filter, fields) {
+  updateProgramOne(
+    filter: FilterQuery<IProgram>,
+    fields: UpdateQuery<IProgram>
+  ) {
     return ProgramDAO.updateProgramOne(filter, fields);
   },
 
-  updateProgramById(programId, fields) {
+  updateProgramById(programId: string, fields: UpdateQuery<IProgram>) {
     return ProgramDAO.updateProgramById(programId, fields);
   },
 
-  updateManyPrograms(filter, update, options) {
+  updateManyPrograms(
+    filter: FilterQuery<IProgram>,
+    update: UpdateQuery<IProgram>,
+    options: Record<string, unknown> = {}
+  ) {
     return ProgramDAO.updateManyPrograms(filter, update, options);
   },
 
-  archiveProgramById(programId) {
+  archiveProgramById(programId: string) {
     return ProgramDAO.archiveProgramById(programId);
   }
 };

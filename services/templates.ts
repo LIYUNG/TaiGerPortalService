@@ -1,3 +1,5 @@
+import { UpdateQuery } from 'mongoose';
+import { ITemplate } from '@taiger-common/model';
 import TemplateDAO from '../dao/template.dao';
 
 /**
@@ -9,15 +11,15 @@ const TemplateService = {
     return TemplateDAO.getTemplates();
   },
 
-  getTemplateByCategory(categoryName) {
+  getTemplateByCategory(categoryName: string) {
     return TemplateDAO.getTemplateByCategory(categoryName);
   },
 
-  deleteTemplateByCategory(categoryName) {
+  deleteTemplateByCategory(categoryName: string) {
     return TemplateDAO.deleteTemplateByCategory(categoryName);
   },
 
-  upsertTemplate(categoryName, payload) {
+  upsertTemplate(categoryName: string, payload: UpdateQuery<ITemplate>) {
     return TemplateDAO.upsertTemplate(categoryName, payload);
   }
 };

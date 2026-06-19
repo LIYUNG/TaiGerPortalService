@@ -1,3 +1,5 @@
+import { FilterQuery } from 'mongoose';
+import { IPermission } from '@taiger-common/model';
 import PermissionDAO from '../dao/permission.dao';
 
 /**
@@ -5,15 +7,18 @@ import PermissionDAO from '../dao/permission.dao';
  * access to the DAO (controller -> service -> dao).
  */
 const PermissionService = {
-  getPermissions(filter = {}) {
+  getPermissions(filter: FilterQuery<IPermission> = {}) {
     return PermissionDAO.getPermissions(filter);
   },
 
-  findPermissionsWithUser(filter = {}, select) {
+  findPermissionsWithUser(
+    filter: FilterQuery<IPermission> = {},
+    select?: string
+  ) {
     return PermissionDAO.findPermissionsWithUser(filter, select);
   },
 
-  upsertPermissionByUserId(userId, payload) {
+  upsertPermissionByUserId(userId: string, payload: Partial<IPermission>) {
     return PermissionDAO.upsertPermissionByUserId(userId, payload);
   },
 
@@ -21,13 +26,13 @@ const PermissionService = {
     return PermissionDAO.getManagers();
   },
 
-  getPermissionByUserId(userId) {
+  getPermissionByUserId(userId: string) {
     return PermissionDAO.getPermissionByUserId(userId);
   },
 
   // Decrement a user's remaining TaiGer AI quota by one (only while > 0).
   // Mirrors the legacy inline logic in the taigerai controllers.
-  async decrementTaigerAiQuota(userId) {
+  async decrementTaigerAiQuota(userId: string) {
     const permission = await PermissionDAO.getPermissionDocByUserId(userId);
     if (permission.taigerAiQuota > 0) {
       permission.taigerAiQuota -= 1;

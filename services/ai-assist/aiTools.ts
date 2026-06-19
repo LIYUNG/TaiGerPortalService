@@ -5,7 +5,11 @@ import { AWS_S3_BUCKET_NAME } from '../../config';
 import { getS3Object } from '../../aws/s3';
 import { extractTextFromBuffer } from '../../utils/utils_function';
 import tools from './tools';
-import { buildOverview, loadPortfolio, collectUpcomingDeadlines } from './overview';
+import {
+  buildOverview,
+  loadPortfolio,
+  collectUpcomingDeadlines
+} from './overview';
 import ProgramService from '../programs';
 import DocumentThreadService from '../documentthreads';
 
@@ -17,15 +21,40 @@ import DocumentThreadService from '../documentthreads';
 
 const MAX_DOCUMENT_CHARS = 24000;
 
-const str = (description) => ({ type: 'string', description });
-const int = (description, maximum) => ({
+// Express request carrying the authenticated `user`; kept loose to match the
+// repo-wide convention (see types/express.d.ts) where `req.user` is `any`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AiRequest = any;
+
+// Heterogeneous Mongoose lean document whose runtime shape does not structurally
+// match the strict @taiger-common/model interfaces; read defensively.
+type LeanDoc = Record<string, any>;
+
+// Provider-neutral tool arguments parsed from the LLM tool call.
+interface AiToolArgs {
+  query?: string;
+  limit?: number;
+  studentId?: string;
+  programId?: string;
+  days?: number;
+  threadId?: string;
+  documentName?: string;
+}
+
+const str = (description: string) => ({ type: 'string', description });
+const int = (description: string, maximum?: number) => ({
   type: 'integer',
   description,
   minimum: 1,
   ...(maximum ? { maximum } : {})
 });
 
-const makeTool = (name, description, properties = {}, required = []) => ({
+const makeTool = (
+  name: string,
+  description: string,
+  properties: Record<string, unknown> = {},
+  required: string[] = []
+) => ({
   name,
   description,
   parameters: {
@@ -36,18 +65,18 @@ const makeTool = (name, description, properties = {}, required = []) => ({
   }
 });
 
-const toIdString = (value) => {
+const toIdString = (value: unknown) => {
   if (!value) return '';
   if (typeof value === 'string') return value;
-  return value.toString?.() || '';
+  return (value as { toString?: () => string }).toString?.() || '';
 };
 
 // ---- New / composed handlers ------------------------------------------------
 
-const findStudents = (req, args = {}) =>
+const findStudents = (req: AiRequest, args: AiToolArgs = {}) =>
   tools.searchAccessibleStudents(req, args);
 
-const getStudentOverview = async (req, args = {}) => {
+const getStudentOverview = async (req: AiRequest, args: AiToolArgs = {}) => {
   const [summary, applications, threads] = await Promise.all([
     tools.runTool(req, 'get_student_summary', args),
     tools.runTool(req, 'get_student_applications', args),
@@ -59,17 +88,17 @@ const getStudentOverview = async (req, args = {}) => {
       ...summary.data,
       applications: applications.data,
       documentThreads: {
-        total: threads.data.totalThreads,
-        open: threads.data.openThreadsCount,
-        threads: threads.data.threads
+        total: (threads.data as LeanDoc)?.totalThreads,
+        open: (threads.data as LeanDoc)?.openThreadsCount,
+        threads: (threads.data as LeanDoc)?.threads
       }
     }
   };
 };
 
-const getProgram = async (req, args = {}) => {
+const getProgram = async (req: AiRequest, args: AiToolArgs = {}) => {
   const program = await ProgramService.getProgramByIdSelect(
-    args.programId,
+    args.programId as string,
     'school program_name degree semester lang application_deadline application_start country ' +
       'ml_required ml_requirements sop_required phs_required rl_required is_rl_specific ' +
       'essay_required essay_requirements essay_difficulty portfolio_required portfolio_requirements ' +
@@ -83,7 +112,7 @@ const getProgram = async (req, args = {}) => {
   return { data: program };
 };
 
-const findUpcomingDeadlines = async (req, args = {}) => {
+const findUpcomingDeadlines = async (req: AiRequest, args: AiToolArgs = {}) => {
   const days = Math.min(Math.max(Number(args.days) || 30, 1), 365);
   const { applications, studentById } = await loadPortfolio(req);
   const items = collectUpcomingDeadlines(applications, studentById, days);
@@ -97,7 +126,7 @@ const findUpcomingDeadlines = async (req, args = {}) => {
   };
 };
 
-const getMyOverview = async (req, args = {}) => {
+const getMyOverview = async (req: AiRequest, args: AiToolArgs = {}) => {
   const overview = await buildOverview(req, {
     deadlineWindowDays: args.days
   });
@@ -107,7 +136,7 @@ const getMyOverview = async (req, args = {}) => {
 // Resolve and read a document's text content from S3, access-scoped.
 // Primary path: a document thread id (CV/ML/RL/essay). Falls back to a base
 // (profile) document on the student.
-const readDocument = async (req, args = {}) => {
+const readDocument = async (req: AiRequest, args: AiToolArgs = {}) => {
   let key = '';
   let fileName = '';
   let fileType = '';
@@ -205,7 +234,7 @@ const extractMsgAt = (msg: any): string | null => {
   return d && !Number.isNaN(d.getTime()) ? d.toISOString() : null;
 };
 
-const getThreadMessages = async (req, args: any = {}) => {
+const getThreadMessages = async (req: AiRequest, args: AiToolArgs = {}) => {
   if (!args.threadId) {
     throw new ErrorResponse(400, 'threadId is required');
   }
@@ -216,17 +245,19 @@ const getThreadMessages = async (req, args: any = {}) => {
   await tools.requireAccessibleStudent(req, toIdString(thread.student_id));
 
   const messages = (Array.isArray(thread.messages) ? thread.messages : [])
-    .map((msg) => ({
+    .map((msg: LeanDoc) => ({
       text: extractMsgText(msg),
       authorId: toIdString(msg.user_id || msg.userId),
       createdAt: extractMsgAt(msg),
       hasFile: Array.isArray(msg.file) && msg.file.length > 0,
       fileName:
         Array.isArray(msg.file) && msg.file.length > 0
-          ? (msg.file[msg.file.length - 1]?.name || null)
+          ? msg.file[msg.file.length - 1]?.name || null
           : null
     }))
-    .filter((msg) => msg.text || msg.hasFile);
+    .filter(
+      (msg: { text: string; hasFile: boolean }) => msg.text || msg.hasFile
+    );
 
   return {
     data: {
@@ -244,15 +275,15 @@ const getThreadMessages = async (req, args: any = {}) => {
 const registry = {
   find_students: findStudents,
   get_student_overview: getStudentOverview,
-  get_communications: (req, args) =>
+  get_communications: (req: AiRequest, args: AiToolArgs) =>
     tools.runTool(req, 'get_latest_communications', args),
-  get_document_threads: (req, args) =>
+  get_document_threads: (req: AiRequest, args: AiToolArgs) =>
     tools.runTool(req, 'get_document_thread_context', args),
   get_thread_messages: getThreadMessages,
-  get_support_tickets: (req, args) =>
+  get_support_tickets: (req: AiRequest, args: AiToolArgs) =>
     tools.runTool(req, 'get_support_tickets', args),
   get_program: getProgram,
-  get_crm_lead: (req, args) =>
+  get_crm_lead: (req: AiRequest, args: AiToolArgs) =>
     tools.runTool(req, 'get_crm_lead_meeting_context', args),
   find_upcoming_deadlines: findUpcomingDeadlines,
   get_my_overview: getMyOverview,
@@ -301,7 +332,7 @@ const definitions = [
   ),
   makeTool(
     'get_program',
-    'Get a program\'s facts and application requirements (motivation letter, essay, recommendation letters, portfolio, deadlines, language/GPA requirements). Use this when reviewing a document against what the program requires.',
+    "Get a program's facts and application requirements (motivation letter, essay, recommendation letters, portfolio, deadlines, language/GPA requirements). Use this when reviewing a document against what the program requires.",
     { programId: str('Program id seen in application/overview tool output.') },
     ['programId']
   ),
@@ -328,7 +359,9 @@ const definitions = [
     'get_thread_messages',
     'Get the FULL message history inside a specific document thread (CV, ML, RL, essay, etc). Use this when a thread looks stalled, has riskFlags, or pendingOwner = "team" and you need to understand WHY it is not progressing. The thread id comes from get_document_threads or get_student_overview output.',
     {
-      threadId: str('Thread id from get_document_threads or get_student_overview output.')
+      threadId: str(
+        'Thread id from get_document_threads or get_student_overview output.'
+      )
     },
     ['threadId']
   ),
@@ -336,25 +369,35 @@ const definitions = [
     'read_document',
     'Read the actual text content of a student document stored on S3 so it can be reviewed. Provide a threadId (for CV/ML/RL/essay document threads) OR a studentId plus documentName (for base/profile documents). Returns extracted text (may be truncated for long documents).',
     {
-      threadId: str('Document thread id (from get_document_threads / overview).'),
+      threadId: str(
+        'Document thread id (from get_document_threads / overview).'
+      ),
       studentId: str('Student id (when reading a base/profile document).'),
-      documentName: str('Base document name (when reading a base/profile document).')
+      documentName: str(
+        'Base document name (when reading a base/profile document).'
+      )
     }
   )
 ];
 
+type ToolDefinition = ReturnType<typeof makeTool>;
+
 const definitionsByName = definitions.reduce(
-  (accumulator, definition) => ({
+  (
+    accumulator: Record<string, ToolDefinition>,
+    definition: ToolDefinition
+  ) => ({
     ...accumulator,
     [definition.name]: definition
   }),
   {}
 );
 
-const hasTool = (toolName) => Boolean(registry[toolName]);
+const hasTool = (toolName: string) =>
+  Boolean(registry[toolName as keyof typeof registry]);
 
-const runTool = async (req, toolName, args) => {
-  const tool = registry[toolName];
+const runTool = async (req: AiRequest, toolName: string, args: AiToolArgs) => {
+  const tool = registry[toolName as keyof typeof registry];
   if (!tool) {
     throw new ErrorResponse(400, `Unknown AI Assist tool: ${toolName}`);
   }

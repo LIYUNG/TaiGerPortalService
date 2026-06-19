@@ -1,7 +1,7 @@
 import { TAIGER_SIGNATURE } from '../constants';
 import { TENANT_PORTAL_LINK } from '../constants/common';
 
-const htmlContent = (message) => `
+const htmlContent = (message: string) => `
 <!DOCTYPE html>
 <html>
 <head>

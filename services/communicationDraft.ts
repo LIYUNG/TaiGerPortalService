@@ -5,27 +5,31 @@ import CommunicationDraftDAO from '../dao/communicationDraft.dao';
  * access to the DAO (controller -> service -> dao).
  */
 const CommunicationDraftService = {
-  getDraft(userId, studentId) {
+  getDraft(userId: string, studentId: string) {
     return CommunicationDraftDAO.getDraft(userId, studentId);
   },
 
-  upsertDraft(userId, studentId, message) {
+  upsertDraft(userId: string, studentId: string, message: string) {
     return CommunicationDraftDAO.upsertDraft(userId, studentId, message);
   },
 
-  deleteDraft(userId, studentId) {
+  deleteDraft(userId: string, studentId: string) {
     return CommunicationDraftDAO.deleteDraft(userId, studentId);
   },
 
-  addDraftFiles(userId, studentId, files) {
+  addDraftFiles(
+    userId: string,
+    studentId: string,
+    files: { name: string; path: string }[]
+  ) {
     return CommunicationDraftDAO.addDraftFiles(userId, studentId, files);
   },
 
-  removeDraftFile(userId, studentId, filePath) {
+  removeDraftFile(userId: string, studentId: string, filePath: string) {
     return CommunicationDraftDAO.removeDraftFile(userId, studentId, filePath);
   },
 
-  findStaleDrafts(before) {
+  findStaleDrafts(before: Date) {
     return CommunicationDraftDAO.findStaleDrafts(before);
   }
 };

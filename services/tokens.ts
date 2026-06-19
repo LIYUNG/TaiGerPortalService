@@ -1,3 +1,5 @@
+import { FilterQuery } from 'mongoose';
+import { IToken } from '@taiger-common/model';
 import TokenDAO from '../dao/token.dao';
 
 /**
@@ -5,11 +7,11 @@ import TokenDAO from '../dao/token.dao';
  * access to the DAO (controller -> service -> dao).
  */
 const TokenService = {
-  createToken(payload) {
+  createToken(payload: Partial<IToken>) {
     return TokenDAO.createToken(payload);
   },
 
-  findOneToken(filter) {
+  findOneToken(filter: FilterQuery<IToken>) {
     return TokenDAO.findOneToken(filter);
   }
 };

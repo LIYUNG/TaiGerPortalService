@@ -10,12 +10,14 @@ const PROVIDERS: Record<string, LlmProvider> = {
 };
 
 const getLlmProvider = (override = ''): LlmProvider => {
-  const name = String(override || AI_ASSIST_PROVIDER || 'anthropic').toLowerCase();
+  const name = String(
+    override || AI_ASSIST_PROVIDER || 'anthropic'
+  ).toLowerCase();
   return PROVIDERS[name] || anthropicProvider;
 };
 
 // Model id used for persistence/tracing, stored as `provider:model`.
-const getModelLabel = (provider, model) =>
+const getModelLabel = (provider: LlmProvider, model?: string) =>
   `${provider.name}:${model || provider.defaultModel}`;
 
 const getConfiguredModel = () => AI_ASSIST_MODEL || undefined;

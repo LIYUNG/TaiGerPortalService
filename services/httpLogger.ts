@@ -1,8 +1,10 @@
 import morgan from 'morgan';
+import { Request, Response } from 'express';
 import logger from './logger';
 
-const httpLogger = morgan((tokens, req, res) => {
+const httpLogger = morgan<Request, Response>((tokens, req, res) => {
   const status = tokens.status(req, res);
+  const statusCode = Number(status);
   const logData = {
     method: tokens.method(req, res),
     url: tokens.url(req, res),
@@ -14,11 +16,12 @@ const httpLogger = morgan((tokens, req, res) => {
     responseTime: tokens['response-time'](req, res)
     // Additional context as needed
   };
-  if (status >= 400) {
+  if (statusCode >= 400) {
     logger.error(`${JSON.stringify(logData)}`);
   } else {
     logger.info(`${JSON.stringify(logData)}`);
   }
+  return undefined;
 });
 
 export = httpLogger;

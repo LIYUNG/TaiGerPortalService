@@ -32,8 +32,17 @@ const transporter = isProd()
     });
 
 const sendEmail = isTest()
-  ? (_to, _subject, _message) => {}
-  : async (to, subject, message) => {
+  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (_to: any, _subject: string, _message: string) => {}
+  : async (
+      // `to` is a recipient as accepted by nodemailer: an email string, a list
+      // of them, or a user-like object ({ firstname, lastname, address/email }).
+      // Kept loose because callers pass full user documents.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      to: any,
+      subject: string,
+      message: string
+    ) => {
       const mail = {
         from: senderName,
         to,
@@ -57,8 +66,41 @@ const sendEmail = isTest()
 // `{ filename, content: Buffer }` entries. The no-reply mailbox is always
 // bcc'd to keep an audit copy (mirrors `sendEmail`).
 const sendEmailWithAttachments = isTest()
-  ? async (_args) => ({ accepted: [], messageId: 'test' })
-  : async ({ to, cc, bcc, subject, message, attachments }) => {
+  ? async (_args: {
+      // `to`/`cc`/`bcc` are recipients as accepted by nodemailer (already-
+      // validated email strings or arrays of them). Kept loose to match
+      // nodemailer's recipient typing and the resolver's possibly-empty entries.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      to: any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cc?: any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      bcc?: any;
+      subject: string;
+      message: string;
+      attachments: { filename: string; content: Buffer }[];
+    }) => ({ accepted: [], messageId: 'test' })
+  : async ({
+      to,
+      cc,
+      bcc,
+      subject,
+      message,
+      attachments
+    }: {
+      // `to`/`cc`/`bcc` are recipients as accepted by nodemailer (already-
+      // validated email strings or arrays of them). Kept loose to match
+      // nodemailer's recipient typing and the resolver's possibly-empty entries.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      to: any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cc?: any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      bcc?: any;
+      subject: string;
+      message: string;
+      attachments: { filename: string; content: Buffer }[];
+    }) => {
       const mail = {
         from: senderName,
         to,

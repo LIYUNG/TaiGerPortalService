@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery, QueryOptions, SortOrder } from 'mongoose';
+import { IUser } from '@taiger-common/model';
 import UserDAO from '../dao/user.dao';
 
 /**
@@ -6,111 +8,136 @@ import UserDAO from '../dao/user.dao';
  * exposed for controllers that build the pagination args.
  */
 const UserService = {
-  parseUsersPaginationQuery(query) {
+  parseUsersPaginationQuery(query: {
+    page?: string | number;
+    limit?: string | number;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  }) {
     return UserDAO.parseUsersPaginationQuery(query);
   },
 
-  getUserById(userId) {
+  getUserById(userId: string) {
     return UserDAO.getUserById(userId);
   },
 
-  getUsers(query) {
+  getUsers(query: FilterQuery<IUser>) {
     return UserDAO.getUsers(query);
   },
 
-  findUsersByIds(ids, select) {
+  findUsersByIds(ids: string[], select: string) {
     return UserDAO.findUsersByIds(ids, select);
   },
 
-  getUsersPaginated(args) {
+  getUsersPaginated(args: {
+    filter: FilterQuery<IUser>;
+    page: number;
+    limit: number;
+    skip: number;
+    search: string;
+    sort: Record<string, SortOrder>;
+  }) {
     return UserDAO.getUsersPaginated(args);
   },
 
-  updateUser(userId, payload) {
+  updateUser(userId: string, payload: UpdateQuery<IUser>) {
     return UserDAO.updateUser(userId, payload);
   },
 
-  updateOfficehours(userId, role, payload) {
+  updateOfficehours(
+    userId: string,
+    role: string,
+    payload: { officehours?: unknown; timezone?: string }
+  ) {
     return UserDAO.updateOfficehours(userId, role, payload);
   },
 
-  updateUserDoc(userId, payload, options = { new: true }) {
+  updateUserDoc(
+    userId: string,
+    payload: UpdateQuery<IUser>,
+    options: QueryOptions<IUser> = { new: true }
+  ) {
     return UserDAO.updateUserDoc(userId, payload, options);
   },
 
-  getUserByEmail(email) {
+  getUserByEmail(email: string) {
     return UserDAO.getUserByEmail(email);
   },
 
-  getUserByFilter(filter) {
+  getUserByFilter(filter: FilterQuery<IUser>) {
     return UserDAO.getUserByFilter(filter);
   },
 
-  getUserDocByFilter(filter) {
+  getUserDocByFilter(filter: FilterQuery<IUser>) {
     return UserDAO.getUserDocByFilter(filter);
   },
 
-  createGuest(payload) {
+  createGuest(payload: Partial<IUser>) {
     return UserDAO.createGuest(payload);
   },
 
-  getUserByIdSelect(userId, select) {
+  getUserByIdSelect(userId: string, select: string) {
     return UserDAO.getUserByIdSelect(userId, select);
   },
 
-  getUserDocWithPasswordByEmail(email) {
+  getUserDocWithPasswordByEmail(email: string) {
     return UserDAO.getUserDocWithPasswordByEmail(email);
   },
 
-  touchLastLoginByEmail(email) {
+  touchLastLoginByEmail(email: string) {
     return UserDAO.touchLastLoginByEmail(email);
   },
 
-  touchLastLoginById(userId) {
+  touchLastLoginById(userId: string) {
     return UserDAO.touchLastLoginById(userId);
   },
 
-  findAgents(filter, select) {
+  findAgents(filter: FilterQuery<IUser>, select: string) {
     return UserDAO.findAgents(filter, select);
   },
 
-  findEditors(filter, select) {
+  findEditors(filter: FilterQuery<IUser>, select: string) {
     return UserDAO.findEditors(filter, select);
   },
 
-  findAgentById(agentId, select) {
+  findAgentById(agentId: string, select: string) {
     return UserDAO.findAgentById(agentId, select);
   },
 
-  getUserDocById(userId) {
+  getUserDocById(userId: string) {
     return UserDAO.getUserDocById(userId);
   },
 
-  getAgentDocById(agentId) {
+  getAgentDocById(agentId: string) {
     return UserDAO.getAgentDocById(agentId);
   },
 
-  createUser(role, payload) {
+  createUser(role: string, payload: Partial<IUser>) {
     return UserDAO.createUser(role, payload);
   },
 
-  updateUserWithOptions(userId, fields, options) {
+  updateUserWithOptions(
+    userId: string,
+    fields: UpdateQuery<IUser>,
+    options: QueryOptions<IUser>
+  ) {
     return UserDAO.updateUserWithOptions(userId, fields, options);
   },
 
-  updateUserArchiv(userId, isArchived) {
+  updateUserArchiv(userId: string, isArchived: boolean) {
     return UserDAO.updateUserArchiv(userId, isArchived);
   },
 
-  deleteUserById(userId) {
+  deleteUserById(userId: string) {
     return UserDAO.deleteUserById(userId);
   },
 
-  pullStaffFromStudents(userId) {
+  pullStaffFromStudents(userId: string) {
     return UserDAO.pullStaffFromStudents(userId);
   },
 
-  deleteStudentCascade(userId) {
+  deleteStudentCascade(userId: string) {
     return UserDAO.deleteStudentCascade(userId);
   },
 

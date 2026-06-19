@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery } from 'mongoose';
+import { ITicket } from '@taiger-common/model';
 import TicketDAO from '../dao/ticket.dao';
 
 const DEFAULT_PAGE = 1;
@@ -7,7 +9,7 @@ const MAX_LIMIT = 100;
 // Maps a client-facing column id to the (possibly joined) document field the
 // aggregation can sort on. Anything outside this allow-list falls back to
 // createdAt so a crafted sortBy can't sort on an arbitrary path.
-const SORT_FIELD_MAP = {
+const SORT_FIELD_MAP: Record<string, string> = {
   program: 'program_id.school',
   requester: 'requester_id.firstname',
   description: 'description',
@@ -22,21 +24,24 @@ const SORT_FIELD_MAP = {
  * (controller -> service -> dao).
  */
 const TicketService = {
-  getTickets(query, options) {
+  getTickets(
+    query: FilterQuery<ITicket>,
+    options?: { populateRequester?: boolean }
+  ) {
     return TicketDAO.getTickets(query, options);
   },
 
   // Parses the raw query (page/limit/search/type/status) into safe pagination +
   // filters, asks the DAO for a page of joined tickets, and echoes the
   // normalized page/limit back so the caller can render pagination controls.
-  async getTicketsOverview(query = {}) {
-    const parsedPage = parseInt(query.page, 10);
-    const parsedLimit = parseInt(query.limit, 10);
+  async getTicketsOverview(query: Record<string, unknown> = {}) {
+    const parsedPage = parseInt(String(query.page), 10);
+    const parsedLimit = parseInt(String(query.limit), 10);
     const page = parsedPage > 0 ? parsedPage : DEFAULT_PAGE;
     const limit =
       parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT;
 
-    const filters = {};
+    const filters: { type?: string; status?: string } = {};
     if (query.type) {
       filters.type = String(query.type);
     }
@@ -44,7 +49,7 @@ const TicketService = {
       filters.status = String(query.status);
     }
 
-    const sortField = SORT_FIELD_MAP[query.sortBy] || 'createdAt';
+    const sortField = SORT_FIELD_MAP[String(query.sortBy)] || 'createdAt';
     const sortOrder = String(query.sortOrder).toLowerCase() === 'asc' ? 1 : -1;
 
     const { tickets, total } = await TicketDAO.getTicketsOverview({
@@ -58,19 +63,19 @@ const TicketService = {
     return { tickets, total, page, limit };
   },
 
-  createTicket(data) {
+  createTicket(data: Partial<ITicket>) {
     return TicketDAO.createTicket(data);
   },
 
-  updateTicketById(id, fields) {
+  updateTicketById(id: string, fields: UpdateQuery<ITicket>) {
     return TicketDAO.updateTicketById(id, fields);
   },
 
-  deleteTicketById(id) {
+  deleteTicketById(id: string) {
     return TicketDAO.deleteTicketById(id);
   },
 
-  deleteTicketsByProgramId(programId) {
+  deleteTicketsByProgramId(programId: string) {
     return TicketDAO.deleteTicketsByProgramId(programId);
   }
 };

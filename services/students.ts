@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery } from 'mongoose';
+import { IStudent } from '@taiger-common/model';
 import StudentDAO from '../dao/student.dao';
 
 /**
@@ -9,80 +11,111 @@ import StudentDAO from '../dao/student.dao';
  * (controller -> service -> dao).
  */
 const StudentService = {
-  fetchStudents(filter = {}, options = {}) {
+  fetchStudents(
+    filter: FilterQuery<IStudent> = {},
+    options: {
+      sort?: Record<string, unknown>;
+      skip?: number;
+      limit?: number;
+    } = {}
+  ) {
     return StudentDAO.fetchStudents(filter, options);
   },
 
-  fetchSimpleStudents(filter) {
+  fetchSimpleStudents(filter: FilterQuery<IStudent>) {
     return StudentDAO.fetchSimpleStudents(filter);
   },
 
   // Lean id-only variant for callers that only need the matching student ids.
-  fetchStudentIds(filter) {
+  fetchStudentIds(filter: FilterQuery<IStudent>) {
     return StudentDAO.fetchStudentIds(filter);
   },
 
-  getStudentsPaginated({ filter = {}, query = {} }) {
+  getStudentsPaginated({
+    filter = {},
+    query = {}
+  }: {
+    filter?: FilterQuery<IStudent>;
+    query?: Record<string, unknown>;
+  }) {
     return StudentDAO.getStudentsPaginated({ filter, query });
   },
 
-  getStudents({ filter = {}, options = {} }) {
+  getStudents({
+    filter = {},
+    options = {}
+  }: {
+    filter?: FilterQuery<IStudent>;
+    options?: { sort?: Record<string, unknown>; skip?: number; limit?: number };
+  }) {
     return StudentDAO.getStudents({ filter, options });
   },
 
-  getStudentById(id) {
+  getStudentById(id: string) {
     return StudentDAO.getStudentById(id);
   },
 
-  getStudentByIdLean(id) {
+  getStudentByIdLean(id: string) {
     return StudentDAO.getStudentByIdLean(id);
   },
 
-  getStudentDocById(id) {
+  getStudentDocById(id: string) {
     return StudentDAO.getStudentDocById(id);
   },
 
-  getStudentByIdPopulated(id, populates = []) {
+  getStudentByIdPopulated(id: string, populates: unknown[][] = []) {
     return StudentDAO.getStudentByIdPopulated(id, populates);
   },
 
-  getStudentDocByIdPopulated(id, populates = []) {
+  getStudentDocByIdPopulated(id: string, populates: unknown[][] = []) {
     return StudentDAO.getStudentDocByIdPopulated(id, populates);
   },
 
-  updateStudentByFilter(filter, update) {
+  updateStudentByFilter(
+    filter: FilterQuery<IStudent>,
+    update: UpdateQuery<IStudent>
+  ) {
     return StudentDAO.updateStudentByFilter(filter, update);
   },
 
-  updateStudentByIdRaw(id, update) {
+  updateStudentByIdRaw(id: string, update: UpdateQuery<IStudent>) {
     return StudentDAO.updateStudentByIdRaw(id, update);
   },
 
-  findStudents(filter = {}) {
+  findStudents(filter: FilterQuery<IStudent> = {}) {
     return StudentDAO.findStudents(filter);
   },
 
-  findStudentsWithTeamNames(filter = {}) {
+  findStudentsWithTeamNames(filter: FilterQuery<IStudent> = {}) {
     return StudentDAO.findStudentsWithTeamNames(filter);
   },
 
-  countStudents(filter = {}) {
+  countStudents(filter: FilterQuery<IStudent> = {}) {
     return StudentDAO.countStudents(filter);
   },
 
-  getStudentApplicationsForIntervals(studentId) {
+  getStudentApplicationsForIntervals(studentId: string) {
     return StudentDAO.getStudentApplicationsForIntervals(studentId);
   },
 
-  findStudentsSelect(filter = {}, select = '', limit = undefined) {
+  findStudentsSelect(
+    filter: FilterQuery<IStudent> = {},
+    select = '',
+    limit: number | undefined = undefined
+  ) {
     return StudentDAO.findStudentsSelect(filter, select, limit);
   },
 
-  getStudentByIdSelect(id, select) {
+  getStudentByIdSelect(id: string, select: string) {
     return StudentDAO.getStudentByIdSelect(id, select);
   },
 
-  getStudentByIdSelectPopulated(id, select, populate, populateSelect) {
+  getStudentByIdSelectPopulated(
+    id: string,
+    select: string,
+    populate: string,
+    populateSelect: string
+  ) {
     return StudentDAO.getStudentByIdSelectPopulated(
       id,
       select,
@@ -91,7 +124,11 @@ const StudentService = {
     );
   },
 
-  searchStudentsByText(filter, select, limit) {
+  searchStudentsByText(
+    filter: FilterQuery<IStudent>,
+    select: string,
+    limit?: number
+  ) {
     return StudentDAO.searchStudentsByText(filter, select, limit);
   },
 
@@ -99,11 +136,11 @@ const StudentService = {
     return StudentDAO.getStudentsWithLatestCommunication();
   },
 
-  getUnreadCommunicationStudents(studentIds, userId) {
+  getUnreadCommunicationStudents(studentIds: string[], userId: string) {
     return StudentDAO.getUnreadCommunicationStudents(studentIds, userId);
   },
 
-  getStudentsWithLatestCommunicationSorted(studentIds) {
+  getStudentsWithLatestCommunicationSorted(studentIds: string[]) {
     return StudentDAO.getStudentsWithLatestCommunicationSorted(studentIds);
   },
 
@@ -115,7 +152,7 @@ const StudentService = {
     return StudentDAO.getStudentsWithCoursesAndAgents();
   },
 
-  getStudentsForDocumentThreadIntervals(filter) {
+  getStudentsForDocumentThreadIntervals(filter: FilterQuery<IStudent>) {
     return StudentDAO.getStudentsForDocumentThreadIntervals(filter);
   },
 
@@ -127,27 +164,27 @@ const StudentService = {
     return StudentDAO.getStudentsWithExpenses();
   },
 
-  getStudentsForExpenses(filter) {
+  getStudentsForExpenses(filter: FilterQuery<IStudent>) {
     return StudentDAO.getStudentsForExpenses(filter);
   },
 
-  getStudentByIdWithAgents(id) {
+  getStudentByIdWithAgents(id: string) {
     return StudentDAO.getStudentByIdWithAgents(id);
   },
 
-  getStudentByIdWithTeam(id) {
+  getStudentByIdWithTeam(id: string) {
     return StudentDAO.getStudentByIdWithTeam(id);
   },
 
-  getStudentByIdWithDocThreads(id) {
+  getStudentByIdWithDocThreads(id: string) {
     return StudentDAO.getStudentByIdWithDocThreads(id);
   },
 
-  updateStudentById(id, update) {
+  updateStudentById(id: string, update: UpdateQuery<IStudent>) {
     return StudentDAO.updateStudentById(id, update);
   },
 
-  getStudentsWithApplications(filter) {
+  getStudentsWithApplications(filter: FilterQuery<IStudent>) {
     return StudentDAO.getStudentsWithApplications(filter);
   }
 };

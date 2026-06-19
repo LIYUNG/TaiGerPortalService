@@ -16,6 +16,7 @@ import {
   SURVEY_URL_FOR_AGENT_URL
 } from '../constants';
 
+import { IStudent } from '@taiger-common/model';
 import { sendEmail } from './email/configuration';
 import { asyncHandler } from '../middlewares/error-handler';
 
@@ -70,7 +71,7 @@ const EditorTasksReminderEmail = asyncHandler(async (recipient, payload) => {
   const subject = `TaiGer Editor Reminder: ${recipient.firstname} ${recipient.lastname}`;
   let student_i = '';
   let first = true;
-  payload.students.forEach((student) => {
+  payload.students.forEach((student: IStudent) => {
     if (is_cv_ml_rl_task_response_needed(student, payload.editor)) {
       const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
         student,

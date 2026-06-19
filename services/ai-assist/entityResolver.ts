@@ -1,12 +1,24 @@
+import type { Request } from 'express';
+
 import { searchAccessibleStudents, requireAccessibleStudent } from './tools';
 
-const formatStudentName = (student = {}, fallbackDisplayName = null) =>
+// Mongoose lean student documents (union of FlattenMaps shapes) are probed
+// structurally here, so the param is left untyped.
+const formatStudentName = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  student: any = {},
+  fallbackDisplayName: string | null = null
+) =>
   [student.firstname, student.lastname].filter(Boolean).join(' ') ||
   fallbackDisplayName ||
   student.email ||
   undefined;
 
-const normalizeResolvedStudent = (student, fallbackDisplayName = null) => ({
+const normalizeResolvedStudent = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  student: any,
+  fallbackDisplayName: string | null = null
+) => ({
   id: student._id?.toString?.() || student.id,
   name: formatStudentName(student, fallbackDisplayName),
   chineseName:
@@ -17,7 +29,7 @@ const normalizeResolvedStudent = (student, fallbackDisplayName = null) => ({
   applyingProgramCount: student.applying_program_count
 });
 
-const resolveStudent = async (req, studentQuery) => {
+const resolveStudent = async (req: Request, studentQuery: string) => {
   const query = typeof studentQuery === 'string' ? studentQuery.trim() : '';
 
   if (!query) {
@@ -50,9 +62,9 @@ const resolveStudent = async (req, studentQuery) => {
 };
 
 const resolveStudentById = async (
-  req,
-  studentId,
-  fallbackDisplayName = null
+  req: Request,
+  studentId: string,
+  fallbackDisplayName: string | null = null
 ) => {
   const normalizedStudentId =
     typeof studentId === 'string' ? studentId.trim() : '';

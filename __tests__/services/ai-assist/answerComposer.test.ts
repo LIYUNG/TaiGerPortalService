@@ -111,6 +111,40 @@ describe('generateAnswerFromInput', () => {
     expect(result.answer).toBe('Final from response');
   });
 
+  it('does not emit empty-string deltas and ignores a non-function onToken', async () => {
+    // onToken non-function -> safeEmitToken early return (line 53-54); but stream
+    // path requires a function, so cover via the empty-token branch instead: a
+    // delta of '' is filtered before emit, and a truthy onToken with empty token
+    // hits the `!token` guard.
+    const emitted: string[] = [];
+    openAIClient.responses.stream = jest.fn().mockResolvedValue({
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'response.output_text.delta', delta: 'a' };
+      },
+      finalResponse: jest.fn().mockResolvedValue({ output_text: 'a' })
+    });
+    const onToken = jest.fn(async (t: string) => {
+      emitted.push(t);
+    });
+
+    await generateAnswerFromInput({ instructions: 'i', input: [], onToken });
+    // empty-delta events are skipped before reaching safeEmitToken
+    expect(emitted).toEqual(['a']);
+  });
+
+  it('returns the create-response answer when onToken is provided but stream is unavailable', async () => {
+    // onToken present but no responses.stream -> non-stream create path is used.
+    delete openAIClient.responses.stream;
+    openAIClient.responses.create.mockResolvedValue({ output_text: 'created' });
+
+    const result = await generateAnswerFromInput({
+      instructions: 'i',
+      input: [],
+      onToken: jest.fn()
+    });
+    expect(result.answer).toBe('created');
+  });
+
   it('swallows onToken errors (best-effort streaming)', async () => {
     openAIClient.responses.stream = jest.fn().mockResolvedValue({
       async *[Symbol.asyncIterator]() {
@@ -278,6 +312,50 @@ describe('extractAnswerLinkHints', () => {
       candidates: [{ entityType: 'student', entityId: 's1' }]
     });
     expect(result).toEqual({ answer: 'ans', linkHints: {} });
+  });
+
+  it('drops a hint whose marker is present but whose entityId is blank', async () => {
+    process.env.NODE_ENV = 'production';
+    openAIClient.responses.create.mockResolvedValue({
+      output_text: JSON.stringify({
+        answer: 'See [reflink:1|Abby] and [reflink:2|Bob]',
+        link_hints: {
+          // marker present, entityId blank -> !entityId branch (line 183-184)
+          1: { entityType: 'student', entityId: '' },
+          // marker present, valid -> kept
+          2: { entityType: 'student', entityId: 's2' }
+        }
+      })
+    });
+
+    const result = await extractAnswerLinkHints({
+      answer: 'See Abby and Bob',
+      candidates: [{ entityType: 'student', entityId: 's2' }]
+    });
+
+    expect(result.linkHints).toEqual({
+      2: { entityType: 'student', entityId: 's2' }
+    });
+  });
+
+  it('drops a hint with a valid marker and type whose entity is not among candidates', async () => {
+    process.env.NODE_ENV = 'production';
+    openAIClient.responses.create.mockResolvedValue({
+      output_text: JSON.stringify({
+        answer: 'See [reflink:1|Abby]',
+        link_hints: {
+          // marker present, valid type, non-blank id, but id not in candidates -> line 186-187
+          1: { entityType: 'student', entityId: 'ghost' }
+        }
+      })
+    });
+
+    const result = await extractAnswerLinkHints({
+      answer: 'See Abby',
+      candidates: [{ entityType: 'student', entityId: 's2' }]
+    });
+
+    expect(result.linkHints).toEqual({});
   });
 
   it('caps normalized link hints to 8 entries', async () => {

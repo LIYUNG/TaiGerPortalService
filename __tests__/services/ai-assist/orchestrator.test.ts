@@ -240,4 +240,386 @@ describe('runAiAssist - single agentic loop', () => {
 
     expect(result.activeStudent).toEqual({ id: 's1', displayName: 'Alice' });
   });
+
+  it('falls back to a default answer when the model produces no text', async () => {
+    const provider = makeProvider();
+    provider.stream.mockResolvedValueOnce({
+      text: '',
+      toolCalls: [],
+      usage: {}
+    });
+    getLlmProvider.mockReturnValue(provider);
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    const result = await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'something unanswerable',
+      req: REQ,
+      assistContext: {},
+      preferredLanguage: 'en'
+    });
+
+    expect(result.answer).toContain('could not produce an answer');
+  });
+
+  it('uses the conversation-bound student as the active student and emits a bound-student hint', async () => {
+    const provider = makeProvider();
+    provider.stream.mockResolvedValueOnce({
+      text: 'ok',
+      toolCalls: [],
+      usage: {}
+    });
+    getLlmProvider.mockReturnValue(provider);
+
+    // conversation row carries a bound student; messages window is empty.
+    const postgres = makePostgres({
+      selectResults: [
+        [{ id: 'conv_1', studentId: 's7', studentDisplayName: 'Grace' }],
+        []
+      ]
+    });
+    const result = await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'how is it going?',
+      req: REQ,
+      assistContext: {},
+      preferredLanguage: 'en'
+    });
+
+    expect(result.activeStudent).toEqual({ id: 's7', displayName: 'Grace' });
+    const { turns } = provider.stream.mock.calls[0][0];
+    const lastTurn = turns[turns.length - 1];
+    expect(lastTurn.content).toContain(
+      'Active student in this conversation: Grace'
+    );
+  });
+
+  it('resolves the active student from the first student surfaced by a tool', async () => {
+    const provider = makeProvider();
+    provider.stream
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ id: 't1', name: 'find_students', input: { query: 'x' } }],
+        usage: {}
+      })
+      .mockResolvedValueOnce({
+        text: 'Found someone.',
+        toolCalls: [],
+        usage: {}
+      });
+    getLlmProvider.mockReturnValue(provider);
+    // Tool result with student + program shapes -> candidate collection (lines 318-335).
+    aiTools.runTool.mockResolvedValue({
+      students: [{ id: 's3', name: 'Ivy', email: 'ivy@x.com' }],
+      program: { id: 'p9', name: 'MSc Data', school: 'TUM' }
+    });
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    const result = await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'find a student',
+      req: REQ,
+      assistContext: {},
+      preferredLanguage: 'en'
+    });
+
+    expect(result.activeStudent).toEqual({ id: 's3', displayName: 'Ivy' });
+  });
+
+  it('handles an explicit mention without a display name and a tool call missing input', async () => {
+    const provider = makeProvider();
+    provider.stream
+      .mockResolvedValueOnce({
+        // toolCall has no `input` -> executeToolCall args default {} (line 371)
+        text: '',
+        toolCalls: [{ id: 't1', name: 'find_students' }],
+        usage: {}
+      })
+      .mockResolvedValueOnce({ text: 'ok', toolCalls: [], usage: {} });
+    getLlmProvider.mockReturnValue(provider);
+    aiTools.runTool.mockResolvedValue({ ok: true });
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    const result = await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'status',
+      req: REQ,
+      // mentioned student with no displayName -> displayName || '' / || null falsy branches (lines 499, 512)
+      assistContext: { mentionedStudent: { id: 's1' } },
+      preferredLanguage: 'en'
+    });
+
+    expect(aiTools.runTool).toHaveBeenCalledWith(REQ, 'find_students', {});
+    expect(result.activeStudent).toEqual({ id: 's1', displayName: null });
+    const { turns } = provider.stream.mock.calls[0][0];
+    const userHintTurn = turns.find(
+      (t: any) =>
+        t.role === 'user' &&
+        typeof t.content === 'string' &&
+        t.content.includes('id: s1')
+    );
+    expect(userHintTurn).toBeDefined();
+  });
+
+  it('collects candidates across mixed shapes (role-only student, displayName, program without name)', async () => {
+    const provider = makeProvider();
+    provider.stream
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ id: 't1', name: 'find_students', input: {} }],
+        usage: {}
+      })
+      .mockResolvedValueOnce({ text: 'ok', toolCalls: [], usage: {} });
+    getLlmProvider.mockReturnValue(provider);
+    aiTools.runTool.mockResolvedValue({
+      // student identified by role (not email) and displayName (not name) -> line 320/321/295 alt branches
+      primary: { id: 's10', displayName: 'Kay', role: 'Student' },
+      // student-ish but missing id -> addStudentCandidate guard (line 296)
+      ghost: { name: 'NoId', email: 'x@y.com' },
+      // program with id but no name -> program guard false (line 328)
+      program: { id: 'p1', school: 'TU' },
+      // primitive nested values -> collectCandidatesFromValue early return (line 308)
+      note: 'plain string',
+      count: 42,
+      nothing: null
+    });
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    const result = await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'find',
+      req: REQ,
+      assistContext: {},
+      preferredLanguage: 'en'
+    });
+
+    expect(result.activeStudent).toEqual({ id: 's10', displayName: 'Kay' });
+  });
+
+  it('rejects an unknown tool name as a failed tool call', async () => {
+    const provider = makeProvider();
+    provider.stream
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ id: 't1', name: 'mystery_tool', input: {} }],
+        usage: {}
+      })
+      .mockResolvedValueOnce({ text: 'Handled.', toolCalls: [], usage: {} });
+    getLlmProvider.mockReturnValue(provider);
+    aiTools.hasTool.mockReturnValueOnce(false);
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    const result = await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'do magic',
+      req: REQ,
+      assistContext: {},
+      preferredLanguage: 'en'
+    });
+
+    expect(result.trace[0].status).toBe('failed');
+    expect(result.trace[0].errorMessage).toContain('Unknown AI Assist tool');
+  });
+
+  it('replays prior assistant and user messages into the turn list', async () => {
+    const provider = makeProvider();
+    provider.stream.mockResolvedValueOnce({
+      text: 'ok',
+      toolCalls: [],
+      usage: {}
+    });
+    getLlmProvider.mockReturnValue(provider);
+
+    // messages window (returned newest-first, reversed inside): one assistant + one user.
+    const postgres = makePostgres({
+      selectResults: [
+        [{ id: 'conv_1' }],
+        [
+          { role: 'assistant', content: 'Previous answer' },
+          { role: 'user', content: 'Previous question' }
+        ]
+      ]
+    });
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'next',
+      req: REQ,
+      assistContext: {},
+      preferredLanguage: 'en'
+    });
+
+    const { turns } = provider.stream.mock.calls[0][0];
+    const assistantTurn = turns.find((t: any) => t.role === 'assistant');
+    expect(assistantTurn).toMatchObject({
+      role: 'assistant',
+      text: 'Previous answer',
+      toolCalls: []
+    });
+  });
+
+  it('returns a benign default context when postgres has no select capability', async () => {
+    const provider = makeProvider();
+    provider.stream.mockResolvedValueOnce({
+      text: 'ok',
+      toolCalls: [],
+      usage: {}
+    });
+    getLlmProvider.mockReturnValue(provider);
+
+    // postgres without `select` -> loadConversationContext early return (line 254-255).
+    let insertId = 0;
+    const postgres = {
+      insert: () => ({
+        values: (values: any) => ({
+          returning: () => {
+            insertId += 1;
+            return Promise.resolve([{ id: `row_${insertId}`, ...values }]);
+          }
+        })
+      })
+    };
+    const result = await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'hi',
+      req: REQ,
+      assistContext: {},
+      preferredLanguage: 'en'
+    });
+
+    expect(result.answer).toBe('ok');
+  });
+
+  it.each([
+    ['Editor', 'As an editor, your primary concern is document quality'],
+    ['Manager', 'As a manager, your primary concern is team-level health'],
+    ['Agent', 'As an agent, your primary concern is application progress']
+  ])(
+    'adds %s-specific role guidance to the system prompt',
+    async (role, marker) => {
+      const provider = makeProvider();
+      provider.stream.mockResolvedValueOnce({
+        text: 'ok',
+        toolCalls: [],
+        usage: {}
+      });
+      getLlmProvider.mockReturnValue(provider);
+
+      const postgres = makePostgres({ selectResults: [[], []] });
+      await runAiAssist(postgres, {
+        conversationId: 'conv_1',
+        message: 'hi',
+        req: { user: { role, _id: 'u1' } },
+        assistContext: {},
+        preferredLanguage: 'en'
+      });
+
+      const { system } = provider.stream.mock.calls[0][0];
+      expect(system).toContain(marker);
+    }
+  );
+
+  it('adds no role guidance for an unrecognized role', async () => {
+    const provider = makeProvider();
+    provider.stream.mockResolvedValueOnce({
+      text: 'ok',
+      toolCalls: [],
+      usage: {}
+    });
+    getLlmProvider.mockReturnValue(provider);
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'hi',
+      req: { user: { role: 'Student', _id: 'u1' } },
+      assistContext: {},
+      preferredLanguage: 'en'
+    });
+
+    const { system } = provider.stream.mock.calls[0][0];
+    expect(system).not.toContain('your primary concern');
+  });
+
+  it.each([
+    ['zh-CN', 'Simplified Chinese'],
+    ['zh', 'Chinese'],
+    ['fr', 'English']
+  ])(
+    'maps preferred language %s to %s in analysis mode',
+    async (pref, expected) => {
+      const provider = makeProvider();
+      provider.stream.mockResolvedValueOnce({
+        text: 'ok',
+        toolCalls: [],
+        usage: {}
+      });
+      getLlmProvider.mockReturnValue(provider);
+
+      const postgres = makePostgres({ selectResults: [[], []] });
+      await runAiAssist(postgres, {
+        conversationId: 'conv_1',
+        message: 'analyze',
+        req: REQ,
+        assistContext: { analysisMode: true },
+        preferredLanguage: pref
+      });
+
+      const { system } = provider.stream.mock.calls[0][0];
+      expect(system).toContain(`Respond in ${expected}`);
+    }
+  );
+
+  it('responds in the preferred language for an empty non-analysis message', async () => {
+    const provider = makeProvider();
+    provider.stream.mockResolvedValueOnce({
+      text: 'ok',
+      toolCalls: [],
+      usage: {}
+    });
+    getLlmProvider.mockReturnValue(provider);
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    // message is only the @mention which gets stripped -> empty -> preferred language path (line 161).
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: '@Alice',
+      req: REQ,
+      assistContext: { mentionedStudent: { id: 's1', displayName: 'Alice' } },
+      preferredLanguage: 'zh-CN'
+    });
+
+    const { system } = provider.stream.mock.calls[0][0];
+    expect(system).toContain('Respond in Simplified Chinese');
+    expect(system).not.toContain('Match the language and writing system');
+  });
+
+  it('tolerates a non-serializable tool result and a progress emitter that throws', async () => {
+    const provider = makeProvider();
+    provider.stream
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ id: 't1', name: 'find_students', input: {} }],
+        usage: {}
+      })
+      .mockResolvedValueOnce({ text: 'done', toolCalls: [], usage: {} });
+    getLlmProvider.mockReturnValue(provider);
+    // BigInt is not JSON-serializable -> JSON.stringify throws -> stringifyToolOutput catch (line 360).
+    // (A circular object would infinitely recurse in candidate collection, so use BigInt.)
+    aiTools.runTool.mockResolvedValue({ value: BigInt(1) });
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    const result = await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'go',
+      req: REQ,
+      assistContext: {},
+      preferredLanguage: 'en',
+      onProgress: () => {
+        throw new Error('progress sink down'); // safeEmitProgress swallows (line 351-353)
+      }
+    });
+
+    expect(result.answer).toBe('done');
+    expect(result.trace[0].status).toBe('success');
+  });
 });

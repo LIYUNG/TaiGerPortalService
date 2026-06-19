@@ -5,7 +5,7 @@ import ProgramAIDAO from '../dao/programAI.dao';
  * Delegates data access to the DAO (controller -> service -> dao).
  */
 const ProgramAIService = {
-  getByProgramId(programId) {
+  getByProgramId(programId: string) {
     return ProgramAIDAO.getByProgramId(programId);
   }
 };

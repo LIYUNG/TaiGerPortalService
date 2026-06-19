@@ -392,6 +392,130 @@ describe('forwardStudentDocuments', () => {
     expect(sendEmailWithAttachments).not.toHaveBeenCalled();
   });
 
+  it('rejects with 404 when the student does not exist', async () => {
+    (UserService.findUsersByIds as jest.Mock)
+      .mockResolvedValueOnce([agentUser('rid1', 'to@taiger.com')])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    (StudentService.getStudentById as jest.Mock).mockResolvedValueOnce(null);
+
+    await expect(
+      ForwardDocumentsService.forwardStudentDocuments({
+        studentId: STUDENT_ID,
+        recipientIds: ['rid1'],
+        baseDocumentNames: ['transcript.pdf']
+      })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(sendEmailWithAttachments).not.toHaveBeenCalled();
+  });
+
+  it('rejects with 404 when a requested document thread is not found', async () => {
+    (UserService.findUsersByIds as jest.Mock)
+      .mockResolvedValueOnce([agentUser('rid1', 'to@taiger.com')])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    (DocumentThreadService.getThreadByIdLean as jest.Mock).mockResolvedValue(
+      null
+    );
+
+    await expect(
+      ForwardDocumentsService.forwardStudentDocuments({
+        studentId: STUDENT_ID,
+        recipientIds: ['rid1'],
+        threadIds: ['ghost-thread']
+      })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(sendEmailWithAttachments).not.toHaveBeenCalled();
+  });
+
+  it('rejects with 400 when a file vanishes from S3 between the head check and the download', async () => {
+    (UserService.findUsersByIds as jest.Mock)
+      .mockResolvedValueOnce([agentUser('rid1', 'to@taiger.com')])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    (DocumentThreadService.getThreadByIdLean as jest.Mock).mockResolvedValue(
+      cvThread()
+    );
+    // HeadObject reports the file as present (default 1024), but the body
+    // download then returns null (race: object deleted in between).
+    (getS3Object as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      ForwardDocumentsService.forwardStudentDocuments({
+        studentId: STUDENT_ID,
+        recipientIds: ['rid1'],
+        threadIds: ['thread-cv']
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining('no longer available')
+    });
+    expect(sendEmailWithAttachments).not.toHaveBeenCalled();
+  });
+
+  it('handles a student with no profile and a thread whose latest message has no file', async () => {
+    (UserService.findUsersByIds as jest.Mock)
+      .mockResolvedValueOnce([agentUser('rid1', 'to@taiger.com')])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    // No profile array at all -> `student.profile || []` falsy branch.
+    (StudentService.getStudentById as jest.Mock).mockResolvedValueOnce({
+      _id: oid(STUDENT_ID),
+      firstname: 'Stu',
+      lastname: 'Dent'
+    });
+    // A message with no file is filtered out, so the latest-file selection
+    // exercises the `msg.file?.length > 0` false branch; one valid file remains.
+    (DocumentThreadService.getThreadByIdLean as jest.Mock).mockResolvedValue({
+      _id: oid('thread-cv'),
+      student_id: oid(STUDENT_ID),
+      file_type: 'CV',
+      messages: [
+        { file: [{ name: 'cv.pdf', path: 'students/abc/cv.pdf' }] },
+        { file: [] } // no file -> filtered out
+      ]
+    });
+
+    const result = await ForwardDocumentsService.forwardStudentDocuments({
+      studentId: STUDENT_ID,
+      recipientIds: ['rid1'],
+      threadIds: ['thread-cv'],
+      // No profile means the requested base doc is missing; acknowledge it so
+      // the available CV file is still sent.
+      baseDocumentNames: ['transcript.pdf'],
+      confirmMissing: true
+    });
+
+    expect(result).toMatchObject({
+      status: 'sent',
+      attachmentCount: 1,
+      skipped: ['transcript.pdf']
+    });
+  });
+
+  it('derives the attachment filename from the S3 key when a thread file has no name', async () => {
+    (UserService.findUsersByIds as jest.Mock)
+      .mockResolvedValueOnce([agentUser('rid1', 'to@taiger.com')])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    // Thread file without `name` -> `file.name || path.basename(key)` fallback.
+    (DocumentThreadService.getThreadByIdLean as jest.Mock).mockResolvedValue({
+      _id: oid('thread-cv'),
+      student_id: oid(STUDENT_ID),
+      file_type: 'CV',
+      messages: [{ file: [{ path: 'students/abc/resume_final.pdf' }] }]
+    });
+
+    await ForwardDocumentsService.forwardStudentDocuments({
+      studentId: STUDENT_ID,
+      recipientIds: ['rid1'],
+      threadIds: ['thread-cv']
+    });
+
+    const arg = (sendEmailWithAttachments as jest.Mock).mock.calls[0][0];
+    expect(arg.attachments[0].filename).toBe('resume_final.pdf');
+  });
+
   it('asks for confirmation for an unknown base document name', async () => {
     (UserService.findUsersByIds as jest.Mock)
       .mockResolvedValueOnce([agentUser('rid1', 'to@taiger.com')])

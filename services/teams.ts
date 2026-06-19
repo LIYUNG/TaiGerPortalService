@@ -1,3 +1,5 @@
+import { FilterQuery } from 'mongoose';
+import { IInterval } from '@taiger-common/model';
 import TeamDAO from '../dao/team.dao';
 
 /**
@@ -26,7 +28,7 @@ const TeamService = {
     return TeamDAO.getFileTypeCounts();
   },
 
-  getAgentStudentDistData(agentId) {
+  getAgentStudentDistData(agentId: string) {
     return TeamDAO.getAgentStudentDistData(agentId);
   },
 
@@ -46,11 +48,11 @@ const TeamService = {
     return TeamDAO.getKpiFinishedDocs();
   },
 
-  getResponseTimesByStudent(studentId) {
+  getResponseTimesByStudent(studentId: string) {
     return TeamDAO.getResponseTimesByStudent(studentId);
   },
 
-  getIntervals(filter) {
+  getIntervals(filter: FilterQuery<IInterval>) {
     return TeamDAO.getIntervals(filter);
   }
 };

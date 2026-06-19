@@ -1,3 +1,5 @@
+import { AnyBulkWriteOperation, FilterQuery } from 'mongoose';
+import { IInterval } from '@taiger-common/model';
 import IntervalDAO from '../dao/interval.dao';
 
 /**
@@ -5,7 +7,7 @@ import IntervalDAO from '../dao/interval.dao';
  * data access to the DAO (controller/util -> service -> dao).
  */
 const IntervalService = {
-  bulkWrite(operations) {
+  bulkWrite(operations: AnyBulkWriteOperation<IInterval>[]) {
     return IntervalDAO.bulkWrite(operations);
   },
 
@@ -13,7 +15,7 @@ const IntervalService = {
     return IntervalDAO.findAllPopulated();
   },
 
-  findForReport(filter) {
+  findForReport(filter: FilterQuery<IInterval>) {
     return IntervalDAO.findForReport(filter);
   }
 };

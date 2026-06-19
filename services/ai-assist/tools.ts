@@ -27,28 +27,58 @@ const AI_APPLICATION_PROGRAM_POPULATE = {
   select: 'school program_name degree semester application_deadline country'
 };
 
-const clampLimit = (value, fallback, max) =>
+// Express request carrying the authenticated `user`; kept loose to match the
+// repo-wide convention (see types/express.d.ts) where `req.user` is `any`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AiRequest = any;
+
+// Heterogeneous Mongoose lean document (populated reference unions /
+// FlattenMaps subdocuments) whose runtime shape does not structurally match the
+// strict @taiger-common/model interfaces; read defensively.
+type LeanDoc = Record<string, any>;
+
+// Provider-neutral tool arguments parsed from the LLM tool call. All fields are
+// optional because each handler consumes a different subset.
+interface AiToolArgs {
+  query?: string;
+  limit?: number;
+  studentId?: string;
+  programId?: string;
+  days?: number;
+  threadId?: string;
+  documentName?: string;
+  // Optional cached student to skip an access re-check.
+  _student?: LeanDoc;
+}
+
+const clampLimit = (value: unknown, fallback: number, max: number) =>
   Math.min(Math.max(Number(value) || fallback, 1), max);
 const RECENT_COMMUNICATION_DAYS = 30;
 const ALL_COMMUNICATION_MAX_LIMIT = 200;
 
-const escapeRegex = (value = '') =>
+const escapeRegex = (value: string = '') =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const ACCESSIBLE_STUDENT_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count';
 
-const normalizeStudentPickerRow = (student) => ({
+const normalizeStudentPickerRow = (student: Record<string, any>) => ({
   ...normalizeUser(student),
   applyingProgramCount: student.applying_program_count,
-  agents: (student.agents || []).map((agent) => agent.toString?.() || agent),
+  agents: (student.agents || []).map(
+    (agent: unknown) => (agent as any)?.toString?.() || agent
+  ),
   editors: (student.editors || []).map(
-    (editor) => editor.toString?.() || editor
+    (editor: unknown) => (editor as any)?.toString?.() || editor
   )
 });
 
-const normalizeAssignedTeamMember = (member) => {
-  const normalized = normalizeUser(member);
+const normalizeAssignedTeamMember = (
+  member: LeanDoc | string | null | undefined
+) => {
+  const normalized = normalizeUser(
+    typeof member === 'string' ? undefined : member
+  );
   if (normalized?.id) {
     return normalized;
   }
@@ -61,7 +91,7 @@ const normalizeAssignedTeamMember = (member) => {
   return id ? { id } : undefined;
 };
 
-const normalizeProgram = (program) => {
+const normalizeProgram = (program: LeanDoc | null | undefined) => {
   if (!program) {
     return undefined;
   }
@@ -77,10 +107,12 @@ const normalizeProgram = (program) => {
   };
 };
 
-const isTruthyFlag = (value) =>
+const isTruthyFlag = (value: unknown) =>
   value === true || value === 'O' || value === 'Y';
 
-const deriveApplicationStatus = (application = {}) => {
+type AiApplication = LeanDoc;
+
+const deriveApplicationStatus = (application: AiApplication = {}) => {
   if (isTruthyFlag(application.finalEnrolment)) {
     return 'final_enrolled';
   }
@@ -100,7 +132,10 @@ const deriveApplicationStatus = (application = {}) => {
   return 'in_progress';
 };
 
-const deriveApplicationDecision = (application = {}, normalizedStatus) => {
+const deriveApplicationDecision = (
+  application: AiApplication = {},
+  normalizedStatus: string
+) => {
   if (normalizedStatus === 'final_enrolled') {
     return 'final enrolment confirmed';
   }
@@ -120,8 +155,11 @@ const deriveApplicationDecision = (application = {}, normalizedStatus) => {
   return 'under review';
 };
 
-const deriveApplicationRisks = (application = {}, normalizedStatus) => {
-  const risks = [];
+const deriveApplicationRisks = (
+  application: AiApplication = {},
+  normalizedStatus: string
+) => {
+  const risks: string[] = [];
 
   if (
     normalizedStatus === 'admitted' &&
@@ -145,8 +183,11 @@ const deriveApplicationRisks = (application = {}, normalizedStatus) => {
   return risks;
 };
 
-const deriveApplicationNextActions = (application = {}, normalizedStatus) => {
-  const nextActions = [];
+const deriveApplicationNextActions = (
+  application: AiApplication = {},
+  normalizedStatus: string
+) => {
+  const nextActions: string[] = [];
 
   if (
     normalizedStatus === 'admitted' &&
@@ -170,7 +211,7 @@ const deriveApplicationNextActions = (application = {}, normalizedStatus) => {
   return nextActions;
 };
 
-const normalizeApplicationContextItem = (application) => {
+const normalizeApplicationContextItem = (application: AiApplication) => {
   const status = deriveApplicationStatus(application);
   const program = normalizeProgram(application.programId);
 
@@ -187,7 +228,7 @@ const normalizeApplicationContextItem = (application) => {
   };
 };
 
-const toObjectIdString = (value) => {
+const toObjectIdString = (value: unknown) => {
   if (!value) {
     return '';
   }
@@ -196,32 +237,38 @@ const toObjectIdString = (value) => {
     return value;
   }
 
-  return value.toString?.() || '';
+  return (value as { toString?: () => string }).toString?.() || '';
 };
 
-const safeDate = (value) => {
+const safeDate = (value: unknown) => {
   if (!value) {
     return null;
   }
 
-  const date = value instanceof Date ? value : new Date(value);
+  const date =
+    value instanceof Date ? value : new Date(value as string | number | Date);
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const extractThreadMessageText = (message = {}) =>
+type ThreadMessageLike = Record<string, any>;
+
+const extractThreadMessageText = (message: ThreadMessageLike = {}) =>
   message.message || message.text || message.content || message.body || '';
 
-const extractThreadMessageCreatedAt = (message = {}) =>
+const extractThreadMessageCreatedAt = (message: ThreadMessageLike = {}) =>
   safeDate(message.createdAt) ||
   safeDate(message.updatedAt) ||
   safeDate(message.timestamp);
 
-const extractThreadMessageAuthor = (message = {}) =>
+const extractThreadMessageAuthor = (message: ThreadMessageLike = {}) =>
   toObjectIdString(message.user_id) || toObjectIdString(message.userId) || '';
 
-const normalizeThreadMessages = (messages = [], limit = 3) =>
+const normalizeThreadMessages = (
+  messages: ThreadMessageLike[] = [],
+  limit: number = 3
+) =>
   (Array.isArray(messages) ? messages : [])
-    .map((message) => ({
+    .map((message: ThreadMessageLike) => ({
       text: extractThreadMessageText(message),
       createdAt: extractThreadMessageCreatedAt(message),
       authorId: extractThreadMessageAuthor(message)
@@ -239,7 +286,13 @@ const normalizeThreadMessages = (messages = [], limit = 3) =>
       authorId: message.authorId || null
     }));
 
-const resolvePendingOwner = ({ latestMessageBy, studentId }) => {
+const resolvePendingOwner = ({
+  latestMessageBy,
+  studentId
+}: {
+  latestMessageBy: string | null;
+  studentId: string;
+}) => {
   if (!latestMessageBy) {
     return 'unknown';
   }
@@ -247,8 +300,14 @@ const resolvePendingOwner = ({ latestMessageBy, studentId }) => {
   return latestMessageBy === studentId ? 'team' : 'student';
 };
 
-const buildThreadRiskFlags = ({ isFinalVersion, latestMessageAt }) => {
-  const risks = [];
+const buildThreadRiskFlags = ({
+  isFinalVersion,
+  latestMessageAt
+}: {
+  isFinalVersion: boolean;
+  latestMessageAt: Date | null;
+}) => {
+  const risks: string[] = [];
   if (!isFinalVersion) {
     risks.push('not_finalized');
   }
@@ -260,7 +319,11 @@ const buildThreadRiskFlags = ({ isFinalVersion, latestMessageAt }) => {
   return risks;
 };
 
-const assertLeadAccessForStudent = async (req, studentId, studentParam) => {
+const assertLeadAccessForStudent = async (
+  req: AiRequest,
+  studentId: string,
+  studentParam?: LeanDoc | null
+) => {
   const role = req?.user?.role;
   if (role === Role.Admin || role === Role.Manager) {
     return;
@@ -280,7 +343,7 @@ const assertLeadAccessForStudent = async (req, studentId, studentParam) => {
 
   const userId = toObjectIdString(req?.user?._id);
   const isAssigned = [...(student.agents || []), ...(student.editors || [])]
-    .map((id) => toObjectIdString(id))
+    .map((id: unknown) => toObjectIdString(id))
     .includes(userId);
 
   if (!isAssigned) {
@@ -288,7 +351,10 @@ const assertLeadAccessForStudent = async (req, studentId, studentParam) => {
   }
 };
 
-const requireAccessibleStudent = async (req, studentId) => {
+const requireAccessibleStudent = async (
+  req: AiRequest,
+  studentId: string | undefined
+) => {
   const filter = await getAccessibleStudentFilter(req);
   const students = await StudentService.findStudentsSelect(
     { ...filter, _id: studentId },
@@ -303,7 +369,10 @@ const requireAccessibleStudent = async (req, studentId) => {
   return students[0];
 };
 
-const searchAccessibleStudents = async (req, args = {}) => {
+const searchAccessibleStudents = async (
+  req: AiRequest,
+  args: AiToolArgs = {}
+) => {
   const filter = await getAccessibleStudentFilter(req);
   const query = typeof args.query === 'string' ? args.query.trim() : '';
   const limit = clampLimit(args.limit, 10, 25);
@@ -401,10 +470,13 @@ const searchAccessibleStudents = async (req, args = {}) => {
   };
 };
 
-const searchStudents = async (req, args = {}) =>
+const searchStudents = async (req: AiRequest, args: AiToolArgs = {}) =>
   searchAccessibleStudents(req, args);
 
-const listAccessibleStudents = async (req, args = {}) => {
+const listAccessibleStudents = async (
+  req: AiRequest,
+  args: AiToolArgs = {}
+) => {
   const filter = await getAccessibleStudentFilter(req);
   const students = await StudentService.findStudentsSelect(
     filter,
@@ -417,7 +489,7 @@ const listAccessibleStudents = async (req, args = {}) => {
   };
 };
 
-const getStudentSummary = async (req, args = {}) => {
+const getStudentSummary = async (req: AiRequest, args: AiToolArgs = {}) => {
   const student = await requireAccessibleStudent(req, args.studentId);
 
   return {
@@ -437,7 +509,10 @@ const getStudentSummary = async (req, args = {}) => {
   };
 };
 
-const getStudentApplications = async (req, args = {}) => {
+const getStudentApplications = async (
+  req: AiRequest,
+  args: AiToolArgs = {}
+) => {
   await requireAccessibleStudent(req, args.studentId);
   const applications = await ApplicationService.findApplicationsSelectPopulate(
     { studentId: args.studentId },
@@ -446,7 +521,7 @@ const getStudentApplications = async (req, args = {}) => {
   );
 
   return {
-    data: applications.map((application) => ({
+    data: applications.map((application: AiApplication) => ({
       ...normalizeApplication(application),
       admission: application.admission,
       program: normalizeProgram(application.programId)
@@ -454,7 +529,10 @@ const getStudentApplications = async (req, args = {}) => {
   };
 };
 
-const getLatestCommunications = async (req, args = {}) => {
+const getLatestCommunications = async (
+  req: AiRequest,
+  args: AiToolArgs = {}
+) => {
   // If caller passes a cached student in `_student`, skip access re-check.
   if (!args._student) {
     await requireAccessibleStudent(req, args.studentId);
@@ -493,7 +571,7 @@ const getLatestCommunications = async (req, args = {}) => {
   };
 };
 
-const getProfileDocuments = async (req, args = {}) => {
+const getProfileDocuments = async (req: AiRequest, args: AiToolArgs = {}) => {
   const student = await requireAccessibleStudent(req, args.studentId);
 
   return {
@@ -501,7 +579,7 @@ const getProfileDocuments = async (req, args = {}) => {
   };
 };
 
-const getAdmissionsOverview = async (req, args = {}) => {
+const getAdmissionsOverview = async (req: AiRequest, args: AiToolArgs = {}) => {
   const applications = await getStudentApplications(req, args);
   return {
     data: applications.data.filter(
@@ -510,7 +588,7 @@ const getAdmissionsOverview = async (req, args = {}) => {
   };
 };
 
-const getSupportTickets = async (req, args = {}) => {
+const getSupportTickets = async (req: AiRequest, args: AiToolArgs = {}) => {
   if (args.studentId) {
     await requireAccessibleStudent(req, args.studentId);
   }
@@ -523,7 +601,7 @@ const getSupportTickets = async (req, args = {}) => {
   return { data: tickets };
 };
 
-const getStudentContext = async (req, args = {}) => {
+const getStudentContext = async (req: AiRequest, args: AiToolArgs = {}) => {
   const studentSummary = await getStudentSummary(req, args);
   const student = studentSummary.data;
 
@@ -543,7 +621,7 @@ const getStudentContext = async (req, args = {}) => {
   };
 };
 
-const getApplicationContext = async (req, args = {}) => {
+const getApplicationContext = async (req: AiRequest, args: AiToolArgs = {}) => {
   const student = await requireAccessibleStudent(req, args.studentId);
   const applications = await ApplicationService.findApplicationsSelectPopulate(
     { studentId: args.studentId },
@@ -560,12 +638,17 @@ const getApplicationContext = async (req, args = {}) => {
           undefined,
         email: student.email
       },
-      applications: applications.map(normalizeApplicationContextItem)
+      applications: applications.map((application: AiApplication) =>
+        normalizeApplicationContextItem(application)
+      )
     }
   };
 };
 
-const getRecentCommunicationContext = async (req, args = {}) => {
+const getRecentCommunicationContext = async (
+  req: AiRequest,
+  args: AiToolArgs = {}
+) => {
   const student = await requireAccessibleStudent(req, args.studentId);
   const messages = await getLatestCommunications(req, {
     studentId: args.studentId,
@@ -588,7 +671,10 @@ const getRecentCommunicationContext = async (req, args = {}) => {
   };
 };
 
-const getAllCommunicationContext = async (req, args = {}) => {
+const getAllCommunicationContext = async (
+  req: AiRequest,
+  args: AiToolArgs = {}
+) => {
   const student = await requireAccessibleStudent(req, args.studentId);
   const limit = clampLimit(args.limit, 120, ALL_COMMUNICATION_MAX_LIMIT);
   const messages = await CommunicationService.findPopulatedSorted(
@@ -611,7 +697,7 @@ const getAllCommunicationContext = async (req, args = {}) => {
   };
 };
 
-const getDocumentContext = async (req, args = {}) => {
+const getDocumentContext = async (req: AiRequest, args: AiToolArgs = {}) => {
   const student = await requireAccessibleStudent(req, args.studentId);
   const documents = await getProfileDocuments(req, args);
   const missingRequiredDocuments = documents.data.filter(
@@ -633,7 +719,10 @@ const getDocumentContext = async (req, args = {}) => {
   };
 };
 
-const getSupportTicketContext = async (req, args = {}) => {
+const getSupportTicketContext = async (
+  req: AiRequest,
+  args: AiToolArgs = {}
+) => {
   const student = await requireAccessibleStudent(req, args.studentId);
   const tickets = await getSupportTickets(req, {
     studentId: args.studentId,
@@ -654,7 +743,10 @@ const getSupportTicketContext = async (req, args = {}) => {
   };
 };
 
-const getDocumentThreadContext = async (req, args = {}) => {
+const getDocumentThreadContext = async (
+  req: AiRequest,
+  args: AiToolArgs = {}
+) => {
   const student = await requireAccessibleStudent(req, args.studentId);
   const studentId = toObjectIdString(student._id || student.id);
 
@@ -737,7 +829,10 @@ const getDocumentThreadContext = async (req, args = {}) => {
   };
 };
 
-const getCrmLeadMeetingContext = async (req, args = {}) => {
+const getCrmLeadMeetingContext = async (
+  req: AiRequest,
+  args: AiToolArgs = {}
+) => {
   const student = await requireAccessibleStudent(req, args.studentId);
   const studentId = toObjectIdString(student._id || student.id);
   await assertLeadAccessForStudent(req, studentId, student);
@@ -803,7 +898,7 @@ const getCrmLeadMeetingContext = async (req, args = {}) => {
         email: student.email
       },
       lead,
-      meetings: (meetings || []).map((meeting) => ({
+      meetings: (meetings || []).map((meeting: Record<string, any>) => ({
         ...meeting,
         date:
           typeof meeting.date === 'number'
@@ -814,7 +909,7 @@ const getCrmLeadMeetingContext = async (req, args = {}) => {
   };
 };
 
-const getProgramBrief = async (req, args = {}) => {
+const getProgramBrief = async (req: AiRequest, args: AiToolArgs = {}) => {
   const program = await ProgramService.getProgramByIdSelect(
     args.programId,
     'school program_name degree semester application_deadline country'
@@ -846,10 +941,11 @@ const registry = {
 
 const AI_ASSIST_TOOL_NAMES = Object.freeze(Object.keys(registry));
 
-const hasTool = (toolName) => Boolean(registry[toolName]);
+const hasTool = (toolName: string) =>
+  Boolean(registry[toolName as keyof typeof registry]);
 
-const runTool = async (req, toolName, args) => {
-  const tool = registry[toolName];
+const runTool = async (req: AiRequest, toolName: string, args: AiToolArgs) => {
+  const tool = registry[toolName as keyof typeof registry];
   if (!tool) {
     throw new ErrorResponse(400, `Unknown AI Assist tool: ${toolName}`);
   }

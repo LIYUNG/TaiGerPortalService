@@ -85,6 +85,19 @@ tests passing.
 > `TS2769` from inline query‑object literals + populate‑spread) — clear when
 > return/local types land in the service batch.
 
+| 4 — services/* param typing | 2026‑06‑19 | 7946 | 7180 | services (980+) green |
+
+> Batch 4 note: 5 parallel subagents, disjoint file sets, **git commands banned**
+> (no stash/checkout — the fix for Batch 3's races; clean run, no churn). Typed
+> every service method PARAMETER (no return types). **Source `services/*`:
+> 1052 → 49 errors, 0 `TS7006`/`TS7031`** (param typing also cleared most of the
+> `TS2339` since typed params expose their properties). Conventions identical to
+> the dao batch; ai‑assist needed loose `Record<string, unknown>`/`unknown` for
+> Mongoose `FlattenMaps` lean‑doc params + LLM SDK payloads (documented per file).
+> `req.user` stays `any` (matches the repo's existing `types/express.d.ts`).
+> Residual 49 are pre‑existing `TS2497`/lean‑doc `TS2339`/ical/SDK‑overload — for
+> the return‑type + controller batches.
+
 ## Notes / decisions
 - **Batch 0 (@types):** installed `@types/{bcryptjs,compression,cookie-parser,cors,
   lodash,method-override,morgan,multer,multer-s3,node-schedule,passport,

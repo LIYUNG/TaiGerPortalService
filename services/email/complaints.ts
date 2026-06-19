@@ -1,8 +1,22 @@
+import { IUser } from '@taiger-common/model';
 import { ORIGIN } from '../../config';
 import { sendEmail } from './configuration';
 
+interface ComplaintEmailPayload {
+  ticket_id: string;
+  ticket_title: string;
+  ticket_description?: string;
+  createdAt?: string | Date;
+  requester?: Pick<IUser, 'firstname' | 'lastname'>;
+}
+
 // For editor lead, manager
-const newCustomerCenterTicketEmail = async (recipient, payload) => {
+const newCustomerCenterTicketEmail = async (
+  recipient: IUser,
+  payload: ComplaintEmailPayload & {
+    requester: Pick<IUser, 'firstname' | 'lastname'>;
+  }
+) => {
   const subject = `[URGENT] New Customer Complaint ticket from ${payload.requester.firstname} ${payload.requester.lastname}`;
   const requesterName = `${payload.requester.firstname} ${payload.requester.lastname}`;
   const TICKET_LINK = new URL(
@@ -33,8 +47,8 @@ const newCustomerCenterTicketEmail = async (recipient, payload) => {
 
 // For student confirmation
 const newCustomerCenterTicketSubmitConfirmationEmail = async (
-  recipient,
-  payload
+  recipient: IUser,
+  payload: ComplaintEmailPayload
 ) => {
   const subject = `[Info] Thank you for your customer support request (Ticket id: ${payload.ticket_id}`;
   const TICKET_LINK = new URL(
@@ -61,7 +75,10 @@ const newCustomerCenterTicketSubmitConfirmationEmail = async (
 };
 
 // For student confirmation
-const newCustomerCenterTicketMessageEmail = async (recipient, payload) => {
+const newCustomerCenterTicketMessageEmail = async (
+  recipient: IUser,
+  payload: ComplaintEmailPayload
+) => {
   const subject = `[Customer Center] There is a new message for the request (Ticket id: ${payload.ticket_id})`;
   const TICKET_LINK = new URL(
     `/customer-center/tickets/${payload.ticket_id}`,
@@ -82,7 +99,10 @@ const newCustomerCenterTicketMessageEmail = async (recipient, payload) => {
 };
 
 // For student confirmation
-const complaintResolvedRequesterReminderEmail = async (recipient, payload) => {
+const complaintResolvedRequesterReminderEmail = async (
+  recipient: IUser,
+  payload: ComplaintEmailPayload
+) => {
   const subject = `[Resolved] Your customer support request is resolved (Ticket id: ${payload.ticket_id}`;
   const TICKET_LINK = new URL(
     `/customer-center/tickets/${payload.ticket_id}`,

@@ -1,3 +1,5 @@
+import { FilterQuery } from 'mongoose';
+import { IAudit } from '@taiger-common/model';
 import AuditDAO from '../dao/audit.dao';
 
 /**
@@ -5,11 +7,14 @@ import AuditDAO from '../dao/audit.dao';
  * DAO (controller -> service -> dao).
  */
 const AuditService = {
-  getAuditLogs(filter, options) {
+  getAuditLogs(
+    filter: FilterQuery<IAudit>,
+    options: { limit: number; skip: number; sort: Record<string, 1 | -1> }
+  ) {
     return AuditDAO.getAuditLogs(filter, options);
   },
 
-  createAuditLog(auditLog) {
+  createAuditLog(auditLog: Partial<IAudit>) {
     return AuditDAO.createAuditLog(auditLog);
   }
 };

@@ -40,6 +40,19 @@ describe('signalLedger.mergeSignals', () => {
     expect(out[0].severity).toBe('high');
   });
 
+  it('normalises model case + spaced types instead of dropping them', () => {
+    const out = mergeSignals(
+      [],
+      [
+        { type: 'Broken Promise', severity: 'High', evidence: 'x' },
+        { type: 'FRUSTRATION', severity: ' low ', evidence: 'y' }
+      ],
+      now
+    );
+    expect(out.map((s) => s.type)).toEqual(['broken_promise', 'frustration']);
+    expect(out.map((s) => s.severity)).toEqual(['high', 'low']);
+  });
+
   it('stamps firstSeenAt = now for a brand new signal type', () => {
     const out = mergeSignals([], [{ type: 'frustration', severity: 'low', evidence: 'e' }], now);
     expect(out[0].firstSeenAt).toBe(now.toISOString());

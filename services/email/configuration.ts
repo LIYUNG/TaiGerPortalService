@@ -7,14 +7,17 @@ import {
   isProd,
   isTest
 } from '../../config';
-import { ses, limiter, SendRawEmailCommand } from '../../aws';
+import { sesv2Client, SendEmailCommand, limiter } from '../../aws';
 import { senderName, taigerNotReplyGmail } from '../../constants/email';
 import { htmlContent } from '../emailTemplate';
 import logger from '../logger';
 
+// SES API v2 transport (nodemailer 9+). v2 `SendEmail` (raw content) allows ~40
+// MB messages vs v1 `SendRawEmail`'s 10 MB cap — required for forwarding
+// document bundles. All emails go through this transport in production.
 const transporter = isProd()
   ? createTransport({
-      SES: { ses, aws: { SendRawEmailCommand } }
+      SES: { sesClient: sesv2Client, SendEmailCommand }
     })
   : createTransport({
       host: SMTP_HOST,

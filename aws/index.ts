@@ -3,7 +3,13 @@ import { Sha256 } from '@aws-crypto/sha256-browser';
 import { SignatureV4 } from '@aws-sdk/signature-v4';
 
 import logger from '../services/logger';
-import { ses, limiter, SendRawEmailCommand } from './ses';
+import {
+  ses,
+  limiter,
+  SendRawEmailCommand,
+  sesv2Client,
+  SendEmailCommand
+} from './ses';
 import { s3Client } from './s3';
 import { getTemporaryCredentials } from './sts';
 import { AWS_REGION } from '../config';
@@ -61,6 +67,8 @@ export = {
   s3Client,
   ses,
   SendRawEmailCommand,
+  sesv2Client,
+  SendEmailCommand,
   limiter,
   getTemporaryCredentials,
   callApiGateway

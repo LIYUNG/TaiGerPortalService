@@ -17,10 +17,11 @@ const escapeHtml = (value) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-// Cap the combined size of all attachments. SES allows larger raw messages, but
-// 20 MB of source files is a safe ceiling once base64 encoding (~1.37x) and the
-// recipient mailbox limits are taken into account.
-const MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+// Cap the combined size of all attachments. SES API v2 allows ~40 MB raw
+// messages (v1 was 10 MB), so 25 MB of source files (~34 MB after base64
+// encoding) stays within SES; recipient mailboxes (often ~25 MB) remain the
+// practical ceiling.
+const MAX_TOTAL_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const MB = 1024 * 1024;
 
 const toIdArray = (value) =>

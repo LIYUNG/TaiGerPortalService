@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
@@ -8,21 +9,24 @@ import StudentService from '../services/students';
 import ApplicationQueryBuilder from '../builders/ApplicationQueryBuilder';
 
 // Overall admission/rejection/pending/notYetSubmitted counts.
-const getApplicationCountsResultCount = asyncHandler(async () => {
+const getApplicationCountsResultCount = async (_req?: Request) => {
   try {
     const counts = await ApplicationService.getAdmissionsStatusCounts();
     logger.info('Successfully fetched application counts:', counts);
     return counts;
   } catch (error) {
-    logger.error('Error fetching application counts:', error);
+    logger.error(
+      'Error fetching application counts:',
+      error as Record<string, unknown>
+    );
     if (error instanceof ErrorResponse) {
       throw error;
     }
     throw new ErrorResponse(500, 'Error fetching application counts');
   }
-});
+};
 
-const getProgramApplicationCounts = asyncHandler(async () => {
+const getProgramApplicationCounts = async (_req?: Request) => {
   try {
     const result = await ApplicationService.getProgramApplicationCounts();
     logger.info(
@@ -30,13 +34,16 @@ const getProgramApplicationCounts = asyncHandler(async () => {
     );
     return result;
   } catch (error) {
-    logger.error('Error fetching program application counts:', error);
+    logger.error(
+      'Error fetching program application counts:',
+      error as Record<string, unknown>
+    );
     if (error instanceof ErrorResponse) {
       throw error;
     }
     throw new ErrorResponse(500, 'Error fetching program application counts');
   }
-});
+};
 
 const getAdmissionsOverview = asyncHandler(async (req, res) => {
   const result = await getApplicationCountsResultCount(req);

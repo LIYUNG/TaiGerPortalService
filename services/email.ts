@@ -52,6 +52,11 @@ import { asyncHandler } from '../middlewares/error-handler';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EmailMessagePayload = Record<string, any>;
 
+// Email recipients are sometimes full user documents and sometimes lightweight
+// `{ firstname, lastname, address }` descriptors built ad hoc at the call site
+// (where `address` is the destination email). Accept either shape.
+type EmailRecipient = Partial<IUser> & { address?: string };
+
 const sendEventEmail = (
   // `to` / `meeting_event` / `cc` are passed straight into the ical-generator
   // event/attendee builders, whose data unions are looser than the runtime
@@ -1266,7 +1271,7 @@ ${applications_name}.
 
 // For editor, english only
 export const NewMLRLEssayTasksEmailFromTaiGer = async (
-  recipient: IUser,
+  recipient: EmailRecipient,
   msg: EmailMessagePayload
 ) => {
   const subject = `${msg.sender_firstname} ${msg.sender_lastname} has updated application status and new tasks`;
@@ -1306,7 +1311,7 @@ ${applications_name}
 
 // For editor, agents
 export const AdmissionResultInformEmailToTaiGer = async (
-  recipient: IUser,
+  recipient: EmailRecipient,
   msg: EmailMessagePayload
 ) => {
   const result = msg.admission === 'O' ? 'Admission' : 'Rejection';
@@ -1328,7 +1333,7 @@ export const AdmissionResultInformEmailToTaiGer = async (
 };
 
 export const sendNewInterviewMessageInThreadEmail = async (
-  recipient: IUser,
+  recipient: EmailRecipient,
   msg: EmailMessagePayload
 ) => {
   const interview_single_url = `${SINGLE_INTERVIEW_THREAD_URL(
@@ -1366,7 +1371,7 @@ export const sendNewInterviewMessageInThreadEmail = async (
 };
 
 export const sendNewApplicationMessageInThreadEmail = async (
-  recipient: IUser,
+  recipient: EmailRecipient,
   msg: EmailMessagePayload
 ) => {
   const thread_url = `${THREAD_URL}/${msg.thread_id}`;
@@ -1406,7 +1411,7 @@ export const sendNewApplicationMessageInThreadEmail = async (
 };
 
 export const sendNewGeneraldocMessageInThreadEmail = async (
-  recipient: IUser,
+  recipient: EmailRecipient,
   msg: EmailMessagePayload
 ) => {
   const thread_url = `${THREAD_URL}/${msg.thread_id}`;
@@ -1446,7 +1451,7 @@ export const sendNewGeneraldocMessageInThreadEmail = async (
 };
 
 export const sendSetAsFinalGeneralFileForAgentEmail = async (
-  recipient: IUser,
+  recipient: EmailRecipient,
   msg: EmailMessagePayload
 ) => {
   const student_name = `${msg.student_firstname} ${msg.student_lastname}`;
@@ -1527,7 +1532,7 @@ as not finished.</p>
 };
 
 export const sendSetAsFinalGeneralFileForStudentEmail = async (
-  recipient: IUser,
+  recipient: EmailRecipient,
   msg: EmailMessagePayload
 ) => {
   const student_name = `${recipient.firstname} ${recipient.lastname}`;

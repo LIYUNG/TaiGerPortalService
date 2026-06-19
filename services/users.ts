@@ -93,11 +93,11 @@ const UserService = {
     return UserDAO.touchLastLoginById(userId);
   },
 
-  findAgents(filter: FilterQuery<IUser>, select: string) {
+  findAgents(filter: FilterQuery<IUser>, select?: string) {
     return UserDAO.findAgents(filter, select);
   },
 
-  findEditors(filter: FilterQuery<IUser>, select: string) {
+  findEditors(filter: FilterQuery<IUser>, select?: string) {
     return UserDAO.findEditors(filter, select);
   },
 

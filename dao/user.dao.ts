@@ -251,11 +251,11 @@ const UserDAO = {
 
   // Agent / Editor discriminator lookups (the exact filter is passed through to
   // preserve legacy query semantics). `select` projects the returned fields.
-  async findAgents(filter: FilterQuery<IUser>, select: string) {
+  async findAgents(filter: FilterQuery<IUser>, select?: string) {
     return Agent.find(filter).select(select);
   },
 
-  async findEditors(filter: FilterQuery<IUser>, select: string) {
+  async findEditors(filter: FilterQuery<IUser>, select?: string) {
     return Editor.find(filter).select(select);
   },
 

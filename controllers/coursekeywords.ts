@@ -29,17 +29,17 @@ const createKeywordSet = asyncHandler(async (req, res) => {
   const existed = await KeywordSetService.findKeywordSet(query);
   if (existed) {
     // Find out which specific keywords and antiKeywords are duplicates
-    const duplicateKeywordsZh = fields.keywords.zh.filter((keyword) =>
+    const duplicateKeywordsZh = fields.keywords.zh.filter((keyword: string) =>
       existed.keywords.zh.includes(keyword)
     );
     const duplicateAntiKeywordsZh = fields.antiKeywords.zh.filter(
-      (antiKeyword) => existed.antiKeywords.zh.includes(antiKeyword)
+      (antiKeyword: string) => existed.antiKeywords.zh.includes(antiKeyword)
     );
-    const duplicateKeywordsEn = fields.keywords.en.filter((keyword) =>
+    const duplicateKeywordsEn = fields.keywords.en.filter((keyword: string) =>
       existed.keywords.en.includes(keyword)
     );
     const duplicateAntiKeywordsEn = fields.antiKeywords.en.filter(
-      (antiKeyword) => existed.antiKeywords.en.includes(antiKeyword)
+      (antiKeyword: string) => existed.antiKeywords.en.includes(antiKeyword)
     );
     // Build a clear error message
     const duplicateZH = {
@@ -89,7 +89,10 @@ const deleteKeywordSet = asyncHandler(async (req, res) => {
   try {
     await KeywordSetService.deleteKeywordSet(keywordsSetId);
   } catch (error) {
-    logger.error('Failed to delete keywordsSetId ', error);
+    logger.error(
+      'Failed to delete keywordsSetId ',
+      error as Record<string, unknown>
+    );
     throw error;
   }
   res.status(200).send({ success: true });

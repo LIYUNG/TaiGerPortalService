@@ -9,7 +9,11 @@ const getPortalCredentials = asyncHandler(async (req, res) => {
     params: { studentId }
   } = req;
 
-  const student = await StudentService.getStudentById(studentId);
+  const student: any = await StudentService.getStudentById(studentId);
+  if (!student) {
+    logger.error('getPortalCredentials: Invalid student id');
+    throw new ErrorResponse(404, 'Student not found');
+  }
   const applications =
     await ApplicationService.getApplicationsWithCredentialsByStudentId(
       studentId

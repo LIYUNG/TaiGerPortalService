@@ -22,9 +22,10 @@ const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, _next) => {
     body: { courses, requirementIds, factor }
   } = req;
 
-  const { Credentials } = await getTemporaryCredentials(
+  const tempCredentials = await getTemporaryCredentials(
     roleToAssumeForCourseAnalyzerAPIG
   );
+  const { Credentials } = tempCredentials ?? {};
 
   const stringified_courses = JSON.stringify(JSON.stringify(courses));
   const studentId = req.user._id.toString();
@@ -39,7 +40,7 @@ const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, _next) => {
       factor: factor || 1.5,
       courses_taiger_guided: '"[]"',
       requirement_ids: JSON.stringify(requirementIds)
-    });
+    } as unknown as null);
 
     await uploadJsonToS3(
       response.result,
@@ -74,7 +75,7 @@ const WidgetdownloadJson = asyncHandler(async (req, res, next) => {
   logger.info(`Trying to download transcript json file ${fileKey}`);
 
   const analysedJson = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-  const jsonString = Buffer.from(analysedJson).toString('utf-8');
+  const jsonString = Buffer.from(analysedJson as Uint8Array).toString('utf-8');
   const jsonData = JSON.parse(jsonString);
   const fileKey_converted = encodeURIComponent(fileKey); // Use the encoding necessary
 
@@ -121,7 +122,7 @@ const WidgetExportMessagePDF = asyncHandler(async (req, res, _next) => {
         const messageObj = textContent ? JSON.parse(textContent) : '';
         const messageConcat =
           messageObj.blocks
-            ?.map((block) =>
+            ?.map((block: any) =>
               block?.type === 'paragraph' ? block.data?.text : ''
             )
             .join('')
@@ -145,7 +146,10 @@ const WidgetExportMessagePDF = asyncHandler(async (req, res, _next) => {
         // Update currentY position
         currentY += lineHeight * lines.length + 10; // Increase y position by total height of added text
       } catch (e) {
-        logger.error('WidgetExportMessagePDF: Error parsing JSON:', e);
+        logger.error(
+          'WidgetExportMessagePDF: Error parsing JSON:',
+          e as Record<string, unknown>
+        );
         return ''; // Return an empty string or handle the error as needed
       }
     })

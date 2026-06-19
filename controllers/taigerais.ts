@@ -31,21 +31,26 @@ const processProgramListAi = asyncHandler(async (req, res, _next) => {
   const python_command = isInPipeline() ? 'python3' : 'python';
   const python = spawn(
     python_command,
-    ['program_info.py', program.school, program.program_name, program.degree],
+    [
+      'program_info.py',
+      `${program.school}`,
+      `${program.program_name}`,
+      `${program.degree}`
+    ],
     {
       stdio: 'inherit',
       cwd: `${__dirname}/../python/TaiGerProgramListAICrawler/app`
     }
   );
-  python.on('data', (data) => {
+  python.on('data', (data: unknown) => {
     logger.info(`${data}`);
   });
-  python.on('error', (err) => {
+  python.on('error', (err: Error) => {
     logger.info('error');
-    logger.info(err);
+    logger.info(`${err}`);
   });
 
-  python.on('close', (code) => {
+  python.on('close', (code: number | null) => {
     if (code === 0) {
       res.status(200).send({ success: true });
     } else {
@@ -54,15 +59,14 @@ const processProgramListAi = asyncHandler(async (req, res, _next) => {
   });
 });
 
-const generate_streaming = asyncHandler(async (input, _model) =>
+const generate_streaming = async (input: string, _model?: string) =>
   openAIClient.chat.completions.create({
     messages: [{ role: 'user', content: input || 'where is BMW Headquarter?' }],
     model: OpenAiModel.GPT_3_5_TURBO,
     stream: true
-  })
-);
+  });
 
-const countTokens = (text) => {
+const countTokens = (text: string) => {
   // Implement a function to count tokens based on your tokenizer
   // This is a simple approximation, and you should replace it with an accurate tokenizer
   return text.split(' ').length;
@@ -90,18 +94,20 @@ const TaiGerAiChat = asyncHandler(async (req, res, _next) => {
         role: c.user_id?.role,
         message:
           messageObj.blocks
-            .map((block) =>
+            .map((block: any) =>
               block?.type === 'paragraph' ? block.data?.text : ''
             )
             .join('')
             .replace(/<\/?[^>]+(>|$)|&[^;]+;?/g, '') || ''
       };
     } catch (e) {
-      logger.error('Error parsing JSON:', e);
+      logger.error('Error parsing JSON:', e as Record<string, unknown>);
       return ''; // Return an empty string or handle the error as needed
     }
   });
-  const latestStudentMessage = chat?.filter((c) => c.role === Role.Student)[0];
+  const latestStudentMessage = chat?.filter(
+    (c) => typeof c !== 'string' && c.role === Role.Student
+  )[0];
   const pmp = `
   Your name is ${
     user.firstname
@@ -207,6 +213,9 @@ const cvmlrlAi = asyncHandler(async (req, res, _next) => {
 
   try {
     const student = await StudentService.getStudentByIdLean(student_id);
+    if (!student) {
+      throw new Error('Student not found');
+    }
     student_info = {
       firstname: student.firstname,
       lastname: student.lastname,
@@ -215,7 +224,8 @@ const cvmlrlAi = asyncHandler(async (req, res, _next) => {
     };
   } catch (e) {}
 
-  const file_type_name = FILE_MAPPING_TABLE[file_type];
+  const file_type_name =
+    FILE_MAPPING_TABLE[file_type as keyof typeof FILE_MAPPING_TABLE];
   let concat_prompt = '';
   if (file_type.includes('ML')) {
     concat_prompt = generalMLPrompt({

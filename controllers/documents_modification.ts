@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import path from 'path';
+import { Request } from 'express';
 import {
   Role,
   is_TaiGer_Agent,
@@ -64,6 +65,104 @@ import AuditService from '../services/audit';
 import ForwardDocumentsService from '../services/forwardDocuments';
 import DocumentthreadQueryBuilder from '../builders/DocumentthreadQueryBuilder';
 
+// ---------------------------------------------------------------------------
+// Local populated/lean shapes.
+//
+// The document-thread / student / application service reads in this controller
+// return Mongoose `.populate(...).lean()` results whose inferred types collapse
+// to a loose `FlattenMaps<any>` union (or, for the model interfaces, keep
+// reference fields as `ObjectId | string` unions). The handlers below consume
+// these as *populated* objects (e.g. `thread.student_id.firstname`). These
+// interfaces describe the runtime shape the handlers actually read so the
+// controller can be typed without `as any`. They are intentionally permissive
+// (optional fields, `Record`-style notification) to mirror the real documents
+// without over-constraining behavior.
+// ---------------------------------------------------------------------------
+interface PopulatedUserRef {
+  _id: mongoose.Types.ObjectId | string;
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+  role?: string;
+  archiv?: boolean;
+  pictureUrl?: string;
+}
+
+interface PopulatedProgramRef {
+  _id: mongoose.Types.ObjectId | string;
+  school?: string;
+  program_name?: string;
+  degree?: string;
+  semester?: string;
+  application_year?: string;
+}
+
+interface PopulatedStudent {
+  _id: mongoose.Types.ObjectId | string;
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+  archiv?: boolean;
+  agents: PopulatedUserRef[];
+  editors: PopulatedUserRef[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  notification: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  generaldocs_threads: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  applications?: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
+
+interface PopulatedThreadMessageFile {
+  name: string;
+  path: string;
+}
+
+interface PopulatedThreadMessage {
+  _id: mongoose.Types.ObjectId | string;
+  user_id?: PopulatedUserRef | mongoose.Types.ObjectId | string;
+  message?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  file?: PopulatedThreadMessageFile[];
+}
+
+interface PopulatedThread {
+  _id: mongoose.Types.ObjectId | string;
+  student_id: PopulatedStudent;
+  program_id?: PopulatedProgramRef;
+  // `application_id` is polymorphic: it is the raw ObjectId on some reads and a
+  // populated application (with `application_year`) on others, depending on the
+  // service method. Typed loosely to mirror that runtime reality.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  application_id?: any;
+  outsourced_user_id: PopulatedUserRef[];
+  flag_by_user_id?: (mongoose.Types.ObjectId | string)[];
+  file_type: string;
+  isFinalVersion?: boolean;
+  isOriginAuthorDeclarationConfirmedByStudent?: boolean;
+  messages: PopulatedThreadMessage[];
+  updatedAt?: Date;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  save?: () => Promise<any>;
+}
+
+interface SurveyInputDoc {
+  _id: mongoose.Types.ObjectId | string;
+  studentId?: mongoose.Types.ObjectId | string;
+  programId?: mongoose.Types.ObjectId | string | null;
+  fileType?: string;
+}
+
+// Notification email payload. Several handlers build a base payload then
+// conditionally attach `school`/`program_name`/`program`/`interview_id`/
+// `message`. Typed permissively so those later assignments stay valid without
+// changing the runtime objects.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EmailPayload = Record<string, any>;
+
 const getActiveThreads = asyncHandler(async (req, res) => {
   const {
     file_type,
@@ -93,8 +192,10 @@ const getActiveThreads = asyncHandler(async (req, res) => {
 // to the cache TTL (2 min) to appear/disappear from the boards.
 const ACTIVE_STUDENT_IDS_CACHE_KEY = 'active_student_ids';
 
-const getActiveStudentIds = async () => {
-  const cached = two_minutes_cache.get(ACTIVE_STUDENT_IDS_CACHE_KEY);
+const getActiveStudentIds = async (): Promise<string[]> => {
+  const cached = two_minutes_cache.get(ACTIVE_STUDENT_IDS_CACHE_KEY) as
+    | string[]
+    | undefined;
   if (cached) {
     return cached;
   }
@@ -131,7 +232,7 @@ const getActiveThreadsCounts = asyncHandler(async (req, res) => {
 
 // Active students supervised (agent/editor) by this user. Essay threads
 // outsourced to the user are added by the service via `outsourcedUserId`.
-const supervisedActiveStudentIds = async (req, userId) => {
+const supervisedActiveStudentIds = async (req: Request, userId: string) => {
   const students = await StudentService.fetchStudentIds({
     $and: [
       { $or: [{ archiv: { $exists: false } }, { archiv: false }] },
@@ -182,12 +283,17 @@ const getMyStudentsThreads = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: { threads, user } });
 });
 
-const getSurveyInputDocuments = async (req, studentId, programId, fileType) => {
-  const document = await SurveyInputService.findSurveyInputs({
+const getSurveyInputDocuments = async (
+  req: Request,
+  studentId: string,
+  programId: string | undefined,
+  fileType: string
+) => {
+  const document = (await SurveyInputService.findSurveyInputs({
     studentId,
     ...(fileType ? { fileType } : {}),
     ...(programId ? { programId: { $in: [programId, null] } } : {})
-  });
+  })) as unknown as SurveyInputDoc[];
 
   const surveys = {
     general: document.find((doc) => !doc.programId),
@@ -201,9 +307,9 @@ const getSurveyInputs = asyncHandler(async (req, res) => {
   const {
     params: { messagesThreadId }
   } = req;
-  const threadDocument = await DocumentThreadService.getThreadById(
+  const threadDocument = (await DocumentThreadService.getThreadById(
     messagesThreadId
-  );
+  )) as PopulatedThread | null;
 
   if (!threadDocument) {
     logger.error(
@@ -215,7 +321,9 @@ const getSurveyInputs = asyncHandler(async (req, res) => {
   const surveyDocument = await getSurveyInputDocuments(
     req,
     threadDocument.student_id._id.toString(),
-    threadDocument?.program_id && threadDocument?.program_id._id.toString(),
+    threadDocument?.program_id
+      ? threadDocument.program_id._id.toString()
+      : undefined,
     threadDocument.file_type
   );
 
@@ -230,10 +338,10 @@ const getSurveyInputs = asyncHandler(async (req, res) => {
 const postSurveyInput = asyncHandler(async (req, res) => {
   const { user } = req;
   const { input, informEditor } = req.body;
-  const newSurvey = await SurveyInputService.createSurveyInput({
+  const newSurvey = (await SurveyInputService.createSurveyInput({
     ...input,
     createdAt: new Date()
-  });
+  })) as unknown as SurveyInputDoc;
   res.status(200).send({ success: true, data: newSurvey });
 
   if (informEditor) {
@@ -255,17 +363,17 @@ const putSurveyInput = asyncHandler(async (req, res) => {
     params: { surveyInputId }
   } = req;
   const { input, informEditor } = req.body;
-  const updatedSurvey = await SurveyInputService.updateSurveyInputById(
+  const updatedSurvey = (await SurveyInputService.updateSurveyInputById(
     surveyInputId,
     {
       ...input,
       updatedAt: new Date()
     }
-  );
+  )) as unknown as SurveyInputDoc | null;
 
   res.status(200).send({ success: true, data: updatedSurvey });
 
-  if (informEditor) {
+  if (informEditor && updatedSurvey) {
     const thread = await DocumentThreadService.findOneThreadPopulated(
       {
         student_id: updatedSurvey.studentId,
@@ -284,10 +392,10 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
   const {
     params: { studentId, document_category }
   } = req;
-  const student = await StudentService.getStudentDocByIdPopulated(studentId, [
+  const student = (await StudentService.getStudentDocByIdPopulated(studentId, [
     ['generaldocs_threads.doc_thread_id'],
     ['agents editors', 'firstname lastname email pictureUrl']
-  ]);
+  ])) as unknown as PopulatedStudent | null;
 
   if (!student) {
     logger.info('initGeneralMessagesThread: Invalid student id');
@@ -304,7 +412,8 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
     // should add the existing one thread to student generaldocs
     const thread_in_student_generaldoc_existed =
       student.generaldocs_threads.find(
-        ({ doc_thread_id }) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ({ doc_thread_id }: any) =>
           doc_thread_id._id.toString() === doc_thread_existed._id.toString()
       );
     // if thread existed but not in student application thread, then add it.
@@ -327,7 +436,8 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
     file_type: document_category,
     program_id: null,
     updatedAt: new Date()
-  });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
 
   const temp = student.generaldocs_threads.create({
     doc_thread_id: new_doc_thread,
@@ -387,17 +497,26 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   );
   res.status(200).send({ success: true, data: newAppRecord });
 
-  const student = await StudentService.getStudentById(studentId);
-
-  const applications = await ApplicationService.getApplicationsByStudentId(
+  const student = (await StudentService.getStudentById(
     studentId
-  );
+  )) as unknown as PopulatedStudent | null;
+  if (!student) {
+    logger.error('initApplicationMessagesThread: Invalid student id');
+    return;
+  }
+
+  const applications = (await ApplicationService.getApplicationsByStudentId(
+    studentId
+  )) as unknown as {
+    _id: mongoose.Types.ObjectId | string;
+    programId?: PopulatedProgramRef;
+  }[];
 
   const program = applications.find(
     (app) => app._id.toString() === application_id
   )?.programId;
   const Essay_Writer_Scope = Object.keys(ESSAY_WRITER_SCOPE);
-  const program_name = `${program.school} - ${program.program_name}`;
+  const program_name = `${program?.school} - ${program?.program_name}`;
   if (Essay_Writer_Scope.includes(document_category)) {
     const permissions = await PermissionService.findPermissionsWithUser(
       { canAssignEditors: true },
@@ -469,7 +588,9 @@ const putThreadFavorite = asyncHandler(async (req, res) => {
     user,
     params: { messagesThreadId }
   } = req;
-  const thread = await DocumentThreadService.getThreadById(messagesThreadId);
+  const thread = (await DocumentThreadService.getThreadById(
+    messagesThreadId
+  )) as PopulatedThread | null;
   if (!thread) {
     logger.error('putThreadFavorite: Invalid message thread id!');
     throw new ErrorResponse(404, 'Thread not found');
@@ -506,7 +627,7 @@ const putThreadFavorite = asyncHandler(async (req, res) => {
   } catch (error) {
     logger.error(
       'putThreadFavorite: Failed to update thread favorite status',
-      error
+      error as Record<string, unknown>
     );
     throw new ErrorResponse(500, 'Failed to update favorite status');
   }
@@ -523,9 +644,9 @@ const checkDocumentPattern = asyncHandler(async (req, res) => {
       isPassed: true
     });
   }
-  const document_thread = await DocumentThreadService.getThreadByIdLean(
+  const document_thread = (await DocumentThreadService.getThreadByIdLean(
     messagesThreadId
-  );
+  )) as PopulatedThread | null;
   if (!document_thread) {
     logger.error('checkDocumentPattern: thread not found!');
     throw new ErrorResponse(404, 'Thread Id not found');
@@ -534,8 +655,8 @@ const checkDocumentPattern = asyncHandler(async (req, res) => {
   // Step 1
   // Get last CV keys
   const documentKeys = document_thread.messages
-    .filter((message) => message.file?.length > 0)
-    .map((message) => message.file);
+    .filter((message) => (message.file?.length ?? 0) > 0)
+    .map((message) => message.file as PopulatedThreadMessageFile[]);
   if (documentKeys?.length === 0) {
     return res.status(200).send({
       success: true,
@@ -551,14 +672,16 @@ const checkDocumentPattern = asyncHandler(async (req, res) => {
     );
 
     // Convert each data into a Buffer
-    const buffers = dataArray.map((data) => Buffer.from(data));
+    const buffers = dataArray.map((data) => Buffer.from(data as Uint8Array));
 
     // Step 3
     // find if keywords exist in the pdf / docx
     let idx = 0;
 
     for (const buffer of buffers) {
-      const extension = latestFiles[idx].name.split('.').pop().toLowerCase();
+      const extension = (
+        latestFiles[idx].name.split('.').pop() ?? ''
+      ).toLowerCase();
       if (await patternMatched(buffer, extension, CV_MUST_HAVE_PATTERNS)) {
         return res.status(200).send({
           success: true,
@@ -589,9 +712,9 @@ const getMessages = asyncHandler(async (req, res) => {
     user,
     params: { messagesThreadId }
   } = req;
-  const document_thread = await DocumentThreadService.getThreadById(
+  const document_thread = (await DocumentThreadService.getThreadById(
     messagesThreadId
-  );
+  )) as PopulatedThread | null;
   if (!document_thread) {
     logger.error('getMessages: Invalid message thread id');
     throw new ErrorResponse(404, 'Thread not found');
@@ -608,7 +731,11 @@ const getMessages = asyncHandler(async (req, res) => {
 
   const threadAuditLogPromise = AuditService.getAuditLogs(
     { targetDocumentThreadId: messagesThreadId },
-    { sort: { createdAt: -1 } }
+    { sort: { createdAt: -1 } } as unknown as {
+      limit: number;
+      skip: number;
+      sort: Record<string, 1 | -1>;
+    }
   );
 
   const agentsPromise = UserService.findAgents(
@@ -730,7 +857,7 @@ const postMessages = asyncHandler(async (req, res) => {
         path: req.files[i].key
       });
       // Check for duplicate file extensions
-      const fileExtensions = req.files.map(
+      const fileExtensions = (req.files as Express.Multer.File[]).map(
         (file) => file.mimetype.split('/')[1]
       );
       const uniqueFileExtensions = new Set(fileExtensions);
@@ -759,10 +886,14 @@ const postMessages = asyncHandler(async (req, res) => {
     [['student_id program_id messages.user_id']]
   );
   // in student (User) collections.
-  const student = await StudentService.getStudentDocByIdPopulated(
+  const student = (await StudentService.getStudentDocByIdPopulated(
     document_thread2.student_id._id.toString(),
     [['editors agents', 'firstname lastname email archiv pictureUrl']]
-  );
+  )) as unknown as PopulatedStudent | null;
+  if (!student) {
+    logger.error('postMessages: Invalid student id');
+    throw new ErrorResponse(404, 'Student not found');
+  }
   const applications = await ApplicationService.findByStudentIdWithProgram(
     document_thread2.student_id._id.toString()
   );
@@ -773,7 +904,8 @@ const postMessages = asyncHandler(async (req, res) => {
         programId._id.toString() === document_thread2.program_id._id.toString()
     );
     const doc_thread = application.doc_modification_thread.find(
-      ({ doc_thread_id }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ({ doc_thread_id }: any) =>
         doc_thread_id.toString() === document_thread2._id.toString()
     );
     if (doc_thread) {
@@ -786,7 +918,8 @@ const postMessages = asyncHandler(async (req, res) => {
     }
   } else {
     const general_thread = student.generaldocs_threads.find(
-      ({ doc_thread_id }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ({ doc_thread_id }: any) =>
         doc_thread_id.toString() === document_thread2._id.toString()
     );
     if (general_thread) {
@@ -821,7 +954,7 @@ const postMessages = asyncHandler(async (req, res) => {
               lastname: student.agents[i].lastname,
               address: student.agents[i].email
             };
-            const agent_payload = {
+            const agent_payload: EmailPayload = {
               writer_firstname: user.firstname,
               writer_lastname: user.lastname,
               student_firstname: student.firstname,
@@ -906,7 +1039,7 @@ const postMessages = asyncHandler(async (req, res) => {
             lastname: student.editors[i].lastname,
             address: student.editors[i].email
           };
-          const editor_payload = {
+          const editor_payload: EmailPayload = {
             writer_firstname: user.firstname,
             writer_lastname: user.lastname,
             student_firstname: student.firstname,
@@ -987,7 +1120,7 @@ const postMessages = asyncHandler(async (req, res) => {
             lastname: document_thread.outsourced_user_id[i].lastname,
             address: document_thread.outsourced_user_id[i].email
           };
-          const outsourcer_payload = {
+          const outsourcer_payload: EmailPayload = {
             writer_firstname: user.firstname,
             writer_lastname: user.lastname,
             student_firstname: student.firstname,
@@ -1088,7 +1221,7 @@ const postMessages = asyncHandler(async (req, res) => {
       lastname: document_thread.student_id.lastname,
       address: document_thread.student_id.email
     };
-    const student_payload = {
+    const student_payload: EmailPayload = {
       writer_firstname: user.firstname,
       writer_lastname: user.lastname,
       student_firstname: student.firstname,
@@ -1103,10 +1236,13 @@ const postMessages = asyncHandler(async (req, res) => {
         student_payload.program_name = document_thread.program_id.program_name;
         student_payload.program = document_thread.program_id;
         if (['Interview'].includes(document_thread.file_type)) {
-          const interview = await InterviewService.findOneInterview({
-            student_id: document_thread.student_id._id.toString(),
-            program_id: document_thread.program_id._id.toString()
-          });
+          const interview = await InterviewService.findOneInterview(
+            {
+              student_id: document_thread.student_id._id.toString(),
+              program_id: document_thread.program_id._id.toString()
+            },
+            []
+          );
           student_payload.interview_id = interview._id.toString();
           await sendNewInterviewMessageInThreadEmail(
             student_recipient,
@@ -1137,7 +1273,7 @@ const postMessages = asyncHandler(async (req, res) => {
           lastname: document_thread.outsourced_user_id[i].lastname,
           address: document_thread.outsourced_user_id[i].email
         };
-        const emailContent = {
+        const emailContent: EmailPayload = {
           writer_firstname: user.firstname,
           writer_lastname: user.lastname,
           student_firstname: student.firstname,
@@ -1170,7 +1306,7 @@ const postMessages = asyncHandler(async (req, res) => {
           lastname: student.editors[i].lastname,
           address: student.editors[i].email
         };
-        const payload = {
+        const payload: EmailPayload = {
           writer_firstname: user.firstname,
           writer_lastname: user.lastname,
           student_firstname: student.firstname,
@@ -1238,7 +1374,7 @@ const postMessages = asyncHandler(async (req, res) => {
         lastname: document_thread.student_id.lastname,
         address: document_thread.student_id.email
       };
-      const student_payload = {
+      const student_payload: EmailPayload = {
         writer_firstname: user.firstname,
         writer_lastname: user.lastname,
         student_firstname: student.firstname,
@@ -1252,10 +1388,13 @@ const postMessages = asyncHandler(async (req, res) => {
         student_payload.program_name = document_thread.program_id.program_name;
         student_payload.program = document_thread.program_id;
         if (['Interview'].includes(document_thread.file_type)) {
-          const interview = await InterviewService.findOneInterview({
-            student_id: document_thread.student_id._id.toString(),
-            program_id: document_thread.program_id._id.toString()
-          });
+          const interview = await InterviewService.findOneInterview(
+            {
+              student_id: document_thread.student_id._id.toString(),
+              program_id: document_thread.program_id._id.toString()
+            },
+            []
+          );
           student_payload.interview_id = interview._id.toString();
           sendNewInterviewMessageInThreadEmail(
             student_recipient,
@@ -1290,7 +1429,10 @@ const getMessageImageDownload = asyncHandler(async (req, res) => {
   const value = ten_minutes_cache.get(cache_key); // image name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = ten_minutes_cache.set(cache_key, Buffer.from(response));
+    const success = ten_minutes_cache.set(
+      cache_key,
+      Buffer.from(response as Uint8Array)
+    );
     if (success) {
       logger.info('image cache set successfully');
     }
@@ -1344,7 +1486,10 @@ const getMessageFileDownload = asyncHandler(async (req, res) => {
   const fileKey = path
     .join(studentId, messagesThreadId, file_key)
     .replace(/\\/g, '/');
-  logger.info('Trying to download message file', fileKey);
+  logger.info(
+    'Trying to download message file',
+    fileKey as unknown as Record<string, unknown>
+  );
 
   // messageid + extension
   const encodedFileName = encodeURIComponent(file_key);
@@ -1396,7 +1541,9 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
   const document_thread = await DocumentThreadService.getThreadDocById(
     messagesThreadId
   );
-  const student = await StudentService.getStudentById(studentId);
+  const student = (await StudentService.getStudentById(
+    studentId
+  )) as unknown as PopulatedStudent | null;
   if (!document_thread) {
     logger.error('SetStatusMessagesThread: Invalid message thread id');
     throw new ErrorResponse(404, 'Thread not found');
@@ -1419,7 +1566,8 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
     }
 
     const application_thread = student_application.doc_modification_thread.find(
-      (thread) => thread.doc_thread_id._id.toString() === messagesThreadId
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (thread: any) => thread.doc_thread_id._id.toString() === messagesThreadId
     );
     if (!application_thread) {
       logger.error('SetStatusMessagesThread: application thread not found');
@@ -1454,9 +1602,10 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
           messagesThreadId
         );
       } catch (error) {
+        const err = error as { message?: string; stack?: string };
         logger.error('Failed to cleanup program thread files:', {
-          error: error?.message,
-          stack: error?.stack,
+          error: err?.message,
+          stack: err?.stack,
           threadId: messagesThreadId,
           studentId,
           applicationId: application_id,
@@ -1485,9 +1634,11 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
       );
     }
 
-    const student3 = await StudentService.getStudentByIdPopulated(studentId, [
+    // student existence already validated above (same studentId); cast the
+    // populated read to its consumed shape.
+    const student3 = (await StudentService.getStudentByIdPopulated(studentId, [
       ['agents', 'firstname lastname email archiv']
-    ]);
+    ])) as unknown as PopulatedStudent;
 
     const validAgents = student3.agents.filter(
       (agent) => isNotArchiv(student3) && isNotArchiv(agent)
@@ -1551,9 +1702,10 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
           messagesThreadId
         );
       } catch (error) {
+        const err = error as { message?: string; stack?: string };
         logger.error('Failed to cleanup CV thread files:', {
-          error: error?.message,
-          stack: error?.stack,
+          error: err?.message,
+          stack: err?.stack,
           threadId: messagesThreadId,
           studentId,
           fileType: document_thread.file_type
@@ -1579,9 +1731,9 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
       );
     }
 
-    const student3 = await StudentService.getStudentByIdPopulated(studentId, [
+    const student3 = (await StudentService.getStudentByIdPopulated(studentId, [
       ['agents', 'firstname lastname email archiv']
-    ]);
+    ])) as unknown as PopulatedStudent;
 
     for (let i = 0; i < student.agents.length; i += 1) {
       if (isNotArchiv(student3)) {
@@ -1642,7 +1794,10 @@ const deleteGeneralThread = asyncHandler(async (req, studentId, threadId) => {
       }
     });
   } catch (error) {
-    logger.error('Failed to delete message thread and folder', error);
+    logger.error(
+      'Failed to delete message thread and folder',
+      error as Record<string, unknown>
+    );
     throw error;
   }
 });
@@ -1718,7 +1873,9 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
     params: { messagesThreadId, messageId }
   } = req;
 
-  const thread = await DocumentThreadService.getThreadDocById(messagesThreadId);
+  const thread = (await DocumentThreadService.getThreadDocById(
+    messagesThreadId
+  )) as unknown as PopulatedThread | null;
   if (!thread) {
     logger.error('deleteAMessageInThread : Invalid message thread id');
     throw new ErrorResponse(404, 'Thread not found');
@@ -1737,7 +1894,7 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
   }
   // Prevent multitenant
   if (
-    msg.user_id.toString() !== user._id.toString() &&
+    msg.user_id?.toString() !== user._id.toString() &&
     !is_TaiGer_Admin(user)
   ) {
     logger.error(
@@ -1747,24 +1904,25 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
   }
 
   // Messageid + extension (because extension is unique per message id)
+  const msgFiles = msg.file ?? [];
   try {
-    if (msg.file.filter((file) => file.path !== '')?.length > 0) {
+    if (msgFiles.filter((file) => file.path !== '')?.length > 0) {
       await deleteS3Objects({
         bucketName: AWS_S3_BUCKET_NAME,
-        objectKeys: msg.file
+        objectKeys: msgFiles
           .filter((file) => file.path !== '')
           .map((file) => ({ Key: file.path }))
       });
     }
   } catch (err) {
     if (err) {
-      logger.error('delete thread files: ', err);
+      logger.error('delete thread files: ', err as Record<string, unknown>);
       throw new ErrorResponse(500, 'Error occurs while deleting thread files');
     }
   }
 
-  for (let i = 0; i < msg.file.length; i += 1) {
-    const cache_key = `${encodeURIComponent(msg.file[i].path)}`;
+  for (let i = 0; i < msgFiles.length; i += 1) {
+    const cache_key = `${encodeURIComponent(msgFiles[i].path)}`;
     const value = ten_minutes_cache.del(cache_key);
     if (value === 1) {
       logger.info('file cache key deleted successfully');
@@ -1784,26 +1942,32 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
     messagesThreadId
   );
 
-  const student = await StudentService.getStudentDocById(thread.student_id);
+  const studentIdRaw = thread.student_id as unknown as string;
+  const student = (await StudentService.getStudentDocById(
+    studentIdRaw
+  )) as unknown as PopulatedStudent | null;
   const applications = await ApplicationService.findByStudentIdLean(
-    thread.student_id
+    studentIdRaw
   );
 
   const application = applications.find((app) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     app.doc_modification_thread.some(
-      (thr) => thr.doc_thread_id.toString() === messagesThreadId
+      (thr: any) => thr.doc_thread_id.toString() === messagesThreadId
     )
   );
 
   const t = !application
-    ? student.generaldocs_threads.find(
-        (tt) => tt.doc_thread_id.toString() === messagesThreadId
+    ? student?.generaldocs_threads.find(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (tt: any) => tt.doc_thread_id.toString() === messagesThreadId
       )
     : application.doc_modification_thread.find(
-        (tt) => tt.doc_thread_id.toString() === messagesThreadId
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (tt: any) => tt.doc_thread_id.toString() === messagesThreadId
       );
   if (t) {
-    if (updated_thread.messages.length > 0) {
+    if (updated_thread && updated_thread.messages.length > 0) {
       t.latest_message_left_by_id =
         updated_thread.messages[
           updated_thread.messages.length - 1
@@ -1814,7 +1978,7 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
       t.latest_message_left_by_id = '';
     }
   }
-  await t.save();
+  await t?.save();
 });
 
 const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
@@ -1831,9 +1995,9 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
       .json({ success: false, message: 'Invalid input data.' });
   }
 
-  const essayDocumentThreads = await DocumentThreadService.getThreadById(
+  const essayDocumentThreads = (await DocumentThreadService.getThreadById(
     messagesThreadId
-  );
+  )) as PopulatedThread | null;
 
   if (!essayDocumentThreads) {
     return res
@@ -1867,7 +2031,9 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
   }
 
   const studentId = essayDocumentThreads.student_id;
-  const student_upated = await StudentService.getStudentById(studentId);
+  const student_upated = (await StudentService.getStudentById(
+    studentId as unknown as string
+  )) as unknown as PopulatedStudent;
 
   const essayDocumentThreads_Updated =
     await DocumentThreadService.getThreadById(messagesThreadId);
@@ -1965,13 +2131,14 @@ const IgnoreMessageInDocumentThread = asyncHandler(async (req, res) => {
     params: { messageId, ignoreMessageState }
   } = req;
   const thread = await DocumentThreadService.setMessageIgnore(
-    new mongoose.Types.ObjectId(messageId),
+    new mongoose.Types.ObjectId(messageId) as unknown as string,
     ignoreMessageState
   );
   res.status(200).send({ success: true, data: thread });
 });
 
-const _isAdminOrAccessAllChat = async (req) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _isAdminOrAccessAllChat = async (req: any) => {
   const { user } = req;
   const permissions = await getPermission(req, user);
   return (
@@ -1981,10 +2148,13 @@ const _isAdminOrAccessAllChat = async (req) => {
   );
 };
 
-const getActiveThreadsByStudent = (student) => [
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const getActiveThreadsByStudent = (student: any) => [
   ...(student.applications
-    .filter((app) => isProgramDecided(app))
-    .flatMap((app) => app.doc_modification_thread) || []),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((app: any) => isProgramDecided(app))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .flatMap((app: any) => app.doc_modification_thread) || []),
   ...(student.generaldocs_threads || [])
 ];
 
@@ -2010,8 +2180,13 @@ const getMyStudentMetrics = asyncHandler(async (req, res) => {
     const threads = getActiveThreadsByStudent(student);
 
     student.threads = threads
-      ?.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
-      ?.map((thread) => thread?.doc_thread_id?._id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ?.sort(
+        (a: any, b: any) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ?.map((thread: any) => thread?.doc_thread_id?._id);
     student.threadCount = threads.length;
     student.completeThreadCount = threads.filter(
       (thread) => thread.doc_thread_id?.isFinalVersion

@@ -1,15 +1,22 @@
+import type { Request, Response } from 'express';
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
 import ProgramRequirementService from '../services/programRequirements';
 
-const getDistinctProgramsAndKeywordSets = async (req, res) => {
+const getDistinctProgramsAndKeywordSets = async (
+  req: Request,
+  res: Response
+) => {
   try {
     const { distinctPrograms, keywordsets } =
       await ProgramRequirementService.getDistinctProgramsAndKeywordSets();
     res.send({ success: true, data: { distinctPrograms, keywordsets } });
   } catch (error) {
-    logger.error('Error fetching distinct schools:', error);
+    logger.error(
+      'Error fetching distinct schools:',
+      error as Record<string, unknown>
+    );
     throw error;
   }
 };
@@ -41,10 +48,10 @@ const createProgramRequirement = asyncHandler(async (req, res) => {
   const fields = req.body;
   const program = fields?.program;
   const program_categories = fields?.program_categories.map(
-    (program_category) => ({
+    (program_category: any) => ({
       ...program_category,
       keywordSets: program_category.keywordSets?.map(
-        (keywordSet) => keywordSet._id
+        (keywordSet: any) => keywordSet._id
       )
     })
   );
@@ -59,7 +66,7 @@ const createProgramRequirement = asyncHandler(async (req, res) => {
   );
   const existedProgramRequirement =
     await ProgramRequirementService.getProgramRequirementsByProgramIds(
-      matchedProgramIds
+      matchedProgramIds as unknown as string[]
     );
   if (existedProgramRequirement?.length > 0) {
     logger.error(
@@ -95,8 +102,8 @@ const updateProgramRequirement = asyncHandler(async (req, res) => {
   delete fields.program;
   if (fields?.program_categories) {
     fields.coursesScore = fields?.program_categories
-      ?.map((program_category) => program_category.maxScore)
-      ?.reduce((sum, current) => sum + parseFloat(current), 0);
+      ?.map((program_category: any) => program_category.maxScore)
+      ?.reduce((sum: number, current: any) => sum + parseFloat(current), 0);
   }
 
   const updatedProgramRequirement =

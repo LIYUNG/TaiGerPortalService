@@ -154,7 +154,7 @@ const getDocFile = asyncHandler(async (req, res) => {
     const response = await getS3Object(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
     const success = ten_minutes_cache.set(
       req.originalUrl,
-      Buffer.from(response)
+      Buffer.from(response as Uint8Array)
     );
     if (success) {
       logger.info('cache set successfully');

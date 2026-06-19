@@ -7,6 +7,12 @@ import {
   is_TaiGer_Student,
   Role
 } from '@taiger-common/core';
+import type {
+  ICommunication,
+  ICommunicationFile,
+  IStudent,
+  IUser
+} from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
@@ -27,17 +33,34 @@ import StudentService from '../services/students';
 
 const pageSize = 5;
 
+// Shape of a communication draft document as consumed by this controller.
+interface DraftLike {
+  files?: ICommunicationFile[];
+}
+
+// A student with its agent refs populated (as returned by the populated
+// student lookups), narrowed to the fields this controller reads.
+type PopulatedStudent = IStudent & {
+  _id: { toString(): string };
+  agents: IUser[];
+};
+
 // Friendly, human-readable display/download name for a chat attachment. The S3
 // storage key is an opaque uuid (see middlewares/file-upload), so this name is
 // what the recipient sees when downloading. Mirrors the legacy format.
-const formatChatDate = (date) => {
-  const pad = (n) => n.toString().padStart(2, '0');
+const formatChatDate = (date: Date) => {
+  const pad = (n: number) => n.toString().padStart(2, '0');
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(
     date.getDate()
   )}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
 };
 
-const buildChatAttachmentName = (student, ext, formattedDate, suffix) => {
+const buildChatAttachmentName = (
+  student: IStudent | null,
+  ext: string,
+  formattedDate: string,
+  suffix: string
+) => {
   const name = `${student?.lastname ?? ''}_${
     student?.firstname ?? ''
   }_Attachment_${formattedDate}${suffix}${ext}`;
@@ -46,7 +69,7 @@ const buildChatAttachmentName = (student, ext, formattedDate, suffix) => {
 
 // A draft holds EditorJS OutputData as a JSON string; it is "empty" when there
 // is no text or no content blocks. Empty drafts are deleted rather than stored.
-const isDraftEmpty = (message) => {
+const isDraftEmpty = (message: unknown) => {
   if (
     typeof message !== 'string' ||
     message.trim() === '' ||
@@ -89,10 +112,10 @@ export const upsertCommunicationDraft = asyncHandler(async (req, res) => {
   if (isDraftEmpty(message)) {
     // An empty-text draft is only discarded when it has no attachments;
     // otherwise keep the draft (with its files) and just clear the text.
-    const existing = await CommunicationDraftService.getDraft(
+    const existing = (await CommunicationDraftService.getDraft(
       userId,
       studentId
-    );
+    )) as DraftLike | null;
     if (!existing?.files?.length) {
       await CommunicationDraftService.deleteDraft(userId, studentId);
       return res.status(200).send({ success: true, data: null });
@@ -120,7 +143,10 @@ export const deleteCommunicationDraft = asyncHandler(async (req, res) => {
     params: { studentId }
   } = req;
   const userId = user._id.toString();
-  const existing = await CommunicationDraftService.getDraft(userId, studentId);
+  const existing = (await CommunicationDraftService.getDraft(
+    userId,
+    studentId
+  )) as DraftLike | null;
   if (existing?.files?.length) {
     await deleteS3Objects({
       bucketName: AWS_S3_BUCKET_NAME,
@@ -142,18 +168,22 @@ export const uploadCommunicationDraftFiles = asyncHandler(async (req, res) => {
   if (!req.files || req.files.length === 0) {
     throw new ErrorResponse(400, 'No file uploaded.');
   }
-  const student = await StudentService.getStudentById(studentId);
+  const student = (await StudentService.getStudentById(
+    studentId
+  )) as IStudent | null;
   const formattedDate = formatChatDate(new Date());
   const multiple = req.files.length > 1;
-  const files = req.files.map((file, i) => ({
-    name: buildChatAttachmentName(
-      student,
-      path.extname(file.originalname || file.key || ''),
-      formattedDate,
-      multiple ? `_${i + 1}` : ''
-    ),
-    path: file.key
-  }));
+  const files = req.files.map(
+    (file: { originalname?: string; key?: string }, i: number) => ({
+      name: buildChatAttachmentName(
+        student,
+        path.extname(file.originalname || file.key || ''),
+        formattedDate,
+        multiple ? `_${i + 1}` : ''
+      ),
+      path: file.key
+    })
+  );
   const draft = await CommunicationDraftService.addDraftFiles(
     user._id.toString(),
     studentId,
@@ -175,7 +205,10 @@ export const deleteCommunicationDraftFile = asyncHandler(async (req, res) => {
     throw new ErrorResponse(400, 'File path is required.');
   }
   const id = user._id.toString();
-  const existing = await CommunicationDraftService.getDraft(id, studentId);
+  const existing = (await CommunicationDraftService.getDraft(
+    id,
+    studentId
+  )) as DraftLike | null;
   const owns = existing?.files?.some((file) => file.path === filePath);
   if (!owns) {
     throw new ErrorResponse(404, 'File not found in draft.');
@@ -288,10 +321,13 @@ export const getSearchMessageKeywords = asyncHandler(async (req, res) => {
 export const getUnreadNumberMessages = asyncHandler(async (req, res) => {
   const { user } = req;
   if (is_TaiGer_Student(user)) {
-    const latestMessage = await CommunicationService.getLatestByStudentId(
+    const latestMessage = (await CommunicationService.getLatestByStudentId(
       user._id.toString()
-    );
-    const readBy = latestMessage?.readBy?.map((id) => id.toString()) || [];
+    )) as ICommunication | null;
+    const readBy =
+      (latestMessage?.readBy as Array<{ toString(): string }> | undefined)?.map(
+        (id) => id.toString()
+      ) || [];
 
     return res.status(200).send({
       success: true,
@@ -308,7 +344,7 @@ export const getUnreadNumberMessages = asyncHandler(async (req, res) => {
   }
   const permissions = await getPermission(req, user);
 
-  const filter = {
+  const filter: Record<string, unknown> = {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   };
   if (
@@ -326,7 +362,10 @@ export const getUnreadNumberMessages = asyncHandler(async (req, res) => {
   );
   const student_ids = students.map((stud) => stud._id);
   const studentsWithCommunications =
-    await StudentService.getUnreadCommunicationStudents(student_ids, user._id);
+    await StudentService.getUnreadCommunicationStudents(
+      student_ids as unknown as string[],
+      user._id
+    );
 
   return res.status(200).send({
     success: true,
@@ -341,7 +380,7 @@ export const getMyMessages = asyncHandler(async (req, res) => {
   // Role is enforced at the route via permit(Admin, Manager, Agent, Editor).
   const permissions = await getPermission(req, user);
 
-  const filter = {
+  const filter: Record<string, unknown> = {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   };
   if (
@@ -354,7 +393,7 @@ export const getMyMessages = asyncHandler(async (req, res) => {
     // Scope to the caller's own students: agents match the `agents` field,
     // editors match the `editors` field (a user may hold both roles).
     const userId = user._id.toString();
-    const ownStudentConditions = [];
+    const ownStudentConditions: Record<string, string>[] = [];
     if (is_TaiGer_Agent(user)) {
       ownStudentConditions.push({ agents: userId });
     }
@@ -371,7 +410,9 @@ export const getMyMessages = asyncHandler(async (req, res) => {
   // Get only the last communication
   const student_ids = students.map((stud) => stud._id);
   const studentsWithCommunications =
-    await StudentService.getStudentsWithLatestCommunicationSorted(student_ids);
+    await StudentService.getStudentsWithLatestCommunicationSorted(
+      student_ids as unknown as string[]
+    );
 
   res.status(200).send({
     success: true,
@@ -450,7 +491,7 @@ export const getMessages = asyncHandler(async (req, res) => {
 
     // Check if user is in the readBy list
     const isUserNotInReadBy = !lastElement.readBy.some(
-      (usr) => usr._id.toString() === userIdStr
+      (usr: { _id: { toString(): string } }) => usr._id.toString() === userIdStr
     );
 
     if (isUserNotInReadBy) {
@@ -558,7 +599,10 @@ export const getChatFile = asyncHandler(async (req, res) => {
   const cache_key = `chat-${studentId}${req.originalUrl.split('/')[5]}`;
   const value = ten_minutes_cache.get(cache_key); // image name
   if (value === undefined) {
-    const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
+    const response = (await getS3Object(
+      AWS_S3_BUCKET_NAME,
+      fileKey
+    )) as Uint8Array;
     const success = ten_minutes_cache.set(cache_key, Buffer.from(response));
     if (success) {
       logger.info('image cache set successfully');
@@ -621,29 +665,30 @@ export const postMessages = asyncHandler(async (req, res) => {
   // the storage key as `path` and a friendly, human-readable `name` for display
   // and download. A per-file index keeps display names distinct when several
   // files are attached at once.
-  const newfile = [];
+  const newfile: ICommunicationFile[] = [];
   if (req.files && req.files.length > 0) {
-    const student = await StudentService.getStudentById(studentId);
+    const student = (await StudentService.getStudentById(
+      studentId
+    )) as IStudent | null;
     const formattedDate = formatChatDate(new Date());
     const multiple = req.files.length > 1;
     for (let i = 0; i < req.files.length; i += 1) {
-      const ext = path.extname(
-        req.files[i].originalname || req.files[i].key || ''
-      );
+      const file = req.files[i] as { originalname?: string; key?: string };
+      const ext = path.extname(file.originalname || file.key || '');
       const suffix = multiple ? `_${i + 1}` : '';
       newfile.push({
         name: buildChatAttachmentName(student, ext, formattedDate, suffix),
-        path: req.files[i].key
+        path: file.key as string
       });
     }
   }
   // Files staged on the draft (upload-on-attach) are moved onto the message.
   // `newfile` covers any files sent directly with this request (legacy /
   // upload-on-send); both are merged.
-  const draft = await CommunicationDraftService.getDraft(
+  const draft = (await CommunicationDraftService.getDraft(
     user._id.toString(),
     studentId
-  );
+  )) as DraftLike | null;
   const draftFiles = draft?.files ?? [];
   const allFiles = [...newfile, ...draftFiles];
 
@@ -655,7 +700,7 @@ export const postMessages = asyncHandler(async (req, res) => {
     timeStampReadBy: { [user._id?.toString()]: new Date() },
     files: allFiles,
     createdAt: new Date()
-  });
+  } as unknown as Partial<ICommunication>);
 
   // The draft's files now belong to the message — delete the draft DOCUMENT
   // only (do NOT delete the S3 objects). Best-effort: the message is already
@@ -671,7 +716,7 @@ export const postMessages = asyncHandler(async (req, res) => {
     } catch (err) {
       logger.error('postMessages: failed to delete consumed draft', {
         studentId,
-        message: err?.message
+        message: (err as Error)?.message
       });
     }
   }
@@ -686,7 +731,9 @@ export const postMessages = asyncHandler(async (req, res) => {
   );
   res.status(200).send({ success: true, data: communication_latest });
 
-  const student = await StudentService.getStudentById(studentId);
+  const student = (await StudentService.getStudentById(
+    studentId
+  )) as unknown as PopulatedStudent;
 
   // inform agent/student
   if (is_TaiGer_Student(user)) {
@@ -754,20 +801,26 @@ export const deleteAMessageInCommunicationThread = asyncHandler(
     const {
       params: { messageId }
     } = req;
-    const msg = await CommunicationService.getCommunicationById(messageId);
+    const msg = (await CommunicationService.getCommunicationById(
+      messageId
+    )) as ICommunication | null;
 
     // remove chat attachment cache.
-    msg.files?.map((file) =>
-      ten_minutes_cache.del(`chat-${msg.student_id?.toString()}${file.name}`)
+    msg?.files?.map((file) =>
+      ten_minutes_cache.del(
+        `chat-${(msg.student_id as { toString(): string })?.toString()}${
+          file.name
+        }`
+      )
     );
 
     try {
-      logger.info('msg.files', { files: msg.files });
-      if (msg.files?.filter((file) => file.path !== '')?.length > 0) {
+      logger.info('msg.files', { files: msg?.files });
+      if ((msg?.files?.filter((file) => file.path !== '')?.length ?? 0) > 0) {
         await deleteS3Objects({
           bucketName: AWS_S3_BUCKET_NAME,
-          objectKeys: msg.files
-            .filter((file) => file.path !== '')
+          objectKeys: msg!
+            .files!.filter((file) => file.path !== '')
             .map((file) => ({
               Key: file.path
             }))
@@ -775,7 +828,7 @@ export const deleteAMessageInCommunicationThread = asyncHandler(
       }
     } catch (err) {
       if (err) {
-        logger.error('delete chat files: ', err);
+        logger.error('delete chat files: ', err as Record<string, unknown>);
         throw new ErrorResponse(500, 'Error occurs while deleting');
       }
     }

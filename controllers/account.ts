@@ -6,7 +6,29 @@ import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import { updateCredentialsEmail } from '../services/email';
 import logger from '../services/logger';
+import StudentService from '../services/students';
 import UserService from '../services/users';
+
+// Live Student document type (with .profile DocumentArray + .save()) as returned
+// by the student DAO. updateUserDoc() resolves to the base IUser union (Student
+// discriminator fields like `profile`/`academic_background` are not visible on
+// it), but at runtime it is a Student doc — narrow to this for those fields.
+type StudentDoc = NonNullable<
+  Awaited<ReturnType<typeof StudentService.getStudentDocByIdPopulated>>
+>;
+type StudentProfileArray = StudentDoc['profile'];
+type StudentProfileItem = StudentProfileArray[number];
+
+// After an upsert that writes academic_background.university / .language, those
+// fields are guaranteed present on the returned doc. Narrow to a shape where
+// they are non-optional so the post-write reads don't surface as TS18049.
+type AcademicBackground = NonNullable<StudentDoc['academic_background']>;
+type StudentDocWithBackground = StudentDoc & {
+  academic_background: AcademicBackground & {
+    university: NonNullable<AcademicBackground['university']>;
+    language: NonNullable<AcademicBackground['language']>;
+  };
+};
 
 // (O) email : self notification
 export const updateCredentials = asyncHandler(async (req, res) => {
@@ -53,7 +75,7 @@ export const updateOfficehours = asyncHandler(async (req, res) => {
 });
 
 // Helper function to normalize university name
-export const normalizeName = (name) => {
+export const normalizeName = (name: unknown) => {
   if (!name || typeof name !== 'string') return name;
   return name.trim().replace(/\s+/g, ' '); // Replace multiple spaces with single space
 };
@@ -84,13 +106,20 @@ export const updateAcademicBackground = asyncHandler(async (req, res) => {
     }
 
     university.updatedAt = new Date();
-    const updatedStudent = await UserService.updateUserDoc(
+    const updatedStudentDoc = await UserService.updateUserDoc(
       studentId,
       {
         'academic_background.university': university
       },
       { new: true }
     );
+    if (!updatedStudentDoc) {
+      throw new ErrorResponse(404, 'Student not found');
+    }
+    // updateUserDoc resolves to the base IUser union; at runtime this is the
+    // Student discriminator doc, so narrow it to expose profile/academic_background.
+    const updatedStudent =
+      updatedStudentDoc as unknown as StudentDocWithBackground;
 
     // TODO: update base documents needed or not:
     const documentsToEnsure = [
@@ -101,16 +130,19 @@ export const updateAcademicBackground = asyncHandler(async (req, res) => {
       ProfileNameType.ECTS_Conversion
     ];
     const ensureDocumentStatus = (
-      studentProfile,
-      docName,
-      profileNameList,
-      status
+      studentProfile: StudentProfileArray,
+      docName: ProfileNameType,
+      profileNameList: typeof ProfileNameType,
+      status: DocumentStatusType
     ) => {
+      // For this string enum, key === value, so indexing by the value yields the
+      // same label string (preserves the original runtime lookup).
+      const docLabel = profileNameList[docName as keyof typeof profileNameList];
       let document = studentProfile.find(
-        (doc) => doc.name === profileNameList[docName]
+        (doc: StudentProfileItem) => doc.name === docLabel
       );
       if (!document) {
-        document = studentProfile.create({ name: profileNameList[docName] });
+        document = studentProfile.create({ name: docLabel });
         document.status = status;
         document.required = true;
         document.updatedAt = new Date();
@@ -220,7 +252,7 @@ export const updateAcademicBackground = asyncHandler(async (req, res) => {
       profile: updatedStudent.profile
     });
   } catch (err) {
-    logger.error(err);
+    logger.error(err as string);
     throw new ErrorResponse(400, JSON.stringify(err));
   }
 });
@@ -234,13 +266,18 @@ export const updateLanguageSkill = asyncHandler(async (req, res) => {
 
   language.updatedAt = new Date();
 
-  const updatedStudent = await UserService.updateUserDoc(
+  const updatedStudentDoc = await UserService.updateUserDoc(
     studentId,
     {
       'academic_background.language': language
     },
     { upsert: true, new: true }
   );
+  if (!updatedStudentDoc) {
+    throw new ErrorResponse(404, 'Student not found');
+  }
+  const updatedStudent =
+    updatedStudentDoc as unknown as StudentDocWithBackground;
 
   const profileUpdates = [
     {
@@ -262,9 +299,12 @@ export const updateLanguageSkill = asyncHandler(async (req, res) => {
   ];
 
   // Helper function to update document status
-  const updateDocumentStatus = (isPassed, docName) => {
+  const updateDocumentStatus = (
+    isPassed: unknown,
+    docName: ProfileNameType
+  ) => {
     let certificateDoc = updatedStudent.profile.find(
-      (doc) => doc.name === docName
+      (doc: StudentProfileItem) => doc.name === docName
     );
 
     if (isPassed === '--') {
@@ -296,10 +336,9 @@ export const updateLanguageSkill = asyncHandler(async (req, res) => {
 
   // Iterate through each profile update configuration
   profileUpdates.forEach(({ fieldName, docName }) => {
-    updateDocumentStatus(
-      updatedStudent.academic_background.language[fieldName],
-      docName
-    );
+    const languageRecord = updatedStudent.academic_background
+      .language as Record<string, unknown>;
+    updateDocumentStatus(languageRecord[fieldName], docName);
   });
 
   await updatedStudent.save();
@@ -323,6 +362,9 @@ export const updateApplicationPreferenceSkill = asyncHandler(
     const updatedStudent = await UserService.updateUser(studentId, {
       application_preference
     });
+    if (!updatedStudent) {
+      throw new ErrorResponse(404, 'Student not found');
+    }
 
     res.status(200).send({
       success: true,
@@ -367,6 +409,6 @@ export const updatePersonalData = asyncHandler(async (req, res) => {
       }
     });
   } catch (err) {
-    logger.error(err);
+    logger.error(err as string);
   }
 });

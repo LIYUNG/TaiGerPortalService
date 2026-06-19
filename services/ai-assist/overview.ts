@@ -125,9 +125,18 @@ const studentLabel = (student) => {
   };
 };
 
+const buildFinalizedStudentIds = (applications): Set<string> => {
+  const ids = new Set<string>();
+  (applications || []).forEach((app) => {
+    if (isTruthyFlag(app.finalEnrolment)) ids.add(toIdString(app.studentId));
+  });
+  return ids;
+};
+
 // Applications with a real (non-rolling) deadline within `days`, still in
 // progress (not closed/admitted/rejected). Sorted soonest-first.
-const collectUpcomingDeadlines = (applications, studentById, days) => {
+// Items for students who confirmed enrolment elsewhere are flagged confirmedElsewhere.
+const collectUpcomingDeadlines = (applications, studentById, days, finalizedStudentIds: Set<string>) => {
   const today = new Date();
   const items = [];
 
@@ -141,9 +150,10 @@ const collectUpcomingDeadlines = (applications, studentById, days) => {
     const daysUntil = differenceInDays(date, today);
     if (daysUntil < 0 || daysUntil > days) return;
 
-    const student = studentById.get(toIdString(application.studentId));
+    const studentId = toIdString(application.studentId);
+    const student = studentById.get(studentId);
     items.push({
-      student: student ? studentLabel(student) : { id: toIdString(application.studentId) },
+      student: student ? studentLabel(student) : { id: studentId },
       program: application.programId
         ? {
             school: application.programId.school,
@@ -153,7 +163,8 @@ const collectUpcomingDeadlines = (applications, studentById, days) => {
           }
         : null,
       deadline: label,
-      daysUntil
+      daysUntil,
+      ...(finalizedStudentIds.has(studentId) ? { confirmedElsewhere: true } : {})
     });
   });
 
@@ -184,20 +195,21 @@ const collectAdmittedNotConfirmed = (applications, studentById) =>
 
 // threads here are already pre-filtered by the aggregation (student sent last
 // message, not ignored). stalledDays < 3 are skipped (too fresh to surface).
-const collectThreadsWaitingOnTeam = (threads, studentById) => {
+// Items for students who confirmed enrolment elsewhere are flagged confirmedElsewhere.
+const collectThreadsWaitingOnTeam = (threads, studentById, finalizedStudentIds: Set<string>) => {
   const today = new Date();
   const items = (threads || []).map((thread) => {
-    const student = studentById.get(toIdString(thread.student_id));
+    const studentId = toIdString(thread.student_id);
+    const student = studentById.get(studentId);
     const lastMsgDate = safeDate(thread.lastMsgAt);
     const stalledDays = lastMsgDate
       ? Math.max(differenceInDays(today, lastMsgDate), 0)
       : 0;
     return {
-      student: student
-        ? studentLabel(student)
-        : { id: toIdString(thread.student_id) },
+      student: student ? studentLabel(student) : { id: studentId },
       fileType: thread.file_type,
-      stalledDays
+      stalledDays,
+      ...(finalizedStudentIds.has(studentId) ? { confirmedElsewhere: true } : {})
     };
   }).filter((item) => item.stalledDays >= 3);
 
@@ -337,17 +349,19 @@ const buildOverview = async (
 
   const statsById = buildStudentStats(applications);
   const termsById = buildStudentTerms(applications);
+  const finalizedStudentIds = buildFinalizedStudentIds(applications);
 
   const upcomingDeadlines = collectUpcomingDeadlines(
     applications,
     studentById,
-    days
+    days,
+    finalizedStudentIds
   );
   const admittedNotConfirmed = collectAdmittedNotConfirmed(
     applications,
     studentById
   );
-  const threadsWaitingOnTeam = collectThreadsWaitingOnTeam(threads, studentById);
+  const threadsWaitingOnTeam = collectThreadsWaitingOnTeam(threads, studentById, finalizedStudentIds);
   const missingBaseDocuments = collectMissingBaseDocuments(students);
   const communicationGaps = collectCommunicationGaps(
     studentById,
@@ -398,6 +412,7 @@ export = {
   collectCommunicationGaps,
   parseDeadline,
   PORTFOLIO_BUCKET_LIMIT,
+  buildFinalizedStudentIds,
   buildStudentStats,
   buildStudentTerms,
   enrichBucketItems,

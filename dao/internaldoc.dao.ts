@@ -1,3 +1,5 @@
+import { UpdateQuery } from 'mongoose';
+import { IInternaldoc } from '@taiger-common/model';
 import { Internaldoc } from '../models';
 
 /**
@@ -9,19 +11,19 @@ const InternaldocDAO = {
     return Internaldoc.find().select('title internal category');
   },
 
-  async getById(docId) {
+  async getById(docId: string) {
     return Internaldoc.findById(docId);
   },
 
-  async create(fields) {
+  async create(fields: Partial<IInternaldoc>) {
     return Internaldoc.create(fields);
   },
 
-  async updateById(docId, fields) {
+  async updateById(docId: string, fields: UpdateQuery<IInternaldoc>) {
     return Internaldoc.findByIdAndUpdate(docId, fields, { new: true });
   },
 
-  async deleteById(docId) {
+  async deleteById(docId: string) {
     return Internaldoc.findByIdAndDelete(docId);
   }
 };

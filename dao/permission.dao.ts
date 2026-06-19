@@ -1,3 +1,5 @@
+import { FilterQuery } from 'mongoose';
+import { IPermission } from '@taiger-common/model';
 import { Permission } from '../models';
 
 /**
@@ -5,20 +7,23 @@ import { Permission } from '../models';
  * model from models/index.js). Plain params, no req.
  */
 const PermissionDAO = {
-  async getPermissions(filter = {}) {
+  async getPermissions(filter: FilterQuery<IPermission> = {}) {
     return Permission.find(filter).lean();
   },
 
   // Permissions matching `filter` with the user populated — used to resolve
   // agent/editor leads. `select` controls the populated user fields.
   async findPermissionsWithUser(
-    filter = {},
-    select = 'firstname lastname email'
+    filter: FilterQuery<IPermission> = {},
+    select: string = 'firstname lastname email'
   ) {
     return Permission.find(filter).populate('user_id', select).lean();
   },
 
-  async upsertPermissionByUserId(userId, payload) {
+  async upsertPermissionByUserId(
+    userId: string,
+    payload: Partial<IPermission>
+  ) {
     return Permission.findOneAndUpdate({ user_id: userId }, payload, {
       upsert: true,
       new: true
@@ -28,11 +33,11 @@ const PermissionDAO = {
   },
 
   // Live (non-lean) document so callers can mutate + .save() it.
-  async getPermissionDocByUserId(userId) {
+  async getPermissionDocByUserId(userId: string) {
     return Permission.findOne({ user_id: userId });
   },
 
-  async getPermissionByUserId(userId) {
+  async getPermissionByUserId(userId: string) {
     return Permission.findOne({ user_id: userId }).lean();
   },
 

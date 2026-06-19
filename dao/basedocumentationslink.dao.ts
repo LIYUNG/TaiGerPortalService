@@ -1,3 +1,4 @@
+import { IBasedocumentationslink } from '@taiger-common/model';
 import { Basedocumentationslink } from '../models';
 
 /**
@@ -5,11 +6,15 @@ import { Basedocumentationslink } from '../models';
  * (default-connection model from models/index.js). Plain params, no req.
  */
 const BasedocumentationslinkDAO = {
-  async findByCategory(category) {
+  async findByCategory(category: string) {
     return Basedocumentationslink.find({ category });
   },
 
-  async upsertByCategoryKey(category, key, set) {
+  async upsertByCategoryKey(
+    category: string,
+    key: string,
+    set: Partial<IBasedocumentationslink>
+  ) {
     return Basedocumentationslink.findOneAndUpdate(
       { category, key },
       { $set: set },

@@ -5,7 +5,7 @@ import { ProgramAI } from '../models';
  * from models/index.js). Plain params, no req.
  */
 const ProgramAIDAO = {
-  async getByProgramId(programId) {
+  async getByProgramId(programId: string) {
     return ProgramAI.findOne({ program_id: programId }).lean();
   }
 };

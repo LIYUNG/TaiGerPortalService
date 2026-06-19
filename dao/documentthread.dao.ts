@@ -1,8 +1,31 @@
-import mongoose from 'mongoose';
+import mongoose, { FilterQuery, UpdateQuery } from 'mongoose';
+import { IDocumentthread } from '@taiger-common/model';
 import { Documentthread } from '../models';
 import { createApplicationThreadV2 } from '../utils/modelHelper/versionControl';
 
-const applyPopulates = (query, populates = []) =>
+// Raw req.query shape consumed by the active-threads pagination/count endpoints.
+interface ActiveThreadsQuery {
+  page?: string;
+  limit?: string;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  viewerId?: string;
+  name?: string;
+  document_name?: string;
+  file_type?: string | string[];
+  lang?: string;
+  status?: string;
+  editorName?: string;
+  agentName?: string;
+  essayWriterName?: string;
+  deadline?: string;
+  category?: string;
+  excludeFileType?: string | string[];
+  [key: string]: unknown;
+}
+
+const applyPopulates = (query: any, populates: unknown[][] = []) =>
   populates.reduce((populated, args) => populated.populate(...args), query);
 
 const DEFAULT_PAGE = 1;
@@ -25,10 +48,10 @@ const THREAD_SORT_FIELD_MAP = {
   firstname_lastname: 'student.firstname'
 };
 
-const escapeRegex = (value) =>
+const escapeRegex = (value: unknown) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const parseArrayParam = (value) => {
+const parseArrayParam = (value: unknown) => {
   if (value === undefined || value === null || value === '') {
     return [];
   }
@@ -42,7 +65,7 @@ const parseArrayParam = (value) => {
 };
 
 // file_type: single value, comma-separated list ($in), or default (not Interview).
-const buildFileTypeCond = (fileTypes) => {
+const buildFileTypeCond = (fileTypes: string[]) => {
   if (fileTypes.length > 1) {
     return { $in: fileTypes };
   }
@@ -52,7 +75,7 @@ const buildFileTypeCond = (fileTypes) => {
   return { $ne: 'Interview' };
 };
 
-const parseActiveThreadsQuery = (query = {}) => {
+const parseActiveThreadsQuery = (query: ActiveThreadsQuery = {}) => {
   const { page, limit, search, sortBy, sortOrder } = query;
   const parsedPage = parseInt(page, 10);
   const parsedLimit = parseInt(limit, 10);
@@ -63,7 +86,7 @@ const parseActiveThreadsQuery = (query = {}) => {
   const sortPath = THREAD_SORT_FIELD_MAP[sortBy] || 'deadlineDate';
   const sortDir = String(sortOrder || 'asc').toLowerCase() === 'desc' ? -1 : 1;
 
-  const trim = (v) => {
+  const trim = (v: unknown) => {
     if (v === undefined || v === '') {
       return undefined;
     }
@@ -100,7 +123,7 @@ const parseActiveThreadsQuery = (query = {}) => {
 
 // Per-thread category classification booleans, shared by the paginated list and
 // the counts endpoint. `viewerId` is needed for the viewer-dependent tabs.
-const THREAD_CATEGORY_FIELDS = (viewerId) => ({
+const THREAD_CATEGORY_FIELDS = (viewerId: string | null) => ({
   _hasMessages: { $gt: [{ $size: { $ifNull: ['$messages', []] } }, 0] },
   _isFinal: { $eq: ['$isFinalVersion', true] },
   _noWriter: {
@@ -134,7 +157,7 @@ const THREAD_CATEGORY_FIELDS = (viewerId) => ({
 });
 
 // Build a $match condition (on the computed category fields) for one tab.
-const buildCategoryMatch = (category, viewerId) => {
+const buildCategoryMatch = (category: string, viewerId: string | null) => {
   switch (category) {
     case 'closed':
       return { _isFinal: true };
@@ -173,13 +196,17 @@ const buildCategoryMatch = (category, viewerId) => {
 const DocumentthreadDAO = {
   // Construct an UNSAVED thread document so the caller can build the matching
   // application/student subdocument entries before persisting with .save().
-  newThread(payload) {
+  newThread(payload: Partial<IDocumentthread>) {
     return new Documentthread(payload);
   },
 
   // Delegates to the version-control thread-creation helper (which pulls the
   // central default-connection models itself).
-  createApplicationThread(studentId, applicationId, documentCategory) {
+  createApplicationThread(
+    studentId: string,
+    applicationId: string,
+    documentCategory: string
+  ) {
     return createApplicationThreadV2(
       studentId,
       applicationId,
@@ -187,38 +214,42 @@ const DocumentthreadDAO = {
     );
   },
 
-  async countThreads(filter) {
+  async countThreads(filter: FilterQuery<IDocumentthread>) {
     return Documentthread.countDocuments(filter);
   },
 
-  async createThread(payload) {
+  async createThread(payload: Partial<IDocumentthread>) {
     return Documentthread.create(payload);
   },
 
-  async deleteThreadById(id) {
+  async deleteThreadById(id: string) {
     return Documentthread.findByIdAndDelete(id);
   },
 
   // Raw field update (no populate, returns pre-update doc).
-  async updateThreadFields(id, payload) {
+  async updateThreadFields(id: string, payload: UpdateQuery<IDocumentthread>) {
     return Documentthread.findByIdAndUpdate(id, payload, {});
   },
 
-  async getThreadByIdLean(id) {
+  async getThreadByIdLean(id: string) {
     return Documentthread.findById(id).lean();
   },
 
-  async findThreads(filter, select) {
+  async findThreads(filter: FilterQuery<IDocumentthread>, select: string) {
     return Documentthread.find(filter).select(select).lean();
   },
 
-  async findThreadsSelectSorted(filter, select, sort) {
+  async findThreadsSelectSorted(
+    filter: FilterQuery<IDocumentthread>,
+    select: string,
+    sort: Record<string, mongoose.SortOrder>
+  ) {
     return Documentthread.find(filter).select(select).sort(sort).lean();
   },
 
   // Threads where the student sent the last message and it's not marked
   // "no reply needed". Returns { _id, student_id, file_type, lastMsgAt }.
-  async getThreadsWaitingOnTeam(studentIds) {
+  async getThreadsWaitingOnTeam(studentIds: string[]) {
     if (!studentIds?.length) return [];
     return Documentthread.aggregate([
       {
@@ -246,25 +277,28 @@ const DocumentthreadDAO = {
   },
 
   // Live (non-lean) document — caller mutates messages/fields and calls .save().
-  async getThreadDocById(id) {
+  async getThreadDocById(id: string) {
     return Documentthread.findById(id);
   },
 
-  async getThreadDocByIdPopulated(id, populates = []) {
+  async getThreadDocByIdPopulated(id: string, populates: unknown[][] = []) {
     return applyPopulates(Documentthread.findById(id), populates);
   },
 
-  async findThreadByIdPopulated(id, populates = []) {
+  async findThreadByIdPopulated(id: string, populates: unknown[][] = []) {
     return applyPopulates(Documentthread.findById(id), populates).lean();
   },
 
   // findOne with the program populated (lean) — survey-input notifications.
-  async findOneThreadPopulated(filter, populates = []) {
+  async findOneThreadPopulated(
+    filter: FilterQuery<IDocumentthread>,
+    populates: unknown[][] = []
+  ) {
     return applyPopulates(Documentthread.findOne(filter), populates).lean();
   },
 
   // Live findOne document.
-  async findOneThreadDoc(filter) {
+  async findOneThreadDoc(filter: FilterQuery<IDocumentthread>) {
     return Documentthread.findOne(filter);
   },
 
@@ -275,7 +309,7 @@ const DocumentthreadDAO = {
     );
   },
 
-  async setMessageIgnore(messageId, ignoreMessageState) {
+  async setMessageIgnore(messageId: string, ignoreMessageState: boolean) {
     return Documentthread.updateOne(
       { 'messages._id': messageId },
       { $set: { 'messages.$.ignore_message': ignoreMessageState } }
@@ -284,7 +318,7 @@ const DocumentthreadDAO = {
 
   // Single thread by id, fully populated (student/messages authors/program/
   // outsourced collaborators) — the thread-detail read.
-  async findThreadByIdFullyPopulated(id) {
+  async findThreadByIdFullyPopulated(id: string) {
     return Documentthread.findById(id)
       .populate(
         'student_id',
@@ -300,7 +334,7 @@ const DocumentthreadDAO = {
   },
 
   // All of a student's threads, populated for the student thread view.
-  async findThreadsByStudentIdPopulated(studentId) {
+  async findThreadsByStudentIdPopulated(studentId: string) {
     return Documentthread.find({ student_id: studentId })
       .populate(
         'program_id',
@@ -315,7 +349,9 @@ const DocumentthreadDAO = {
 
   // Threads for the "my students" / TaiGer-user view (caller supplies the
   // filter; program select carries application_start).
-  async findThreadsForTaiGerUserPopulated(filter) {
+  async findThreadsForTaiGerUserPopulated(
+    filter: FilterQuery<IDocumentthread>
+  ) {
     return Documentthread.find(filter)
       .populate(
         'messages.user_id outsourced_user_id',
@@ -338,7 +374,7 @@ const DocumentthreadDAO = {
 
   // Threads for the "all students" view (program select carries
   // essay_difficulty instead of application_start).
-  async findAllStudentsThreadsPopulated(filter) {
+  async findAllStudentsThreadsPopulated(filter: FilterQuery<IDocumentthread>) {
     return Documentthread.find(filter)
       .populate(
         'messages.user_id outsourced_user_id',
@@ -361,7 +397,7 @@ const DocumentthreadDAO = {
 
   // Generic populated read by filter (student/application/messages authors/
   // program/outsourced collaborators).
-  async findThreadsPopulated(filter) {
+  async findThreadsPopulated(filter: FilterQuery<IDocumentthread>) {
     return Documentthread.find(filter)
       .populate(
         'student_id',
@@ -375,12 +411,18 @@ const DocumentthreadDAO = {
   },
 
   // Update by id, returning the new lean doc.
-  async updateThreadByIdReturnNew(id, payload) {
+  async updateThreadByIdReturnNew(
+    id: string,
+    payload: UpdateQuery<IDocumentthread>
+  ) {
     return Documentthread.findByIdAndUpdate(id, payload, { new: true }).lean();
   },
 
   // Update one by filter, returning the new lean doc.
-  async updateOneThreadReturnNew(filter, payload) {
+  async updateOneThreadReturnNew(
+    filter: FilterQuery<IDocumentthread>,
+    payload: UpdateQuery<IDocumentthread>
+  ) {
     return Documentthread.findOneAndUpdate(filter, payload, {
       new: true
     }).lean();
@@ -400,6 +442,10 @@ const DocumentthreadDAO = {
     studentIds = [],
     outsourcedUserId = null,
     query = {}
+  }: {
+    studentIds?: string[];
+    outsourcedUserId?: string | null;
+    query?: ActiveThreadsQuery;
   }) {
     const { page, limit, skip, search, viewerId, filters, sort } =
       parseActiveThreadsQuery(query);
@@ -1106,6 +1152,10 @@ const DocumentthreadDAO = {
     studentIds = [],
     outsourcedUserId = null,
     query = {}
+  }: {
+    studentIds?: string[];
+    outsourcedUserId?: string | null;
+    query?: ActiveThreadsQuery;
   }) {
     const zero = {
       all: 0,
@@ -1128,7 +1178,7 @@ const DocumentthreadDAO = {
     const fileTypeCond = buildFileTypeCond(parseArrayParam(query.file_type));
     const viewerId = query.viewerId ? String(query.viewerId).trim() : null;
     const viewerKey = viewerId ?? '__none__';
-    const open = (cond) => ({
+    const open = (cond: unknown) => ({
       $sum: { $cond: [{ $and: [{ $eq: ['$_isFinal', false] }, cond] }, 1, 0] }
     });
 

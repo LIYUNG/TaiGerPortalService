@@ -1,3 +1,5 @@
+import { UpdateQuery } from 'mongoose';
+import { IDocumentation } from '@taiger-common/model';
 import { Documentation } from '../models';
 
 /**
@@ -9,19 +11,19 @@ const DocumentationDAO = {
     return Documentation.find().select('title category');
   },
 
-  async getById(docId) {
+  async getById(docId: string) {
     return Documentation.findById(docId);
   },
 
-  async create(fields) {
+  async create(fields: Partial<IDocumentation>) {
     return Documentation.create(fields);
   },
 
-  async updateById(docId, fields) {
+  async updateById(docId: string, fields: UpdateQuery<IDocumentation>) {
     return Documentation.findByIdAndUpdate(docId, fields, { new: true });
   },
 
-  async deleteById(docId) {
+  async deleteById(docId: string) {
     return Documentation.findByIdAndDelete(docId);
   }
 };

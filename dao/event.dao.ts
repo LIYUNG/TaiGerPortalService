@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery } from 'mongoose';
+import { IEvent } from '@taiger-common/model';
 import { Event } from '../models';
 
 const TEAM_POPULATE_PATH = 'receiver_id requester_id';
@@ -9,7 +11,13 @@ const MAX_LIMIT = 100;
 
 // Parse pagination/sort params for getEventsPaginated. Events sort on `start`
 // (default newest-first for the "Past" list); `_id` is a stable tiebreak.
-const parseEventsQuery = (query = {}) => {
+const parseEventsQuery = (
+  query: {
+    page?: string | number;
+    limit?: string | number;
+    sortOrder?: string;
+  } = {}
+) => {
   const { page, limit, sortOrder } = query;
   const parsedPage = parseInt(page, 10);
   const parsedLimit = parseInt(limit, 10);
@@ -32,7 +40,13 @@ const parseEventsQuery = (query = {}) => {
 const EventDAO = {
   // Flexible event query. `populate` = { path, select }; `select` projects the
   // event document itself.
-  async findEvents(filter, { populate, select } = {}) {
+  async findEvents(
+    filter: FilterQuery<IEvent>,
+    {
+      populate,
+      select
+    }: { populate?: { path: string; select?: string }; select?: string } = {}
+  ) {
     let query = Event.find(filter);
     if (populate) {
       query = query.populate(populate.path, populate.select);
@@ -43,25 +57,29 @@ const EventDAO = {
     return query.lean();
   },
 
-  async getEventById(eventId) {
+  async getEventById(eventId: string) {
     return Event.findById(eventId);
   },
 
-  async getEventByIdLean(eventId) {
+  async getEventByIdLean(eventId: string) {
     return Event.findById(eventId).lean();
   },
 
-  async getEventByIdPopulated(eventId, populateSelect) {
+  async getEventByIdPopulated(eventId: string, populateSelect: string) {
     return Event.findById(eventId)
       .populate(TEAM_POPULATE_PATH, populateSelect)
       .lean();
   },
 
-  async createEvent(payload) {
+  async createEvent(payload: Partial<IEvent>) {
     return Event.create(payload);
   },
 
-  async updateEventById(eventId, payload, populateSelect) {
+  async updateEventById(
+    eventId: string,
+    payload: UpdateQuery<IEvent>,
+    populateSelect: string
+  ) {
     return Event.findByIdAndUpdate(eventId, payload, {
       upsert: false,
       new: true
@@ -70,18 +88,18 @@ const EventDAO = {
       .lean();
   },
 
-  async deleteEventById(eventId) {
+  async deleteEventById(eventId: string) {
     return Event.findByIdAndDelete(eventId);
   },
 
   // Raw update (no populate, returns the pre-update doc) — used where the result
   // is not consumed.
-  async updateEventRawById(eventId, payload) {
+  async updateEventRawById(eventId: string, payload: UpdateQuery<IEvent>) {
     return Event.findByIdAndUpdate(eventId, payload, {});
   },
 
   // Delete and return the deleted event populated (for cancellation emails).
-  async deleteEventByIdPopulated(eventId, populateSelect) {
+  async deleteEventByIdPopulated(eventId: string, populateSelect: string) {
     return Event.findByIdAndDelete(eventId)
       .populate(TEAM_POPULATE_PATH, populateSelect)
       .lean();
@@ -96,7 +114,17 @@ const EventDAO = {
    *
    * @returns {{ events: object[], total: number, page: number, limit: number }}
    */
-  async getEventsPaginated({ filter = {}, query = {} }) {
+  async getEventsPaginated({
+    filter = {},
+    query = {}
+  }: {
+    filter?: FilterQuery<IEvent>;
+    query?: {
+      page?: string | number;
+      limit?: string | number;
+      sortOrder?: string;
+    };
+  }) {
     const { page, limit, skip, sort } = parseEventsQuery(query);
     const [events, total] = await Promise.all([
       Event.find(filter)

@@ -1,3 +1,5 @@
+import { AnyBulkWriteOperation } from 'mongoose';
+import { IResponseTime } from '@taiger-common/model';
 import { ResponseTime } from '../models';
 
 /**
@@ -5,11 +7,11 @@ import { ResponseTime } from '../models';
  * model from models/index.js). Plain params, no req.
  */
 const ResponseTimeDAO = {
-  async bulkWrite(operations) {
+  async bulkWrite(operations: AnyBulkWriteOperation<IResponseTime>[]) {
     return ResponseTime.bulkWrite(operations);
   },
 
-  async findByStudentId(studentId) {
+  async findByStudentId(studentId: string) {
     return ResponseTime.find({ student_id: studentId });
   },
 

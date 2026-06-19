@@ -1,3 +1,5 @@
+import { UpdateQuery } from 'mongoose';
+import { ITemplate } from '@taiger-common/model';
 import { Template } from '../models';
 
 /**
@@ -9,15 +11,15 @@ const TemplateDAO = {
     return Template.find({});
   },
 
-  async getTemplateByCategory(categoryName) {
+  async getTemplateByCategory(categoryName: string) {
     return Template.findOne({ category_name: categoryName });
   },
 
-  async deleteTemplateByCategory(categoryName) {
+  async deleteTemplateByCategory(categoryName: string) {
     return Template.findOneAndDelete({ category_name: categoryName });
   },
 
-  async upsertTemplate(categoryName, payload) {
+  async upsertTemplate(categoryName: string, payload: UpdateQuery<ITemplate>) {
     return Template.findOneAndUpdate({ category_name: categoryName }, payload, {
       upsert: true,
       new: true

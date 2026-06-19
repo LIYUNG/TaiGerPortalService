@@ -5,14 +5,14 @@ import { CommunicationDraft } from '../models';
  * (default-connection model from models/index.js). Plain params, no req.
  */
 const CommunicationDraftDAO = {
-  async getDraft(userId, studentId) {
+  async getDraft(userId: string, studentId: string) {
     return CommunicationDraft.findOne({
       user_id: userId,
       student_id: studentId
     }).lean();
   },
 
-  async upsertDraft(userId, studentId, message) {
+  async upsertDraft(userId: string, studentId: string, message: string) {
     return CommunicationDraft.findOneAndUpdate(
       { user_id: userId, student_id: studentId },
       { message },
@@ -20,7 +20,7 @@ const CommunicationDraftDAO = {
     ).lean();
   },
 
-  async deleteDraft(userId, studentId) {
+  async deleteDraft(userId: string, studentId: string) {
     return CommunicationDraft.deleteOne({
       user_id: userId,
       student_id: studentId
@@ -29,7 +29,11 @@ const CommunicationDraftDAO = {
 
   // Attach: push file refs, creating the draft if none exists yet (a user can
   // attach before typing any text).
-  async addDraftFiles(userId, studentId, files) {
+  async addDraftFiles(
+    userId: string,
+    studentId: string,
+    files: { name: string; path: string }[]
+  ) {
     return CommunicationDraft.findOneAndUpdate(
       { user_id: userId, student_id: studentId },
       { $push: { files: { $each: files } } },
@@ -38,7 +42,7 @@ const CommunicationDraftDAO = {
   },
 
   // Unattach: remove a single file (by its S3 key) from the draft.
-  async removeDraftFile(userId, studentId, filePath) {
+  async removeDraftFile(userId: string, studentId: string, filePath: string) {
     return CommunicationDraft.findOneAndUpdate(
       { user_id: userId, student_id: studentId },
       { $pull: { files: { path: filePath } } },
@@ -47,7 +51,7 @@ const CommunicationDraftDAO = {
   },
 
   // Sweep: drafts not touched since `before` (their staged files are orphaned).
-  async findStaleDrafts(before) {
+  async findStaleDrafts(before: Date) {
     return CommunicationDraft.find({ updatedAt: { $lt: before } }).lean();
   }
 };

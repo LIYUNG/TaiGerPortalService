@@ -1,3 +1,5 @@
+import { UpdateQuery } from 'mongoose';
+import { INote } from '@taiger-common/model';
 import { Note } from '../models';
 
 /**
@@ -5,11 +7,11 @@ import { Note } from '../models';
  * models/index.js). Plain params, no req.
  */
 const NoteDAO = {
-  async getNoteByStudentId(studentId) {
+  async getNoteByStudentId(studentId: string) {
     return Note.findOne({ student_id: studentId });
   },
 
-  async upsertNoteByStudentId(studentId, fields) {
+  async upsertNoteByStudentId(studentId: string, fields: UpdateQuery<INote>) {
     return Note.findOneAndUpdate({ student_id: studentId }, fields, {
       upsert: true,
       new: true

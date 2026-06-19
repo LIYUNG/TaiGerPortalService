@@ -1,7 +1,18 @@
-import mongoose from 'mongoose';
+import mongoose, { FilterQuery, UpdateQuery, PipelineStage } from 'mongoose';
+import { IApplication } from '@taiger-common/model';
 import { ErrorResponse } from '../common/errors';
 import logger from '../services/logger';
 import { Application, Documentthread } from '../models';
+
+// Raw req.query shape consumed by the active-applications pagination endpoint.
+interface ActiveApplicationsQuery {
+  page?: string | number;
+  limit?: string | number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  [key: string]: unknown;
+}
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -78,10 +89,10 @@ const AGENT_NAME_PATHS = ['agents.firstname', 'agents.lastname'];
 const EDITOR_NAME_FILTER_KEY = 'editorName';
 const EDITOR_NAME_PATHS = ['editors.firstname', 'editors.lastname'];
 
-const escapeRegex = (value) =>
+const escapeRegex = (value: unknown) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const parseArrayParam = (value) => {
+const parseArrayParam = (value: unknown) => {
   if (value === undefined || value === null || value === '') {
     return [];
   }
@@ -94,7 +105,7 @@ const parseArrayParam = (value) => {
     .filter(Boolean);
 };
 
-const parseActiveApplicationsQuery = (query = {}) => {
+const parseActiveApplicationsQuery = (query: ActiveApplicationsQuery = {}) => {
   const { page, limit, search, sortBy, sortOrder } = query;
   const parsedPage = parseInt(page, 10);
   const parsedLimit = parseInt(limit, 10);
@@ -275,7 +286,7 @@ const DEADLINE_DATE_STAGES = [
 
 // Shared population chain so the paginated and non-paginated endpoints return
 // the exact same document shape (consumed by programs_refactor_v2 on the FE).
-const populateActiveApplications = (query) =>
+const populateActiveApplications = (query: any) =>
   query
     .populate({
       path: 'studentId',
@@ -298,7 +309,7 @@ const populateActiveApplications = (query) =>
     .populate('doc_modification_thread.doc_thread_id', '-messages');
 
 const ApplicationDAO = {
-  async createApplication(studentId, programId) {
+  async createApplication(studentId: string, programId: string) {
     const application = await Application.create({
       studentId,
       programId
@@ -322,6 +333,9 @@ const ApplicationDAO = {
   async getActiveStudentsApplicationsPaginated({
     studentIds = [],
     query = {}
+  }: {
+    studentIds?: string[];
+    query?: ActiveApplicationsQuery;
   }) {
     const { page, limit, skip, search, filters, sort } =
       parseActiveApplicationsQuery(query);
@@ -470,7 +484,9 @@ const ApplicationDAO = {
     const [aggResult] = await Application.aggregate(pipeline).allowDiskUse(
       true
     );
-    const ids = (aggResult?.rows ?? []).map((row) => row._id);
+    const ids = (aggResult?.rows ?? []).map(
+      (row: { _id: mongoose.Types.ObjectId }) => row._id
+    );
     const total = aggResult?.total?.[0]?.count ?? 0;
 
     if (ids.length === 0) {
@@ -482,9 +498,19 @@ const ApplicationDAO = {
     ).lean();
 
     // $in does not preserve the aggregation's sort order — restore it.
-    const orderMap = new Map(ids.map((id, index) => [id.toString(), index]));
+    const orderMap = new Map(
+      ids.map((id: mongoose.Types.ObjectId, index: number) => [
+        id.toString(),
+        index
+      ])
+    );
     docs.sort(
-      (a, b) => orderMap.get(a._id.toString()) - orderMap.get(b._id.toString())
+      (
+        a: { _id: mongoose.Types.ObjectId },
+        b: { _id: mongoose.Types.ObjectId }
+      ) =>
+        (orderMap.get(a._id.toString()) ?? 0) -
+        (orderMap.get(b._id.toString()) ?? 0)
     );
 
     return { applications: docs, total, page, limit };
@@ -505,7 +531,11 @@ const ApplicationDAO = {
    * @param {string[]} studentIds active/supervised student ids to scope to
    * @returns {Array<{ name: string, active: number, potentials: number }>}
    */
-  async getActiveStudentsApplicationsDeadlineDistribution({ studentIds = [] }) {
+  async getActiveStudentsApplicationsDeadlineDistribution({
+    studentIds = []
+  }: {
+    studentIds?: string[];
+  }) {
     if (studentIds.length === 0) {
       return [];
     }
@@ -601,7 +631,13 @@ const ApplicationDAO = {
    *   decided application are returned
    * @returns {Array<{program_id, school, program_name, degree, semester, whoupdated, updatedAt}>}
    */
-  async getApplicationProgramsUpdateStatus({ studentIds = [], decided }) {
+  async getApplicationProgramsUpdateStatus({
+    studentIds = [],
+    decided
+  }: {
+    studentIds?: string[];
+    decided?: string;
+  }) {
     if (studentIds.length === 0) {
       return [];
     }
@@ -655,7 +691,11 @@ const ApplicationDAO = {
    * @returns {{ totalApplications, decidedYesApplications, decidedNoApplications,
    *   undecidedApplications, submittedApplications, pendingApplications }}
    */
-  async getApplicationStatusStats({ studentIds = [] }) {
+  async getApplicationStatusStats({
+    studentIds = []
+  }: {
+    studentIds?: string[];
+  }) {
     const zero = {
       totalApplications: 0,
       decidedYesApplications: 0,
@@ -712,12 +752,12 @@ const ApplicationDAO = {
   },
   // Live (non-lean) Application document — caller mutates doc_modification_thread
   // and calls .save().
-  async createApplicationDoc(payload) {
+  async createApplicationDoc(payload: Partial<IApplication>) {
     return Application.create(payload);
   },
 
   // Existing applications for a student, with a slim program projection (lean).
-  async findByStudentIdPopulatedBasic(studentId) {
+  async findByStudentIdPopulatedBasic(studentId: string) {
     return Application.find({ studentId })
       .populate('programId', '_id school program_name degree semester')
       .lean();
@@ -725,7 +765,7 @@ const ApplicationDAO = {
 
   // Existing applications for a student, with program + doc-thread metadata
   // (lean) — the post-create response shape.
-  async findByStudentIdPopulatedFull(studentId) {
+  async findByStudentIdPopulatedFull(studentId: string) {
     return Application.find({ studentId })
       .populate('programId', 'school program_name degree semester')
       .populate('doc_modification_thread.doc_thread_id', '-messages')
@@ -734,24 +774,28 @@ const ApplicationDAO = {
 
   // Live (non-lean) Application document with the program populated — caller
   // mutates uni_assist and calls .save().
-  async getApplicationDocByIdWithProgram(applicationId) {
+  async getApplicationDocByIdWithProgram(applicationId: string) {
     return Application.findById(applicationId).populate('programId');
   },
 
   // Application with both student and program populated — used by the VPD
   // upload S3-key builder.
-  async getApplicationByIdWithStudentProgram(applicationId) {
+  async getApplicationByIdWithStudentProgram(applicationId: string) {
     return Application.findById(applicationId)
       .populate('studentId')
       .populate('programId');
   },
 
-  async aggregateApplications(pipeline) {
+  async aggregateApplications(pipeline: PipelineStage[]) {
     return Application.aggregate(pipeline);
   },
 
   // Generic select + optional single-populate lean read.
-  async findApplicationsSelectPopulate(filter, select, populate) {
+  async findApplicationsSelectPopulate(
+    filter: FilterQuery<IApplication>,
+    select: string,
+    populate?: { path: string; select?: string }
+  ) {
     let query = Application.find(filter).select(select);
     if (populate) {
       query = query.populate(populate.path, populate.select);
@@ -759,24 +803,24 @@ const ApplicationDAO = {
     return query.lean();
   },
 
-  async findByStudentIdLean(studentId) {
+  async findByStudentIdLean(studentId: string) {
     return Application.find({ studentId }).lean();
   },
 
   // Live (non-lean) applications with only the program populated — callers may
   // mutate doc_modification_thread subdocs and call .save().
-  async findByStudentIdWithProgram(studentId) {
+  async findByStudentIdWithProgram(studentId: string) {
     return Application.find({ studentId }).populate('programId');
   },
 
-  async findConflictApplications(filter) {
+  async findConflictApplications(filter: FilterQuery<IApplication>) {
     return Application.find(filter).populate(
       'studentId',
       'firstname lastname pictureUrl'
     );
   },
 
-  async pullDocModificationThread(applicationId, threadId) {
+  async pullDocModificationThread(applicationId: string, threadId: string) {
     return Application.findOneAndUpdate(
       { _id: new mongoose.Types.ObjectId(applicationId) },
       {
@@ -791,7 +835,7 @@ const ApplicationDAO = {
 
   // Decided applications for a program, with the student (+ their team)
   // populated — feeds the "same program students" view.
-  async getDecidedApplicationsByProgramPopulated(programId) {
+  async getDecidedApplicationsByProgramPopulated(programId: string) {
     return Application.find({ programId, decided: 'O' })
       .populate({
         path: 'studentId',
@@ -805,7 +849,7 @@ const ApplicationDAO = {
   },
 
   // Unlock an application (used by the "refresh" action).
-  async unlockApplication(applicationId) {
+  async unlockApplication(applicationId: string) {
     return Application.findByIdAndUpdate(
       applicationId,
       { isLocked: false },
@@ -813,7 +857,11 @@ const ApplicationDAO = {
     ).lean();
   },
 
-  getApplications(filter = {}, select = [], populate = true) {
+  getApplications(
+    filter: FilterQuery<IApplication> = {},
+    select: string[] = [],
+    populate: boolean | string = true
+  ) {
     const query = Application.find(filter);
     if (!!populate && populate !== 'false') {
       query.populate('programId');
@@ -838,7 +886,7 @@ const ApplicationDAO = {
     }
     return query;
   },
-  async getApplicationsWithStudentDetails(filter) {
+  async getApplicationsWithStudentDetails(filter: FilterQuery<IApplication>) {
     const applications = await Application.find(filter)
       .populate({
         path: 'studentId',
@@ -855,11 +903,11 @@ const ApplicationDAO = {
       .lean();
     return applications;
   },
-  async getApplicationsByStudentId(studentId) {
+  async getApplicationsByStudentId(studentId: string) {
     const applications = await this.getApplications({ studentId }).lean();
     return applications;
   },
-  async getApplicationsWithCredentialsByStudentId(studentId) {
+  async getApplicationsWithCredentialsByStudentId(studentId: string) {
     const applications = await this.getApplications({ studentId })
       .select(
         '+portal_credentials.application_portal_a.account +portal_credentials.application_portal_b.account +portal_credentials.application_portal_a.password +portal_credentials.application_portal_b.password'
@@ -867,17 +915,20 @@ const ApplicationDAO = {
       .lean();
     return applications;
   },
-  async getApplicationsByProgramId(programId) {
+  async getApplicationsByProgramId(programId: string) {
     const applications = await this.getApplications({ programId }).lean();
     return applications;
   },
-  async getApplicationById(applicationId) {
+  async getApplicationById(applicationId: string) {
     const application = await Application.findById(applicationId)
       .populate('programId')
       .populate('doc_modification_thread.doc_thread_id', '-messages');
     return application;
   },
-  async updateApplication(filter, payload) {
+  async updateApplication(
+    filter: FilterQuery<IApplication>,
+    payload: UpdateQuery<IApplication>
+  ) {
     const application = await Application.findOneAndUpdate(filter, payload, {
       new: true
     })
@@ -886,7 +937,7 @@ const ApplicationDAO = {
     return application;
   },
   // TODO: interview threads is missing! (orphan interview threads)
-  async deleteApplication(application_id) {
+  async deleteApplication(application_id: string) {
     const application = await this.getApplicationById(application_id);
 
     if (!application) {
@@ -920,7 +971,7 @@ const ApplicationDAO = {
     // TODO: delete VPD
     await Application.findByIdAndDelete(application_id);
   },
-  async updateApplicationsBulk(updates) {
+  async updateApplicationsBulk(updates: mongoose.AnyBulkWriteOperation[]) {
     const result = await Application.bulkWrite(updates);
     return result;
   },

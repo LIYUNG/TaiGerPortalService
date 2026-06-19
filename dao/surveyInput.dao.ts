@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery } from 'mongoose';
+import { ISurveyInput } from '@taiger-common/model';
 import { surveyInput } from '../models';
 
 /**
@@ -5,7 +7,7 @@ import { surveyInput } from '../models';
  * model from models/index.js). Plain params, no req.
  */
 const SurveyInputDAO = {
-  async findSurveyInputs(filter) {
+  async findSurveyInputs(filter: FilterQuery<ISurveyInput>) {
     return surveyInput
       .find(filter)
       .select(
@@ -14,21 +16,21 @@ const SurveyInputDAO = {
       .lean();
   },
 
-  async getSurveyInputById(id) {
+  async getSurveyInputById(id: string) {
     return surveyInput.findById(id).lean();
   },
 
-  async createSurveyInput(payload) {
+  async createSurveyInput(payload: Partial<ISurveyInput>) {
     return surveyInput.create(payload);
   },
 
-  async updateSurveyInputById(id, payload) {
+  async updateSurveyInputById(id: string, payload: UpdateQuery<ISurveyInput>) {
     return surveyInput
       .findByIdAndUpdate(id, payload, { upsert: false, new: true })
       .lean();
   },
 
-  async deleteSurveyInput(filter) {
+  async deleteSurveyInput(filter: FilterQuery<ISurveyInput>) {
     return surveyInput.deleteOne(filter);
   }
 };

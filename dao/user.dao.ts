@@ -1,4 +1,6 @@
 import { Role } from '@taiger-common/core';
+import { FilterQuery, UpdateQuery, QueryOptions, SortOrder } from 'mongoose';
+import { IUser } from '@taiger-common/model';
 import {
   User,
   Agent,
@@ -52,7 +54,7 @@ const GLOBAL_SEARCH_FIELDS = [
   'email'
 ];
 
-const escapeRegex = (value) =>
+const escapeRegex = (value: string) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const parseUsersPaginationQuery = ({
@@ -61,6 +63,12 @@ const parseUsersPaginationQuery = ({
   search,
   sortBy,
   sortOrder
+}: {
+  page?: string | number;
+  limit?: string | number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: string;
 } = {}) => {
   const parsedPage = parseInt(page, 10);
   const parsedLimit = parseInt(limit, 10);
@@ -85,7 +93,7 @@ const parseUsersPaginationQuery = ({
   };
 };
 
-const appendSearchFilter = (filter, search) => {
+const appendSearchFilter = (filter: FilterQuery<IUser>, search: string) => {
   if (!search) {
     return filter;
   }
@@ -118,23 +126,37 @@ const appendSearchFilter = (filter, search) => {
 const UserDAO = {
   parseUsersPaginationQuery,
 
-  async getUserById(userId) {
+  async getUserById(userId: string) {
     return User.findById(userId).lean();
   },
 
-  async getUsers(query) {
+  async getUsers(query: FilterQuery<IUser>) {
     return User.find(query).lean();
   },
 
   // Batch lookup by ids — used to resolve client-supplied recipient ids into
   // validated user records (so emails are never trusted from the client).
-  async findUsersByIds(ids, select) {
+  async findUsersByIds(ids: string[], select: string) {
     return User.find({ _id: { $in: ids } })
       .select(select)
       .lean();
   },
 
-  async getUsersPaginated({ filter, page, limit, skip, search, sort }) {
+  async getUsersPaginated({
+    filter,
+    page,
+    limit,
+    skip,
+    search,
+    sort
+  }: {
+    filter: FilterQuery<IUser>;
+    page: number;
+    limit: number;
+    skip: number;
+    search: string;
+    sort: Record<string, SortOrder>;
+  }) {
     const queryFilter = appendSearchFilter(filter, search);
 
     const [users, total] = await Promise.all([
@@ -150,7 +172,7 @@ const UserDAO = {
     return { users, total, page, limit };
   },
 
-  async updateUser(userId, payload) {
+  async updateUser(userId: string, payload: UpdateQuery<IUser>) {
     return User.findByIdAndUpdate(userId, payload, { new: true }).lean();
   },
 
@@ -158,7 +180,11 @@ const UserDAO = {
   // schemas, not the base User schema. Updating through the base model would let
   // strict-mode silently strip them (a no-op write), so we cast against the
   // role's discriminator model — mirroring the legacy `db.model(role)` path.
-  async updateOfficehours(userId, role, { officehours, timezone }) {
+  async updateOfficehours(
+    userId: string,
+    role: string,
+    { officehours, timezone }: { officehours?: unknown; timezone?: string }
+  ) {
     const Model = role === Role.Editor ? Editor : Agent;
     return Model.findByIdAndUpdate(
       userId,
@@ -170,40 +196,44 @@ const UserDAO = {
   // Returns a live (non-lean) Mongoose document so callers can keep mutating it
   // (e.g. subdocument profile updates) and call .save(). Discriminator type is
   // preserved, so Student-only paths like `profile` remain available.
-  async updateUserDoc(userId, payload, options = { new: true }) {
+  async updateUserDoc(
+    userId: string,
+    payload: UpdateQuery<IUser>,
+    options: QueryOptions<IUser> = { new: true }
+  ) {
     return User.findByIdAndUpdate(userId, payload, options);
   },
 
-  async getUserByEmail(email) {
+  async getUserByEmail(email: string) {
     return User.findOne({ email }).lean();
   },
 
-  async getUserByFilter(filter) {
+  async getUserByFilter(filter: FilterQuery<IUser>) {
     return User.findOne(filter).lean();
   },
 
   // Live (non-lean) document for callers that mutate + .save() (e.g. password
   // reset).
-  async getUserDocByFilter(filter) {
+  async getUserDocByFilter(filter: FilterQuery<IUser>) {
     return User.findOne(filter);
   },
 
   // Guest signups use the Guest discriminator.
-  async createGuest(payload) {
+  async createGuest(payload: Partial<IUser>) {
     return Guest.create(payload);
   },
 
-  async getUserByIdSelect(userId, select) {
+  async getUserByIdSelect(userId: string, select: string) {
     return User.findById(userId).select(select).lean();
   },
 
   // Live document including the (normally hidden) password field — for login
   // strategies that call user.verifyPassword().
-  async getUserDocWithPasswordByEmail(email) {
+  async getUserDocWithPasswordByEmail(email: string) {
     return User.findOne({ email }).select('+password');
   },
 
-  async touchLastLoginByEmail(email) {
+  async touchLastLoginByEmail(email: string) {
     return User.findOneAndUpdate(
       { email },
       { lastLoginAt: new Date() },
@@ -211,7 +241,7 @@ const UserDAO = {
     );
   },
 
-  async touchLastLoginById(userId) {
+  async touchLastLoginById(userId: string) {
     return User.findByIdAndUpdate(
       userId,
       { lastLoginAt: new Date() },
@@ -221,41 +251,45 @@ const UserDAO = {
 
   // Agent / Editor discriminator lookups (the exact filter is passed through to
   // preserve legacy query semantics). `select` projects the returned fields.
-  async findAgents(filter, select) {
+  async findAgents(filter: FilterQuery<IUser>, select: string) {
     return Agent.find(filter).select(select);
   },
 
-  async findEditors(filter, select) {
+  async findEditors(filter: FilterQuery<IUser>, select: string) {
     return Editor.find(filter).select(select);
   },
 
-  async findAgentById(agentId, select) {
+  async findAgentById(agentId: string, select: string) {
     return Agent.findById(agentId).select(select);
   },
 
   // Live (non-lean) documents — callers mutate notification/agent_notification
   // and call .save().
-  async getUserDocById(userId) {
+  async getUserDocById(userId: string) {
     return User.findById(userId);
   },
 
-  async getAgentDocById(agentId) {
+  async getAgentDocById(agentId: string) {
     return Agent.findById(agentId);
   },
 
   // Role-based create: Students use the Student discriminator; every other role
   // is created on the base User model (preserving the legacy behaviour).
-  async createUser(role, payload) {
+  async createUser(role: string, payload: Partial<IUser>) {
     const Model = role === Role.Student ? Student : User;
     return Model.create(payload);
   },
 
   // Update with caller-supplied mongoose options (e.g. overwriteDiscriminatorKey).
-  async updateUserWithOptions(userId, fields, options) {
+  async updateUserWithOptions(
+    userId: string,
+    fields: UpdateQuery<IUser>,
+    options: QueryOptions<IUser>
+  ) {
     return User.findByIdAndUpdate(userId, fields, options).lean();
   },
 
-  async updateUserArchiv(userId, isArchived) {
+  async updateUserArchiv(userId: string, isArchived: boolean) {
     return User.findByIdAndUpdate(
       userId,
       { archiv: isArchived },
@@ -265,12 +299,12 @@ const UserDAO = {
       .lean();
   },
 
-  async deleteUserById(userId) {
+  async deleteUserById(userId: string) {
     return User.findByIdAndDelete(userId);
   },
 
   // Pull a departing agent/editor out of every student's team arrays.
-  async pullStaffFromStudents(userId) {
+  async pullStaffFromStudents(userId: string) {
     return Student.updateMany(
       { $or: [{ agents: userId }, { editors: userId }] },
       { $pull: { agents: userId, editors: userId } },
@@ -281,7 +315,7 @@ const UserDAO = {
   // Cascade-delete a student/guest and all of their owned documents. (The legacy
   // controller wrapped these in a session that was never attached to the writes,
   // so the effective behaviour is sequential deletes.)
-  async deleteStudentCascade(userId) {
+  async deleteStudentCascade(userId: string) {
     await Documentthread.deleteMany({ student_id: userId });
     await Application.deleteMany({ studentId: userId });
     await Course.deleteMany({ student_id: userId });

@@ -76,6 +76,14 @@ tests passing.
 | 1b — aws/* | 2026‑06‑19 | 8667 | 8629 | aws (26) green |
 | 1c — constants.ts + models barrel | 2026‑06‑19 | 8629 | 8604 | constants/dao green |
 | 2 — models/* + middlewares/* + utils/* + constants/email | 2026‑06‑19 | 8604 | 8459 | mw/utils/dao/aws (771) green |
+| 3 — dao/* param typing | 2026‑06‑19 | (dao src 624) | (dao src 113, 0 implicit‑any) | dao (33 suites / 396) green |
+
+> Batch 3 note: branch moved to `typescript-interface` and `main` was merged in
+> mid‑batch, so the global total (now ~7946) isn't directly comparable to 8459.
+> The meaningful metric is **source `dao/*.dao.ts`: 624 → 113 errors, 0
+> `TS7006`/`TS7031`**. The 113 residuals are non‑param (`TS2339`/`TS2556`/`TS7053`/
+> `TS2769` from inline query‑object literals + populate‑spread) — clear when
+> return/local types land in the service batch.
 
 ## Notes / decisions
 - **Batch 0 (@types):** installed `@types/{bcryptjs,compression,cookie-parser,cors,
@@ -131,4 +139,25 @@ tests passing.
     (fixed/typed). The 465 are real debt, not a regression — attributed to the
     DAO/service batches. Lesson: **measure the count only after breakers are fixed
     and types actually flow**, else the number lies low.
+- **Batch 3 (dao param typing):** 4 parallel subagents, disjoint dao file sets,
+  typed every method PARAMETER (no return types — those cascade to callers and are
+  deferred). Conventions: ids → `string`; `filter`/`query` → `FilterQuery<IX>`;
+  `update` → `UpdateQuery<IX>`; create payloads → `Partial<IX>`; sort →
+  `Record<string, SortOrder>`; aggregate → `PipelineStage[]`; bulk →
+  `AnyBulkWriteOperation<IX>[]`; raw‑`req.query` params → a local interface with
+  known keys + `[key: string]: unknown`. Interfaces from `@taiger-common/model`
+  (`IUser`/`IStudent`/`IApplication`/`IDocumentthread`/`IInterview`/… — note
+  `IAllCourse` has a capital C; VersionControl/programChangeRequest/programAI are
+  LOCAL models → inline types). Result: source dao implicit‑any 0, all 33 dao
+  suites green.
+  - **⚠ GIT‑HYGIENE LESSON (do this differently next time):** the agents measured
+    "before" counts via `git stash`/`git checkout stash@{0} -- files`, and the
+    concurrent stashes/checkouts **reverted each other's uncommitted edits**
+    mid‑run (each re‑applied, but it was fragile and left a messy
+    staged‑vs‑worktree `MM` state + a leftover `stash@{0}`). The branch also got
+    switched to `typescript-interface` with `main` merged during the batch.
+    **Rule for future delegated batches: subagents MUST NOT run any `git`
+    command** (no stash/checkout/reset/branch). Measure deltas with `tsc` only,
+    against a number the orchestrator provides. Commit each batch BEFORE starting
+    the next so uncommitted work can't be clobbered by races.
 - (record subsequent per‑batch decisions + interfaces here)

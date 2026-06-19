@@ -98,17 +98,15 @@ const loadPortfolio = async (req, { maxStudents = MAX_PORTFOLIO_STUDENTS } = {})
     return { students, studentById, studentIds, applications: [], threads: [] };
   }
 
+  const studentObjectIds = students.map((s) => s._id || s.id).filter(Boolean);
+
   const [applications, threads] = await Promise.all([
     ApplicationService.findApplicationsSelectPopulate(
       { studentId: { $in: studentIds } },
       OVERVIEW_APPLICATION_FIELDS,
       OVERVIEW_APPLICATION_POPULATE
     ),
-    DocumentThreadService.findThreadsSelectSorted(
-      { student_id: { $in: studentIds } },
-      'file_type student_id isFinalVersion latest_message_left_by_id updatedAt',
-      { updatedAt: -1 }
-    )
+    DocumentThreadService.getThreadsWaitingOnTeam(studentObjectIds)
   ]);
 
   return { students, studentById, studentIds, applications, threads };
@@ -184,31 +182,26 @@ const collectAdmittedNotConfirmed = (applications, studentById) =>
       };
     });
 
+// threads here are already pre-filtered by the aggregation (student sent last
+// message, not ignored). stalledDays < 3 are skipped (too fresh to surface).
 const collectThreadsWaitingOnTeam = (threads, studentById) => {
   const today = new Date();
-  return (threads || [])
-    .filter((thread) => {
-      if (thread.isFinalVersion) return false;
-      const latestBy = toIdString(thread.latest_message_left_by_id);
-      const studentId = toIdString(thread.student_id);
-      // Pending on the team when the latest message came from the student.
-      return latestBy && studentId && latestBy === studentId;
-    })
-    .map((thread) => {
-      const student = studentById.get(toIdString(thread.student_id));
-      const updatedDate = safeDate(thread.updatedAt);
-      const stalledDays = updatedDate
-        ? Math.max(differenceInDays(today, updatedDate), 0)
-        : null;
-      return {
-        student: student ? studentLabel(student) : { id: toIdString(thread.student_id) },
-        fileType: thread.file_type,
-        updatedAt: thread.updatedAt,
-        stalledDays
-      };
-    })
-    // Most-stalled first so the capped sample surfaces the worst cases.
-    .sort((a, b) => (b.stalledDays ?? 0) - (a.stalledDays ?? 0));
+  const items = (threads || []).map((thread) => {
+    const student = studentById.get(toIdString(thread.student_id));
+    const lastMsgDate = safeDate(thread.lastMsgAt);
+    const stalledDays = lastMsgDate
+      ? Math.max(differenceInDays(today, lastMsgDate), 0)
+      : 0;
+    return {
+      student: student
+        ? studentLabel(student)
+        : { id: toIdString(thread.student_id) },
+      fileType: thread.file_type,
+      stalledDays
+    };
+  }).filter((item) => item.stalledDays >= 3);
+
+  return items.sort((a, b) => b.stalledDays - a.stalledDays);
 };
 
 // Students with at least one in-progress application whose latest message was

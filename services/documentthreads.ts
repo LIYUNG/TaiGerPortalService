@@ -27,6 +27,10 @@ const DocumentThreadService = {
   findThreadsSelectSorted(filter, select, sort) {
     return DocumentthreadDAO.findThreadsSelectSorted(filter, select, sort);
   },
+
+  getThreadsWaitingOnTeam(studentIds) {
+    return DocumentthreadDAO.getThreadsWaitingOnTeam(studentIds);
+  },
   getThreadDocById(id) {
     return DocumentthreadDAO.getThreadDocById(id);
   },

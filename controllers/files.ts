@@ -44,13 +44,13 @@ const deleteTemplate = asyncHandler(async (req, res, next) => {
   document_split = document_split.split('/');
   const [directory, fileName] = document_split;
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
-  logger.info('Trying to delete file', fileKey);
+  logger.info('Trying to delete file', { fileKey });
 
   try {
     await deleteS3Object(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
   } catch (err) {
     if (err) {
-      logger.error('deleteTemplate: ', err);
+      logger.error('deleteTemplate: ', { err });
       throw new ErrorResponse(500, 'Error occurs while deleting');
     }
   }
@@ -100,12 +100,15 @@ const downloadTemplateFile = asyncHandler(async (req, res, next) => {
   document_split = document_split.split('/');
   const [directory, fileName] = document_split;
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
-  logger.info('Trying to download template file', fileKey);
+  logger.info('Trying to download template file', { fileKey });
 
   const value = ten_minutes_cache.get(fileKey); // vpd name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
-    const success = ten_minutes_cache.set(fileKey, Buffer.from(response));
+    const success = ten_minutes_cache.set(
+      fileKey,
+      Buffer.from(response as Uint8Array)
+    );
     if (success) {
       logger.info('Template file cache set successfully');
     }
@@ -151,6 +154,14 @@ const saveProfileFilePath = asyncHandler(async (req, res, _next) => {
         const agent = await UserService.getAgentDocById(
           student.agents[i]._id.toString()
         );
+        if (!agent) {
+          logger.error(
+            `saveProfileFilePath: agent not found ${student.agents[
+              i
+            ]._id.toString()}`
+          );
+          continue;
+        }
         if (agent.agent_notification) {
           const temp_student =
             agent.agent_notification.isRead_new_base_docs_uploaded.find(
@@ -170,12 +181,15 @@ const saveProfileFilePath = asyncHandler(async (req, res, _next) => {
       }
 
       for (let i = 0; i < student.agents.length; i += 1) {
-        if (isNotArchiv(student.agents[i])) {
+        // agents are populated user docs at runtime (typed loosely here).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const agentDoc = student.agents[i] as any;
+        if (isNotArchiv(agentDoc)) {
           await sendUploadedProfileFilesRemindForAgentEmail(
             {
-              firstname: student.agents[i].firstname,
-              lastname: student.agents[i].lastname,
-              address: student.agents[i].email
+              firstname: agentDoc.firstname,
+              lastname: agentDoc.lastname,
+              address: agentDoc.email
             },
             {
               student_firstname: student.firstname,
@@ -217,6 +231,14 @@ const saveProfileFilePath = asyncHandler(async (req, res, _next) => {
         const agent = await UserService.getAgentDocById(
           student.agents[i]._id.toString()
         );
+        if (!agent) {
+          logger.error(
+            `saveProfileFilePath: agent not found ${student.agents[
+              i
+            ]._id.toString()}`
+          );
+          continue;
+        }
         if (agent.agent_notification) {
           const temp_student =
             agent.agent_notification.isRead_new_base_docs_uploaded.find(
@@ -238,12 +260,14 @@ const saveProfileFilePath = asyncHandler(async (req, res, _next) => {
 
       // Reminder for Agent:
       for (let i = 0; i < student.agents.length; i += 1) {
-        if (isNotArchiv(student.agents[i])) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const agentDoc = student.agents[i] as any;
+        if (isNotArchiv(agentDoc)) {
           await sendUploadedProfileFilesRemindForAgentEmail(
             {
-              firstname: student.agents[i].firstname,
-              lastname: student.agents[i].lastname,
-              address: student.agents[i].email
+              firstname: agentDoc.firstname,
+              lastname: agentDoc.lastname,
+              address: agentDoc.email
             },
             {
               student_firstname: student.firstname,
@@ -361,16 +385,22 @@ const saveVPDFilePath = asyncHandler(async (req, res, _next) => {
     studentId,
     [['agents', 'firstname lastname email archiv']]
   );
+  if (!student_updated) {
+    logger.error(`saveVPDFilePath: student not found ${studentId}`);
+    return;
+  }
 
   if (is_TaiGer_Student(user)) {
     // Reminder for Agent:
     for (let i = 0; i < student_updated.agents.length; i += 1) {
-      if (isNotArchiv(student_updated.agents[i])) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const agentDoc = student_updated.agents[i] as any;
+      if (isNotArchiv(agentDoc)) {
         await sendUploadedVPDRemindForAgentEmail(
           {
-            firstname: student_updated.agents[i].firstname,
-            lastname: student_updated.agents[i].lastname,
-            address: student_updated.agents[i].email
+            firstname: agentDoc.firstname,
+            lastname: agentDoc.lastname,
+            address: agentDoc.email
           },
           {
             student_firstname: student_updated.firstname,
@@ -430,17 +460,17 @@ const downloadVPDFile = asyncHandler(async (req, res, _next) => {
       throw new ErrorResponse(404, 'VPD Confirmation File not uploaded yet');
     }
   }
-  let document_split = '';
+  let document_path = '';
   if (fileType === 'VPD') {
-    document_split = app.uni_assist.vpd_file_path.replace(/\\/g, '/');
+    document_path = app.uni_assist.vpd_file_path.replace(/\\/g, '/');
   }
   if (fileType === 'VPDConfirmation') {
-    document_split = app.uni_assist.vpd_paid_confirmation_file_path.replace(
+    document_path = app.uni_assist.vpd_paid_confirmation_file_path.replace(
       /\\/g,
       '/'
     );
   }
-  document_split = document_split.split('/');
+  const document_split = document_path.split('/');
 
   const [directory, fileName] = document_split;
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
@@ -483,8 +513,8 @@ const downloadProfileFileURL = asyncHandler(async (req, res, _next) => {
     throw new ErrorResponse(404, 'File not found');
   }
 
-  let document_split = document.path.replace(/\\/g, '/');
-  document_split = document_split.split('/');
+  const document_path = document.path.replace(/\\/g, '/');
+  const document_split = document_path.split('/');
   const [directory, fileName] = document_split;
   const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
   logger.info(`Trying to download profile file ${fileKey}`);
@@ -529,7 +559,9 @@ const updateProfileDocumentStatus = asyncHandler(async (req, res, _next) => {
     } else {
       if (status === DocumentStatusType.Rejected) {
         // rejected file notification set
-        student.notification.isRead_base_documents_rejected = false;
+        if (student.notification) {
+          student.notification.isRead_base_documents_rejected = false;
+        }
         document.feedback = feedback;
       }
       if (status === DocumentStatusType.Accepted) {
@@ -563,7 +595,7 @@ const updateProfileDocumentStatus = asyncHandler(async (req, res, _next) => {
       }
     }
   } catch (err) {
-    logger.error('updateProfileDocumentStatus: ', err);
+    logger.error('updateProfileDocumentStatus: ', { err });
   }
 });
 
@@ -574,16 +606,23 @@ const updateStudentApplicationResultV2 = asyncHandler(
     const { user } = req;
     const { admission, closed } = req.body;
 
-    const student = await StudentService.getStudentDocByIdPopulated(studentId, [
-      ['agents editors', 'firstname lastname email'],
-      ['applications.programId']
-    ]);
-    if (!student) {
+    const studentDoc = await StudentService.getStudentDocByIdPopulated(
+      studentId,
+      [
+        ['agents editors', 'firstname lastname email'],
+        ['applications.programId']
+      ]
+    );
+    if (!studentDoc) {
       logger.error('updateStudentApplicationResultV2: Invalid student Id');
       throw new ErrorResponse(404, 'Invalid student Id');
     }
+    // Populated doc with dynamic applications/agents/editors access.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const student = studentDoc as any;
 
-    let updatedStudent;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let updatedStudent: any;
     if (closed) {
       updatedStudent = await StudentService.updateStudentByFilter(
         { _id: studentId, 'applications.programId': programId },
@@ -610,7 +649,9 @@ const updateStudentApplicationResultV2 = asyncHandler(
         );
       } else if (admission === '-') {
         const app = student.applications.find(
-          (application) => application.programId?._id.toString() === programId
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (application: any) =>
+            application.programId?._id.toString() === programId
         );
         const file_path = app.admission_letter?.admission_file_path;
         if (file_path && file_path !== '') {
@@ -651,10 +692,12 @@ const updateStudentApplicationResultV2 = asyncHandler(
       }
     }
     const udpatedApplication = updatedStudent.applications.find(
-      (application) => application.programId.toString() === programId
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (application: any) => application.programId.toString() === programId
     );
     const udpatedApplicationForEmail = student.applications.find(
-      (application) => application.programId?.id.toString() === programId
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (application: any) => application.programId?.id.toString() === programId
     );
     res.status(200).send({ success: true, data: udpatedApplication });
     if (admission) {
@@ -788,7 +831,9 @@ const updateStudentApplicationResult = asyncHandler(async (req, res, next) => {
   }
 
   if (result !== '-') {
-    const taigerStaff = [...student.agents, ...student.editors]
+    // agents/editors are populated user docs at runtime (typed loosely here).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const taigerStaff = ([...student.agents, ...student.editors] as any[])
       .filter((staff) => isNotArchiv(staff))
       .filter((staff) => staff._id !== user._id); // exclude the one who trigger the result update
     for (const staff of taigerStaff) {
@@ -842,7 +887,7 @@ const deleteProfileFile = asyncHandler(async (req, res, _next) => {
 
   const fileKey = document.path.replace(/\\/g, '/');
 
-  logger.info('Trying to delete file', fileKey);
+  logger.info('Trying to delete file', { fileKey });
 
   try {
     await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
@@ -855,7 +900,7 @@ const deleteProfileFile = asyncHandler(async (req, res, _next) => {
     res.status(200).send({ success: true, data: document });
   } catch (err) {
     if (err) {
-      logger.error('deleteProfileFile: ', err);
+      logger.error('deleteProfileFile: ', { err });
       throw new ErrorResponse(500, 'Error occurs while deleting');
     }
   }
@@ -927,7 +972,13 @@ const removeNotification = asyncHandler(async (req, res, next) => {
   const { notification_key } = req.body;
   // eslint-disable-next-line no-underscore-dangle
   const me = await UserService.getUserDocById(user._id.toString());
-  const obj = me.notification; // create object
+  if (!me) {
+    logger.error('removeNotification: user not found');
+    throw new ErrorResponse(404, 'User not found');
+  }
+  // notification is a fixed-shape object; the key is provided dynamically.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const obj = me.notification as any; // create object
   obj[`${notification_key}`] = true; // set value
   await UserService.updateUser(user._id.toString(), { notification: obj });
   res.status(200).send({
@@ -941,14 +992,22 @@ const removeAgentNotification = asyncHandler(async (req, res, next) => {
   const { notification_key, student_id } = req.body;
   // eslint-disable-next-line no-underscore-dangle
   const me = await UserService.getAgentDocById(user._id.toString());
-  const idx = me.agent_notification[`${notification_key}`].findIndex(
-    (student_obj) => student_obj.student_id === student_id
+  if (!me) {
+    logger.error('removeAgentNotification: agent not found');
+    throw new ErrorResponse(404, 'Agent not found');
+  }
+  // agent_notification is a fixed-shape object; the key is provided dynamically.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const agentNotification = me.agent_notification as any;
+  const idx = agentNotification[`${notification_key}`].findIndex(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (student_obj: any) => student_obj.student_id === student_id
   );
   if (idx === -1) {
     logger.error('removeAgentNotification: student id not existed');
     throw new ErrorResponse(403, 'student id not existed');
   }
-  me.agent_notification[`${notification_key}`].splice(idx, 1);
+  agentNotification[`${notification_key}`].splice(idx, 1);
   await me.save();
   res.status(200).send({
     success: true
@@ -959,7 +1018,14 @@ const removeAgentNotification = asyncHandler(async (req, res, next) => {
 const getMyAcademicBackground = asyncHandler(async (req, res, next) => {
   const { user: student } = req;
   const { _id } = student;
-  const me = await UserService.getUserDocById(_id);
+  const meDoc = await UserService.getUserDocById(_id);
+  if (!meDoc) {
+    logger.error('getMyAcademicBackground: user not found');
+    throw new ErrorResponse(404, 'User not found');
+  }
+  // Student doc with academic_background / agents / editors accessed dynamically.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const me = meDoc as any;
   if (me.academic_background === undefined) me.academic_background = {};
   await me.save();
   // TODO: mix with base-docuement link??

@@ -1,14 +1,15 @@
-import mongoose from 'mongoose';
+import mongoose, { FilterQuery, UpdateQuery } from 'mongoose';
+import { IInterview } from '@taiger-common/model';
 import { Interview } from '../models';
 
-const withPopulate = (query) =>
+const withPopulate = (query: any) =>
   query
     .populate('trainer_id', 'firstname lastname email pictureUrl')
     .populate('event_id')
     .lean();
 
 // Apply a list of populate argument tuples (e.g. [['program_id', 'school']]).
-const applyPopulates = (query, populates = []) =>
+const applyPopulates = (query: any, populates: any[] = []) =>
   populates.reduce((populated, args) => populated.populate(...args), query);
 
 // ── Server-side pagination helpers ───────────────────────────────────────────
@@ -56,13 +57,13 @@ const GLOBAL_SEARCH_FIELDS = [
   'agent.lastname'
 ];
 
-const escapeRegex = (value) =>
+const escapeRegex = (value: unknown) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Cast a 24-hex string to an ObjectId. Mongoose `.find()` auto-casts via the
 // schema, but `Model.aggregate()` does NOT — so a string id in a $match would
 // never match the ObjectId-typed field.
-const toObjectId = (value) => {
+const toObjectId = (value: unknown) => {
   if (typeof value === 'string' && mongoose.Types.ObjectId.isValid(value)) {
     return new mongoose.Types.ObjectId(value);
   }
@@ -72,14 +73,14 @@ const toObjectId = (value) => {
 // Cast a value, an array, or each value inside an operator object (e.g.
 // { $in: [...] }, { $ne: id }, { $size: 0 }) — recursing so nested ids are cast
 // while non-id values (numbers, etc.) pass through untouched.
-const castFilterValue = (value) => {
+const castFilterValue = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value.map(castFilterValue);
   }
   if (value && typeof value === 'object') {
-    const out = {};
+    const out: Record<string, unknown> = {};
     Object.keys(value).forEach((op) => {
-      out[op] = castFilterValue(value[op]);
+      out[op] = castFilterValue((value as Record<string, unknown>)[op]);
     });
     return out;
   }
@@ -102,13 +103,13 @@ const OBJECT_ID_FILTER_FIELDS = [
 // string 'true'/'false' from the query string). Unlike Mongoose `.find()`,
 // aggregation does not auto-cast, so without this a string `student_id` /
 // `trainer_id` / `isClosed` silently matches nothing.
-const normalizeAggregateFilter = (filter = {}) => {
-  const out = {};
+const normalizeAggregateFilter = (filter: Record<string, unknown> = {}) => {
+  const out: Record<string, unknown> = {};
   Object.keys(filter).forEach((key) => {
     if (OBJECT_ID_FILTER_FIELDS.includes(key)) {
       out[key] = castFilterValue(filter[key]);
     } else if (key === 'isClosed' && typeof filter[key] === 'string') {
-      out[key] = filter[key].toLowerCase() === 'true';
+      out[key] = (filter[key] as string).toLowerCase() === 'true';
     } else {
       out[key] = filter[key];
     }
@@ -116,7 +117,7 @@ const normalizeAggregateFilter = (filter = {}) => {
   return out;
 };
 
-const parseArrayParam = (value) => {
+const parseArrayParam = (value: unknown) => {
   if (value === undefined || value === null || value === '') {
     return [];
   }
@@ -130,7 +131,7 @@ const parseArrayParam = (value) => {
 };
 
 // Parse a 'true'/'false' query value into a boolean, or undefined when absent.
-const parseBoolParam = (value) => {
+const parseBoolParam = (value: unknown) => {
   if (value === undefined || value === null || value === '') {
     return undefined;
   }
@@ -140,11 +141,11 @@ const parseBoolParam = (value) => {
 // Parse an ISO date query value into a Date, or undefined when absent/invalid.
 // `endOfDay` pushes a date-only bound to 23:59:59.999 so a "to" filter is
 // inclusive of the whole selected day.
-const parseDateParam = (value, endOfDay = false) => {
+const parseDateParam = (value: unknown, endOfDay = false) => {
   if (value === undefined || value === null || value === '') {
     return undefined;
   }
-  const date = new Date(value);
+  const date = new Date(value as string | number | Date);
   if (Number.isNaN(date.getTime())) {
     return undefined;
   }
@@ -156,8 +157,8 @@ const parseDateParam = (value, endOfDay = false) => {
 
 // Build a { $gte, $lte } range from optional from/to bounds, or undefined when
 // neither is present.
-const buildDateRange = (from, to) => {
-  const range = {};
+const buildDateRange = (from?: Date, to?: Date) => {
+  const range: { $gte?: Date; $lte?: Date } = {};
   if (from) {
     range.$gte = from;
   }
@@ -167,7 +168,16 @@ const buildDateRange = (from, to) => {
   return Object.keys(range).length > 0 ? range : undefined;
 };
 
-const parseInterviewsQuery = (query = {}) => {
+const parseInterviewsQuery = (
+  query: {
+    page?: string;
+    limit?: string;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    [key: string]: unknown;
+  } = {}
+) => {
   const { page, limit, search, sortBy, sortOrder } = query;
   const parsedPage = parseInt(page, 10);
   const parsedLimit = parseInt(limit, 10);
@@ -178,7 +188,7 @@ const parseInterviewsQuery = (query = {}) => {
   const sortPath = SORT_FIELD_MAP[sortBy] || 'interview_date';
   const sortDir = String(sortOrder || 'desc').toLowerCase() === 'asc' ? 1 : -1;
 
-  const filters = {};
+  const filters: Record<string, unknown> = {};
   const statusValues = parseArrayParam(query.status);
   if (statusValues.length > 0) {
     filters.status = statusValues;
@@ -243,73 +253,84 @@ const PAGINATED_POPULATES = [
  * model). Plain params, no req.
  */
 const InterviewDAO = {
-  async getInterviews(filter) {
+  async getInterviews(filter: FilterQuery<IInterview>) {
     return withPopulate(Interview.find(filter));
   },
 
-  async getInterviewById(id) {
+  async getInterviewById(id: string) {
     return withPopulate(Interview.findById(id));
   },
 
-  async getInterviewsByStudentId(studentId) {
+  async getInterviewsByStudentId(studentId: string) {
     return withPopulate(Interview.find({ student_id: studentId }));
   },
 
   // Live (non-lean) document — used for status pre-checks / delete.
-  async findByIdRaw(id) {
+  async findByIdRaw(id: string) {
     return Interview.findById(id);
   },
 
-  async findInterviews(filter, populates = []) {
+  async findInterviews(filter: FilterQuery<IInterview>, populates: any[] = []) {
     return applyPopulates(Interview.find(filter), populates).lean();
   },
 
-  async findInterviewByIdPopulated(id, populates = []) {
+  async findInterviewByIdPopulated(id: string, populates: any[] = []) {
     return applyPopulates(Interview.findById(id), populates).lean();
   },
 
-  async findOneInterview(filter, populates = []) {
+  async findOneInterview(
+    filter: FilterQuery<IInterview>,
+    populates: any[] = []
+  ) {
     return applyPopulates(Interview.findOne(filter), populates).lean();
   },
 
   // Distinct ids of students who already have a trained (event-bearing)
   // interview among the given candidates.
-  async distinctTrainedStudentIds(studentIds) {
+  async distinctTrainedStudentIds(studentIds: string[]) {
     return Interview.find({
       student_id: { $in: studentIds },
       event_id: { $exists: true, $ne: null }
     }).distinct('student_id');
   },
 
-  async updateInterviewByIdRaw(id, payload) {
+  async updateInterviewByIdRaw(id: string, payload: UpdateQuery<IInterview>) {
     return Interview.findByIdAndUpdate(id, payload, {});
   },
 
-  async updateInterviewByIdPopulated(id, payload, populates = []) {
+  async updateInterviewByIdPopulated(
+    id: string,
+    payload: UpdateQuery<IInterview>,
+    populates: any[] = []
+  ) {
     return applyPopulates(
       Interview.findByIdAndUpdate(id, payload, { new: true }),
       populates
     ).lean();
   },
 
-  async upsertInterviewPopulated(filter, payload, populates = []) {
+  async upsertInterviewPopulated(
+    filter: FilterQuery<IInterview>,
+    payload: UpdateQuery<IInterview>,
+    populates: any[] = []
+  ) {
     return applyPopulates(
       Interview.findOneAndUpdate(filter, payload, { upsert: true }),
       populates
     ).lean();
   },
 
-  async deleteInterviewById(id) {
+  async deleteInterviewById(id: string) {
     return Interview.findByIdAndDelete(id);
   },
 
-  async aggregateInterviews(pipeline) {
+  async aggregateInterviews(pipeline: mongoose.PipelineStage[]) {
     return Interview.aggregate(pipeline);
   },
 
   // Distinct program ids the student already has an interview for — lets the FE
   // build the "Add interview" program list without loading the full set.
-  async studentInterviewProgramIds(studentId) {
+  async studentInterviewProgramIds(studentId: string) {
     const ids = await Interview.find({ student_id: studentId }).distinct(
       'program_id'
     );
@@ -333,7 +354,13 @@ const InterviewDAO = {
    * @param {object} query raw req.query (page, limit, sortBy, sortOrder, search, filters)
    * @returns {{ interviews: object[], total: number, page: number, limit: number }}
    */
-  async getInterviewsPaginated({ filter = {}, query = {} }) {
+  async getInterviewsPaginated({
+    filter = {},
+    query = {}
+  }: {
+    filter?: FilterQuery<IInterview>;
+    query?: Record<string, unknown>;
+  }) {
     const { page, limit, skip, search, filters, sort } =
       parseInterviewsQuery(query);
     const now = new Date();
@@ -570,9 +597,9 @@ const InterviewDAO = {
       return { interviews: [], total, page, limit };
     }
 
-    const ids = rows.map((row) => row._id);
+    const ids = rows.map((row: any) => row._id);
     const computedById = new Map(
-      rows.map((row) => [
+      rows.map((row: any) => [
         row._id.toString(),
         {
           status: row.status,
@@ -590,11 +617,13 @@ const InterviewDAO = {
 
     // Re-attach the computed columns and restore the aggregation sort order
     // ($in does not preserve it).
-    const orderMap = new Map(ids.map((id, index) => [id.toString(), index]));
+    const orderMap = new Map(
+      ids.map((id: any, index: number) => [id.toString(), index])
+    );
     const interviews = docs
-      .map((doc) => ({ ...doc, ...computedById.get(doc._id.toString()) }))
+      .map((doc: any) => ({ ...doc, ...computedById.get(doc._id.toString()) }))
       .sort(
-        (a, b) =>
+        (a: any, b: any) =>
           orderMap.get(a._id.toString()) - orderMap.get(b._id.toString())
       );
 

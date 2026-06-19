@@ -110,6 +110,62 @@ describe('intentRouter classifyIntent', () => {
     expect(result.needsStudentResolution).toBe(true);
   });
 
+  it('nulls a non-string studentQuery and a whitespace-only studentQuery', async () => {
+    openAIClient.responses.create.mockResolvedValue({
+      output_text: JSON.stringify({
+        intent: 'student_lookup',
+        studentQuery: 12345, // not a string -> null
+        needsStudentResolution: true
+      })
+    });
+
+    const result = await classifyIntent({
+      message: 'find',
+      conversationContext: {}
+    });
+    expect(result.intent).toBe('student_lookup');
+    expect(result.studentQuery).toBeNull();
+    expect(result.needsStudentResolution).toBe(true);
+  });
+
+  it('keeps needsStudentResolution=true for a non-general intent even when the model says false and omits studentQuery', async () => {
+    openAIClient.responses.create.mockResolvedValue({
+      output_text: JSON.stringify({
+        intent: 'student_communications',
+        needsStudentResolution: false // explicit boolean, but non-general overrides to true
+      })
+    });
+
+    const result = await classifyIntent({
+      message: 'messages',
+      conversationContext: {}
+    });
+    expect(result).toEqual({
+      intent: 'student_communications',
+      studentQuery: null,
+      needsStudentResolution: true
+    });
+  });
+
+  it('treats a general intent with a studentQuery but no keywords as non-resolving', async () => {
+    openAIClient.responses.create.mockResolvedValue({
+      output_text: JSON.stringify({
+        intent: 'general',
+        studentQuery: 'Abby',
+        needsStudentResolution: true
+      })
+    });
+
+    // message has no student/application/... keyword -> looksLikeStudentQuestion false
+    const result = await classifyIntent({
+      message: 'tell me a joke',
+      conversationContext: {}
+    });
+    expect(result.intent).toBe('general');
+    expect(result.studentQuery).toBe('Abby');
+    expect(result.needsStudentResolution).toBe(false);
+  });
+
   it('reads model output from the output array when output_text is absent', async () => {
     openAIClient.responses.create.mockResolvedValue({
       output: [
@@ -140,6 +196,37 @@ describe('intentRouter classifyIntent', () => {
       conversationContext: {}
     });
     expect(result.intent).toBe('support_tickets');
+  });
+
+  it('falls back to the heuristic when the model returns empty output (no text, empty array)', async () => {
+    // output_text absent, output array present but items have no content/text ->
+    // rawText becomes '' -> safeParseJson('') null (line 19) + output/content/text
+    // fallbacks (lines 195-197) -> heuristic classification.
+    openAIClient.responses.create.mockResolvedValue({
+      output: [{}, { content: [{}] }]
+    });
+
+    const result = await classifyIntent({
+      message: 'show messages for Dan',
+      conversationContext: {}
+    });
+    expect(result.intent).toBe('student_communications');
+  });
+
+  it('classifies an empty message via the heuristic as general', async () => {
+    // empty message exercises String(message || '') falsy branch (line 82) and
+    // the default-arg paths for the heuristic helpers.
+    openAIClient.responses.create.mockResolvedValue({ output_text: 'no json' });
+
+    const result = await classifyIntent({
+      message: '',
+      conversationContext: {}
+    });
+    expect(result).toEqual({
+      intent: 'general',
+      studentQuery: null,
+      needsStudentResolution: false
+    });
   });
 
   describe('heuristic fallback when JSON cannot be parsed', () => {

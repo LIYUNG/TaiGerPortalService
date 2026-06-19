@@ -21,24 +21,60 @@ import {
 } from '../common/validation';
 import { asyncHandler } from '../middlewares/error-handler';
 import {
-  sendConfirmationEmail,
-  sendForgotPasswordEmail,
-  sendPasswordResetEmail,
-  sendAccountActivationConfirmationEmail
+  sendConfirmationEmail as sendConfirmationEmailRaw,
+  sendForgotPasswordEmail as sendForgotPasswordEmailRaw,
+  sendPasswordResetEmail as sendPasswordResetEmailRaw,
+  sendAccountActivationConfirmationEmail as sendAccountActivationConfirmationEmailRaw
 } from '../services/email';
 import UserService from '../services/users';
 import TokenService from '../services/tokens';
 import { fetchUserFromIdToken } from '../utils/helper';
+import type { Request, Response } from 'express';
+import type { SignOptions } from 'jsonwebtoken';
 
-const generateAuthToken = (user, tenantId, expiresIn = JWT_EXPIRE) => {
-  const payload = { id: user._id, tenantId };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+// Only the user's id is read here; accept any persisted user shape (DB docs,
+// req.user, IUser) without over-constraining to a single model interface.
+const generateAuthToken = (
+  user: { _id?: unknown } | null | undefined,
+  tenantId: string,
+  expiresIn: string | number = JWT_EXPIRE
+) => {
+  const payload = { id: user?._id, tenantId };
+  return jwt.sign(payload, JWT_SECRET as jwt.Secret, {
+    expiresIn: expiresIn as SignOptions['expiresIn']
+  });
 };
 
 const generateRandomToken = () => crypto.randomBytes(32).toString('hex');
 
-const hashToken = (token) =>
+const hashToken = (token: string) =>
   crypto.createHash('sha256').update(token).digest('hex');
+
+// The send*Email helpers are asyncHandler-wrapped (typed as 3-arg Express
+// handlers) but are invoked here as plain (recipient[, payload]) notifiers.
+// These aliases restore their real call shape — TS-only, no runtime change.
+// See FLAGS re: asyncHandler misuse in services/email.
+type EmailRecipient = {
+  firstname?: string | null;
+  lastname?: string | null;
+  address?: string | null;
+};
+const sendConfirmationEmail = sendConfirmationEmailRaw as unknown as (
+  recipient: EmailRecipient,
+  token: string
+) => Promise<unknown>;
+const sendForgotPasswordEmail = sendForgotPasswordEmailRaw as unknown as (
+  recipient: EmailRecipient,
+  token: string
+) => Promise<unknown>;
+const sendPasswordResetEmail = sendPasswordResetEmailRaw as unknown as (
+  recipient: EmailRecipient
+) => Promise<unknown>;
+const sendAccountActivationConfirmationEmail =
+  sendAccountActivationConfirmationEmailRaw as unknown as (
+    recipient: EmailRecipient,
+    msg: Record<string, unknown>
+  ) => Promise<unknown>;
 
 const signup = asyncHandler(async (req, res) => {
   await fieldsValidation(
@@ -69,7 +105,7 @@ const signup = asyncHandler(async (req, res) => {
 
   const activationToken = generateRandomToken();
   await TokenService.createToken({
-    userId: user._id,
+    userId: user._id.toString(),
     value: hashToken(activationToken)
   });
 
@@ -84,25 +120,29 @@ const signup = asyncHandler(async (req, res) => {
     .json({ success: true });
 });
 
-const login = (req, res) => {
-  const { user } = req;
-  const token = generateAuthToken(user, req.tenantId, JWT_EXPIRE);
+const login = (req: Request, res: Response) => {
+  // req.user is attached by the auth middleware; kept loose (see types/express.d.ts).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const user = req.user as any;
+  const token = generateAuthToken(user, req.tenantId as string, JWT_EXPIRE);
   res
     .cookie('x-auth', token, { httpOnly: true, sameSite: 'none', secure: true })
     .status(200)
     .json({ success: true, data: user });
 };
 
-const logout = (req, res) => {
+const logout = (_req: Request, res: Response) => {
   res
     .clearCookie('x-auth', { httpOnly: true, sameSite: 'none', secure: true })
     .status(200)
     .json({ success: true });
 };
 
-const verify = (req, res) => {
-  const { user } = req;
-  const token = generateAuthToken(user, req.tenantId, JWT_EXPIRE);
+const verify = (req: Request, res: Response) => {
+  // req.user is attached by the auth middleware; kept loose (see types/express.d.ts).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const user = req.user as any;
+  const token = generateAuthToken(user, req.tenantId as string, JWT_EXPIRE);
   user.attributes = [];
   res
     .cookie('x-auth', token, { httpOnly: true, sameSite: 'none', secure: true })
@@ -151,14 +191,16 @@ const activateAccount = asyncHandler(async (req, res) => {
     .status(200)
     .json({ success: true });
 
-  await sendAccountActivationConfirmationEmail(
-    {
-      firstname: user_updated.firstname,
-      lastname: user_updated.lastname,
-      address: user_updated.email
-    },
-    {}
-  );
+  if (user_updated) {
+    await sendAccountActivationConfirmationEmail(
+      {
+        firstname: user_updated.firstname,
+        lastname: user_updated.lastname,
+        address: user_updated.email
+      },
+      {}
+    );
+  }
 });
 
 // send activation link to user
@@ -181,7 +223,7 @@ const resendActivation = asyncHandler(async (req, res) => {
 
   const activationToken = generateRandomToken();
   await TokenService.createToken({
-    userId: user._id,
+    userId: user._id.toString(),
     value: hashToken(activationToken)
   });
 
@@ -207,7 +249,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
   const resetToken = generateRandomToken();
   await TokenService.createToken({
-    userId: user._id,
+    userId: user._id.toString(),
     value: hashToken(resetToken)
   });
 
@@ -275,13 +317,16 @@ const thirdAuth = asyncHandler(async (req, res, _next) => {
   if (!payload) {
     throw new ErrorResponse(400, 'Invalid Google Token');
   }
-  const { email, _name, picture } = payload;
+  const { email, picture } = payload;
+  if (!email) {
+    throw new ErrorResponse(400, 'Invalid Google Token');
+  }
   const user = await UserService.getUserByEmail(email);
   if (!user) {
     throw new ErrorResponse(400, 'User not found');
   }
 
-  const jwtToken = generateAuthToken(user, req.tenantId, '30d');
+  const jwtToken = generateAuthToken(user, req.tenantId as string, '30d');
 
   res
     .cookie('x-auth', jwtToken, {

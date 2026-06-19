@@ -58,7 +58,7 @@ import { ErrorResponse } from '../../common/errors';
 
 // Require the module under test AFTER the mocks so its top-level multer /
 // multer-s3 calls are captured.
-import fileUpload from '../../middlewares/file-upload';
+import * as fileUpload from '../../middlewares/file-upload';
 
 // Helper: find a captured multer-s3 config by a substring of the literal it
 // returns from its `key` builder, by matching the multer() config that wraps it.

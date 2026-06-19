@@ -1,3 +1,5 @@
+import { AnyBulkWriteOperation, FilterQuery } from 'mongoose';
+import { IInterval } from '@taiger-common/model';
 import { Interval } from '../models';
 
 /**
@@ -5,7 +7,7 @@ import { Interval } from '../models';
  * from models/index.js). Plain params, no req.
  */
 const IntervalDAO = {
-  async bulkWrite(operations) {
+  async bulkWrite(operations: AnyBulkWriteOperation<IInterval>[]) {
     return Interval.bulkWrite(operations);
   },
 
@@ -15,7 +17,7 @@ const IntervalDAO = {
   },
 
   // Intervals matching `filter`, projected for the response-interval report.
-  async findForReport(filter) {
+  async findForReport(filter: FilterQuery<IInterval>) {
     return Interval.find(filter).select('-updatedAt -_id -student_id').lean();
   }
 };

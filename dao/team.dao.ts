@@ -1,4 +1,6 @@
+import { FilterQuery, PipelineStage } from 'mongoose';
 import { Role } from '@taiger-common/core';
+import { IInterval } from '@taiger-common/model';
 import {
   Application,
   User,
@@ -262,8 +264,8 @@ const TeamDAO = {
     return { counts1, counts2 };
   },
 
-  async getAgentStudentDistData(agentId) {
-    const distPipeline = (admissionMatch) => [
+  async getAgentStudentDistData(agentId: string) {
+    const distPipeline = (admissionMatch: unknown): PipelineStage[] => [
       {
         $match: {
           archiv: { $ne: true },
@@ -336,11 +338,11 @@ const TeamDAO = {
       .lean();
   },
 
-  async getResponseTimesByStudent(studentId) {
+  async getResponseTimesByStudent(studentId: string) {
     return ResponseTime.find({ student_id: studentId });
   },
 
-  async getIntervals(filter) {
+  async getIntervals(filter: FilterQuery<IInterval>) {
     return Interval.find(filter).select('-updatedAt -_id -student_id').lean();
   }
 };

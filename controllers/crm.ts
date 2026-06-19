@@ -8,7 +8,7 @@ import {
   salesReps,
   deals
 } from '../drizzle/schema/schema.js';
-import { getPostgresDb } from '../database';
+import database = require('../database');
 import { sql, getTableColumns, not, eq, desc, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import logger from '../services/logger';
@@ -17,6 +17,7 @@ import UserService from '../services/users';
 
 import { instantInviteTA } from '../utils/meeting-assistant.service';
 
+const { getPostgresDb } = database;
 const postgres = getPostgresDb();
 
 const LEAD_ADDITIONAL_FIELDS = new Set([
@@ -68,7 +69,7 @@ const LEAD_CORE_FIELDS = new Set([
   'salesNote'
 ]);
 
-const formatLeadRecord = (leadRecord) => {
+const formatLeadRecord = (leadRecord: any) => {
   if (!leadRecord) return null;
   const {
     meetingTranscripts: meetings,
@@ -82,13 +83,13 @@ const formatLeadRecord = (leadRecord) => {
     updatedAt: _additionalUpdatedAt,
     ...additionalData
   } = additional || {};
-  const tags = (tagRows || []).map((tagRow) => ({
+  const tags = (tagRows || []).map((tagRow: any) => ({
     id: tagRow.id,
     tag: tagRow.tag,
     createdBy: tagRow.createdBy,
     createdAt: tagRow.createdAt
   }));
-  const notes = (noteRows || []).map((noteRow) => ({
+  const notes = (noteRows || []).map((noteRow: any) => ({
     id: noteRow.id,
     note: noteRow.note,
     createdBy: noteRow.createdBy,
@@ -104,7 +105,7 @@ const formatLeadRecord = (leadRecord) => {
   };
 };
 
-const ensureLeadExists = async (leadId) => {
+const ensureLeadExists = async (leadId: string) => {
   const result = await postgres
     .select({ id: leads.id })
     .from(leads)
@@ -113,7 +114,7 @@ const ensureLeadExists = async (leadId) => {
   return result.length > 0;
 };
 
-const normalizeTags = (tags) => {
+const normalizeTags = (tags: any) => {
   const tagList = Array.isArray(tags)
     ? tags
     : typeof tags === 'string'
@@ -140,7 +141,7 @@ const normalizeTags = (tags) => {
   });
 };
 
-const normalizeNotes = (notes) => {
+const normalizeNotes = (notes: any) => {
   if (Array.isArray(notes)) {
     if (notes.length > 0 && typeof notes[0] === 'object') {
       return notes
@@ -635,8 +636,8 @@ const updateLead = asyncHandler(async (req, res) => {
   }
 
   const { tags, notes, ...rest } = updateData;
-  const leadUpdates = {};
-  const additionalUpdates = {};
+  const leadUpdates: Record<string, unknown> = {};
+  const additionalUpdates: Record<string, unknown> = {};
 
   Object.entries(rest).forEach(([key, value]) => {
     if (LEAD_ADDITIONAL_FIELDS.has(key)) {
@@ -646,7 +647,7 @@ const updateLead = asyncHandler(async (req, res) => {
     }
   });
 
-  const updated = await postgres.transaction(async (tx) => {
+  const updated = await postgres.transaction(async (tx: any) => {
     let updatedLead = null;
 
     if (Object.keys(leadUpdates).length > 0) {
@@ -1005,7 +1006,6 @@ const deleteLeadNote = asyncHandler(async (req, res) => {
 const getMeetings = asyncHandler(async (req, res) => {
   const meetingSummaries = await postgres
     .select({
-      leadId: leads.id,
       leadFullName: leads.fullName,
       ...getTableColumns(meetingTranscripts) // meetingSummaries.*
     })
@@ -1031,7 +1031,6 @@ const getMeeting = asyncHandler(async (req, res) => {
 
   const meetingRecord = await postgres
     .select({
-      leadId: leads.id,
       leadFullName: leads.fullName,
       ...getTableColumns(meetingTranscripts) // meetingSummaries.*
     })
@@ -1122,11 +1121,11 @@ const getDeals = asyncHandler(async (req, res) => {
   });
 });
 
-const stampDealStatusTimestamps = (deal) => {
+const stampDealStatusTimestamps = (deal: any) => {
   if (!deal || typeof deal.status !== 'string') return deal;
   const now = new Date();
   const status = deal.status;
-  const tsKeyByStatus = {
+  const tsKeyByStatus: Record<string, string> = {
     initiated: 'initiatedAt',
     sent: 'sentAt',
     signed: 'signedAt',

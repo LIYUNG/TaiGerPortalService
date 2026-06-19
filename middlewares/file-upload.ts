@@ -510,18 +510,19 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+const uploadDisk = multer({ storage });
 
-export = {
-  imageUpload: upload_doc_image_s3.single('file'),
-  admissionUpload: upload_admission_letter_s3.single('file'),
-  documentationDocsUpload: upload_doc_docs_s3.single('file'),
-  VPDfileUpload: upload_vpd_s3.single('file'),
-  ProfilefileUpload: upload_profile_s3.single('file'),
-  TemplatefileUpload: upload_template_s3.single('file'),
-  MessagesThreadUpload: upload_messagesthread_file_s3.array('files'),
-  MessagesTicketUpload: upload_messagesticket_file_s3.array('files'),
-  MessagesChatUpload: upload_messagesChat_file_s3.array('files'),
-  MessagesImageThreadUpload: upload_messagesthread_image_s3.single('file'),
-  upload: upload.single('file')
-};
+export const imageUpload = upload_doc_image_s3.single('file');
+export const admissionUpload = upload_admission_letter_s3.single('file');
+export const documentationDocsUpload = upload_doc_docs_s3.single('file');
+export const VPDfileUpload = upload_vpd_s3.single('file');
+export const ProfilefileUpload = upload_profile_s3.single('file');
+export const TemplatefileUpload = upload_template_s3.single('file');
+export const MessagesThreadUpload =
+  upload_messagesthread_file_s3.array('files');
+export const MessagesTicketUpload =
+  upload_messagesticket_file_s3.array('files');
+export const MessagesChatUpload = upload_messagesChat_file_s3.array('files');
+export const MessagesImageThreadUpload =
+  upload_messagesthread_image_s3.single('file');
+export const upload = uploadDisk.single('file');

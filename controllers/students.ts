@@ -14,18 +14,18 @@ import {
 } from '../utils/utils_function';
 import logger from '../services/logger';
 import {
-  informEditorArchivedStudentEmail,
-  informStudentArchivedStudentEmail,
-  informAgentNewStudentEmail,
-  informStudentTheirAgentEmail,
-  informEditorNewStudentEmail,
-  informStudentTheirEditorEmail,
-  informAgentStudentAssignedEmail,
-  informAgentManagerNewStudentEmail
+  informEditorArchivedStudentEmail as informEditorArchivedStudentEmailRaw,
+  informStudentArchivedStudentEmail as informStudentArchivedStudentEmailRaw,
+  informAgentNewStudentEmail as informAgentNewStudentEmailRaw,
+  informStudentTheirAgentEmail as informStudentTheirAgentEmailRaw,
+  informEditorNewStudentEmail as informEditorNewStudentEmailRaw,
+  informStudentTheirEditorEmail as informStudentTheirEditorEmailRaw,
+  informAgentStudentAssignedEmail as informAgentStudentAssignedEmailRaw,
+  informAgentManagerNewStudentEmail as informAgentManagerNewStudentEmailRaw
 } from '../services/email';
 
 import { isNotArchiv } from '../constants';
-import { getPermission } from '../utils/queryFunctions';
+import { getPermission as getPermissionRaw } from '../utils/queryFunctions';
 import StudentService from '../services/students';
 import UserQueryBuilder from '../builders/UserQueryBuilder';
 import ApplicationService from '../services/applications';
@@ -33,6 +33,52 @@ import { getAuditLogs } from '../services/audit';
 import UserService from '../services/users';
 import PermissionService from '../services/permissions';
 import BasedocumentationslinkService from '../services/basedocumentationslinks';
+import type { IAgent, IEditor, IStudent } from '@taiger-common/model';
+
+// Several handlers attach the student's applications onto the (lean) student doc
+// before responding; mirror that shape for typed reads/writes.
+type StudentWithApplications = IStudent & {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  applications?: any[];
+};
+
+// The inform*Email helpers are asyncHandler-wrapped (typed as 3-arg Express
+// handlers) but invoked here as 2-arg (recipient, msg) notifiers. These aliases
+// restore their real call shape — TS-only, no runtime change. See FLAGS re:
+// asyncHandler misuse in services/email.
+type EmailRecipient = {
+  firstname?: string | null;
+  lastname?: string | null;
+  address?: string | null;
+};
+type InformEmail = (
+  recipient: EmailRecipient,
+  msg: Record<string, unknown>
+) => Promise<unknown>;
+const informEditorArchivedStudentEmail =
+  informEditorArchivedStudentEmailRaw as unknown as InformEmail;
+const informStudentArchivedStudentEmail =
+  informStudentArchivedStudentEmailRaw as unknown as InformEmail;
+const informAgentNewStudentEmail =
+  informAgentNewStudentEmailRaw as unknown as InformEmail;
+const informStudentTheirAgentEmail =
+  informStudentTheirAgentEmailRaw as unknown as InformEmail;
+const informEditorNewStudentEmail =
+  informEditorNewStudentEmailRaw as unknown as InformEmail;
+const informStudentTheirEditorEmail =
+  informStudentTheirEditorEmailRaw as unknown as InformEmail;
+const informAgentStudentAssignedEmail =
+  informAgentStudentAssignedEmailRaw as unknown as InformEmail;
+const informAgentManagerNewStudentEmail =
+  informAgentManagerNewStudentEmailRaw as unknown as InformEmail;
+
+// getPermission is likewise an asyncHandler-wrapped helper (typed 3-arg) called
+// here as a 2-arg (req, user) lookup. TS-only cast, no runtime change. See FLAGS.
+const getPermission = getPermissionRaw as unknown as (
+  req: unknown,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  user: any
+) => Promise<{ canAssignAgents?: boolean; canAssignEditors?: boolean } | null>;
 
 const getStudentAndDocLinks = asyncHandler(async (req, res) => {
   const {
@@ -54,6 +100,8 @@ const getStudentAndDocLinks = asyncHandler(async (req, res) => {
     },
     {
       limit: 1000,
+      // skip: 0 is behaviour-identical to the previous (undefined -> no skip).
+      skip: 0,
       sort: { createdAt: -1 }
     }
   );
@@ -82,9 +130,8 @@ const getStudentAndDocLinks = asyncHandler(async (req, res) => {
   });
 
   // TODO: remove agent notfication for new documents upload
-  student.applications = add_portals_registered_status(
-    applicationsWithDefaults
-  );
+  (student as unknown as StudentWithApplications).applications =
+    add_portals_registered_status(applicationsWithDefaults);
 
   res.status(200).send({
     success: true,
@@ -160,7 +207,10 @@ const getStudentsByIds = asyncHandler(async (req, res) => {
 
       return acc;
     },
-    { validObjectIds: [], invalidIds: [] }
+    {
+      validObjectIds: [] as mongoose.Types.ObjectId[],
+      invalidIds: [] as string[]
+    }
   );
 
   if (validObjectIds.length === 0) {
@@ -182,7 +232,12 @@ const getStudentsByIds = asyncHandler(async (req, res) => {
     _id: { $in: validObjectIds }
   });
 
-  const responsePayload = {
+  const responsePayload: {
+    success: boolean;
+    data: typeof students;
+    message?: string;
+    invalidIds?: string[];
+  } = {
     success: true,
     data: students
   };
@@ -288,9 +343,16 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res) => {
   } = req;
 
   // TODO: data validation for isArchived and studentId
-  const student = await StudentService.updateStudentById(studentId, {
+  const student = (await StudentService.updateStudentById(studentId, {
     archiv: isArchived
-  });
+  })) as unknown as IStudent | null;
+
+  if (!student) {
+    logger.error('updateStudentsArchivStatus: Invalid student id');
+    return res
+      .status(404)
+      .send({ success: false, message: 'Invalid student id' });
+  }
 
   if (isArchived) {
     // return dashboard students
@@ -323,12 +385,13 @@ const updateStudentsArchivStatus = asyncHandler(async (req, res) => {
       res.status(200).send({ success: true, data: students });
     }
     // (O): send editor email.
-    for (let i = 0; i < student.editors.length; i += 1) {
+    const editors = (student.editors ?? []) as IEditor[];
+    for (let i = 0; i < editors.length; i += 1) {
       informEditorArchivedStudentEmail(
         {
-          firstname: student.editors[i].firstname,
-          lastname: student.editors[i].lastname,
-          address: student.editors[i].email
+          firstname: editors[i].firstname,
+          lastname: editors[i].lastname,
+          address: editors[i].email
         },
         {
           std_firstname: student.firstname,
@@ -427,9 +490,16 @@ const assignAgentToStudent = asyncHandler(async (req, res, next) => {
     }
 
     // Populate the updated student data
-    const studentUpdated = await StudentService.getStudentById(studentId);
+    const studentUpdated = (await StudentService.getStudentById(
+      studentId
+    )) as unknown as (IStudent & { _id: { toString(): string } }) | null;
 
     res.status(200).json({ success: true, data: studentUpdated });
+
+    // Response already sent; skip the email side-effects if the student vanished.
+    if (!studentUpdated) {
+      return;
+    }
 
     // inform editor-lead
     const permissions = await PermissionService.findPermissionsWithUser({
@@ -512,7 +582,7 @@ const assignAgentToStudent = asyncHandler(async (req, res, next) => {
       next();
     }
   } catch (error) {
-    logger.error('Error updating agents:', error);
+    logger.error('Error updating agents:', error as Record<string, unknown>);
     res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 });
@@ -562,9 +632,18 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
     }
 
     // Populate the updated student data
-    const studentUpdated = await StudentService.getStudentById(studentId);
+    const studentUpdated = (await StudentService.getStudentById(
+      studentId
+    )) as unknown as
+      | (IStudent & { _id: { toString(): string }; agents?: IAgent[] })
+      | null;
 
     res.status(200).json({ success: true, data: studentUpdated });
+
+    // Response already sent; skip the email side-effects if the student vanished.
+    if (!studentUpdated) {
+      return;
+    }
 
     // -------------------------------------
 
@@ -587,14 +666,15 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
       }
     }
     // TODO: inform Agent for assigning editor.
-    for (let i = 0; i < studentUpdated.agents.length; i += 1) {
+    const updatedAgentsList = (studentUpdated.agents ?? []) as IAgent[];
+    for (let i = 0; i < updatedAgentsList.length; i += 1) {
       if (isNotArchiv(student)) {
-        if (isNotArchiv(studentUpdated.agents[i])) {
+        if (isNotArchiv(updatedAgentsList[i])) {
           informAgentStudentAssignedEmail(
             {
-              firstname: studentUpdated.agents[i].firstname,
-              lastname: studentUpdated.agents[i].lastname,
-              address: studentUpdated.agents[i].email
+              firstname: updatedAgentsList[i].firstname,
+              lastname: updatedAgentsList[i].lastname,
+              address: updatedAgentsList[i].email
             },
             {
               std_firstname: student.firstname,
@@ -639,7 +719,7 @@ const assignEditorToStudent = asyncHandler(async (req, res, next) => {
       next();
     }
   } catch (error) {
-    logger.error('Error updating editors:', error);
+    logger.error('Error updating editors:', error as Record<string, unknown>);
     res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 });

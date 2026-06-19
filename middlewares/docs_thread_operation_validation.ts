@@ -2,7 +2,7 @@ import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from './error-handler';
 import DocumentThreadService from '../services/documentthreads';
 
-const doc_thread_ops_validator = asyncHandler(async (req, res, next) => {
+export const doc_thread_ops_validator = asyncHandler(async (req, res, next) => {
   const {
     params: { messagesThreadId }
   } = req;
@@ -19,7 +19,3 @@ const doc_thread_ops_validator = asyncHandler(async (req, res, next) => {
   }
   next();
 });
-
-export = {
-  doc_thread_ops_validator
-};

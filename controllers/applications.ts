@@ -1,5 +1,6 @@
 import { isNotArchiv, Role } from '@taiger-common/core';
-import mongoose from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
+import type { IApplication, IProgram, IStudent } from '@taiger-common/model';
 
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
@@ -18,6 +19,25 @@ import DocumentThreadService from '../services/documentthreads';
 import ApplicationQueryBuilder from '../builders/ApplicationQueryBuilder';
 import UserQueryBuilder from '../builders/UserQueryBuilder';
 import { sendApplicationWithdrawNotificationToEditors } from '../utils/slackUtils';
+
+// Build a mongoose ObjectId typed as the model's Schema.Types.ObjectId. The two
+// ObjectId types are structurally interchangeable at runtime; this bridges the
+// nominal mismatch between `mongoose.Types.ObjectId` and the model interfaces.
+const toSchemaObjectId = (
+  value: string | mongoose.Types.ObjectId
+): Schema.Types.ObjectId =>
+  new mongoose.Types.ObjectId(value) as unknown as Schema.Types.ObjectId;
+
+// Type-only bridge: keep the original runtime value (no ObjectId construction),
+// only reconcile the nominal Schema.Types.ObjectId mismatch.
+const asSchemaObjectId = (value: unknown): Schema.Types.ObjectId =>
+  value as Schema.Types.ObjectId;
+
+// getStudentById returns a (lean) student onto which the controller attaches the
+// student's applications before responding — mirror that shape for typed reads.
+type StudentWithApplications = IStudent & {
+  applications?: IApplication[];
+};
 
 export const getApplications = asyncHandler(async (req, res) => {
   const {
@@ -225,10 +245,16 @@ export const getStudentApplications = asyncHandler(async (req, res) => {
       notification: obj
     });
   }
-  const student = await StudentService.getStudentById(studentId);
-  const applications = await ApplicationService.getApplicationsByStudentId(
+  const student = (await StudentService.getStudentById(
     studentId
-  );
+  )) as unknown as StudentWithApplications | null;
+  if (!student) {
+    logger.error('getStudentApplications: Invalid student id');
+    throw new ErrorResponse(404, 'Invalid student id');
+  }
+  const applications = (await ApplicationService.getApplicationsByStudentId(
+    studentId
+  )) as unknown as IApplication[];
   student.applications = applications;
   if (user.role === Role.Student) {
     delete student.attributes;
@@ -251,27 +277,35 @@ export const updateStudentApplications = asyncHandler(async (req, res) => {
     throw new ErrorResponse(404, 'Invalid student id');
   }
 
-  const updates = applications.map((app) => {
-    const update = {
-      decided: app.decided,
-      closed: app.closed,
-      admission: app.admission,
-      finalEnrolment: app.finalEnrolment
-    };
-    return { updateOne: { filter: { _id: app._id }, update } };
-  });
+  const updates = (applications as (IApplication & { _id?: unknown })[]).map(
+    (app) => {
+      const update = {
+        decided: app.decided,
+        closed: app.closed,
+        admission: app.admission,
+        finalEnrolment: app.finalEnrolment
+      };
+      return { updateOne: { filter: { _id: app._id }, update } };
+    }
+  );
   const result = await ApplicationService.updateApplicationsBulk(updates);
-  logger.info('updateStudentApplications: result', result);
+  logger.info('updateStudentApplications: result', { result });
   if (user.role === Role.Admin) {
     await StudentService.updateStudentById(studentId, {
       applying_program_count: parseInt(applying_program_count, 10)
     });
   }
 
-  const updatedStudent = await StudentService.getStudentById(studentId);
-  const newApplications = await ApplicationService.getApplicationsByStudentId(
+  const updatedStudent = (await StudentService.getStudentById(
     studentId
-  );
+  )) as unknown as StudentWithApplications | null;
+  if (!updatedStudent) {
+    logger.error('updateStudentApplications: Invalid student id');
+    throw new ErrorResponse(404, 'Invalid student id');
+  }
+  const newApplications = (await ApplicationService.getApplicationsByStudentId(
+    studentId
+  )) as unknown as IApplication[];
   updatedStudent.applications = newApplications;
   res.status(201).send({ success: true, data: updatedStudent });
   // TODO: optimize email
@@ -454,18 +488,22 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
   }
 
   const student = await StudentService.getStudentDocById(studentId);
+  if (!student) {
+    logger.error('createApplication: Invalid student id');
+    throw new ErrorResponse(404, 'Invalid student id');
+  }
 
   const applications = await ApplicationService.findByStudentIdPopulatedBasic(
     studentId
   );
 
-  const programObjectIds = program_id_set.map(
+  const programObjectIds = (program_id_set as string[]).map(
     (id) => new mongoose.Types.ObjectId(id)
   );
-  const program_ids = await ProgramService.findPrograms({
+  const program_ids = (await ProgramService.findPrograms({
     _id: { $in: programObjectIds },
     $or: [{ isArchiv: { $exists: false } }, { isArchiv: false }]
-  });
+  })) as unknown as (IProgram & { _id: { toString(): string } })[];
   if (program_ids.length !== programObjectIds.length) {
     logger.error('createApplication: some program_ids invalid');
     throw new ErrorResponse(
@@ -484,9 +522,11 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
     );
   }
 
-  const studentApplications = applications.map(
+  const studentApplications = (applications as IApplication[]).map(
     ({ programId, application_year }) => ({
-      programId: programId._id.toString(),
+      programId: (
+        programId as unknown as { _id: { toString(): string } }
+      )._id.toString(),
       application_year
     })
   );
@@ -498,7 +538,7 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
   // Create programId array only new for student.
   const application_year =
     student.application_preference?.expected_application_date || '<TBD>';
-  const new_programIds = program_id_set.filter(
+  const new_programIds = (program_id_set as string[]).filter(
     (id) =>
       !studentApplications.some(
         (app) =>
@@ -515,6 +555,12 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
       const program = program_ids.find(
         ({ _id }) => _id.toString() === new_programIds[i]
       );
+      if (!program) {
+        logger.error(
+          `createApplication: program ${new_programIds[i]} not found`
+        );
+        throw new ErrorResponse(400, 'Some Programs are out-of-date.');
+      }
 
       // Determine isLocked based on program country:
       // - Non-approval countries: isLocked = true (locked by default, requires manual unlock)
@@ -529,15 +575,19 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
 
       const application = await ApplicationService.createApplicationDoc({
         studentId,
-        programId: new mongoose.Types.ObjectId(new_programIds[i]),
+        programId: toSchemaObjectId(new_programIds[i]),
         application_year,
         isLocked // Set based on country
       });
 
       // check if RL required, if yes, create new thread
+      // NOTE: `Number.isInteger(...) >= 0` compares a boolean against 0 — see
+      // FLAGS. Preserving runtime behaviour, only silencing the type error.
       if (
         program.rl_required !== undefined &&
-        Number.isInteger(parseInt(program.rl_required, 10)) >= 0
+        (Number.isInteger(
+          parseInt(program.rl_required, 10)
+        ) as unknown as number) >= 0
       ) {
         try {
           // TODO: if no specific requirement,
@@ -563,12 +613,12 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
               logger.info('Create general RL tasks!');
               for (let j = generalRLcount; j < nrRLrequired; j += 1) {
                 const newThread = DocumentThreadService.newThread({
-                  student_id: new mongoose.Types.ObjectId(studentId),
+                  student_id: toSchemaObjectId(studentId),
                   file_type: GENERAL_RLs_CONSTANT[j],
                   updatedAt: new Date()
                 });
                 const threadEntry = application.doc_modification_thread.create({
-                  doc_thread_id: new mongoose.Types.ObjectId(newThread._id),
+                  doc_thread_id: toSchemaObjectId(newThread._id),
                   updatedAt: new Date(),
                   createdAt: new Date()
                 });
@@ -581,14 +631,14 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
             logger.info('Create specific RL tasks!');
             for (let j = 0; j < nrRLrequired; j += 1) {
               const newThread = DocumentThreadService.newThread({
-                student_id: new mongoose.Types.ObjectId(studentId),
+                student_id: toSchemaObjectId(studentId),
                 file_type: RLs_CONSTANT[j],
-                application_id: application._id,
-                program_id: new mongoose.Types.ObjectId(new_programIds[i]),
+                application_id: asSchemaObjectId(application._id),
+                program_id: toSchemaObjectId(new_programIds[i]),
                 updatedAt: new Date()
               });
               const threadEntry = application.doc_modification_thread.create({
-                doc_thread_id: newThread._id,
+                doc_thread_id: asSchemaObjectId(newThread._id),
                 updatedAt: new Date(),
                 createdAt: new Date()
               });
@@ -599,7 +649,9 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
             }
           }
         } catch (error) {
-          logger.error(`Error creating RL threads: ${error.message}`);
+          logger.error(
+            `Error creating RL threads: ${(error as Error).message}`
+          );
           throw new ErrorResponse(
             500,
             'Failed to create recommendation letter threads'
@@ -610,16 +662,19 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
       // Create supplementary form task
       try {
         for (const doc of PROGRAM_SPECIFIC_FILETYPE) {
-          if (program[doc.required] === 'yes') {
+          if (
+            (program as unknown as Record<string, unknown>)[doc.required] ===
+            'yes'
+          ) {
             const new_doc_thread = DocumentThreadService.newThread({
-              student_id: new mongoose.Types.ObjectId(studentId),
+              student_id: toSchemaObjectId(studentId),
               file_type: doc.fileType,
-              application_id: application._id,
-              program_id: new mongoose.Types.ObjectId(new_programIds[i]),
+              application_id: asSchemaObjectId(application._id),
+              program_id: toSchemaObjectId(new_programIds[i]),
               updatedAt: new Date()
             });
             const temp = application.doc_modification_thread.create({
-              doc_thread_id: new_doc_thread._id,
+              doc_thread_id: asSchemaObjectId(new_doc_thread._id),
               updatedAt: new Date(),
               createdAt: new Date()
             });
@@ -631,7 +686,9 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
         }
       } catch (error) {
         logger.error(
-          `Error creating supplementary form threads: ${error.message}`
+          `Error creating supplementary form threads: ${
+            (error as Error).message
+          }`
         );
         throw new ErrorResponse(
           500,
@@ -639,9 +696,11 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
         );
       }
 
-      student.notification.isRead_new_programs_assigned = false;
+      if (student.notification) {
+        student.notification.isRead_new_programs_assigned = false;
+      }
     } catch (error) {
-      logger.error(`Error creating application: ${error.message}`);
+      logger.error(`Error creating application: ${(error as Error).message}`);
       throw new ErrorResponse(500, 'Failed to create application');
     }
   }
@@ -652,8 +711,19 @@ export const createApplicationV2 = asyncHandler(async (req, res) => {
 
   res.status(201).send({ success: true, data: applications_updated });
 
-  if (isNotArchiv(student)) {
-    await createApplicationToStudentEmail(
+  if (isNotArchiv(student as unknown as IStudent)) {
+    // createApplicationToStudentEmail is an asyncHandler-wrapped helper (typed as
+    // a 3-arg Express handler) invoked here as a 2-arg (recipient, msg) notifier.
+    // Cast to its real call shape — TS-only, no runtime change. See FLAGS.
+    const sendApplicationEmail = createApplicationToStudentEmail as unknown as (
+      recipient: {
+        firstname?: string | null;
+        lastname?: string | null;
+        address?: string | null;
+      },
+      msg: Record<string, unknown>
+    ) => Promise<unknown>;
+    await sendApplicationEmail(
       {
         firstname: student.firstname,
         lastname: student.lastname,

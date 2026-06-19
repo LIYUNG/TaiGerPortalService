@@ -223,6 +223,28 @@ describe('email service - sendEmail-based templates', () => {
     expectSent('Essay writer assigned');
   });
 
+  it('informAgentEssayAssignedEmail - Editor branch with no program', async () => {
+    // file_type !== 'Essay' -> "Editor"; missing program -> empty docName.
+    await email.informAgentEssayAssignedEmail(recipient, {
+      thread_id: 't1',
+      file_type: 'ML',
+      std_firstname: 'Stu',
+      std_lastname: 'Dent',
+      essay_writers: people
+    });
+    expectSent('Editor assigned');
+  });
+
+  it('informEssayWriterNewEssayEmail - no program branch', async () => {
+    await email.informEssayWriterNewEssayEmail(recipient, {
+      thread_id: 't1',
+      file_type: 'ML',
+      std_firstname: 'Stu',
+      std_lastname: 'Dent'
+    });
+    expectSent('New ML');
+  });
+
   it('informAgentStudentAssignedEmail', async () => {
     await email.informAgentStudentAssignedEmail(recipient, {
       std_firstname: 'Stu',
@@ -278,6 +300,26 @@ describe('email service - sendEmail-based templates', () => {
     expectSent('Essay');
   });
 
+  it('informStudentTheirEssayWriterEmail - Editor branch', async () => {
+    // file_type !== 'Essay' -> "Editor" wording on both language halves.
+    await email.informStudentTheirEssayWriterEmail(recipient, {
+      thread_id: 't1',
+      file_type: 'ML',
+      program,
+      editors: people
+    });
+    expectSent('Editor');
+  });
+
+  it('informStudentTheirEssayWriterEmail - no program branch', async () => {
+    await email.informStudentTheirEssayWriterEmail(recipient, {
+      thread_id: 't1',
+      file_type: 'Essay',
+      editors: people // no program -> empty docName
+    });
+    expectSent('Essay');
+  });
+
   it('informStudentTheirEditorEmail', async () => {
     await email.informStudentTheirEditorEmail(recipient, { editors: people });
     expectSent('Your Editor');
@@ -313,6 +355,73 @@ describe('email service - sendEmail-based templates', () => {
       student,
       student_applications: [{ programId: program }],
       new_app_decided_idx: [0]
+    });
+    expectSent('updated application status');
+  });
+
+  it('UpdateStudentApplicationsEmail - multiple decided applications (append branch)', async () => {
+    await email.UpdateStudentApplicationsEmail(recipient, {
+      sender_firstname: 'Se',
+      sender_lastname: 'Nder',
+      student,
+      student_applications: [{ programId: program }, { programId: program }],
+      new_app_decided_idx: [0, 1]
+    });
+    expectSent('updated application status');
+  });
+
+  it('NewMLRLEssayTasksEmail - empty applications branch (no decided idx)', async () => {
+    await email.NewMLRLEssayTasksEmail(recipient, {
+      sender_firstname: 'Se',
+      sender_lastname: 'Nder',
+      student_applications: [{ programId: program }],
+      new_app_decided_idx: [] // nothing decided -> applications_name stays ''
+    });
+    expectSent('updated application status');
+  });
+
+  it('NewMLRLEssayTasksEmail - multiple decided applications (append branch)', async () => {
+    await email.NewMLRLEssayTasksEmail(recipient, {
+      sender_firstname: 'Se',
+      sender_lastname: 'Nder',
+      student_applications: [{ programId: program }, { programId: program }],
+      new_app_decided_idx: [0, 1]
+    });
+    expectSent('updated application status');
+  });
+
+  it('UpdateStudentApplicationsEmail - some applications not decided (includes false side)', async () => {
+    // Index 0 is not in new_app_decided_idx (skipped), index 1 is (first kept).
+    await email.UpdateStudentApplicationsEmail(recipient, {
+      sender_firstname: 'Se',
+      sender_lastname: 'Nder',
+      student,
+      student_applications: [{ programId: program }, { programId: program }],
+      new_app_decided_idx: [1]
+    });
+    expectSent('updated application status');
+  });
+
+  it('NewMLRLEssayTasksEmailFromTaiGer - empty applications branch (no decided idx)', async () => {
+    await email.NewMLRLEssayTasksEmailFromTaiGer(recipient, {
+      sender_firstname: 'Se',
+      sender_lastname: 'Nder',
+      student_firstname: 'Stu',
+      student_lastname: 'Dent',
+      student_applications: [{ programId: program }],
+      new_app_decided_idx: [] // applications_name stays '' -> skip the </ul> append
+    });
+    expectSent('updated application status');
+  });
+
+  it('NewMLRLEssayTasksEmailFromTaiGer - some applications not decided (includes false side)', async () => {
+    await email.NewMLRLEssayTasksEmailFromTaiGer(recipient, {
+      sender_firstname: 'Se',
+      sender_lastname: 'Nder',
+      student_firstname: 'Stu',
+      student_lastname: 'Dent',
+      student_applications: [{ programId: program }, { programId: program }],
+      new_app_decided_idx: [1]
     });
     expectSent('updated application status');
   });
@@ -628,6 +737,26 @@ describe('email service - sendEmail-based templates', () => {
     expectSent('Meeting Invitation');
   });
 
+  it('MeetingAdjustReminderEmail - non-Student role (agent calendar branch)', async () => {
+    await email.MeetingAdjustReminderEmail(recipient, {
+      taiger_user_firstname: 'Ta',
+      taiger_user_lastname: 'Iger',
+      role: 'Agent',
+      meeting_time: '2025-01-01 10:00'
+    });
+    expectSent('Meeting confirmation required');
+  });
+
+  it('MeetingConfirmationReminderEmail - Student role (student calendar branch)', async () => {
+    await email.MeetingConfirmationReminderEmail(recipient, {
+      taiger_user_firstname: 'Ta',
+      taiger_user_lastname: 'Iger',
+      role: 'Student',
+      meeting_time: '2025-01-01 10:00'
+    });
+    expectSent('Meeting Invitation');
+  });
+
   it('MeetingReminderEmail', async () => {
     await email.MeetingReminderEmail(recipient, { event });
     expectSent('Meeting Reminder');
@@ -636,6 +765,16 @@ describe('email service - sendEmail-based templates', () => {
   it('UnconfirmedMeetingReminderEmail', async () => {
     await email.UnconfirmedMeetingReminderEmail(recipient, {
       role: 'Student',
+      id: '507f1f77bcf86cd799439055',
+      firstname: 'Other',
+      lastname: 'User'
+    });
+    expectSent('Meeting to confirm reminder');
+  });
+
+  it('UnconfirmedMeetingReminderEmail - non-Student role (agent calendar branch)', async () => {
+    await email.UnconfirmedMeetingReminderEmail(recipient, {
+      role: 'Agent',
       id: '507f1f77bcf86cd799439055',
       firstname: 'Other',
       lastname: 'User'
@@ -785,7 +924,7 @@ describe('email service - calendar event templates (transporter.sendMail)', () =
     expect(mail.attachments[0].filename).toBe('event.ics');
   });
 
-  it('MeetingCancelledReminderEmail sends a cancellation ICS', async () => {
+  it('MeetingCancelledReminderEmail sends a cancellation ICS (no reason)', async () => {
     await email.MeetingCancelledReminderEmail(recipient, {
       taiger_user,
       meeting_time: '2025-01-01 10:00',
@@ -796,6 +935,21 @@ describe('email service - calendar event templates (transporter.sendMail)', () =
     expect(transporter.sendMail).toHaveBeenCalledTimes(1);
     expect(transporter.sendMail.mock.calls[0][0].subject).toContain(
       'Meeting Cancelled'
+    );
+  });
+
+  it('MeetingCancelledReminderEmail includes the reason block when a reason is given', async () => {
+    await email.MeetingCancelledReminderEmail(recipient, {
+      taiger_user,
+      meeting_time: '2025-01-01 10:00',
+      reason: 'Scheduling conflict',
+      event,
+      event_title: 'Meeting',
+      isUpdatingEvent: true
+    });
+    expect(transporter.sendMail).toHaveBeenCalledTimes(1);
+    expect(transporter.sendMail.mock.calls[0][0].html).toContain(
+      'Scheduling conflict'
     );
   });
 

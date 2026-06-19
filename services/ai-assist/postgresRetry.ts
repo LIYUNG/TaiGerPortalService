@@ -10,9 +10,12 @@ const transientErrorCodes = new Set([
   '57P03'
 ]);
 
-const getErrorCode = (error) => error?.cause?.code || error?.code;
+const getErrorCode = (error: unknown): string | undefined => {
+  const err = error as { cause?: { code?: string }; code?: string } | null;
+  return err?.cause?.code || err?.code;
+};
 
-const isTransientPostgresError = (error) => {
+const isTransientPostgresError = (error: unknown) => {
   const code = getErrorCode(error);
   return Boolean(
     code &&
@@ -21,7 +24,10 @@ const isTransientPostgresError = (error) => {
   );
 };
 
-const withPostgresRetry = async (operation, context = {}) => {
+const withPostgresRetry = async <T>(
+  operation: () => Promise<T>,
+  context: Record<string, unknown> = {}
+): Promise<T> => {
   try {
     return await operation();
   } catch (error) {
@@ -32,7 +38,7 @@ const withPostgresRetry = async (operation, context = {}) => {
     logger.warn('Retrying transient Postgres operation', {
       ...context,
       code: getErrorCode(error),
-      message: error.message
+      message: (error as { message?: string })?.message
     });
 
     return operation();

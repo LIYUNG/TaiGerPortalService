@@ -1,3 +1,5 @@
+import { UpdateQuery } from 'mongoose';
+import { IProgramrequirement } from '@taiger-common/model';
 import { ProgramRequirement } from '../models';
 
 /**
@@ -11,33 +13,36 @@ const ProgramRequirementDAO = {
       .sort({ createdAt: -1 });
   },
 
-  async getProgramRequirementById(requirementId) {
+  async getProgramRequirementById(requirementId: string) {
     return ProgramRequirement.findById(requirementId)
       .populate('programId', 'school program_name degree')
       .populate('program_categories.keywordSets')
       .lean();
   },
 
-  async getProgramRequirementsByProgramIds(programIds) {
+  async getProgramRequirementsByProgramIds(programIds: string[]) {
     return ProgramRequirement.find({ programId: programIds }).lean();
   },
 
-  async createProgramRequirement(payload) {
+  async createProgramRequirement(payload: Partial<IProgramrequirement>) {
     return ProgramRequirement.create(payload);
   },
 
-  async updateProgramRequirementById(requirementId, fields) {
+  async updateProgramRequirementById(
+    requirementId: string,
+    fields: UpdateQuery<IProgramrequirement>
+  ) {
     return ProgramRequirement.findByIdAndUpdate(requirementId, fields, {
       upsert: false,
       new: true
     }).lean();
   },
 
-  async deleteProgramRequirementById(requirementId) {
+  async deleteProgramRequirementById(requirementId: string) {
     return ProgramRequirement.findByIdAndDelete(requirementId);
   },
 
-  async deleteOneByProgramIds(programIds) {
+  async deleteOneByProgramIds(programIds: string[]) {
     return ProgramRequirement.findOneAndDelete({
       programId: { $in: programIds }
     });
@@ -45,7 +50,7 @@ const ProgramRequirementDAO = {
 
   // Pull a deleted keyword set's id out of every requirement's
   // program_categories.keywordSets arrays.
-  async removeKeywordSetReferences(keywordsSetId) {
+  async removeKeywordSetReferences(keywordsSetId: string) {
     return ProgramRequirement.updateMany(
       { 'program_categories.keywordSets': keywordsSetId },
       {

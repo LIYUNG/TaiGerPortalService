@@ -1,17 +1,13 @@
 import path from 'path';
 import { is_TaiGer_Student } from '@taiger-common/core';
+import { IUser } from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
 import { isNotArchiv } from '../constants';
 
-import {
-  newCustomerCenterTicketEmail,
-  newCustomerCenterTicketSubmitConfirmationEmail,
-  complaintResolvedRequesterReminderEmail,
-  newCustomerCenterTicketMessageEmail
-} from '../services/email/complaints';
+import EmailComplaints = require('../services/email/complaints');
 import { ten_minutes_cache } from '../cache/node-cache';
 import { AWS_S3_BUCKET_NAME } from '../config';
 import { emptyS3Directory } from '../utils/modelHelper/versionControl';
@@ -21,13 +17,20 @@ import ComplaintService from '../services/complaints';
 import PermissionService from '../services/permissions';
 import StudentService from '../services/students';
 
+const {
+  newCustomerCenterTicketEmail,
+  newCustomerCenterTicketSubmitConfirmationEmail,
+  complaintResolvedRequesterReminderEmail,
+  newCustomerCenterTicketMessageEmail
+} = EmailComplaints;
+
 const getManagers = async () => PermissionService.getManagers();
 
 const getComplaints = asyncHandler(async (req, res) => {
   const { user } = req;
 
   const { type, status } = req.query;
-  const query = {};
+  const query: Record<string, unknown> = {};
   if (type) {
     // query.type = type;
   }
@@ -74,7 +77,7 @@ const createComplaint = asyncHandler(async (req, res) => {
           firstname: users[x].firstname,
           lastname: users[x].lastname,
           address: users[x].email
-        },
+        } as unknown as IUser,
         {
           requester: user,
           ticket_id: new_ticket._id?.toString(),
@@ -92,7 +95,7 @@ const createComplaint = asyncHandler(async (req, res) => {
         firstname: user.firstname,
         lastname: user.lastname,
         address: user.email
-      },
+      } as unknown as IUser,
       {
         ticket_id: new_ticket._id?.toString(),
         ticket_title: new_ticket.title,
@@ -116,7 +119,10 @@ const getMessageFileInTicket = asyncHandler(async (req, res) => {
   const value = ten_minutes_cache.get(cache_key); // file name
   if (value === undefined) {
     const response = await getS3Object(AWS_S3_BUCKET_NAME, fileKey);
-    const success = ten_minutes_cache.set(cache_key, Buffer.from(response));
+    const success = ten_minutes_cache.set(
+      cache_key,
+      Buffer.from(response as Uint8Array)
+    );
     if (success) {
       logger.info('ticket file cache set successfully');
     }
@@ -171,7 +177,7 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
       });
       // Check for duplicate file extensions
       const fileExtensions = req.files.map(
-        (file) => file.mimetype.split('/')[1]
+        (file: Express.Multer.File) => file.mimetype.split('/')[1]
       );
       const uniqueFileExtensions = new Set(fileExtensions);
       if (fileExtensions.length !== uniqueFileExtensions.size) {
@@ -201,6 +207,10 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
   const student = await StudentService.getStudentByIdWithTeam(
     ticket.requester_id
   );
+
+  if (!student) {
+    return;
+  }
 
   const payload = {
     student_firstname: student.firstname,
@@ -267,9 +277,10 @@ const updateComplaint = asyncHandler(async (req, res) => {
     try {
       await threadS3GarbageCollector(req, collection, userFolder, ticketId);
     } catch (error) {
+      const err = error as Error | undefined;
       logger.error('Failed to cleanup complaint files:', {
-        error: error?.message,
-        stack: error?.stack,
+        error: err?.message,
+        stack: err?.stack,
         ticketId,
         collection,
         userFolder
@@ -283,12 +294,14 @@ const updateComplaint = asyncHandler(async (req, res) => {
           firstname: updatedComplaint.requester_id.firstname,
           lastname: updatedComplaint.requester_id.lastname,
           address: updatedComplaint.requester_id.email
-        },
+        } as unknown as IUser,
         {
           ticket_id: updatedComplaint._id,
           student: updatedComplaint.requester_id,
           taigerUser: user
-        }
+        } as unknown as Parameters<
+          typeof complaintResolvedRequesterReminderEmail
+        >[1]
       );
     }
   }
@@ -309,7 +322,7 @@ const updateAMessageInComplaint = asyncHandler(async (req, res) => {
     throw new ErrorResponse(423, 'Ticket is closed.');
   }
   const msg = ticket.messages.find(
-    (message) => message._id?.toString() === messageId
+    (message: any) => message._id?.toString() === messageId
   );
 
   if (!msg) {
@@ -344,7 +357,7 @@ const deleteAMessageInComplaint = asyncHandler(async (req, res) => {
     throw new ErrorResponse(423, 'Ticket is closed.');
   }
   const msg = ticket.messages.find(
-    (message) => message._id.toString() === messageId
+    (message: any) => message._id.toString() === messageId
   );
 
   if (!msg) {

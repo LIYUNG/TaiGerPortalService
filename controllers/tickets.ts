@@ -13,7 +13,7 @@ const getTickets = asyncHandler(async (req, res) => {
   const { user } = req;
 
   const { type, program_id, status } = req.query;
-  const query = {};
+  const query: Record<string, unknown> = {};
   if (type) {
     query.type = type;
   }
@@ -52,13 +52,18 @@ const createTicket = asyncHandler(async (req, res) => {
     studentPromise
   ]);
 
-  for (let i = 0; i < student.agents.length; i += 1) {
+  if (!student) {
+    return;
+  }
+
+  const agents = (student as any).agents;
+  for (let i = 0; i < agents.length; i += 1) {
     if (isNotArchiv(student)) {
       TicketCreatedAgentEmail(
         {
-          firstname: student.agents[i].firstname,
-          lastname: student.agents[i].lastname,
-          address: student.agents[i].email
+          firstname: agents[i].firstname,
+          lastname: agents[i].lastname,
+          address: agents[i].email
         },
         {
           program,

@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery, Types, SortOrder } from 'mongoose';
+import { ICommunication } from '@taiger-common/model';
 import { Communication } from '../models';
 
 const POPULATE = [
@@ -7,7 +9,7 @@ const POPULATE = [
 
 // Escape regex metacharacters so a user's query is matched literally (also
 // guards against invalid-regex crashes / ReDoS from attacker input).
-const escapeRegex = (value) =>
+const escapeRegex = (value: string) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Populate/select used by the context + adjacent-page queries — produces the
@@ -20,17 +22,17 @@ const CTX_SELECT = 'firstname lastname role pictureUrl';
  * default-connection model). Plain params, no req.
  */
 const CommunicationDAO = {
-  async getCommunicationByStudentId(studentId) {
+  async getCommunicationByStudentId(studentId: string) {
     return Communication.find({ studentId }).lean();
   },
 
-  async getCommunicationById(communicationId) {
+  async getCommunicationById(communicationId: string) {
     return Communication.findById(communicationId)
       .populate(...POPULATE)
       .lean();
   },
 
-  async getCommunications(query) {
+  async getCommunications(query: FilterQuery<ICommunication>) {
     return Communication.find(query)
       .populate(...POPULATE)
       .lean();
@@ -38,7 +40,13 @@ const CommunicationDAO = {
 
   // Communications matching `filter`, author populated, newest-first, capped —
   // for the AI-assist conversation context.
-  async findPopulatedSorted(filter, { sort = { createdAt: -1 }, limit } = {}) {
+  async findPopulatedSorted(
+    filter: FilterQuery<ICommunication>,
+    {
+      sort = { createdAt: -1 },
+      limit
+    }: { sort?: Record<string, SortOrder>; limit?: number } = {}
+  ) {
     return Communication.find(filter)
       .populate('user_id', 'firstname lastname role')
       .sort(sort)
@@ -56,7 +64,7 @@ const CommunicationDAO = {
 
   // Full thread for a student, populated with the names/roles needed by the PDF
   // export (newest-first ordering is applied by the caller).
-  async getByStudentIdForExport(studentId) {
+  async getByStudentIdForExport(studentId: string) {
     return Communication.find({ student_id: studentId })
       .populate(
         'student_id user_id',
@@ -67,7 +75,7 @@ const CommunicationDAO = {
 
   // Most-recent messages for a student (newest first), lightly populated — used
   // by the TaiGer AI chat assistant for conversation context.
-  async getRecentByStudentId(studentId, limit) {
+  async getRecentByStudentId(studentId: string, limit: number) {
     return Communication.find({ student_id: studentId })
       .populate('student_id user_id', 'firstname lastname role')
       .sort({ createdAt: -1 })
@@ -75,16 +83,16 @@ const CommunicationDAO = {
       .lean();
   },
 
-  async createCommunication(payload) {
+  async createCommunication(payload: Partial<ICommunication>) {
     return Communication.create(payload);
   },
 
-  async deleteById(communicationId) {
+  async deleteById(communicationId: string) {
     return Communication.findByIdAndDelete(communicationId);
   },
 
   // Newest message for a student (lean) — unread badge for students.
-  async getLatestByStudentId(studentId) {
+  async getLatestByStudentId(studentId: string) {
     return Communication.findOne({ student_id: studentId })
       .sort({ createdAt: -1 })
       .lean();
@@ -95,7 +103,7 @@ const CommunicationDAO = {
   // communication gaps (students who have gone silent) without N queries.
   // `studentIds` should be ObjectId instances. Returns
   // [{ _id: <studentObjectId>, latestAt: <Date> }].
-  async getLatestMessageAtForStudents(studentIds) {
+  async getLatestMessageAtForStudents(studentIds: Types.ObjectId[]) {
     if (!studentIds || !studentIds.length) {
       return [];
     }
@@ -109,7 +117,7 @@ const CommunicationDAO = {
   // not marked as "no reply needed" (ignore_message != true). One aggregation:
   // sort desc, group to get latest, filter where sender == student.
   // Returns [{ _id: <studentObjectId>, latestAt: <Date> }].
-  async getUnansweredStudentMessages(studentIds) {
+  async getUnansweredStudentMessages(studentIds: Types.ObjectId[]) {
     if (!studentIds?.length) return [];
     return Communication.aggregate([
       { $match: { student_id: { $in: studentIds } } },
@@ -136,8 +144,20 @@ const CommunicationDAO = {
   // Returns live documents unless `lean` is set (callers that mark-as-read
   // mutate + .save() the returned docs).
   async findThreadPopulated(
-    studentId,
-    { populate, select, skip = 0, limit, lean = false } = {}
+    studentId: string,
+    {
+      populate,
+      select,
+      skip = 0,
+      limit,
+      lean = false
+    }: {
+      populate?: string;
+      select?: string;
+      skip?: number;
+      limit?: number;
+      lean?: boolean;
+    } = {}
   ) {
     let query = Communication.find({ student_id: studentId })
       .populate(populate, select)
@@ -151,7 +171,10 @@ const CommunicationDAO = {
     return lean ? query.lean() : query;
   },
 
-  async updateCommunication(communicationId, payload) {
+  async updateCommunication(
+    communicationId: string,
+    payload: UpdateQuery<ICommunication>
+  ) {
     return Communication.findByIdAndUpdate(communicationId, payload, {
       new: true
     })
@@ -163,7 +186,11 @@ const CommunicationDAO = {
   // strings, so the visible text lives inside the `message` field — a
   // case-insensitive regex on it matches what the user reads. Returns matches
   // newest-first with the author populated, plus the total match count.
-  async searchThread(studentId, q, { limit = 50 } = {}) {
+  async searchThread(
+    studentId: string,
+    q: string,
+    { limit = 50 }: { limit?: number } = {}
+  ) {
     const filter = {
       student_id: studentId,
       message: { $regex: escapeRegex(q), $options: 'i' }
@@ -183,7 +210,11 @@ const CommunicationDAO = {
   // `before` older + the target + `after` newer, returned oldest-first (the
   // thread display order). `hasOlder`/`hasNewer` tell the client whether more
   // exists beyond the window. Returns null when the message isn't in the thread.
-  async getThreadContext(studentId, messageId, { before = 5, after = 5 } = {}) {
+  async getThreadContext(
+    studentId: string,
+    messageId: string,
+    { before = 5, after = 5 }: { before?: number; after?: number } = {}
+  ) {
     const target = await Communication.findOne({
       _id: messageId,
       student_id: studentId
@@ -225,7 +256,12 @@ const CommunicationDAO = {
   // style scroll-up / scroll-down from a jumped-to position). `before` returns
   // older messages oldest-first (to prepend); `after` returns newer messages
   // oldest-first (to append). `hasMore` signals whether the chunk hit the limit.
-  async getAdjacentMessages(studentId, messageId, direction, limit = 5) {
+  async getAdjacentMessages(
+    studentId: string,
+    messageId: string,
+    direction: string,
+    limit = 5
+  ) {
     const anchor = await Communication.findOne({
       _id: messageId,
       student_id: studentId

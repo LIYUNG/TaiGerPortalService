@@ -5,6 +5,4 @@ interviewsSchema.index(
   { unique: true }
 );
 
-export = {
-  interviewsSchema
-};
+export { interviewsSchema };

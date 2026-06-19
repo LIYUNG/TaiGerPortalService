@@ -1,6 +1,6 @@
 import ical from 'ical-generator';
 import queryString from 'query-string';
-import { DocumentStatusType } from '@taiger-common/model';
+import { DocumentStatusType, IUser } from '@taiger-common/model';
 
 import {
   ACCOUNT_ACTIVATION_URL,
@@ -44,29 +44,53 @@ import { transporter, sendEmail } from './email/configuration';
 import { senderName, taigerNotReplyGmail, appDomain } from '../constants/email';
 import { asyncHandler } from '../middlewares/error-handler';
 
-const sendEventEmail = (
-  to,
-  subject,
-  message,
-  meeting_event,
-  cc, // array
-  event_title,
-  isUpdatingEvent,
-  toDelete
-) => {
-  const cc_event_list = cc.map((c) => ({
-    email: c.email,
-    name: `${c.firstname} ${c.lastname}`,
-    status: 'ACCEPTED',
-    rsvp: true,
-    type: 'INDIVIDUAL',
-    role: 'REQ-PARTICIPANT'
-  }));
+// Email-template payloads are heterogeneous, per-template data bags (program
+// details, student/application lists, timestamps, ...) rather than a single
+// domain entity. Typed as an index signature so the existing ad-hoc field
+// accesses keep working while making the param non-implicit-any. This mirrors
+// the effective shape asyncHandler-wrapped sibling templates already receive.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EmailMessagePayload = Record<string, any>;
 
-  const cc_receiver_list = cc.map((c) => ({
-    address: c.email,
-    name: `${c.firstname} ${c.lastname}`
-  }));
+// Email recipients are sometimes full user documents and sometimes lightweight
+// `{ firstname, lastname, address }` descriptors built ad hoc at the call site
+// (where `address` is the destination email). Accept either shape.
+type EmailRecipient = Partial<IUser> & { address?: string };
+
+const sendEventEmail = (
+  // `to` / `meeting_event` / `cc` are passed straight into the ical-generator
+  // event/attendee builders, whose data unions are looser than the runtime
+  // shapes here; kept dynamic to preserve the existing (previously implicit-any)
+  // behaviour without fighting the third-party calendar types.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  to: any,
+  subject: string,
+  message: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  meeting_event: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  cc: any, // array
+  event_title: string,
+  isUpdatingEvent: boolean,
+  toDelete: boolean
+) => {
+  const cc_event_list = cc.map(
+    (c: { email: string; firstname: string; lastname: string }) => ({
+      email: c.email,
+      name: `${c.firstname} ${c.lastname}`,
+      status: 'ACCEPTED',
+      rsvp: true,
+      type: 'INDIVIDUAL',
+      role: 'REQ-PARTICIPANT'
+    })
+  );
+
+  const cc_receiver_list = cc.map(
+    (c: { email: string; firstname: string; lastname: string }) => ({
+      address: c.email,
+      name: `${c.firstname} ${c.lastname}`
+    })
+  );
 
   const event = ical({
     domain: appDomain,
@@ -675,7 +699,7 @@ export const informAgentManagerNewStudentEmail = asyncHandler(
   async (recipient, payload) => {
     const studentName = `${payload.std_firstname} ${payload.std_lastname}`;
     const agentName = `${payload.agents
-      .map((agent) => `${agent.firstname}`)
+      .map((agent: { firstname: string }) => `${agent.firstname}`)
       .join(' ')}`;
     const subject = `新學生 ${studentName} 已被指派給 ${agentName} / New student ${studentName} assigned to ${agentName}`;
     const message = `\
@@ -1246,7 +1270,10 @@ ${applications_name}.
 });
 
 // For editor, english only
-export const NewMLRLEssayTasksEmailFromTaiGer = async (recipient, msg) => {
+export const NewMLRLEssayTasksEmailFromTaiGer = async (
+  recipient: EmailRecipient,
+  msg: EmailMessagePayload
+) => {
   const subject = `${msg.sender_firstname} ${msg.sender_lastname} has updated application status and new tasks`;
   let applications_name = '';
   for (let i = 0; i < msg.student_applications.length; i += 1) {
@@ -1283,7 +1310,10 @@ ${applications_name}
 };
 
 // For editor, agents
-export const AdmissionResultInformEmailToTaiGer = async (recipient, msg) => {
+export const AdmissionResultInformEmailToTaiGer = async (
+  recipient: EmailRecipient,
+  msg: EmailMessagePayload
+) => {
   const result = msg.admission === 'O' ? 'Admission' : 'Rejection';
   const student_name = `${msg.student_firstname} ${msg.student_lastname}`;
   const applications_name = `${msg.udpatedApplication.programId.school} ${msg.udpatedApplication.programId.program_name} ${msg.udpatedApplication.programId.degree} ${msg.udpatedApplication.programId.semester}`;
@@ -1302,7 +1332,10 @@ export const AdmissionResultInformEmailToTaiGer = async (recipient, msg) => {
   return sendEmail(recipient, subject, message);
 };
 
-export const sendNewInterviewMessageInThreadEmail = async (recipient, msg) => {
+export const sendNewInterviewMessageInThreadEmail = async (
+  recipient: EmailRecipient,
+  msg: EmailMessagePayload
+) => {
   const interview_single_url = `${SINGLE_INTERVIEW_THREAD_URL(
     msg.interview_id
   )}`;
@@ -1338,8 +1371,8 @@ export const sendNewInterviewMessageInThreadEmail = async (recipient, msg) => {
 };
 
 export const sendNewApplicationMessageInThreadEmail = async (
-  recipient,
-  msg
+  recipient: EmailRecipient,
+  msg: EmailMessagePayload
 ) => {
   const thread_url = `${THREAD_URL}/${msg.thread_id}`;
   const student_name = `${msg.student_firstname} - ${msg.student_lastname}`;
@@ -1377,7 +1410,10 @@ export const sendNewApplicationMessageInThreadEmail = async (
   sendEmail(recipient, subject, message);
 };
 
-export const sendNewGeneraldocMessageInThreadEmail = async (recipient, msg) => {
+export const sendNewGeneraldocMessageInThreadEmail = async (
+  recipient: EmailRecipient,
+  msg: EmailMessagePayload
+) => {
   const thread_url = `${THREAD_URL}/${msg.thread_id}`;
   const student_name = `${msg.student_firstname} - ${msg.student_lastname}`;
   const subject = `[Update] ${msg.writer_firstname} ${msg.writer_lastname} provides a new message > ${student_name} ${msg.uploaded_documentname}!`;
@@ -1415,8 +1451,8 @@ export const sendNewGeneraldocMessageInThreadEmail = async (recipient, msg) => {
 };
 
 export const sendSetAsFinalGeneralFileForAgentEmail = async (
-  recipient,
-  msg
+  recipient: EmailRecipient,
+  msg: EmailMessagePayload
 ) => {
   const student_name = `${msg.student_firstname} ${msg.student_lastname}`;
   const threadUrl = `${THREAD_ID_URL(msg.thread_id)}`;
@@ -1496,8 +1532,8 @@ as not finished.</p>
 };
 
 export const sendSetAsFinalGeneralFileForStudentEmail = async (
-  recipient,
-  msg
+  recipient: EmailRecipient,
+  msg: EmailMessagePayload
 ) => {
   const student_name = `${recipient.firstname} ${recipient.lastname}`;
   const threadUrl = `${THREAD_ID_URL(msg.thread_id)}`;
@@ -1978,7 +2014,17 @@ export const sendAssignEditorReminderEmail = asyncHandler(
 export const sendNoTrainerInterviewRequestsReminderEmail = asyncHandler(
   async (recipient, payload) => {
     const requests = payload.interviewRequests.map(
-      (request) =>
+      (request: {
+        _id: { toString(): string };
+        student_id: { firstname: string; lastname: string };
+        program_id: {
+          school: string;
+          program_name: string;
+          degree: string;
+          semester: string;
+        };
+        interview_date: string;
+      }) =>
         `<li>
       <a href="${SINGLE_INTERVIEW_THREAD_URL(request._id.toString())}">${
           request.student_id.firstname

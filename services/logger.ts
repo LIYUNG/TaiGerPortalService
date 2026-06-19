@@ -50,7 +50,7 @@ const colors = {
 };
 
 // Log levels with numeric values
-const levels = {
+const levels: Record<string, number> = {
   error: 0,
   warn: 1,
   info: 2,
@@ -65,7 +65,11 @@ const currentLevel =
 const getTimestamp = () => new Date().toISOString();
 
 // Helper function to format log message
-const formatMessage = (level, message, meta = {}) => {
+const formatMessage = (
+  level: string,
+  message: string,
+  meta: Record<string, unknown> = {}
+) => {
   // Tag every line with the current request's id (from AsyncLocalStorage) so a
   // single 5XX line can be expanded to the whole request via `requestId`.
   const requestId = getRequestId();
@@ -84,7 +88,7 @@ const formatMessage = (level, message, meta = {}) => {
 
   // In development, output colored, formatted text (only if not in CloudWatch)
   const timestamp = getTimestamp();
-  const colorMap = {
+  const colorMap: Record<string, string> = {
     error: colors.red,
     warn: colors.yellow,
     info: colors.green,
@@ -107,53 +111,53 @@ const formatMessage = (level, message, meta = {}) => {
 };
 
 // Check if log level should be output
-const shouldLog = (level) => {
+const shouldLog = (level: string) => {
   if (isTest()) return false;
   return levels[level] <= levels[currentLevel];
 };
 
 // Logger methods
 const logger = {
-  error: (message, meta = {}) => {
+  error: (message: string, meta: Record<string, unknown> = {}) => {
     if (shouldLog('error')) {
       console.error(formatMessage('error', message, meta));
     }
   },
 
-  warn: (message, meta = {}) => {
+  warn: (message: string, meta: Record<string, unknown> = {}) => {
     if (shouldLog('warn')) {
       console.warn(formatMessage('warn', message, meta));
     }
   },
 
-  info: (message, meta = {}) => {
+  info: (message: string, meta: Record<string, unknown> = {}) => {
     if (shouldLog('info')) {
       console.log(formatMessage('info', message, meta));
     }
   },
 
-  debug: (message, meta = {}) => {
+  debug: (message: string, meta: Record<string, unknown> = {}) => {
     if (shouldLog('debug')) {
       console.log(formatMessage('debug', message, meta));
     }
   },
 
   // Convenience method for HTTP requests
-  http: (message, meta = {}) => {
+  http: (message: string, meta: Record<string, unknown> = {}) => {
     if (shouldLog('info')) {
       console.log(formatMessage('info', `HTTP: ${message}`, meta));
     }
   },
 
   // Method to set log level at runtime
-  setLevel: (level) => {
+  setLevel: (level: string) => {
     if (Object.prototype.hasOwnProperty.call(levels, level)) {
       process.env.LOG_LEVEL = level;
     }
   },
 
   // Method to check if a level is enabled
-  isLevelEnabled: (level) => shouldLog(level)
+  isLevelEnabled: (level: string) => shouldLog(level)
 };
 
 export = logger;

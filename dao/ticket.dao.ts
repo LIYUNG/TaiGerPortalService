@@ -1,6 +1,8 @@
+import { FilterQuery, PipelineStage, UpdateQuery } from 'mongoose';
+import { ITicket } from '@taiger-common/model';
 import { Ticket } from '../models';
 
-const escapeRegex = (value) =>
+const escapeRegex = (value: unknown) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
@@ -17,8 +19,14 @@ const TicketDAO = {
     skip = 0,
     limit = 20,
     sort = { createdAt: -1 }
+  }: {
+    filters?: { type?: string; status?: string };
+    search?: string;
+    skip?: number;
+    limit?: number;
+    sort?: Record<string, 1 | -1>;
   } = {}) {
-    const match = {};
+    const match: Record<string, unknown> = {};
     if (filters.type) {
       match.type = filters.type;
     }
@@ -26,7 +34,7 @@ const TicketDAO = {
       match.status = filters.status;
     }
 
-    const pipeline = [
+    const pipeline: PipelineStage[] = [
       { $match: match },
       {
         $lookup: {
@@ -91,7 +99,10 @@ const TicketDAO = {
     };
   },
 
-  async getTickets(query, { populateRequester = false } = {}) {
+  async getTickets(
+    query: FilterQuery<ITicket>,
+    { populateRequester = false }: { populateRequester?: boolean } = {}
+  ) {
     const cursor = Ticket.find(query).populate(
       'program_id',
       'school program_name degree'
@@ -102,21 +113,21 @@ const TicketDAO = {
     return cursor.sort({ createdAt: -1 });
   },
 
-  async createTicket(data) {
+  async createTicket(data: Partial<ITicket>) {
     return Ticket.create(data);
   },
 
-  async updateTicketById(id, fields) {
+  async updateTicketById(id: string, fields: UpdateQuery<ITicket>) {
     return Ticket.findByIdAndUpdate(id, fields, { new: true })
       .populate('requester_id', 'firstname lastname email archiv')
       .populate('program_id', 'school program_name degree semester');
   },
 
-  async deleteTicketById(id) {
+  async deleteTicketById(id: string) {
     return Ticket.findByIdAndDelete(id);
   },
 
-  async deleteTicketsByProgramId(programId) {
+  async deleteTicketsByProgramId(programId: string) {
     return Ticket.deleteMany({ program_id: programId });
   }
 };

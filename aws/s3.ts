@@ -15,9 +15,9 @@ import {
 import logger from '../services/logger';
 import { AWS_KEY_CONFIG } from './constants';
 
-const s3Client = new S3Client(AWS_KEY_CONFIG);
+export const s3Client = new S3Client(AWS_KEY_CONFIG);
 
-const putS3Object = async ({ bucketName, key, Body, ContentType }) => {
+export const putS3Object = async ({ bucketName, key, Body, ContentType }) => {
   const client = new S3Client({});
   const command = new PutObjectCommand({
     Bucket: bucketName,
@@ -47,7 +47,7 @@ or the multipart upload API (5TB max).`
     }
   }
 };
-const getS3Object = async (bucketName, objectKey) => {
+export const getS3Object = async (bucketName, objectKey) => {
   try {
     const response = await s3Client.send(
       new GetObjectCommand({
@@ -76,7 +76,7 @@ const getS3Object = async (bucketName, objectKey) => {
 // it is far cheaper than GetObject for validating that a file is present and
 // reading its size. Returns the object size in bytes if it exists, or null if
 // it is absent.
-const headS3ObjectSize = async (bucketName, objectKey) => {
+export const headS3ObjectSize = async (bucketName, objectKey) => {
   try {
     const response = await s3Client.send(
       new HeadObjectCommand({
@@ -105,7 +105,7 @@ const headS3ObjectSize = async (bucketName, objectKey) => {
   }
 };
 
-const deleteS3Object = async (bucketName, objectKey) => {
+export const deleteS3Object = async (bucketName, objectKey) => {
   try {
     await s3Client.send(
       new DeleteObjectCommand({
@@ -141,7 +141,7 @@ const deleteS3Object = async (bucketName, objectKey) => {
 };
 
 // objectKeys = [{Key: 'abc/hey.pdf},{Key:'abc/key.pdf'}]
-const deleteS3Objects = async ({ bucketName, objectKeys }) => {
+export const deleteS3Objects = async ({ bucketName, objectKeys }) => {
   try {
     const { Deleted } = await s3Client.send(
       new DeleteObjectsCommand({
@@ -182,7 +182,7 @@ const deleteS3Objects = async ({ bucketName, objectKeys }) => {
   }
 };
 
-const listS3ObjectsV2 = async ({ bucketName, Prefix }) => {
+export const listS3ObjectsV2 = async ({ bucketName, Prefix }) => {
   try {
     const command = new ListObjectsCommand({
       Bucket: bucketName,
@@ -209,7 +209,7 @@ const listS3ObjectsV2 = async ({ bucketName, Prefix }) => {
   }
 };
 
-async function uploadJsonToS3(responseJson, bucketName, fileName) {
+export async function uploadJsonToS3(responseJson, bucketName, fileName) {
   try {
     // Prepare the file content
     const jsonData = JSON.stringify(responseJson);
@@ -227,14 +227,3 @@ async function uploadJsonToS3(responseJson, bucketName, fileName) {
     throw error;
   }
 }
-
-export = {
-  s3Client,
-  putS3Object,
-  uploadJsonToS3,
-  getS3Object,
-  headS3ObjectSize,
-  deleteS3Object,
-  deleteS3Objects,
-  listS3ObjectsV2
-};

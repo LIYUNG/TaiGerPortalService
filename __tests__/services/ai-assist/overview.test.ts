@@ -2,10 +2,19 @@
 // Pure-function helpers and collectors are tested directly.
 // buildOverview / loadPortfolio are tested with service mocks.
 
-jest.mock('../../../services/students', () => ({ findStudentsSelect: jest.fn() }));
-jest.mock('../../../services/applications', () => ({ findApplicationsSelectPopulate: jest.fn() }));
-jest.mock('../../../services/documentthreads', () => ({ findThreadsSelectSorted: jest.fn() }));
-jest.mock('../../../services/communications', () => ({ getLatestMessageAtForStudents: jest.fn() }));
+jest.mock('../../../services/students', () => ({
+  findStudentsSelect: jest.fn()
+}));
+jest.mock('../../../services/applications', () => ({
+  findApplicationsSelectPopulate: jest.fn()
+}));
+jest.mock('../../../services/documentthreads', () => ({
+  findThreadsSelectSorted: jest.fn(),
+  getThreadsWaitingOnTeam: jest.fn()
+}));
+jest.mock('../../../services/communications', () => ({
+  getLatestMessageAtForStudents: jest.fn()
+}));
 jest.mock('../../../services/ai-assist/studentAccess', () => ({
   getAccessibleStudentFilter: jest.fn().mockResolvedValue({})
 }));
@@ -26,6 +35,9 @@ const {
   collectAdmittedNotConfirmed,
   collectMissingBaseDocuments,
   buildStudentStats,
+  buildStudentTerms,
+  buildFinalizedStudentIds,
+  loadPortfolio,
   enrichBucketItems,
   parseDeadline,
   toIdString,
@@ -35,14 +47,42 @@ const {
   studentLabel,
   buildOverview
 } = overview as {
-  collectThreadsWaitingOnTeam: (threads: any[], studentById: Map<string, any>) => any[];
-  collectCommunicationGaps: (students: any[], applications: any[], latestMessageAtById: Map<string, Date>) => any[];
-  collectUpcomingDeadlines: (applications: any[], studentById: Map<string, any>, days: number) => any[];
-  collectAdmittedNotConfirmed: (applications: any[], studentById: Map<string, any>) => any[];
+  collectThreadsWaitingOnTeam: (
+    threads: any[],
+    studentById: Map<string, any>,
+    finalizedStudentIds?: Set<string>
+  ) => any[];
+  collectCommunicationGaps: (
+    students: any[],
+    applications: any[],
+    latestMessageAtById: Map<string, Date>
+  ) => any[];
+  collectUpcomingDeadlines: (
+    applications: any[],
+    studentById: Map<string, any>,
+    days: number,
+    finalizedStudentIds?: Set<string>
+  ) => any[];
+  collectAdmittedNotConfirmed: (
+    applications: any[],
+    studentById: Map<string, any>
+  ) => any[];
   collectMissingBaseDocuments: (students: any[]) => any[];
-  buildStudentStats: (applications: any[]) => Record<string, { offerCount: number; rejectCount: number }>;
-  enrichBucketItems: (bucket: { count: number; items: any[] }, statsById: Record<string, { offerCount: number; rejectCount: number }>) => { count: number; items: any[] };
-  parseDeadline: (deadlineString: string) => { date: Date | null; rolling: boolean; label: string };
+  buildStudentStats: (
+    applications: any[]
+  ) => Record<string, { offerCount: number; rejectCount: number }>;
+  buildStudentTerms: (applications: any[]) => Record<string, string[]>;
+  buildFinalizedStudentIds: (applications: any[]) => Set<string>;
+  loadPortfolio: (req: any, opts?: any) => Promise<any>;
+  enrichBucketItems: (
+    bucket: { count: number; items: any[] },
+    statsById: Record<string, { offerCount: number; rejectCount: number }>
+  ) => { count: number; items: any[] };
+  parseDeadline: (deadlineString: string) => {
+    date: Date | null;
+    rolling: boolean;
+    label: string;
+  };
   toIdString: (value: unknown) => string;
   safeDate: (value: unknown) => Date | null;
   isTruthyFlag: (value: unknown) => boolean;
@@ -51,8 +91,10 @@ const {
   buildOverview: (req: any, opts?: any) => Promise<any>;
 };
 
-const daysAgo = (n: number): Date => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
-const daysFromNow = (n: number): Date => new Date(Date.now() + n * 24 * 60 * 60 * 1000);
+const daysAgo = (n: number): Date =>
+  new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+const daysFromNow = (n: number): Date =>
+  new Date(Date.now() + n * 24 * 60 * 60 * 1000);
 
 const student = (id: string, firstname = 'Test', extras: any = {}) => ({
   _id: id,
@@ -80,6 +122,10 @@ describe('toIdString', () => {
   it('calls toString() on objects', () => {
     const obj = { toString: () => 'obj-id' };
     expect(toIdString(obj)).toBe('obj-id');
+  });
+
+  it('returns empty string for objects without a toString method', () => {
+    expect(toIdString(Object.create(null))).toBe('');
   });
 });
 
@@ -151,14 +197,27 @@ describe('deriveStatus', () => {
 // ─── parseDeadline ─────────────────────────────────────────────────────────
 describe('parseDeadline', () => {
   it('returns unknown label for falsy input', () => {
-    expect(parseDeadline('')).toMatchObject({ date: null, rolling: false, label: 'unknown' });
+    expect(parseDeadline('')).toMatchObject({
+      date: null,
+      rolling: false,
+      label: 'unknown'
+    });
     // @ts-expect-error intentional null
-    expect(parseDeadline(null)).toMatchObject({ date: null, rolling: false, label: 'unknown' });
+    expect(parseDeadline(null)).toMatchObject({
+      date: null,
+      rolling: false,
+      label: 'unknown'
+    });
   });
 
   it('detects rolling deadlines', () => {
-    expect(parseDeadline('2024-Rolling')).toMatchObject({ date: null, rolling: true });
-    expect(parseDeadline('Rolling admissions')).toMatchObject({ rolling: true });
+    expect(parseDeadline('2024-Rolling')).toMatchObject({
+      date: null,
+      rolling: true
+    });
+    expect(parseDeadline('Rolling admissions')).toMatchObject({
+      rolling: true
+    });
   });
 
   it('parses a valid YYYY/MM/DD string', () => {
@@ -169,7 +228,10 @@ describe('parseDeadline', () => {
   });
 
   it('returns no date for non-3-part strings', () => {
-    expect(parseDeadline('WITHDRAW')).toMatchObject({ date: null, rolling: false });
+    expect(parseDeadline('WITHDRAW')).toMatchObject({
+      date: null,
+      rolling: false
+    });
     expect(parseDeadline('No Data')).toMatchObject({ date: null });
   });
 
@@ -210,7 +272,9 @@ describe('collectUpcomingDeadlines', () => {
   const { application_deadline_V2_calculator } = require('../../../constants');
 
   it('returns deadlines within the window sorted soonest first', () => {
-    application_deadline_V2_calculator.mockImplementation((app: any) => app._deadline);
+    application_deadline_V2_calculator.mockImplementation(
+      (app: any) => app._deadline
+    );
     const byId = new Map([['s1', student('s1')]]);
     const apps = [
       { studentId: 's1', _deadline: '2099/12/31' },
@@ -225,8 +289,8 @@ describe('collectUpcomingDeadlines', () => {
     application_deadline_V2_calculator.mockReturnValue('2099/12/31');
     const byId = new Map([['s1', student('s1')]]);
     const apps = [
-      { studentId: 's1', admission: 'O' },        // admitted
-      { studentId: 's1', finalEnrolment: true }    // final_enrolled
+      { studentId: 's1', admission: 'O' }, // admitted
+      { studentId: 's1', finalEnrolment: true } // final_enrolled
     ];
     expect(collectUpcomingDeadlines(apps, byId, 99999)).toHaveLength(0);
   });
@@ -234,17 +298,47 @@ describe('collectUpcomingDeadlines', () => {
   it('excludes rolling deadlines', () => {
     application_deadline_V2_calculator.mockReturnValue('2099-Rolling');
     const byId = new Map([['s1', student('s1')]]);
-    expect(collectUpcomingDeadlines([{ studentId: 's1' }], byId, 99999)).toHaveLength(0);
+    expect(
+      collectUpcomingDeadlines([{ studentId: 's1' }], byId, 99999)
+    ).toHaveLength(0);
   });
 
   it('uses a bare id label when student is not in the map', () => {
     application_deadline_V2_calculator.mockReturnValue('2099/12/31');
-    const result = collectUpcomingDeadlines([{ studentId: 's_unknown' }], new Map(), 99999);
+    const result = collectUpcomingDeadlines(
+      [{ studentId: 's_unknown' }],
+      new Map(),
+      99999
+    );
     expect(result[0].student.id).toBe('s_unknown');
   });
 
   it('returns empty list for no applications', () => {
     expect(collectUpcomingDeadlines([], new Map(), 30)).toEqual([]);
+  });
+
+  it('excludes deadlines outside the window (negative or beyond days)', () => {
+    application_deadline_V2_calculator.mockImplementation(
+      (app: any) => app._deadline
+    );
+    const byId = new Map([['s1', student('s1')]]);
+    const apps = [
+      { studentId: 's1', _deadline: '2000/01/01' }, // past -> daysUntil < 0
+      { studentId: 's1', _deadline: '2099/12/31' } // within huge window only if days large
+    ];
+    const result = collectUpcomingDeadlines(apps, byId, 5); // small window
+    expect(result).toHaveLength(0);
+  });
+
+  it('flags confirmedElsewhere for finalized students and resolves program name fallback', () => {
+    application_deadline_V2_calculator.mockReturnValue('2099/12/31');
+    const byId = new Map([['s1', student('s1')]]);
+    const apps = [
+      { studentId: 's1', programId: { school: 'TU', name: 'CS' } } // program.name fallback (no program_name)
+    ];
+    const result = collectUpcomingDeadlines(apps, byId, 99999, new Set(['s1']));
+    expect(result[0].confirmedElsewhere).toBe(true);
+    expect(result[0].program.name).toBe('CS');
   });
 });
 
@@ -263,8 +357,41 @@ describe('collectAdmittedNotConfirmed', () => {
   });
 
   it('handles missing student in map', () => {
-    const result = collectAdmittedNotConfirmed([{ studentId: 's9', admission: 'O' }], new Map());
+    const result = collectAdmittedNotConfirmed(
+      [{ studentId: 's9', admission: 'O' }],
+      new Map()
+    );
     expect(result[0].student.id).toBe('s9');
+  });
+
+  it('includes program info with program_name and name fallback', () => {
+    const byId = new Map([['s1', student('s1')]]);
+    const withProgramName = collectAdmittedNotConfirmed(
+      [
+        {
+          studentId: 's1',
+          admission: 'O',
+          programId: { school: 'TU', program_name: 'MSc CS' }
+        }
+      ],
+      byId
+    );
+    expect(withProgramName[0].program).toEqual({
+      school: 'TU',
+      name: 'MSc CS'
+    });
+
+    const withNameFallback = collectAdmittedNotConfirmed(
+      [
+        {
+          studentId: 's1',
+          admission: 'O',
+          programId: { school: 'TU', name: 'CS' }
+        }
+      ],
+      byId
+    );
+    expect(withNameFallback[0].program.name).toBe('CS');
   });
 
   it('returns empty for empty input', () => {
@@ -308,10 +435,34 @@ describe('collectThreadsWaitingOnTeam', () => {
     ]);
 
     const threads = [
-      { student_id: 's1', latest_message_left_by_id: 's1', file_type: 'CV', isFinalVersion: false, updatedAt: daysAgo(14) },
-      { student_id: 's1', latest_message_left_by_id: 'editor_x', file_type: 'RL', isFinalVersion: false, updatedAt: daysAgo(2) },
-      { student_id: 's4', latest_message_left_by_id: 's4', file_type: 'ML', isFinalVersion: false, updatedAt: daysAgo(40) },
-      { student_id: 's1', latest_message_left_by_id: 's1', file_type: 'Essay', isFinalVersion: true, updatedAt: daysAgo(1) }
+      {
+        student_id: 's1',
+        latest_message_left_by_id: 's1',
+        file_type: 'CV',
+        isFinalVersion: false,
+        updatedAt: daysAgo(14)
+      },
+      {
+        student_id: 's1',
+        latest_message_left_by_id: 'editor_x',
+        file_type: 'RL',
+        isFinalVersion: false,
+        updatedAt: daysAgo(2)
+      },
+      {
+        student_id: 's4',
+        latest_message_left_by_id: 's4',
+        file_type: 'ML',
+        isFinalVersion: false,
+        updatedAt: daysAgo(40)
+      },
+      {
+        student_id: 's1',
+        latest_message_left_by_id: 's1',
+        file_type: 'Essay',
+        isFinalVersion: true,
+        updatedAt: daysAgo(1)
+      }
     ];
 
     const result = collectThreadsWaitingOnTeam(threads, byId);
@@ -324,6 +475,39 @@ describe('collectThreadsWaitingOnTeam', () => {
 
   it('returns an empty list when nothing is waiting on the team', () => {
     expect(collectThreadsWaitingOnTeam([], new Map())).toEqual([]);
+  });
+
+  it('flags confirmedElsewhere, falls back lastMsgAt, and uses bare id label when student missing', () => {
+    const threads = [
+      // finalized student, no student in map -> { id } label; uses lastMsgAt
+      {
+        student_id: 's9',
+        latest_message_left_by_id: 's9',
+        file_type: 'CV',
+        isFinalVersion: false,
+        lastMsgAt: daysAgo(20)
+      }
+    ];
+    const result = collectThreadsWaitingOnTeam(
+      threads,
+      new Map(),
+      new Set(['s9'])
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].student.id).toBe('s9');
+    expect(result[0].confirmedElsewhere).toBe(true);
+  });
+
+  it('treats a thread with no message date as 0 stalled days (filtered out)', () => {
+    const threads = [
+      {
+        student_id: 's1',
+        latest_message_left_by_id: 's1',
+        file_type: 'CV',
+        isFinalVersion: false
+      }
+    ];
+    expect(collectThreadsWaitingOnTeam(threads, new Map())).toEqual([]);
   });
 });
 
@@ -356,7 +540,9 @@ describe('collectCommunicationGaps', () => {
   it('does not flag students without an in-progress application', () => {
     const students = [student('s3', 'Cara')];
     const applications = [{ studentId: 's3', finalEnrolment: true }];
-    expect(collectCommunicationGaps(students, applications, new Map())).toEqual([]);
+    expect(collectCommunicationGaps(students, applications, new Map())).toEqual(
+      []
+    );
   });
 });
 
@@ -379,11 +565,15 @@ describe('buildStudentStats', () => {
   });
 
   it('ignores applications with no studentId', () => {
-    expect(Object.keys(buildStudentStats([{ admission: 'O' }]))).toHaveLength(0);
+    expect(Object.keys(buildStudentStats([{ admission: 'O' }]))).toHaveLength(
+      0
+    );
   });
 
   it('ignores non-offer non-reject admissions', () => {
-    const stats = buildStudentStats([{ studentId: 's1', admission: undefined }]);
+    const stats = buildStudentStats([
+      { studentId: 's1', admission: undefined }
+    ]);
     expect(stats['s1']).toEqual({ offerCount: 0, rejectCount: 0 });
   });
 });
@@ -395,17 +585,149 @@ describe('enrichBucketItems', () => {
     const stats = { s1: { offerCount: 2, rejectCount: 1 } };
     const result = enrichBucketItems(b, stats);
     expect(result.count).toBe(1);
-    expect(result.items[0].student).toMatchObject({ id: 's1', name: 'Ann', offerCount: 2, rejectCount: 1 });
+    expect(result.items[0].student).toMatchObject({
+      id: 's1',
+      name: 'Ann',
+      offerCount: 2,
+      rejectCount: 1
+    });
   });
 
   it('uses zero defaults when student has no stats', () => {
     const b = { count: 1, items: [{ student: { id: 's9', name: 'X' } }] };
-    expect(enrichBucketItems(b, {}).items[0].student).toMatchObject({ offerCount: 0, rejectCount: 0 });
+    expect(enrichBucketItems(b, {}).items[0].student).toMatchObject({
+      offerCount: 0,
+      rejectCount: 0
+    });
   });
 
   it('leaves items without a student id untouched', () => {
     const b = { count: 1, items: [{ fileType: 'CV' }] };
-    expect(enrichBucketItems(b, { s1: { offerCount: 1, rejectCount: 0 } }).items[0]).toEqual({ fileType: 'CV' });
+    expect(
+      enrichBucketItems(b, { s1: { offerCount: 1, rejectCount: 0 } }).items[0]
+    ).toEqual({ fileType: 'CV' });
+  });
+});
+
+// ─── buildFinalizedStudentIds ──────────────────────────────────────────────
+describe('buildFinalizedStudentIds', () => {
+  it('collects studentIds of applications with truthy finalEnrolment', () => {
+    const ids = buildFinalizedStudentIds([
+      { studentId: 's1', finalEnrolment: true },
+      { studentId: 's2', finalEnrolment: 'O' },
+      { studentId: 's3', finalEnrolment: false },
+      { studentId: 's4' }
+    ]);
+    expect(ids.has('s1')).toBe(true);
+    expect(ids.has('s2')).toBe(true);
+    expect(ids.has('s3')).toBe(false);
+    expect(ids.has('s4')).toBe(false);
+  });
+
+  it('returns an empty set for falsy / empty input', () => {
+    // @ts-expect-error intentional undefined
+    expect(buildFinalizedStudentIds(undefined).size).toBe(0);
+    expect(buildFinalizedStudentIds([]).size).toBe(0);
+  });
+});
+
+// ─── buildStudentTerms ─────────────────────────────────────────────────────
+describe('buildStudentTerms', () => {
+  it('groups distinct sorted semester+year terms per student', () => {
+    const terms = buildStudentTerms([
+      {
+        studentId: 's1',
+        application_year: 2024,
+        programId: { semester: 'WS' }
+      },
+      {
+        studentId: 's1',
+        application_year: 2023,
+        programId: { semester: 'SS' }
+      },
+      { studentId: 's1', application_year: 2024, programId: { semester: 'WS' } } // dup
+    ]);
+    expect(terms['s1']).toEqual(['SS2023', 'WS2024']);
+  });
+
+  it('skips apps missing a semester or year, or studentId', () => {
+    const terms = buildStudentTerms([
+      { studentId: 's1', application_year: 2024, programId: {} }, // no semester
+      { studentId: 's2', programId: { semester: 'WS' } }, // no year
+      { application_year: 2024, programId: { semester: 'WS' } } // no studentId
+    ]);
+    expect(terms).toEqual({});
+  });
+
+  it('returns an empty object for falsy / empty input', () => {
+    // @ts-expect-error intentional null
+    expect(buildStudentTerms(null)).toEqual({});
+    expect(buildStudentTerms([])).toEqual({});
+  });
+});
+
+// ─── enrichBucketItems with terms ──────────────────────────────────────────
+describe('enrichBucketItems (terms branch)', () => {
+  it('attaches applicationTerms when termsById has the student', () => {
+    const b = { count: 1, items: [{ student: { id: 's1', name: 'Ann' } }] };
+    const result = enrichBucketItems(
+      b,
+      { s1: { offerCount: 1, rejectCount: 0 } },
+      { s1: ['WS2024'] }
+    );
+    expect(result.items[0].student.applicationTerms).toEqual(['WS2024']);
+  });
+
+  it('defaults applicationTerms to [] when student missing from termsById', () => {
+    const b = { count: 1, items: [{ student: { id: 's2', name: 'Bob' } }] };
+    const result = enrichBucketItems(b, {}, {});
+    expect(result.items[0].student.applicationTerms).toEqual([]);
+  });
+});
+
+// ─── loadPortfolio ─────────────────────────────────────────────────────────
+describe('loadPortfolio', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    ApplicationService.findApplicationsSelectPopulate.mockResolvedValue([]);
+    DocumentThreadService.getThreadsWaitingOnTeam.mockResolvedValue([]);
+  });
+
+  it('returns early with no applications/threads when there are no students', async () => {
+    StudentService.findStudentsSelect.mockResolvedValue([]);
+    const result = await loadPortfolio({ user: { role: 'Agent' } });
+    expect(result.studentIds).toEqual([]);
+    expect(result.applications).toEqual([]);
+    expect(result.threads).toEqual([]);
+    expect(
+      ApplicationService.findApplicationsSelectPopulate
+    ).not.toHaveBeenCalled();
+    expect(
+      DocumentThreadService.getThreadsWaitingOnTeam
+    ).not.toHaveBeenCalled();
+  });
+
+  it('loads applications and threads when students are present', async () => {
+    StudentService.findStudentsSelect.mockResolvedValue([
+      student('s1', 'Ann'),
+      { id: 's2', firstname: 'Bob' } // uses id (no _id) -> line 111 branch
+    ]);
+    ApplicationService.findApplicationsSelectPopulate.mockResolvedValue([
+      { studentId: 's1' }
+    ]);
+    DocumentThreadService.getThreadsWaitingOnTeam.mockResolvedValue([
+      { student_id: 's1' }
+    ]);
+
+    const result = await loadPortfolio({ user: { role: 'Agent' } });
+    expect(result.studentIds).toContain('s1');
+    expect(result.studentIds).toContain('s2');
+    expect(result.applications).toHaveLength(1);
+    expect(result.threads).toHaveLength(1);
+    expect(
+      ApplicationService.findApplicationsSelectPopulate
+    ).toHaveBeenCalled();
+    expect(DocumentThreadService.getThreadsWaitingOnTeam).toHaveBeenCalled();
   });
 });
 
@@ -416,6 +738,7 @@ describe('buildOverview', () => {
     StudentService.findStudentsSelect.mockResolvedValue([]);
     ApplicationService.findApplicationsSelectPopulate.mockResolvedValue([]);
     DocumentThreadService.findThreadsSelectSorted.mockResolvedValue([]);
+    DocumentThreadService.getThreadsWaitingOnTeam.mockResolvedValue([]);
     CommunicationService.getLatestMessageAtForStudents.mockResolvedValue([]);
   });
 
@@ -428,7 +751,9 @@ describe('buildOverview', () => {
   });
 
   it('survives when communication service throws', async () => {
-    CommunicationService.getLatestMessageAtForStudents.mockRejectedValue(new Error('DB error'));
+    CommunicationService.getLatestMessageAtForStudents.mockRejectedValue(
+      new Error('DB error')
+    );
     const result = await buildOverview({ user: {} });
     expect(result).toHaveProperty('buckets');
   });
@@ -436,5 +761,42 @@ describe('buildOverview', () => {
   it('includes role in response', async () => {
     const result = await buildOverview({ user: { role: 'Manager' } });
     expect(result.role).toBe('Manager');
+  });
+
+  it('uses the Editor emphasis ordering', async () => {
+    const result = await buildOverview({ user: { role: 'Editor' } });
+    expect(result.emphasis[0]).toBe('threadsWaitingOnTeam');
+  });
+
+  it('honours a custom deadlineWindowDays', async () => {
+    const result = await buildOverview(
+      { user: { role: 'Agent' } },
+      { deadlineWindowDays: 7 }
+    );
+    expect(result.deadlineWindowDays).toBe(7);
+  });
+
+  it('handles a missing user (undefined role)', async () => {
+    const result = await buildOverview({});
+    expect(result.role).toBeUndefined();
+    expect(result.emphasis[0]).toBe('upcomingDeadlines');
+  });
+
+  it('populates latest message dates and surfaces communication gaps', async () => {
+    StudentService.findStudentsSelect.mockResolvedValue([student('s1', 'Ann')]);
+    ApplicationService.findApplicationsSelectPopulate.mockResolvedValue([
+      { studentId: 's1', finalEnrolment: true } // exercises buildFinalizedStudentIds via buildOverview
+    ]);
+    CommunicationService.getLatestMessageAtForStudents.mockResolvedValue([
+      { _id: 's1', latestAt: daysAgo(30) },
+      { studentId: 's1', latestAt: 'not-a-date' }, // safeDate -> null, skipped
+      { _id: null, latestAt: daysAgo(5) } // no id, skipped
+    ]);
+
+    const result = await buildOverview({ user: { role: 'Agent' } });
+    expect(result.studentCount).toBe(1);
+    expect(
+      CommunicationService.getLatestMessageAtForStudents
+    ).toHaveBeenCalled();
   });
 });

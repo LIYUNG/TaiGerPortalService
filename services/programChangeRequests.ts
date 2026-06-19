@@ -5,11 +5,15 @@ import ProgramChangeRequestDAO from '../dao/programChangeRequest.dao';
  * Delegates data access to the DAO (controller -> service -> dao).
  */
 const ProgramChangeRequestService = {
-  getOpenChangeRequestsByProgramId(programId) {
+  getOpenChangeRequestsByProgramId(programId: string) {
     return ProgramChangeRequestDAO.getOpenChangeRequestsByProgramId(programId);
   },
 
-  upsertChangeRequest(programId, requestedBy, changes) {
+  upsertChangeRequest(
+    programId: string,
+    requestedBy: string,
+    changes: Record<string, unknown>
+  ) {
     return ProgramChangeRequestDAO.upsertChangeRequest(
       programId,
       requestedBy,
@@ -17,11 +21,11 @@ const ProgramChangeRequestService = {
     );
   },
 
-  getChangeRequestById(requestId) {
+  getChangeRequestById(requestId: string) {
     return ProgramChangeRequestDAO.getChangeRequestById(requestId);
   },
 
-  updateChangeRequestById(requestId, payload) {
+  updateChangeRequestById(requestId: string, payload: Record<string, unknown>) {
     return ProgramChangeRequestDAO.updateChangeRequestById(requestId, payload);
   }
 };

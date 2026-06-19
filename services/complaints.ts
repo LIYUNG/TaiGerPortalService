@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery } from 'mongoose';
+import { IComplaint } from '@taiger-common/model';
 import ComplaintDAO from '../dao/complaint.dao';
 
 /**
@@ -5,51 +7,55 @@ import ComplaintDAO from '../dao/complaint.dao';
  * Delegates data access to the DAO (controller -> service -> dao).
  */
 const ComplaintService = {
-  getComplaintsByRequester(requesterId) {
+  getComplaintsByRequester(requesterId: string) {
     return ComplaintDAO.getComplaintsByRequester(requesterId);
   },
 
-  getComplaints(query) {
+  getComplaints(query: FilterQuery<IComplaint>) {
     return ComplaintDAO.getComplaints(query);
   },
 
-  findComplaintsSelect(filter, select, limit) {
+  findComplaintsSelect(
+    filter: FilterQuery<IComplaint>,
+    select: string,
+    limit: number
+  ) {
     return ComplaintDAO.findComplaintsSelect(filter, select, limit);
   },
 
-  getComplaintByIdPopulated(ticketId) {
+  getComplaintByIdPopulated(ticketId: string) {
     return ComplaintDAO.getComplaintByIdPopulated(ticketId);
   },
 
-  createComplaint(ticket) {
+  createComplaint(ticket: Partial<IComplaint>) {
     return ComplaintDAO.createComplaint(ticket);
   },
 
-  getComplaintDocByIdWithRequester(ticketId) {
+  getComplaintDocByIdWithRequester(ticketId: string) {
     return ComplaintDAO.getComplaintDocByIdWithRequester(ticketId);
   },
 
-  getComplaintByIdWithMessages(ticketId) {
+  getComplaintByIdWithMessages(ticketId: string) {
     return ComplaintDAO.getComplaintByIdWithMessages(ticketId);
   },
 
-  updateComplaintById(ticketId, fields) {
+  updateComplaintById(ticketId: string, fields: UpdateQuery<IComplaint>) {
     return ComplaintDAO.updateComplaintById(ticketId, fields);
   },
 
-  getComplaintDocById(ticketId) {
+  getComplaintDocById(ticketId: string) {
     return ComplaintDAO.getComplaintDocById(ticketId);
   },
 
-  updateComplaintRaw(ticketId, payload) {
+  updateComplaintRaw(ticketId: string, payload: UpdateQuery<IComplaint>) {
     return ComplaintDAO.updateComplaintRaw(ticketId, payload);
   },
 
-  pullMessageById(ticketId, messageId) {
+  pullMessageById(ticketId: string, messageId: string) {
     return ComplaintDAO.pullMessageById(ticketId, messageId);
   },
 
-  deleteComplaintById(ticketId) {
+  deleteComplaintById(ticketId: string) {
     return ComplaintDAO.deleteComplaintById(ticketId);
   }
 };

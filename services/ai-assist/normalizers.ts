@@ -1,5 +1,11 @@
 /* eslint-disable no-use-before-define */
-function normalizeUser(user) {
+// Inputs are heterogeneous Mongoose lean documents (populated reference unions
+// and FlattenMaps-wrapped subdocuments) whose runtime shape does not
+// structurally match the strict @taiger-common/model interfaces, so these
+// normalizers accept a loose record and read fields defensively.
+type LeanDoc = Record<string, any>;
+
+function normalizeUser(user: LeanDoc | null | undefined) {
   if (!user) {
     return undefined;
   }
@@ -18,7 +24,7 @@ function normalizeUser(user) {
   };
 }
 
-function normalizeApplication(application) {
+function normalizeApplication(application: LeanDoc) {
   return {
     id: application._id?.toString?.() || application.id,
     program: normalizeProgram(application.programId),
@@ -48,7 +54,7 @@ function normalizeApplication(application) {
   };
 }
 
-function normalizeProfileDocument(document) {
+function normalizeProfileDocument(document: LeanDoc) {
   return {
     id: document._id?.toString?.(),
     name: document.name,
@@ -60,19 +66,21 @@ function normalizeProfileDocument(document) {
   };
 }
 
-function normalizeMessage(message) {
+function normalizeMessage(message: LeanDoc) {
   return {
     id: message._id?.toString?.() || message.id,
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,
     author: normalizeUser(message.user_id),
     text: extractEditorText(message.message),
-    attachments: (message.files || []).map((file) => ({ name: file.name })),
+    attachments: (message.files || []).map((file: LeanDoc) => ({
+      name: file.name
+    })),
     ignored: Boolean(message.ignore_message)
   };
 }
 
-function normalizeProgram(program) {
+function normalizeProgram(program: LeanDoc | null | undefined) {
   if (!program) {
     return undefined;
   }
@@ -87,7 +95,7 @@ function normalizeProgram(program) {
   };
 }
 
-function normalizeAdmission(admission) {
+function normalizeAdmission(admission: string | undefined) {
   if (admission === 'O') {
     return 'admitted';
   }
@@ -99,7 +107,7 @@ function normalizeAdmission(admission) {
   return 'unknown';
 }
 
-function extractEditorText(rawMessage) {
+function extractEditorText(rawMessage: string | undefined) {
   if (!rawMessage) {
     return '';
   }
@@ -118,7 +126,7 @@ function extractEditorText(rawMessage) {
   }
 }
 
-function stripHtml(value) {
+function stripHtml(value: string | undefined) {
   if (!value) {
     return value;
   }
@@ -138,15 +146,20 @@ function stripHtml(value) {
     .trim();
 }
 
-function extractKnownEditorBlocks(value) {
-  const blocks = Array.isArray(value?.blocks) ? value.blocks : [];
+function extractKnownEditorBlocks(value: unknown) {
+  const blocks = Array.isArray((value as { blocks?: unknown })?.blocks)
+    ? (value as { blocks: Array<{ data?: { text?: unknown } }> }).blocks
+    : [];
 
   return blocks
-    .map((block) => block?.data?.text)
-    .filter((text) => typeof text === 'string' && text.trim());
+    .map((block: { data?: { text?: unknown } }) => block?.data?.text)
+    .filter(
+      (text: unknown): text is string =>
+        typeof text === 'string' && Boolean(text.trim())
+    );
 }
 
-function collectText(value) {
+function collectText(value: unknown): string[] {
   if (typeof value === 'string') {
     return [value];
   }
@@ -159,17 +172,21 @@ function collectText(value) {
     return [];
   }
 
+  const record = value as Record<string, unknown>;
   const directText = ['text', 'message', 'content', 'html']
-    .map((key) => value[key])
-    .filter((item) => typeof item === 'string');
+    .map((key: string) => record[key])
+    .filter((item: unknown): item is string => typeof item === 'string');
 
   if (directText.length > 0) {
     return directText;
   }
 
-  return Object.entries(value)
-    .filter(([key]) => !['id', '_id', 'type', 'version'].includes(key))
-    .flatMap(([, entry]) => collectText(entry));
+  return Object.entries(record)
+    .filter(
+      ([key]: [string, unknown]) =>
+        !['id', '_id', 'type', 'version'].includes(key)
+    )
+    .flatMap(([, entry]: [string, unknown]) => collectText(entry));
 }
 
 export = {

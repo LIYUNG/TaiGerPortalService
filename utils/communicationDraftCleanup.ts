@@ -5,12 +5,12 @@ import logger from '../services/logger';
 
 // Drafts untouched for this long are considered abandoned; their staged
 // attachments are orphaned in S3 and removed along with the draft.
-const STALE_DRAFT_DAYS = 90; // 3 months
+export const STALE_DRAFT_DAYS = 90; // 3 months
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Sweep abandoned message drafts: delete their staged S3 attachments, then the
 // draft documents. Safe to run repeatedly. Scheduled daily from index.ts.
-const sweepStaleCommunicationDrafts = async () => {
+export const sweepStaleCommunicationDrafts = async () => {
   try {
     logger.info(
       'sweepStaleCommunicationDrafts: starting sweep for stale drafts'
@@ -45,5 +45,3 @@ const sweepStaleCommunicationDrafts = async () => {
     logger.error('sweepStaleCommunicationDrafts failed', { error });
   }
 };
-
-export = { sweepStaleCommunicationDrafts, STALE_DRAFT_DAYS };

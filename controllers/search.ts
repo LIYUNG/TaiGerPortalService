@@ -3,16 +3,16 @@ import logger from '../services/logger';
 import SearchService from '../services/search';
 
 const getQueryPublicResults = asyncHandler(async (req, res) => {
-  const data = await SearchService.getPublicResults(req.query.q);
+  const data = await SearchService.getPublicResults(req.query.q as string);
   res.status(200).send({ success: true, data });
 });
 
 const getQueryResults = asyncHandler(async (req, res) => {
   try {
-    const data = await SearchService.getResults(req.query.q);
+    const data = await SearchService.getResults(req.query.q as string);
     res.status(200).send({ success: true, data });
   } catch (e) {
-    logger.error(e);
+    logger.error(e as unknown as string);
     res.status(200).send({ success: true, data: [] });
   }
 });

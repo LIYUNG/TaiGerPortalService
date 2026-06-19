@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { asyncHandler } from './error-handler';
 import logger from '../services/logger';
 
-const decryptCookieMiddleware = asyncHandler((req, res, next) => {
+export const decryptCookieMiddleware = asyncHandler((req, res, next) => {
   const token = req.cookies['x-auth'];
   if (!token) {
     logger.info(
@@ -15,5 +15,3 @@ const decryptCookieMiddleware = asyncHandler((req, res, next) => {
   req.decryptedToken = payload; // Attach decrypted payload to the request object
   next();
 });
-
-export = { decryptCookieMiddleware };

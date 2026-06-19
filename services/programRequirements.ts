@@ -1,3 +1,5 @@
+import { UpdateQuery } from 'mongoose';
+import { IProgramrequirement } from '@taiger-common/model';
 import ProgramRequirementDAO from '../dao/programRequirement.dao';
 import ProgramDAO from '../dao/program.dao';
 import KeywordSetDAO from '../dao/keywordset.dao';
@@ -21,34 +23,41 @@ const ProgramRequirementService = {
     return ProgramRequirementDAO.getProgramRequirements();
   },
 
-  getProgramRequirementById(requirementId) {
+  getProgramRequirementById(requirementId: string) {
     return ProgramRequirementDAO.getProgramRequirementById(requirementId);
   },
 
-  findProgramsBySchoolNameDegree(program) {
+  findProgramsBySchoolNameDegree(program: {
+    school: string;
+    program_name: string;
+    degree: string;
+  }) {
     return ProgramDAO.findProgramsBySchoolNameDegree(program);
   },
 
-  getProgramRequirementsByProgramIds(programIds) {
+  getProgramRequirementsByProgramIds(programIds: string[]) {
     return ProgramRequirementDAO.getProgramRequirementsByProgramIds(programIds);
   },
 
-  createProgramRequirement(payload) {
+  createProgramRequirement(payload: Partial<IProgramrequirement>) {
     return ProgramRequirementDAO.createProgramRequirement(payload);
   },
 
-  updateProgramRequirementById(requirementId, fields) {
+  updateProgramRequirementById(
+    requirementId: string,
+    fields: UpdateQuery<IProgramrequirement>
+  ) {
     return ProgramRequirementDAO.updateProgramRequirementById(
       requirementId,
       fields
     );
   },
 
-  deleteProgramRequirementById(requirementId) {
+  deleteProgramRequirementById(requirementId: string) {
     return ProgramRequirementDAO.deleteProgramRequirementById(requirementId);
   },
 
-  deleteOneByProgramIds(programIds) {
+  deleteOneByProgramIds(programIds: string[]) {
     return ProgramRequirementDAO.deleteOneByProgramIds(programIds);
   }
 };

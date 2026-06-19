@@ -4,6 +4,7 @@ import {
   is_TaiGer_Agent,
   is_TaiGer_Editor
 } from '@taiger-common/core';
+import type { IManager } from '@taiger-common/model';
 
 import { ErrorResponse } from '../../common/errors';
 import { ManagerType } from '../../constants';
@@ -13,12 +14,12 @@ const activeStudentFilter = {
   $or: [{ archiv: { $exists: false } }, { archiv: false }]
 };
 
-const getManagerStudentFilter = (user) => {
+const getManagerStudentFilter = (user: IManager & Record<string, any>) => {
   const filters = [];
 
   if (
     [ManagerType.Agent, ManagerType.AgentAndEditor].includes(
-      user.manager_type
+      user.manager_type as string
     ) &&
     user.agents?.length
   ) {
@@ -27,7 +28,7 @@ const getManagerStudentFilter = (user) => {
 
   if (
     [ManagerType.Editor, ManagerType.AgentAndEditor].includes(
-      user.manager_type
+      user.manager_type as string
     ) &&
     user.editors?.length
   ) {
@@ -44,7 +45,8 @@ const getManagerStudentFilter = (user) => {
   };
 };
 
-const getAccessibleStudentFilter = async (req) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const getAccessibleStudentFilter = async (req: any) => {
   const { user } = req;
 
   if (is_TaiGer_Admin(user)) {

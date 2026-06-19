@@ -1,3 +1,5 @@
+import { UpdateQuery } from 'mongoose';
+import { IDocspage, IDocumentation, IInternaldoc } from '@taiger-common/model';
 import DocspageDAO from '../dao/docspage.dao';
 import DocumentationDAO from '../dao/documentation.dao';
 import InternaldocDAO from '../dao/internaldoc.dao';
@@ -9,11 +11,11 @@ import InternaldocDAO from '../dao/internaldoc.dao';
  */
 const DocumentationService = {
   // ── Docspage ──────────────────────────────────────────────────────────────
-  upsertDocspageByCategory(category, fields) {
+  upsertDocspageByCategory(category: string, fields: UpdateQuery<IDocspage>) {
     return DocspageDAO.upsertByCategory(category, fields);
   },
 
-  getDocspageByCategory(category) {
+  getDocspageByCategory(category: string) {
     return DocspageDAO.getByCategory(category);
   },
 
@@ -22,19 +24,19 @@ const DocumentationService = {
     return DocumentationDAO.findAllTitleCategory();
   },
 
-  getDocumentationById(docId) {
+  getDocumentationById(docId: string) {
     return DocumentationDAO.getById(docId);
   },
 
-  createDocumentation(fields) {
+  createDocumentation(fields: Partial<IDocumentation>) {
     return DocumentationDAO.create(fields);
   },
 
-  updateDocumentationById(docId, fields) {
+  updateDocumentationById(docId: string, fields: UpdateQuery<IDocumentation>) {
     return DocumentationDAO.updateById(docId, fields);
   },
 
-  deleteDocumentationById(docId) {
+  deleteDocumentationById(docId: string) {
     return DocumentationDAO.deleteById(docId);
   },
 
@@ -43,19 +45,22 @@ const DocumentationService = {
     return InternaldocDAO.findAllTitleInternalCategory();
   },
 
-  getInternalDocumentationById(docId) {
+  getInternalDocumentationById(docId: string) {
     return InternaldocDAO.getById(docId);
   },
 
-  createInternalDocumentation(fields) {
+  createInternalDocumentation(fields: Partial<IInternaldoc>) {
     return InternaldocDAO.create(fields);
   },
 
-  updateInternalDocumentationById(docId, fields) {
+  updateInternalDocumentationById(
+    docId: string,
+    fields: UpdateQuery<IInternaldoc>
+  ) {
     return InternaldocDAO.updateById(docId, fields);
   },
 
-  deleteInternalDocumentationById(docId) {
+  deleteInternalDocumentationById(docId: string) {
     return InternaldocDAO.deleteById(docId);
   }
 };

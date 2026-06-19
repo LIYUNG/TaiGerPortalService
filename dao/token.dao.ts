@@ -1,3 +1,5 @@
+import { FilterQuery } from 'mongoose';
+import { IToken } from '@taiger-common/model';
 import { Token } from '../models';
 
 /**
@@ -5,12 +7,12 @@ import { Token } from '../models';
  * models/index.js). Plain params, no req.
  */
 const TokenDAO = {
-  async createToken(payload) {
+  async createToken(payload: Partial<IToken>) {
     return Token.create(payload);
   },
 
   // Live (non-lean) document so callers can call token.deleteOne().
-  async findOneToken(filter) {
+  async findOneToken(filter: FilterQuery<IToken>) {
     return Token.findOne(filter);
   }
 };

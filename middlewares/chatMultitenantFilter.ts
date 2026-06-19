@@ -7,7 +7,7 @@ import { getPermission } from '../utils/queryFunctions';
 import { asyncHandler } from './error-handler';
 import StudentService from '../services/students';
 
-const chatMultitenantFilter = asyncHandler(async (req, res, next) => {
+export const chatMultitenantFilter = asyncHandler(async (req, res, next) => {
   const {
     user,
     params: { studentId }
@@ -50,7 +50,3 @@ const chatMultitenantFilter = asyncHandler(async (req, res, next) => {
   }
   next();
 });
-
-export = {
-  chatMultitenantFilter
-};

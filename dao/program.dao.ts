@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery, PipelineStage, SortOrder } from 'mongoose';
+import { IProgram } from '@taiger-common/model';
 import { Program } from '../models';
 
 /**
@@ -9,35 +11,42 @@ import { Program } from '../models';
  * connection, so writes here fire the same hooks as the per-request model.
  */
 const ProgramDAO = {
-  async getProgramByIdLean(programId) {
+  async getProgramByIdLean(programId: string) {
     return Program.findById(programId).lean();
   },
 
-  async getProgramByIdSelect(programId, select) {
+  async getProgramByIdSelect(programId: string, select: string) {
     return Program.findById(programId).select(select).lean();
   },
 
-  async createProgram(payload) {
+  async createProgram(payload: Partial<IProgram>) {
     return Program.create(payload);
   },
 
-  async updateProgramOne(filter, fields) {
+  async updateProgramOne(
+    filter: FilterQuery<IProgram>,
+    fields: UpdateQuery<IProgram>
+  ) {
     return Program.findOneAndUpdate(filter, fields, { new: true }).lean();
   },
 
-  async updateProgramById(programId, fields) {
+  async updateProgramById(programId: string, fields: UpdateQuery<IProgram>) {
     return Program.findByIdAndUpdate(programId, fields, { new: true }).lean();
   },
 
-  async updateManyPrograms(filter, update, options = {}) {
+  async updateManyPrograms(
+    filter: FilterQuery<IProgram>,
+    update: UpdateQuery<IProgram>,
+    options: Record<string, unknown> = {}
+  ) {
     return Program.updateMany(filter, update, options);
   },
 
-  async archiveProgramById(programId) {
+  async archiveProgramById(programId: string) {
     return Program.findByIdAndUpdate(programId, { isArchiv: true });
   },
 
-  async findPrograms(filter = {}) {
+  async findPrograms(filter: FilterQuery<IProgram> = {}) {
     return Program.find(filter).lean();
   },
 
@@ -68,19 +77,38 @@ const ProgramDAO = {
     ]);
   },
 
-  async findProgramsBySchoolNameDegree({ school, program_name, degree }) {
+  async findProgramsBySchoolNameDegree({
+    school,
+    program_name,
+    degree
+  }: {
+    school: string;
+    program_name: string;
+    degree: string;
+  }) {
     return Program.find({ school, program_name, degree }).lean();
   },
 
-  async aggregatePrograms(pipeline) {
+  async aggregatePrograms(pipeline: PipelineStage[]) {
     return Program.aggregate(pipeline);
   },
 
-  async countPrograms(filter = {}) {
+  async countPrograms(filter: FilterQuery<IProgram> = {}) {
     return Program.countDocuments(filter);
   },
 
-  async findProgramsQuery(filter = {}, { select, sort, limit } = {}) {
+  async findProgramsQuery(
+    filter: FilterQuery<IProgram> = {},
+    {
+      select,
+      sort,
+      limit
+    }: {
+      select?: string;
+      sort?: Record<string, SortOrder>;
+      limit?: number;
+    } = {}
+  ) {
     let query = Program.find(filter);
     if (select) {
       query = query.select(select);
@@ -95,7 +123,19 @@ const ProgramDAO = {
   },
 
   // Returns [programs, total] for a server-side paginated list.
-  async findProgramsPaginated({ filter, select, sort, skip, limit }) {
+  async findProgramsPaginated({
+    filter,
+    select,
+    sort,
+    skip,
+    limit
+  }: {
+    filter: FilterQuery<IProgram>;
+    select: string;
+    sort: Record<string, SortOrder>;
+    skip: number;
+    limit: number;
+  }) {
     return Promise.all([
       Program.find(filter)
         .select(select)

@@ -1,3 +1,4 @@
+import type { Request, Response } from 'express';
 import { Role, is_TaiGer_Agent } from '@taiger-common/core';
 
 import { ErrorResponse } from '../common/errors';
@@ -9,7 +10,7 @@ import VCService from '../services/vs';
 import ProgramRequirementService from '../services/programRequirements';
 import TicketService from '../services/tickets';
 
-const getDistinctSchoolsAttributes = async (req, res) => {
+const getDistinctSchoolsAttributes = async (req: Request, res: Response) => {
   try {
     const distinctCombinations = await ProgramService.aggregatePrograms([
       {
@@ -44,20 +45,20 @@ const getDistinctSchoolsAttributes = async (req, res) => {
 
     logger.info(
       'Distinct school and program combinations:',
-      distinctCombinations
+      distinctCombinations as unknown as Record<string, unknown>
     );
 
     res.send({ success: true, data: distinctCombinations });
   } catch (error) {
     logger.error(
       'Error fetching distinct school and program combinations:',
-      error
+      error as Record<string, unknown>
     );
     throw error;
   }
 };
 
-const updateBatchSchoolAttributes = async (req, res) => {
+const updateBatchSchoolAttributes = async (req: Request, res: Response) => {
   const fields = req.body;
   logger.info('Distinct schools:', fields);
   try {
@@ -83,10 +84,16 @@ const updateBatchSchoolAttributes = async (req, res) => {
       },
       { upsert: false }
     );
-    logger.info('Update school:', schools);
+    logger.info(
+      'Update school:',
+      schools as unknown as Record<string, unknown>
+    );
     res.send({ success: true });
   } catch (error) {
-    logger.error('Error fetching distinct schools:', error);
+    logger.error(
+      'Error fetching distinct schools:',
+      error as Record<string, unknown>
+    );
     throw error;
   }
 };
@@ -143,7 +150,10 @@ const getSchoolsDistribution = asyncHandler(async (req, res) => {
       data: schools.filter((item) => item.school)
     });
   } catch (error) {
-    logger.error('Error fetching schools distribution:', error);
+    logger.error(
+      'Error fetching schools distribution:',
+      error as Record<string, unknown>
+    );
     throw error;
   }
 });
@@ -440,7 +450,10 @@ const getProgramsOverview = asyncHandler(async (req, res) => {
     logger.info('Programs overview generated successfully');
     return res.send({ success: true, data: overview });
   } catch (error) {
-    logger.error('Error generating programs overview:', error);
+    logger.error(
+      'Error generating programs overview:',
+      error as Record<string, unknown>
+    );
     throw error;
   }
 });
@@ -458,14 +471,14 @@ const getPrograms = asyncHandler(async (req, res) => {
   });
 });
 
-const getStudentsByProgram = asyncHandler(async (req, programId) => {
+const getStudentsByProgram = async (req: Request, programId: string) => {
   const applications =
     await ApplicationService.getDecidedApplicationsByProgramPopulated(
       programId
     );
 
   const studentSet = new Set();
-  applications.forEach((application) => {
+  applications.forEach((application: any) => {
     studentSet.add({
       ...application.studentId,
       application_year: application.application_year,
@@ -476,7 +489,7 @@ const getStudentsByProgram = asyncHandler(async (req, programId) => {
   });
 
   return Array.from(studentSet);
-});
+};
 
 const getSameProgramStudents = asyncHandler(async (req, res) => {
   const students = await getStudentsByProgram(req, req.params.programId);
@@ -551,6 +564,11 @@ const updateProgram = asyncHandler(async (req, res) => {
     { _id: req.params.programId },
     fields
   );
+
+  if (!program) {
+    logger.error('updateProgram: Invalid program id');
+    throw new ErrorResponse(404, 'Program not found');
+  }
 
   // Update same program but other semester common data
   await ProgramService.updateManyPrograms(

@@ -1,3 +1,5 @@
+import { FilterQuery } from 'mongoose';
+import { IAudit } from '@taiger-common/model';
 import { Audit } from '../models';
 
 /**
@@ -5,7 +7,10 @@ import { Audit } from '../models';
  * models/index.js). Plain params, no req.
  */
 const AuditDAO = {
-  async getAuditLogs(filter, options) {
+  async getAuditLogs(
+    filter: FilterQuery<IAudit>,
+    options: { limit: number; skip: number; sort: Record<string, 1 | -1> }
+  ) {
     return Audit.find(filter)
       .populate(
         'performedBy targetUserId',
@@ -24,7 +29,7 @@ const AuditDAO = {
       .sort(options.sort);
   },
 
-  async createAuditLog(auditLog) {
+  async createAuditLog(auditLog: Partial<IAudit>) {
     return Audit.create(auditLog);
   }
 };

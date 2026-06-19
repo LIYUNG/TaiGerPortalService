@@ -1,6 +1,11 @@
+import { UpdateQuery } from 'mongoose';
+import { IAllCourse } from '@taiger-common/model';
 import { Allcourse } from '../models';
 
-const UPDATED_BY_POPULATE = ['updatedBy', 'firstname lastname pictureUrl'];
+const UPDATED_BY_POPULATE: [string, string] = [
+  'updatedBy',
+  'firstname lastname pictureUrl'
+];
 
 /**
  * AllcourseDAO — data access for the Allcourse model (default-connection model
@@ -13,22 +18,25 @@ const AllcourseDAO = {
       .lean();
   },
 
-  async getAllcourseById(courseId) {
+  async getAllcourseById(courseId: string) {
     return Allcourse.findById(courseId).populate(...UPDATED_BY_POPULATE);
   },
 
-  async deleteAllcourseById(courseId) {
+  async deleteAllcourseById(courseId: string) {
     return Allcourse.findByIdAndDelete(courseId);
   },
 
-  async updateAllcourseById(courseId, payload) {
+  async updateAllcourseById(
+    courseId: string,
+    payload: UpdateQuery<IAllCourse>
+  ) {
     return Allcourse.findByIdAndUpdate(courseId, payload, {
       new: true,
       runValidators: true
     }).populate(...UPDATED_BY_POPULATE);
   },
 
-  async createAllcourse(payload) {
+  async createAllcourse(payload: Partial<IAllCourse>) {
     return Allcourse.create(payload);
   }
 };

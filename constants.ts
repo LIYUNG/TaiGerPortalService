@@ -27,64 +27,69 @@ import {
   TENANT_LINKEDIN_LINK
 } from './constants/common';
 
-const ACCOUNT_ACTIVATION_URL = new URL('/account/activation', ORIGIN).href;
-const RESEND_ACTIVATION_URL = new URL('/account/resend-activation', ORIGIN)
+export const ACCOUNT_ACTIVATION_URL = new URL('/account/activation', ORIGIN)
   .href;
-const PASSWORD_RESET_URL = new URL('/account/reset-password', ORIGIN).href;
-const FORGOT_PASSWORD_URL = new URL('/forgot-password', ORIGIN).href;
+export const RESEND_ACTIVATION_URL = new URL(
+  '/account/resend-activation',
+  ORIGIN
+).href;
+export const PASSWORD_RESET_URL = new URL('/account/reset-password', ORIGIN)
+  .href;
+export const FORGOT_PASSWORD_URL = new URL('/forgot-password', ORIGIN).href;
 
-const CVMLRL_CENTER_URL = new URL('/cv-ml-rl-center', ORIGIN).href;
-const CVMLRL_FOR_EDITOR_URL = (studentId: string) =>
+export const CVMLRL_CENTER_URL = new URL('/cv-ml-rl-center', ORIGIN).href;
+export const CVMLRL_FOR_EDITOR_URL = (studentId: string) =>
   new URL(`/student-database/${studentId}#cvmlrl`, ORIGIN).href;
-const UNI_ASSIST_FOR_STUDENT_URL = new URL('/uni-assist', ORIGIN).href;
-const UNI_ASSIST_FOR_AGENT_URL = (studentId: string) =>
+export const UNI_ASSIST_FOR_STUDENT_URL = new URL('/uni-assist', ORIGIN).href;
+export const UNI_ASSIST_FOR_AGENT_URL = (studentId: string) =>
   new URL(`/student-database/${studentId}#uniassist`, ORIGIN).href;
-const THREAD_URL = new URL('/document-modification', ORIGIN).href;
-const THREAD_ID_URL = (thread_id: string) =>
+export const THREAD_URL = new URL('/document-modification', ORIGIN).href;
+export const THREAD_ID_URL = (thread_id: string) =>
   new URL(`/document-modification/${thread_id}`, ORIGIN).href;
-const ARCHIVED_STUDENTS_URL = new URL('/archiv/students', ORIGIN).href;
-const BASE_DOCUMENT_URL = new URL('/base-documents', ORIGIN).href;
-const BASE_DOCUMENT_FOR_AGENT_URL = (studentId: string) =>
+export const ARCHIVED_STUDENTS_URL = new URL('/archiv/students', ORIGIN).href;
+export const BASE_DOCUMENT_URL = new URL('/base-documents', ORIGIN).href;
+export const BASE_DOCUMENT_FOR_AGENT_URL = (studentId: string) =>
   new URL(`/student-database/${studentId}#profile`, ORIGIN).href;
-const STUDENT_COMMUNICATION_THREAD_URL = (studentId: string) =>
+export const STUDENT_COMMUNICATION_THREAD_URL = (studentId: string) =>
   new URL(`/communications/std/${studentId}`, ORIGIN).href;
-const INTERNAL_COMMUNICATION_THREAD_URL = (studentId: string) =>
+export const INTERNAL_COMMUNICATION_THREAD_URL = (studentId: string) =>
   new URL(`/communications/t/${studentId}`, ORIGIN).href;
-const INTERVIEW_CENTER_URL = new URL('/interview-training', ORIGIN).href;
-const SINGLE_INTERVIEW_THREAD_URL = (interview_id: string) =>
+export const INTERVIEW_CENTER_URL = new URL('/interview-training', ORIGIN).href;
+export const SINGLE_INTERVIEW_THREAD_URL = (interview_id: string) =>
   new URL(`/interview-training/${interview_id}`, ORIGIN).href;
-const SINGLE_INTERVIEW_SURVEY_THREAD_URL = (interview_id: string) =>
+export const SINGLE_INTERVIEW_SURVEY_THREAD_URL = (interview_id: string) =>
   new URL(`/interview-training/${interview_id}/survey`, ORIGIN).href;
-const TEMPLATE_DOWNLOAD_URL = new URL('/download', ORIGIN).href;
-const STUDENT_APPLICATION_URL = new URL('/student-applications', ORIGIN).href;
-const STUDENT_APPLICATION_STUDENT_URL = (student_id: string) =>
+export const TEMPLATE_DOWNLOAD_URL = new URL('/download', ORIGIN).href;
+export const STUDENT_APPLICATION_URL = new URL('/student-applications', ORIGIN)
+  .href;
+export const STUDENT_APPLICATION_STUDENT_URL = (student_id: string) =>
   new URL(`/student-applications/${student_id}`, ORIGIN).href;
-const STUDENT_SURVEY_URL = new URL('/survey', ORIGIN).href;
-const SURVEY_URL_FOR_AGENT_URL = (studentId: string) =>
+export const STUDENT_SURVEY_URL = new URL('/survey', ORIGIN).href;
+export const SURVEY_URL_FOR_AGENT_URL = (studentId: string) =>
   new URL(`/student-database/${studentId}#survey`, ORIGIN).href;
-const SETTINGS_URL = new URL('/settings', ORIGIN).href;
-const PROFILE_URL = new URL('/profile', ORIGIN).href;
-const TEAMS_URL = new URL('/teams', ORIGIN).href;
-const STUDENT_PROFILE_FOR_AGENT_URL = (studentId: string) =>
+export const SETTINGS_URL = new URL('/settings', ORIGIN).href;
+export const PROFILE_URL = new URL('/profile', ORIGIN).href;
+export const TEAMS_URL = new URL('/teams', ORIGIN).href;
+export const STUDENT_PROFILE_FOR_AGENT_URL = (studentId: string) =>
   new URL(`/student-database/${studentId}#profile`, ORIGIN).href;
-const STUDENT_COURSE_URL = (studentId: string) =>
+export const STUDENT_COURSE_URL = (studentId: string) =>
   new URL(`/my-courses/${studentId}`, ORIGIN).href;
-const STUDENT_ANALYSED_COURSE_URL = (studentId: string) =>
+export const STUDENT_ANALYSED_COURSE_URL = (studentId: string) =>
   new URL(`/my-courses/analysis/${studentId}`, ORIGIN).href;
-const AGENT_CALENDAR_EVENTS_URL = (taigerAgentId: string) =>
+export const AGENT_CALENDAR_EVENTS_URL = (taigerAgentId: string) =>
   new URL(`/events/taiger/${taigerAgentId}`, ORIGIN).href;
-const STUDENT_CALENDAR_EVENTS_URL = (studentId: string) =>
+export const STUDENT_CALENDAR_EVENTS_URL = (studentId: string) =>
   new URL(`/events/students/${studentId}`, ORIGIN).href;
-const PROGRAM_URL = (program_id: string) =>
+export const PROGRAM_URL = (program_id: string) =>
   new URL(`/programs/${program_id}`, ORIGIN).href;
-const JITSI_MEET_URL = (studentId: string) =>
+export const JITSI_MEET_URL = (studentId: string) =>
   new URL(`https://meet.jit.si/${studentId}`, ORIGIN).href;
-const JITSI_MEET_INSTRUCTIONS_URL = new URL(
+export const JITSI_MEET_INSTRUCTIONS_URL = new URL(
   '/docs/search/64eb25ec89ea0d1fcb39df73',
   ORIGIN
 ).href;
 
-const TAIGER_SIGNATURE = `
+export const TAIGER_SIGNATURE = `
 <p><b>Your ${TENANT_NAME} Team</b></p><p>Website: <a href="${TENANT_WEBSITE}">${TENANT_WEBSITE}</a></p>
 <div class="social-icons">
   <a href="${TENANT_INSTAGRAM_LINK}" target="_blank">
@@ -101,30 +106,31 @@ const TAIGER_SIGNATURE = `
   </a>
   
 </div>`;
-const SPLIT_LINE = '-------------------------------------------------------';
-const ENGLISH_BELOW = '(English version below)';
-const CONTACT_AGENT = '如果您有任何疑問，請聯絡您的顧問。';
+export const SPLIT_LINE =
+  '-------------------------------------------------------';
+export const ENGLISH_BELOW = '(English version below)';
+export const CONTACT_AGENT = '如果您有任何疑問，請聯絡您的顧問。';
 
-const TicketStatus = {
+export const TicketStatus = {
   Open: 'open',
   Resolved: 'resolved'
 };
 
-const ManagerType = {
+export const ManagerType = {
   Agent: 'Agent',
   Editor: 'Editor',
   AgentAndEditor: 'AgentAndEditor',
   None: 'None'
 };
 
-const isNotArchiv = (user) => {
+export const isNotArchiv = (user) => {
   if (user.archiv === undefined || !user.archiv) {
     return true;
   }
   return false;
 };
 
-const isArchiv = (user) => !!user.archiv;
+export const isArchiv = (user) => !!user.archiv;
 
 const adjustYearForSemester = (year, month, semester) => {
   if (!semester) return 'Err';
@@ -142,7 +148,7 @@ const formatApplicationDate = (year, date) => {
   return `${year}/${month}/${day}`;
 };
 
-const application_deadline_V2_calculator = (application) => {
+export const application_deadline_V2_calculator = (application) => {
   if (isProgramWithdraw(application)) {
     return 'WITHDRAW';
   }
@@ -174,7 +180,7 @@ const application_deadline_V2_calculator = (application) => {
   return formatApplicationDate(adjusted_application_year, application_deadline);
 };
 
-const EDITOR_SCOPE = {
+export const EDITOR_SCOPE = {
   CV: 'Curriculum Vitae',
   CV_US: 'Curriculum Vitae (US)',
   ML: 'Motivation Letter',
@@ -189,11 +195,11 @@ const EDITOR_SCOPE = {
   Recommendation_Letter_C: 'Recommendation Letter',
   Scholarship_Form: 'Scholarship'
 };
-const ESSAY_WRITER_SCOPE = {
+export const ESSAY_WRITER_SCOPE = {
   Essay: 'Essay'
 };
-const FILE_MAPPING_TABLE = { ...EDITOR_SCOPE, ...ESSAY_WRITER_SCOPE };
-const PROGRAM_SPECIFIC_FILETYPE = [
+export const FILE_MAPPING_TABLE = { ...EDITOR_SCOPE, ...ESSAY_WRITER_SCOPE };
+export const PROGRAM_SPECIFIC_FILETYPE = [
   {
     required: 'ml_required',
     fileType: 'ML'
@@ -228,13 +234,13 @@ const PROGRAM_SPECIFIC_FILETYPE = [
   }
 ];
 
-const RLs_CONSTANT = ['RL_A', 'RL_B', 'RL_C'];
-const GENERAL_RLs_CONSTANT = [
+export const RLs_CONSTANT = ['RL_A', 'RL_B', 'RL_C'];
+export const GENERAL_RLs_CONSTANT = [
   'Recommendation_Letter_A',
   'Recommendation_Letter_B',
   'Recommendation_Letter_C'
 ];
-const General_Docs = [
+export const General_Docs = [
   'Recommendation_Letter_A',
   'Recommendation_Letter_B',
   'Recommendation_Letter_C',
@@ -245,7 +251,7 @@ const General_Docs = [
   'Others'
 ];
 
-const is_deadline_within30days_needed = (student) => {
+export const is_deadline_within30days_needed = (student) => {
   const today = new Date();
   if (student.application_preference.expected_application_date === '') {
     return false;
@@ -270,7 +276,7 @@ const is_deadline_within30days_needed = (student) => {
   return false;
 };
 
-const needUpdateCourseSelection = (student) => {
+export const needUpdateCourseSelection = (student) => {
   // not necessary if have studied or not yet begin
   if (
     student.academic_background?.university?.isGraduated === 'Yes' ||
@@ -306,7 +312,7 @@ const needUpdateCourseSelection = (student) => {
   return false;
 };
 
-const does_editor_have_pending_tasks = (students, editor) => {
+export const does_editor_have_pending_tasks = (students, editor) => {
   for (let i = 0; i < students.length; i += 1) {
     // check CV tasks
     for (let j = 0; j < students[i].generaldocs_threads.length; j += 1) {
@@ -338,7 +344,7 @@ const does_editor_have_pending_tasks = (students, editor) => {
   return false;
 };
 
-const is_cv_ml_rl_task_response_needed = (student, user) => {
+export const is_cv_ml_rl_task_response_needed = (student, user) => {
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
     const thread = student.generaldocs_threads[i];
     if (is_TaiGer_Editor(user)) {
@@ -394,7 +400,7 @@ const is_cv_ml_rl_task_response_needed = (student, user) => {
   return false;
 };
 
-const is_cv_ml_rl_reminder_needed = (student, user, trigger_days) => {
+export const is_cv_ml_rl_reminder_needed = (student, user, trigger_days) => {
   const today = new Date();
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
     const thread = student.generaldocs_threads[i];
@@ -463,7 +469,7 @@ const is_cv_ml_rl_reminder_needed = (student, user, trigger_days) => {
   return false;
 };
 
-const unsubmitted_applications_summary = (student) => {
+export const unsubmitted_applications_summary = (student) => {
   let unsubmitted_applications = '';
   let x = 0;
   for (let i = 0; i < student.applications.length; i += 1) {
@@ -491,7 +497,7 @@ const unsubmitted_applications_summary = (student) => {
   return unsubmitted_applications;
 };
 
-const cv_rl_escalation_editor_list = (student, user, trigger_days) => {
+export const cv_rl_escalation_editor_list = (student, user, trigger_days) => {
   let missing_doc_list = '';
   const today = new Date();
 
@@ -688,7 +694,7 @@ const ml_essay_escalation_agent_list = (student) => {
   return missing_doc_list;
 };
 
-const cv_ml_rl_escalation_summary = (student, user, trigger_days) => {
+export const cv_ml_rl_escalation_summary = (student, user, trigger_days) => {
   let missing_doc_list = '';
   if (is_TaiGer_Editor(user)) {
     missing_doc_list = `
@@ -737,7 +743,7 @@ const unsubmitted_applications_list = (student) => {
   return unsubmitted_applications_li;
 };
 
-const unsubmitted_applications_escalation_summary = (
+export const unsubmitted_applications_escalation_summary = (
   student,
   user,
   trigger_days
@@ -755,7 +761,7 @@ const unsubmitted_applications_escalation_summary = (
   return unsubmitted_applications;
 };
 
-const unsubmitted_applications_escalation_agent_summary = (
+export const unsubmitted_applications_escalation_agent_summary = (
   student,
   user,
   trigger_days
@@ -770,7 +776,11 @@ const unsubmitted_applications_escalation_agent_summary = (
   return unsubmitted_applications;
 };
 
-const cv_ml_rl_editor_escalation_summary = (student, user, trigger_days) => {
+export const cv_ml_rl_editor_escalation_summary = (
+  student,
+  user,
+  trigger_days
+) => {
   let missing_doc_list = '';
   if (is_TaiGer_Editor(user)) {
     missing_doc_list = `
@@ -799,7 +809,7 @@ const cv_ml_rl_editor_escalation_summary = (student, user, trigger_days) => {
   return missing_doc_list;
 };
 
-const cv_ml_rl_unfinished_summary = (student, user) => {
+export const cv_ml_rl_unfinished_summary = (student, user) => {
   let missing_doc_list = '';
   let kk = 0;
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
@@ -963,9 +973,9 @@ const cv_ml_rl_unfinished_summary = (student, user) => {
   }
   return missing_doc_list;
 };
-const profile_keys_list = Object.keys(ProfileNameType);
+export const profile_keys_list = Object.keys(ProfileNameType);
 
-const check_english_language_passed = (academic_background) => {
+export const check_english_language_passed = (academic_background) => {
   if (!academic_background || !academic_background.language) {
     return false;
   }
@@ -976,7 +986,7 @@ const check_english_language_passed = (academic_background) => {
   return false;
 };
 
-const check_german_language_passed = (academic_background) => {
+export const check_german_language_passed = (academic_background) => {
   if (!academic_background || !academic_background.language) {
     return false;
   }
@@ -987,7 +997,7 @@ const check_german_language_passed = (academic_background) => {
   return false;
 };
 
-const check_languages_filled = (academic_background) => {
+export const check_languages_filled = (academic_background) => {
   if (!academic_background || !academic_background.language) {
     return false;
   }
@@ -1004,7 +1014,7 @@ const check_languages_filled = (academic_background) => {
   return true;
 };
 
-const missing_academic_background = (student, user) => {
+export const missing_academic_background = (student, user) => {
   let missing_background_fields = '';
   if (
     !student.academic_background ||
@@ -1278,7 +1288,7 @@ const missing_academic_background = (student, user) => {
   return missing_background_fields;
 };
 
-const CVDeadline_Calculator = (applications) => {
+export const CVDeadline_Calculator = (applications) => {
   let daysLeftMin = 3000;
   let CVDeadline = '';
   let CVDeadlineRolling = '';
@@ -1309,7 +1319,7 @@ const CVDeadline_Calculator = (applications) => {
   return CVDeadline;
 };
 
-const General_RL_Deadline_Calculator = (applications) => {
+export const General_RL_Deadline_Calculator = (applications) => {
   const RLrequiredApplications = applications?.filter((app) => {
     const program = app?.programId;
     if (
@@ -1326,7 +1336,7 @@ const General_RL_Deadline_Calculator = (applications) => {
   return CVDeadline_Calculator(RLrequiredApplications);
 };
 
-const cvmlrl_deadline_within30days_escalation_summary = (
+export const cvmlrl_deadline_within30days_escalation_summary = (
   student,
   applications
 ) => {
@@ -1422,7 +1432,7 @@ const cvmlrl_deadline_within30days_escalation_summary = (
   return missing_doc_list;
 };
 
-const base_documents_summary = (student) => {
+export const base_documents_summary = (student) => {
   let rejected_base_documents = '';
   let missing_base_documents = '';
   const object_init = {};
@@ -1495,9 +1505,9 @@ const base_documents_summary = (student) => {
     : '';
 };
 
-const SCHOOL_TAG_KEYS = Object.keys(SCHOOL_TAGS ?? {});
+export const SCHOOL_TAG_KEYS = Object.keys(SCHOOL_TAGS ?? {});
 
-const CV_MUST_HAVE_PATTERNS = [
+export const CV_MUST_HAVE_PATTERNS = [
   '- present',
   '– present',
   '- current',
@@ -1510,82 +1520,6 @@ const CV_MUST_HAVE_PATTERNS = [
   'til present'
 ];
 
-const PROGRAM_SUBJECT_KEYS = Object.keys(PROGRAM_SUBJECTS ?? {});
+export const PROGRAM_SUBJECT_KEYS = Object.keys(PROGRAM_SUBJECTS ?? {});
 
-export = {
-  Role,
-  TicketStatus,
-  ManagerType,
-  EDITOR_SCOPE,
-  ESSAY_WRITER_SCOPE,
-  FILE_MAPPING_TABLE,
-  PROGRAM_SPECIFIC_FILETYPE,
-  RLs_CONSTANT,
-  GENERAL_RLs_CONSTANT,
-  General_Docs,
-  base_documents_summary,
-  is_deadline_within30days_needed,
-  needUpdateCourseSelection,
-  does_editor_have_pending_tasks,
-  is_cv_ml_rl_task_response_needed,
-  is_cv_ml_rl_reminder_needed,
-  application_deadline_V2_calculator,
-  unsubmitted_applications_summary,
-  unsubmitted_applications_escalation_summary,
-  cvmlrl_deadline_within30days_escalation_summary,
-  unsubmitted_applications_escalation_agent_summary,
-  cv_rl_escalation_editor_list,
-  cv_ml_rl_escalation_summary,
-  cv_ml_rl_editor_escalation_summary,
-  cv_ml_rl_unfinished_summary,
-  profile_keys_list,
-  General_RL_Deadline_Calculator,
-  CVDeadline_Calculator,
-  isNotArchiv,
-  isArchiv,
-  check_english_language_passed,
-  check_german_language_passed,
-  check_languages_filled,
-  missing_academic_background,
-  ACCOUNT_ACTIVATION_URL,
-  RESEND_ACTIVATION_URL,
-  TEAMS_URL,
-  PASSWORD_RESET_URL,
-  FORGOT_PASSWORD_URL,
-  CVMLRL_CENTER_URL,
-  CVMLRL_FOR_EDITOR_URL,
-  UNI_ASSIST_FOR_STUDENT_URL,
-  UNI_ASSIST_FOR_AGENT_URL,
-  THREAD_URL,
-  THREAD_ID_URL,
-  ARCHIVED_STUDENTS_URL,
-  BASE_DOCUMENT_URL,
-  STUDENT_COMMUNICATION_THREAD_URL,
-  INTERNAL_COMMUNICATION_THREAD_URL,
-  INTERVIEW_CENTER_URL,
-  SINGLE_INTERVIEW_THREAD_URL,
-  SINGLE_INTERVIEW_SURVEY_THREAD_URL,
-  BASE_DOCUMENT_FOR_AGENT_URL,
-  SURVEY_URL_FOR_AGENT_URL,
-  TEMPLATE_DOWNLOAD_URL,
-  STUDENT_APPLICATION_URL,
-  STUDENT_APPLICATION_STUDENT_URL,
-  STUDENT_SURVEY_URL,
-  SETTINGS_URL,
-  PROFILE_URL,
-  STUDENT_PROFILE_FOR_AGENT_URL,
-  STUDENT_COURSE_URL,
-  STUDENT_ANALYSED_COURSE_URL,
-  AGENT_CALENDAR_EVENTS_URL,
-  STUDENT_CALENDAR_EVENTS_URL,
-  PROGRAM_URL,
-  JITSI_MEET_URL,
-  JITSI_MEET_INSTRUCTIONS_URL,
-  TAIGER_SIGNATURE,
-  SPLIT_LINE,
-  ENGLISH_BELOW,
-  CONTACT_AGENT,
-  CV_MUST_HAVE_PATTERNS,
-  PROGRAM_SUBJECT_KEYS,
-  SCHOOL_TAG_KEYS
-};
+export { Role };

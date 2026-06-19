@@ -1,3 +1,5 @@
+import { UpdateQuery } from 'mongoose';
+import { INote } from '@taiger-common/model';
 import NoteDAO from '../dao/note.dao';
 
 /**
@@ -5,11 +7,11 @@ import NoteDAO from '../dao/note.dao';
  * DAO (controller -> service -> dao).
  */
 const NoteService = {
-  getNoteByStudentId(studentId) {
+  getNoteByStudentId(studentId: string) {
     return NoteDAO.getNoteByStudentId(studentId);
   },
 
-  upsertNoteByStudentId(studentId, fields) {
+  upsertNoteByStudentId(studentId: string, fields: UpdateQuery<INote>) {
     return NoteDAO.upsertNoteByStudentId(studentId, fields);
   }
 };

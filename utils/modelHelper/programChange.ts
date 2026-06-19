@@ -76,7 +76,7 @@ const findRLDelta = asyncHandler(
   }
 );
 
-const findStudentDeltaGet = asyncHandler(
+export const findStudentDeltaGet = asyncHandler(
   async (req, studentId, program, options) => {
     const { skipCompleted } = options || {};
 
@@ -140,67 +140,64 @@ const findStudentDeltaGet = asyncHandler(
   }
 );
 
-const findStudentDelta = asyncHandler(async (studentId, program, options) => {
-  const { skipCompleted } = options || {};
+export const findStudentDelta = asyncHandler(
+  async (studentId, program, options) => {
+    const { skipCompleted } = options || {};
 
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
-  const { Documentthread } = require('../../models');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
+    const { Documentthread } = require('../../models');
 
-  const delta = {
-    add: [],
-    remove: []
-  };
+    const delta = {
+      add: [],
+      remove: []
+    };
 
-  const studentProgramThreads = await Documentthread.find({
-    student_id: studentId,
-    program_id: program._id
-  })
-    .select('file_type messages isFinalVersion')
-    .lean();
+    const studentProgramThreads = await Documentthread.find({
+      student_id: studentId,
+      program_id: program._id
+    })
+      .select('file_type messages isFinalVersion')
+      .lean();
 
-  studentProgramThreads.map((thread) => {
-    thread.messageSize = thread.messages.length;
-    delete thread.messages;
-  });
+    studentProgramThreads.map((thread) => {
+      thread.messageSize = thread.messages.length;
+      delete thread.messages;
+    });
 
-  for (const fileType of Object.keys(FILETYPES)) {
-    if (FILETYPES[fileType] === 'RL') {
-      continue;
-    }
-    const fileThread = studentProgramThreads.find(
-      (thread) => thread.file_type === FILETYPES[fileType]
-    );
-
-    if (program[fileType]?.toLowerCase() === 'yes' && !fileThread) {
-      delta.add.push({
-        studentId,
-        programId: program._id,
-        fileType: FILETYPES[fileType]
-      });
-    } else if (program[fileType]?.toLowerCase() !== 'yes' && fileThread) {
-      if (skipCompleted && fileThread.isFinalVersion) {
+    for (const fileType of Object.keys(FILETYPES)) {
+      if (FILETYPES[fileType] === 'RL') {
         continue;
       }
-      delta.remove.push({
-        studentId,
-        programId: program._id,
-        fileThread
-      });
+      const fileThread = studentProgramThreads.find(
+        (thread) => thread.file_type === FILETYPES[fileType]
+      );
+
+      if (program[fileType]?.toLowerCase() === 'yes' && !fileThread) {
+        delta.add.push({
+          studentId,
+          programId: program._id,
+          fileType: FILETYPES[fileType]
+        });
+      } else if (program[fileType]?.toLowerCase() !== 'yes' && fileThread) {
+        if (skipCompleted && fileThread.isFinalVersion) {
+          continue;
+        }
+        delta.remove.push({
+          studentId,
+          programId: program._id,
+          fileThread
+        });
+      }
     }
+
+    const RLdelta = await findRLDelta(
+      program,
+      studentId,
+      studentProgramThreads,
+      options || {}
+    );
+    delta.add = delta.add.concat(RLdelta.add);
+    delta.remove = delta.remove.concat(RLdelta.remove);
+    return delta;
   }
-
-  const RLdelta = await findRLDelta(
-    program,
-    studentId,
-    studentProgramThreads,
-    options || {}
-  );
-  delta.add = delta.add.concat(RLdelta.add);
-  delta.remove = delta.remove.concat(RLdelta.remove);
-  return delta;
-});
-
-export = {
-  findStudentDeltaGet,
-  findStudentDelta
-};
+);

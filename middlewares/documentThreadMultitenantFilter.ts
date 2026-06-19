@@ -6,36 +6,40 @@ import { asyncHandler } from './error-handler';
 import DocumentThreadService from '../services/documentthreads';
 import SurveyInputService from '../services/surveyInputs';
 
-const docThreadMultitenant_filter = asyncHandler(async (req, res, next) => {
-  const {
-    user,
-    params: { messagesThreadId }
-  } = req;
-  if (is_TaiGer_Student(user) || is_TaiGer_Guest(user)) {
-    const document_thread = await DocumentThreadService.findThreadByIdPopulated(
-      messagesThreadId,
-      [['student_id', 'firstname lastname role ']]
-    );
-    if (!document_thread) {
-      logger.warn(`${req.originalUrl}: Thread not found!`);
-      return next(
-        new ErrorResponse(404, `${req.originalUrl}: Thread not found!`)
-      );
-    }
-    if (document_thread.student_id?._id.toString() !== user._id.toString()) {
-      logger.warn(`${req.originalUrl}: Not allowed to access other resource.`);
-      return next(
-        new ErrorResponse(
-          403,
+export const docThreadMultitenant_filter = asyncHandler(
+  async (req, res, next) => {
+    const {
+      user,
+      params: { messagesThreadId }
+    } = req;
+    if (is_TaiGer_Student(user) || is_TaiGer_Guest(user)) {
+      const document_thread =
+        await DocumentThreadService.findThreadByIdPopulated(messagesThreadId, [
+          ['student_id', 'firstname lastname role ']
+        ]);
+      if (!document_thread) {
+        logger.warn(`${req.originalUrl}: Thread not found!`);
+        return next(
+          new ErrorResponse(404, `${req.originalUrl}: Thread not found!`)
+        );
+      }
+      if (document_thread.student_id?._id.toString() !== user._id.toString()) {
+        logger.warn(
           `${req.originalUrl}: Not allowed to access other resource.`
-        )
-      );
+        );
+        return next(
+          new ErrorResponse(
+            403,
+            `${req.originalUrl}: Not allowed to access other resource.`
+          )
+        );
+      }
     }
+    next();
   }
-  next();
-});
+);
 
-const surveyMultitenantFilter = asyncHandler(async (req, res, next) => {
+export const surveyMultitenantFilter = asyncHandler(async (req, res, next) => {
   const {
     user,
     params: { surveyInputId }
@@ -69,8 +73,3 @@ const surveyMultitenantFilter = asyncHandler(async (req, res, next) => {
   }
   next();
 });
-
-export = {
-  docThreadMultitenant_filter,
-  surveyMultitenantFilter
-};

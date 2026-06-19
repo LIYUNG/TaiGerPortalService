@@ -1,3 +1,5 @@
+import { UpdateQuery } from 'mongoose';
+import { IDocspage } from '@taiger-common/model';
 import { Docspage } from '../models';
 
 /**
@@ -5,14 +7,14 @@ import { Docspage } from '../models';
  * from models/index.js). Plain params, no req.
  */
 const DocspageDAO = {
-  async upsertByCategory(category, fields) {
+  async upsertByCategory(category: string, fields: UpdateQuery<IDocspage>) {
     return Docspage.findOneAndUpdate({ category }, fields, {
       upsert: true,
       new: true
     });
   },
 
-  async getByCategory(category) {
+  async getByCategory(category: string) {
     return Docspage.findOne({ category });
   }
 };

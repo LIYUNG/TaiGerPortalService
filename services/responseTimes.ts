@@ -1,3 +1,5 @@
+import { AnyBulkWriteOperation } from 'mongoose';
+import { IResponseTime } from '@taiger-common/model';
 import ResponseTimeDAO from '../dao/responseTime.dao';
 
 /**
@@ -5,11 +7,11 @@ import ResponseTimeDAO from '../dao/responseTime.dao';
  * Delegates data access to the DAO (controller/util -> service -> dao).
  */
 const ResponseTimeService = {
-  bulkWrite(operations) {
+  bulkWrite(operations: AnyBulkWriteOperation<IResponseTime>[]) {
     return ResponseTimeDAO.bulkWrite(operations);
   },
 
-  findByStudentId(studentId) {
+  findByStudentId(studentId: string) {
     return ResponseTimeDAO.findByStudentId(studentId);
   },
 

@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery } from 'mongoose';
+import { ICourse } from '@taiger-common/model';
 import CourseDAO from '../dao/course.dao';
 
 /**
@@ -5,27 +7,27 @@ import CourseDAO from '../dao/course.dao';
  * (controller -> service -> dao).
  */
 const CourseService = {
-  getCourse(filter) {
+  getCourse(filter: FilterQuery<ICourse>) {
     return CourseDAO.getCourse(filter);
   },
 
-  updateCourse(filter, update) {
+  updateCourse(filter: FilterQuery<ICourse>, update: UpdateQuery<ICourse>) {
     return CourseDAO.updateCourse(filter, update);
   },
 
-  upsertCourseByStudentId(studentId, fields) {
+  upsertCourseByStudentId(studentId: string, fields: UpdateQuery<ICourse>) {
     return CourseDAO.upsertCourseByStudentId(studentId, fields);
   },
 
-  deleteCourse(filter) {
+  deleteCourse(filter: FilterQuery<ICourse>) {
     return CourseDAO.deleteCourse(filter);
   },
 
-  createCourse(data) {
+  createCourse(data: Partial<ICourse>) {
     return CourseDAO.createCourse(data);
   },
 
-  getCourseById(id) {
+  getCourseById(id: string) {
     return CourseDAO.getCourseById(id);
   }
 };

@@ -73,7 +73,7 @@ export const updateCourse = asyncHandler(async (req, res) => {
     res.status(500).send({
       success: false,
       message: 'Error updating course.',
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
@@ -100,7 +100,7 @@ export const createCourse = asyncHandler(async (req, res) => {
     res.status(500).send({
       success: false,
       message: 'Error creating course.',
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });

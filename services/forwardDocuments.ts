@@ -11,7 +11,14 @@ import { sendEmailWithAttachments } from './email/configuration';
 
 const STAFF_ROLES = [Role.Admin, Role.Manager, Role.Agent, Role.Editor];
 
-const escapeHtml = (value) =>
+// A document file stored on S3: `path` is the S3 key; `name` is an optional
+// display name/category (base documents only).
+interface ForwardFile {
+  name?: string;
+  path: string;
+}
+
+const escapeHtml = (value: string | undefined) =>
   String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -24,7 +31,7 @@ const escapeHtml = (value) =>
 const MAX_TOTAL_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const MB = 1024 * 1024;
 
-const toIdArray = (value) =>
+const toIdArray = (value: unknown) =>
   Array.isArray(value)
     ? [...new Set(value.map((v) => String(v)).filter(Boolean))]
     : [];
@@ -33,7 +40,7 @@ const toIdArray = (value) =>
 // client only ever sends ids; emails are looked up server-side. Throws if any
 // id is unknown (400) or resolves to a non-staff user (403) — this is what
 // prevents forwarding to arbitrary external addresses.
-const resolveStaffEmails = async (ids, label) => {
+const resolveStaffEmails = async (ids: string[], label: string) => {
   if (ids.length === 0) {
     return [];
   }
@@ -56,7 +63,7 @@ const resolveStaffEmails = async (ids, label) => {
 // Base-document `name`s are categories (e.g. "Transcript") with no extension, so
 // the extension is taken from the stored S3 key and appended when the display
 // name is missing it. Thread files already carry a real filename.
-const buildAttachment = (file, data) => {
+const buildAttachment = (file: ForwardFile, data: Uint8Array) => {
   const key = file.path.replace(/\\/g, '/');
   const ext = path.extname(key);
   const baseName = file.name || path.basename(key);
@@ -67,13 +74,13 @@ const buildAttachment = (file, data) => {
   return { filename, content: Buffer.from(data) };
 };
 
-const s3Key = (file) => file.path.replace(/\\/g, '/');
+const s3Key = (file: ForwardFile) => file.path.replace(/\\/g, '/');
 
 // Stat one document's files via HeadObject (metadata only, no body download) —
 // so a batch that must fail is rejected before any (possibly large) file is
 // transferred. Returns the document's total size in bytes, or null if any of
 // its files is absent.
-const documentFilesSize = async (files) => {
+const documentFilesSize = async (files: ForwardFile[]) => {
   if (files.length === 0) {
     return null;
   }
@@ -83,12 +90,12 @@ const documentFilesSize = async (files) => {
   if (sizes.some((size) => size === null)) {
     return null;
   }
-  return sizes.reduce((sum, size) => sum + size, 0);
+  return sizes.reduce<number>((sum, size) => sum + (size ?? 0), 0);
 };
 
 // Download every file of one selected document into attachments. Returns null
 // if a stored object has vanished (race between the existence check and here).
-const downloadDocumentFiles = async (files) => {
+const downloadDocumentFiles = async (files: ForwardFile[]) => {
   const attachments = [];
   for (const file of files) {
     const data = await getS3Object(AWS_S3_BUCKET_NAME, s3Key(file));
@@ -130,6 +137,22 @@ const forwardStudentDocuments = async ({
   // `confirmMissing: true` and the email is sent with the available documents
   // only (the missing ones are skipped and reported back).
   confirmMissing
+}: {
+  studentId: string;
+  recipientIds?: unknown;
+  ccIds?: unknown;
+  bccIds?: unknown;
+  threadIds?: unknown;
+  baseDocumentNames?: unknown;
+  subject?: string;
+  message?: string;
+  program?: {
+    school?: string;
+    program_name?: string;
+    degree?: string;
+    semester?: string;
+  };
+  confirmMissing?: boolean;
 }) => {
   const recipients = toIdArray(recipientIds);
   if (recipients.length === 0) {
@@ -176,8 +199,8 @@ const forwardStudentDocuments = async ({
       );
     }
     const fileGroups = (thread.messages || [])
-      .filter((msg) => msg.file?.length > 0)
-      .map((msg) => msg.file);
+      .filter((msg: { file: ForwardFile[] }) => msg.file?.length > 0)
+      .map((msg: { file: ForwardFile[] }) => msg.file);
     descriptors.push({
       label: thread.file_type || 'Document',
       files: fileGroups.length > 0 ? fileGroups[fileGroups.length - 1] : []
@@ -202,7 +225,7 @@ const forwardStudentDocuments = async ({
 
   // Size limit applies to what will actually be sent (the available files);
   // this is a hard error regardless of confirmation.
-  const totalBytes = sizes.reduce((sum, size) => sum + (size ?? 0), 0);
+  const totalBytes = sizes.reduce<number>((sum, size) => sum + (size ?? 0), 0);
   if (totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
     const totalMb = (totalBytes / MB).toFixed(1);
     const limitMb = Math.round(MAX_TOTAL_ATTACHMENT_BYTES / MB);

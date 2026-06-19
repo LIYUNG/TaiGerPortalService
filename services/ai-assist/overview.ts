@@ -1,4 +1,5 @@
 import { differenceInDays } from 'date-fns';
+import type { Request } from 'express';
 import { Role } from '@taiger-common/core';
 
 import { getAccessibleStudentFilter } from './studentAccess';
@@ -35,23 +36,36 @@ const OVERVIEW_APPLICATION_POPULATE = {
   select: 'school program_name degree semester application_deadline country'
 };
 
-const toIdString = (value) => {
+// These services return mongoose lean documents with a hand-picked field
+// selection and a populated `programId`, so the exact @taiger-common model
+// interfaces do not apply. Loose structural shapes describe the fields actually
+// read here.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type OverviewStudent = Record<string, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type OverviewApplication = Record<string, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type OverviewThread = Record<string, any>;
+
+const toIdString = (value: unknown) => {
   if (!value) return '';
   if (typeof value === 'string') return value;
-  return value.toString?.() || '';
+  return (value as { toString?: () => string }).toString?.() || '';
 };
 
-const safeDate = (value) => {
+const safeDate = (value: unknown) => {
   if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
+  const date =
+    value instanceof Date ? value : new Date(value as string | number);
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const isTruthyFlag = (value) => value === true || value === 'O' || value === 'Y';
+const isTruthyFlag = (value: unknown) =>
+  value === true || value === 'O' || value === 'Y';
 
 // Convert the deadline string from application_deadline_V2_calculator
 // ("YYYY/MM/DD", "YYYY-Rolling", "WITHDRAW", "No Data") into a usable shape.
-const parseDeadline = (deadlineString) => {
+const parseDeadline = (deadlineString: string) => {
   if (!deadlineString || typeof deadlineString !== 'string') {
     return { date: null, rolling: false, label: 'unknown' };
   }
@@ -72,7 +86,7 @@ const parseDeadline = (deadlineString) => {
     : { date, rolling: false, label: deadlineString };
 };
 
-const deriveStatus = (application = {}) => {
+const deriveStatus = (application: OverviewApplication = {}) => {
   if (isTruthyFlag(application.finalEnrolment)) return 'final_enrolled';
   if (application.admission === 'O') return 'admitted';
   if (application.admission === 'X' || application.reject_reason)
@@ -81,7 +95,10 @@ const deriveStatus = (application = {}) => {
   return 'in_progress';
 };
 
-const loadPortfolio = async (req, { maxStudents = MAX_PORTFOLIO_STUDENTS } = {}) => {
+const loadPortfolio = async (
+  req: Request,
+  { maxStudents = MAX_PORTFOLIO_STUDENTS }: { maxStudents?: number } = {}
+) => {
   const filter = await getAccessibleStudentFilter(req);
   const students = await StudentService.findStudentsSelect(
     filter,
@@ -107,13 +124,14 @@ const loadPortfolio = async (req, { maxStudents = MAX_PORTFOLIO_STUDENTS } = {})
       OVERVIEW_APPLICATION_FIELDS,
       OVERVIEW_APPLICATION_POPULATE
     ),
-    DocumentThreadService.getThreadsWaitingOnTeam(studentObjectIds)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    DocumentThreadService.getThreadsWaitingOnTeam(studentObjectIds as any)
   ]);
 
   return { students, studentById, studentIds, applications, threads };
 };
 
-const studentLabel = (student) => {
+const studentLabel = (student: OverviewStudent) => {
   const normalized = normalizeUser(student);
   return {
     id: normalized?.id,
@@ -126,7 +144,9 @@ const studentLabel = (student) => {
   };
 };
 
-const buildFinalizedStudentIds = (applications): Set<string> => {
+const buildFinalizedStudentIds = (
+  applications: OverviewApplication[]
+): Set<string> => {
   const ids = new Set<string>();
   (applications || []).forEach((app) => {
     if (isTruthyFlag(app.finalEnrolment)) ids.add(toIdString(app.studentId));
@@ -137,9 +157,15 @@ const buildFinalizedStudentIds = (applications): Set<string> => {
 // Applications with a real (non-rolling) deadline within `days`, still in
 // progress (not closed/admitted/rejected). Sorted soonest-first.
 // Items for students who confirmed enrolment elsewhere are flagged confirmedElsewhere.
-const collectUpcomingDeadlines = (applications, studentById, days, finalizedStudentIds: Set<string> = new Set()) => {
+const collectUpcomingDeadlines = (
+  applications: OverviewApplication[],
+  studentById: Map<string, OverviewStudent>,
+  days: number,
+  finalizedStudentIds: Set<string> = new Set()
+) => {
   const today = new Date();
-  const items = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const items: any[] = [];
 
   (applications || []).forEach((application) => {
     if (deriveStatus(application) !== 'in_progress') return;
@@ -159,20 +185,24 @@ const collectUpcomingDeadlines = (applications, studentById, days, finalizedStud
         ? {
             school: application.programId.school,
             name:
-              application.programId.program_name ||
-              application.programId.name
+              application.programId.program_name || application.programId.name
           }
         : null,
       deadline: label,
       daysUntil,
-      ...(finalizedStudentIds.has(studentId) ? { confirmedElsewhere: true } : {})
+      ...(finalizedStudentIds.has(studentId)
+        ? { confirmedElsewhere: true }
+        : {})
     });
   });
 
   return items.sort((a, b) => a.daysUntil - b.daysUntil);
 };
 
-const collectAdmittedNotConfirmed = (applications, studentById) =>
+const collectAdmittedNotConfirmed = (
+  applications: OverviewApplication[],
+  studentById: Map<string, OverviewStudent>
+) =>
   (applications || [])
     .filter(
       (application) =>
@@ -182,13 +212,14 @@ const collectAdmittedNotConfirmed = (applications, studentById) =>
     .map((application) => {
       const student = studentById.get(toIdString(application.studentId));
       return {
-        student: student ? studentLabel(student) : { id: toIdString(application.studentId) },
+        student: student
+          ? studentLabel(student)
+          : { id: toIdString(application.studentId) },
         program: application.programId
           ? {
               school: application.programId.school,
               name:
-                application.programId.program_name ||
-                application.programId.name
+                application.programId.program_name || application.programId.name
             }
           : null
       };
@@ -197,13 +228,18 @@ const collectAdmittedNotConfirmed = (applications, studentById) =>
 // threads here are already pre-filtered by the aggregation (student sent last
 // message, not ignored). stalledDays < 3 are skipped (too fresh to surface).
 // Items for students who confirmed enrolment elsewhere are flagged confirmedElsewhere.
-const collectThreadsWaitingOnTeam = (threads, studentById, finalizedStudentIds: Set<string> = new Set()) => {
+const collectThreadsWaitingOnTeam = (
+  threads: OverviewThread[],
+  studentById: Map<string, OverviewStudent>,
+  finalizedStudentIds: Set<string> = new Set()
+) => {
   const today = new Date();
   const items = (threads || [])
     .filter(
       (thread) =>
         !thread.isFinalVersion &&
-        toIdString(thread.latest_message_left_by_id) === toIdString(thread.student_id)
+        toIdString(thread.latest_message_left_by_id) ===
+          toIdString(thread.student_id)
     )
     .map((thread) => {
       const studentId = toIdString(thread.student_id);
@@ -216,7 +252,9 @@ const collectThreadsWaitingOnTeam = (threads, studentById, finalizedStudentIds: 
         student: student ? studentLabel(student) : { id: studentId },
         fileType: thread.file_type,
         stalledDays,
-        ...(finalizedStudentIds.has(studentId) ? { confirmedElsewhere: true } : {})
+        ...(finalizedStudentIds.has(studentId)
+          ? { confirmedElsewhere: true }
+          : {})
       };
     })
     .filter((item) => item.stalledDays >= 3);
@@ -228,9 +266,9 @@ const collectThreadsWaitingOnTeam = (threads, studentById, finalizedStudentIds: 
 // sent by the student themselves and has not been marked "no reply needed".
 // Urgency: ≥14d → critical, ≥7d → high, ≥3d → medium.
 const collectCommunicationGaps = (
-  students,
-  applications,
-  latestMessageAtById: Map<string, Date>  // studentId -> latest message date
+  students: OverviewStudent[],
+  applications: OverviewApplication[],
+  latestMessageAtById: Map<string, Date> // studentId -> latest message date
 ) => {
   const today = new Date();
   const activeStudentIds = new Set(
@@ -239,12 +277,13 @@ const collectCommunicationGaps = (
       .map((application) => toIdString(application.studentId))
   );
 
-  const studentById = new Map();
+  const studentById = new Map<string, OverviewStudent>();
   (students || []).forEach((s) => {
     studentById.set(toIdString(s._id || s.id), s);
   });
 
-  const items = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const items: any[] = [];
   activeStudentIds.forEach((id) => {
     const student = studentById.get(id);
     if (!student) return;
@@ -261,23 +300,26 @@ const collectCommunicationGaps = (
   );
 };
 
-const collectMissingBaseDocuments = (students) => {
-  const items = [];
+const collectMissingBaseDocuments = (students: OverviewStudent[]) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const items: any[] = [];
   (students || []).forEach((student) => {
     const missing = (student.profile || []).filter(
-      (document) => document.required && !document.path
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (document: any) => document.required && !document.path
     );
     if (missing.length) {
       items.push({
         student: studentLabel(student),
-        missingDocuments: missing.map((document) => document.name)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        missingDocuments: missing.map((document: any) => document.name)
       });
     }
   });
   return items;
 };
 
-const bucket = (items, sampleSize = SAMPLE_SIZE) => ({
+const bucket = <T>(items: T[], sampleSize = SAMPLE_SIZE) => ({
   // `count` is always the true total; `items` is a capped slice. The portfolio
   // view passes a large sampleSize so the at-risk list is not silently truncated.
   count: items.length,
@@ -299,7 +341,11 @@ const buildStudentStats = (
 };
 
 const buildStudentTerms = (
-  applications: { studentId?: unknown; application_year?: string | number; programId?: { semester?: string } }[]
+  applications: {
+    studentId?: unknown;
+    application_year?: string | number;
+    programId?: { semester?: string };
+  }[]
 ): Record<string, string[]> => {
   const termsById: Record<string, Set<string>> = {};
   (applications || []).forEach((app) => {
@@ -318,7 +364,10 @@ const buildStudentTerms = (
 };
 
 const enrichBucketItems = (
-  bucketObj: { count: number; items: { student?: { id?: string } & Record<string, unknown> }[] },
+  bucketObj: {
+    count: number;
+    items: { student?: { id?: string } & Record<string, unknown> }[];
+  },
   statsById: Record<string, { offerCount: number; rejectCount: number }>,
   termsById: Record<string, string[]> = {}
 ) => ({
@@ -329,7 +378,10 @@ const enrichBucketItems = (
           ...item,
           student: {
             ...item.student,
-            ...(statsById[item.student.id] ?? { offerCount: 0, rejectCount: 0 }),
+            ...(statsById[item.student.id] ?? {
+              offerCount: 0,
+              rejectCount: 0
+            }),
             applicationTerms: termsById[item.student.id] ?? []
           }
         }
@@ -338,22 +390,29 @@ const enrichBucketItems = (
 });
 
 const buildOverview = async (
-  req,
-  { deadlineWindowDays, sampleSize = SAMPLE_SIZE } = {}
+  req: Request,
+  {
+    deadlineWindowDays,
+    sampleSize = SAMPLE_SIZE
+  }: { deadlineWindowDays?: number; sampleSize?: number } = {}
 ) => {
-  const role = req?.user?.role;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const role = (req?.user as any)?.role;
   const days = deadlineWindowDays || DEFAULT_DEADLINE_WINDOW_DAYS;
-  const { students, studentById, applications, threads } =
-    await loadPortfolio(req);
+  const { students, studentById, applications, threads } = await loadPortfolio(
+    req
+  );
 
   // Latest message dates per student — used to surface students who have gone
   // quiet. Best-effort: a failure here must not break the rest of the overview.
-  let latestMessageAtById = new Map<string, Date>();
+  const latestMessageAtById = new Map<string, Date>();
   try {
     const studentObjectIds = (students || [])
       .map((student) => student._id || student.id)
       .filter(Boolean);
-    const rows = await CommunicationService.getLatestMessageAtForStudents(studentObjectIds);
+    const rows = await CommunicationService.getLatestMessageAtForStudents(
+      studentObjectIds
+    );
     (rows || []).forEach((row: any) => {
       const id = toIdString(row._id ?? row.studentId);
       const date = safeDate(row.latestAt);
@@ -377,7 +436,11 @@ const buildOverview = async (
     applications,
     studentById
   );
-  const threadsWaitingOnTeam = collectThreadsWaitingOnTeam(threads, studentById, finalizedStudentIds);
+  const threadsWaitingOnTeam = collectThreadsWaitingOnTeam(
+    threads,
+    studentById,
+    finalizedStudentIds
+  );
   const missingBaseDocuments = collectMissingBaseDocuments(students);
   const communicationGaps = collectCommunicationGaps(
     students,
@@ -409,11 +472,31 @@ const buildOverview = async (
     deadlineWindowDays: days,
     emphasis,
     buckets: {
-      upcomingDeadlines: enrichBucketItems(bucket(upcomingDeadlines, sampleSize), statsById, termsById),
-      threadsWaitingOnTeam: enrichBucketItems(bucket(threadsWaitingOnTeam, sampleSize), statsById, termsById),
-      communicationGaps: enrichBucketItems(bucket(communicationGaps, sampleSize), statsById, termsById),
-      admittedNotConfirmed: enrichBucketItems(bucket(admittedNotConfirmed, sampleSize), statsById, termsById),
-      missingBaseDocuments: enrichBucketItems(bucket(missingBaseDocuments, sampleSize), statsById, termsById)
+      upcomingDeadlines: enrichBucketItems(
+        bucket(upcomingDeadlines, sampleSize),
+        statsById,
+        termsById
+      ),
+      threadsWaitingOnTeam: enrichBucketItems(
+        bucket(threadsWaitingOnTeam, sampleSize),
+        statsById,
+        termsById
+      ),
+      communicationGaps: enrichBucketItems(
+        bucket(communicationGaps, sampleSize),
+        statsById,
+        termsById
+      ),
+      admittedNotConfirmed: enrichBucketItems(
+        bucket(admittedNotConfirmed, sampleSize),
+        statsById,
+        termsById
+      ),
+      missingBaseDocuments: enrichBucketItems(
+        bucket(missingBaseDocuments, sampleSize),
+        statsById,
+        termsById
+      )
     }
   };
 };

@@ -79,7 +79,7 @@ const {
   waitUntilObjectNotExists
 } = sdk;
 import logger from '../../services/logger';
-import s3 from '../../aws/s3';
+import * as s3 from '../../aws/s3';
 
 beforeEach(() => {
   jest.clearAllMocks();

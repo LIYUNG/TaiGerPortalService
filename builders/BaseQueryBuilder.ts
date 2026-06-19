@@ -1,4 +1,4 @@
-class BaseQueryBuilder {
+export class BaseQueryBuilder {
   constructor() {
     this.query = {};
     this.options = {
@@ -43,5 +43,3 @@ class BaseQueryBuilder {
     };
   }
 }
-
-export = { BaseQueryBuilder };

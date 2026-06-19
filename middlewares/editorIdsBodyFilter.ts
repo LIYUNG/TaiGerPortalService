@@ -4,7 +4,7 @@ import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from './error-handler';
 import DocumentThreadService from '../services/documentthreads';
 
-const editorIdsBodyFilter = asyncHandler(async (req, res, next) => {
+export const editorIdsBodyFilter = asyncHandler(async (req, res, next) => {
   const {
     params: { messagesThreadId },
     user,
@@ -33,7 +33,3 @@ const editorIdsBodyFilter = asyncHandler(async (req, res, next) => {
 
   next();
 });
-
-export = {
-  editorIdsBodyFilter
-};

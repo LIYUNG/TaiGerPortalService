@@ -27,21 +27,31 @@ Input phrase: "Technische Universität München - MSc Data Engineering"
 Good: "[reflink:2|Technische Universität München - MSc Data Engineering]"
 Bad: "Technische Universität München - [reflink:2|MSc Data Engineering]"`;
 
-const getResponseText = (response) => {
+// The OpenAI Responses SDK return shape is broad and varies by response kind;
+// this helper probes it structurally, so the param is left untyped.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const getResponseText = (response: any) => {
   if (response?.output_text) {
     return response.output_text;
   }
 
   const message = (response?.output || []).find(
-    (item) => item.type === 'message'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (item: any) => item.type === 'message'
   );
-  return (message?.content || [])
-    .map((part) => part.text || part.content || '')
-    .filter(Boolean)
-    .join('\n');
+  return (
+    (message?.content || [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((part: any) => part.text || part.content || '')
+      .filter(Boolean)
+      .join('\n')
+  );
 };
 
-const safeEmitToken = async (onToken, token) => {
+const safeEmitToken = async (
+  onToken: ((token: string) => Promise<void> | void) | undefined,
+  token: string
+) => {
   if (typeof onToken !== 'function' || !token) {
     return;
   }
@@ -53,7 +63,7 @@ const safeEmitToken = async (onToken, token) => {
   }
 };
 
-const safeParseJson = (value) => {
+const safeParseJson = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== 'string') {
     return null;
   }
@@ -75,7 +85,15 @@ const extractFirstJsonObject = (value = '') => {
   return safeParseJson(value.slice(start, end + 1));
 };
 
-const generateAnswerFromInput = async ({ instructions, input, onToken }) => {
+const generateAnswerFromInput = async ({
+  instructions,
+  input,
+  onToken
+}: {
+  instructions: string;
+  input: { role: string; content: string }[];
+  onToken?: (token: string) => Promise<void> | void;
+}) => {
   const requestPayload = {
     model: DEFAULT_MODEL,
     instructions,
@@ -86,7 +104,9 @@ const generateAnswerFromInput = async ({ instructions, input, onToken }) => {
     typeof onToken === 'function' &&
     typeof openAIClient.responses?.stream === 'function'
   ) {
-    const stream = await openAIClient.responses.stream(requestPayload);
+    const stream = await openAIClient.responses.stream(
+      requestPayload as Parameters<typeof openAIClient.responses.stream>[0]
+    );
     let streamedText = '';
 
     for await (const event of stream) {
@@ -108,18 +128,32 @@ const generateAnswerFromInput = async ({ instructions, input, onToken }) => {
     };
   }
 
-  const response = await openAIClient.responses.create(requestPayload);
+  const response = await openAIClient.responses.create(
+    requestPayload as Parameters<typeof openAIClient.responses.create>[0]
+  );
   return {
     response,
     answer: getResponseText(response)
   };
 };
 
+interface LinkCandidate {
+  entityType: string;
+  entityId: string;
+  [key: string]: unknown;
+}
+
 const normalizeLinkHints = ({
   answerWithMarkers,
   candidates,
   rawLinkHints
-}) => {
+}: {
+  answerWithMarkers: string;
+  candidates: LinkCandidate[];
+  rawLinkHints:
+    | Record<string, { entityType?: unknown; entityId?: unknown }>
+    | undefined;
+}): Record<string, { entityType: string; entityId: string }> => {
   if (
     !rawLinkHints ||
     typeof rawLinkHints !== 'object' ||
@@ -141,7 +175,8 @@ const normalizeLinkHints = ({
     ).map((match) => [String(match[1] || '').trim(), true])
   );
 
-  const normalized = {};
+  const normalized: Record<string, { entityType: string; entityId: string }> =
+    {};
   Object.entries(rawLinkHints).forEach(([refIdRaw, value]) => {
     const refId = String(refIdRaw || '').trim();
     const entityType = String(value?.entityType || '').trim();
@@ -166,7 +201,13 @@ const normalizeLinkHints = ({
   return Object.fromEntries(Object.entries(normalized).slice(0, 8));
 };
 
-const extractAnswerLinkHints = async ({ answer, candidates = [] }) => {
+const extractAnswerLinkHints = async ({
+  answer,
+  candidates = []
+}: {
+  answer: string;
+  candidates?: LinkCandidate[];
+}) => {
   if (
     process.env.NODE_ENV === 'test' ||
     !answer ||
@@ -213,7 +254,9 @@ const extractAnswerLinkHints = async ({ answer, candidates = [] }) => {
     const linkHints = normalizeLinkHints({
       answerWithMarkers,
       candidates,
-      rawLinkHints: parsed?.link_hints
+      rawLinkHints: parsed?.link_hints as
+        | Record<string, { entityType?: unknown; entityId?: unknown }>
+        | undefined
     });
 
     return {
@@ -228,7 +271,13 @@ const extractAnswerLinkHints = async ({ answer, candidates = [] }) => {
   }
 };
 
-const extractAnswerReferences = async ({ answer, candidates = [] }) => {
+const extractAnswerReferences = async ({
+  answer,
+  candidates = []
+}: {
+  answer: string;
+  candidates?: LinkCandidate[];
+}) => {
   const result = await extractAnswerLinkHints({
     answer,
     candidates
@@ -258,6 +307,14 @@ const composeAnswer = async ({
   toolContext,
   responseLanguageInstruction,
   onToken
+}: {
+  message: string;
+  intentResult: unknown;
+  conversationContext: unknown;
+  resolvedStudent?: unknown;
+  toolContext: unknown;
+  responseLanguageInstruction: string;
+  onToken?: (token: string) => Promise<void> | void;
 }) => {
   if (!openAIClient.responses?.create) {
     return {

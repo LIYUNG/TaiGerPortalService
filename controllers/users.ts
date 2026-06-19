@@ -23,7 +23,7 @@ import TokenService from '../services/tokens';
 import UserQueryBuilder from '../builders/UserQueryBuilder';
 
 const generateRandomToken = () => crypto.randomBytes(32).toString('hex');
-const hashToken = (token) =>
+const hashToken = (token: string) =>
   crypto.createHash('sha256').update(token).digest('hex');
 
 // If user deleted, but some files still remain in S3, this function is to address this issue.
@@ -183,7 +183,7 @@ const getUsers = asyncHandler(async (req, res) => {
     } = await UserService.getUsersPaginated({
       filter,
       ...paginationQuery
-    });
+    } as Parameters<typeof UserService.getUsersPaginated>[0]);
 
     return res.status(200).send({
       success: true,
@@ -239,6 +239,10 @@ const updateUser = asyncHandler(async (req, res) => {
   const updated_user = await UserService.getUserById(user_id);
   res.status(200).send({ success: true, data: new_user });
 
+  if (!updated_user) {
+    return;
+  }
+
   // Email inform user, the updated status
   await updateNotificationEmail(
     {
@@ -268,6 +272,11 @@ const deleteUser = asyncHandler(async (req, res) => {
   } = req;
   const user_deleting = await UserService.getUserById(user_id);
 
+  if (!user_deleting) {
+    logger.error('deleteUser: Invalid user id');
+    throw new ErrorResponse(404, 'User not found');
+  }
+
   // Delete Admin
   if (
     user_deleting.role === Role.Admin ||
@@ -282,7 +291,7 @@ const deleteUser = asyncHandler(async (req, res) => {
     const students = await UserService.pullStaffFromStudents(user_id);
     await UserService.deleteUserById(user_id);
     logger.info(`deleted userid ${user_id}`);
-    logger.info(students);
+    logger.info(students as unknown as string);
   }
 
   if (
@@ -298,7 +307,7 @@ const deleteUser = asyncHandler(async (req, res) => {
       await UserService.deleteStudentCascade(user_id);
       logger.info('studnet deleted');
     } catch (error) {
-      logger.error('Failed to delete user ', error);
+      logger.error('Failed to delete user ', error as Record<string, unknown>);
       throw error;
     }
   }

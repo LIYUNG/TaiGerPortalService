@@ -14,4 +14,4 @@ EventSchema.index({ start: 1 });
 // the index to take effect. Until then the app-level check remains the guard.
 EventSchema.index({ receiver_id: 1, start: 1 }, { unique: true });
 
-export = { EventSchema };
+export { EventSchema };

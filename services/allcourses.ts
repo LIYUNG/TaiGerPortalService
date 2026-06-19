@@ -1,3 +1,4 @@
+import { IAllCourse } from '@taiger-common/model';
 import AllcourseDAO from '../dao/allcourse.dao';
 
 /**
@@ -9,19 +10,19 @@ const AllcourseService = {
     return AllcourseDAO.getAllcourses();
   },
 
-  getAllcourseById(courseId) {
+  getAllcourseById(courseId: string) {
     return AllcourseDAO.getAllcourseById(courseId);
   },
 
-  deleteAllcourseById(courseId) {
+  deleteAllcourseById(courseId: string) {
     return AllcourseDAO.deleteAllcourseById(courseId);
   },
 
-  updateAllcourseById(courseId, payload) {
+  updateAllcourseById(courseId: string, payload: Partial<IAllCourse>) {
     return AllcourseDAO.updateAllcourseById(courseId, payload);
   },
 
-  createAllcourse(payload) {
+  createAllcourse(payload: Partial<IAllCourse>) {
     return AllcourseDAO.createAllcourse(payload);
   }
 };

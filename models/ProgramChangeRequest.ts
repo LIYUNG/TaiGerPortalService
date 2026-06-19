@@ -11,7 +11,7 @@ const changeSources = Object.keys(programModule).reduce(
 
 // Remove `required` and `default` properties from programModule
 const cleanProgramModule = stripModel(programModule);
-const programChangeRequestSchema = new Schema(
+export const programChangeRequestSchema = new Schema(
   {
     programId: { type: Schema.Types.ObjectId, ref: 'Program', required: true },
     programChanges: cleanProgramModule,
@@ -29,5 +29,3 @@ const programChangeRequestSchema = new Schema(
   },
   { timestamps: true }
 );
-
-export = { programChangeRequestSchema };

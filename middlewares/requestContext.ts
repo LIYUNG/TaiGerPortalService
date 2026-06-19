@@ -16,7 +16,7 @@ import crypto from 'crypto';
  * so a single 5XX line found from an alarm can be expanded to the full story of
  * that one request via `filter requestId = "..."`.
  */
-const als = new AsyncLocalStorage();
+export const als = new AsyncLocalStorage();
 
 // ALB always sends the header; fall back to a generated id for requests that
 // bypass the ALB (local dev, direct container calls).
@@ -32,7 +32,7 @@ const extractRequestId = (req) => {
   return crypto.randomUUID();
 };
 
-const requestContextMiddleware = (req, res, next) => {
+export const requestContextMiddleware = (req, res, next) => {
   const requestId = extractRequestId(req);
   req.requestId = requestId;
   // Echo it back so the client (and anything in front) can correlate too.
@@ -41,6 +41,4 @@ const requestContextMiddleware = (req, res, next) => {
 };
 
 // Returns the current request's id, or undefined outside a request (cron, boot).
-const getRequestId = () => als.getStore()?.requestId;
-
-export = { requestContextMiddleware, getRequestId, als };
+export const getRequestId = () => als.getStore()?.requestId;

@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery, SortOrder, Types } from 'mongoose';
+import { ICommunication } from '@taiger-common/model';
 import CommunicationDAO from '../dao/communication.dao';
 
 /**
@@ -5,15 +7,15 @@ import CommunicationDAO from '../dao/communication.dao';
  * (controller -> service -> dao).
  */
 const CommunicationService = {
-  getCommunicationByStudentId(studentId) {
+  getCommunicationByStudentId(studentId: string) {
     return CommunicationDAO.getCommunicationByStudentId(studentId);
   },
 
-  getCommunicationById(communicationId) {
+  getCommunicationById(communicationId: string) {
     return CommunicationDAO.getCommunicationById(communicationId);
   },
 
-  getCommunications(query) {
+  getCommunications(query: FilterQuery<ICommunication>) {
     return CommunicationDAO.getCommunications(query);
   },
 
@@ -21,55 +23,79 @@ const CommunicationService = {
     return CommunicationDAO.getAllForIntervalGrouping();
   },
 
-  findPopulatedSorted(filter, options) {
+  findPopulatedSorted(
+    filter: FilterQuery<ICommunication>,
+    options?: { sort?: Record<string, SortOrder>; limit?: number }
+  ) {
     return CommunicationDAO.findPopulatedSorted(filter, options);
   },
 
-  getByStudentIdForExport(studentId) {
+  getByStudentIdForExport(studentId: string) {
     return CommunicationDAO.getByStudentIdForExport(studentId);
   },
 
-  getRecentByStudentId(studentId, limit) {
+  getRecentByStudentId(studentId: string, limit: number) {
     return CommunicationDAO.getRecentByStudentId(studentId, limit);
   },
 
-  updateCommunication(communicationId, payload) {
+  updateCommunication(
+    communicationId: string,
+    payload: UpdateQuery<ICommunication>
+  ) {
     return CommunicationDAO.updateCommunication(communicationId, payload);
   },
 
-  createCommunication(payload) {
+  createCommunication(payload: Partial<ICommunication>) {
     return CommunicationDAO.createCommunication(payload);
   },
 
-  deleteById(communicationId) {
+  deleteById(communicationId: string) {
     return CommunicationDAO.deleteById(communicationId);
   },
 
-  getLatestByStudentId(studentId) {
+  getLatestByStudentId(studentId: string) {
     return CommunicationDAO.getLatestByStudentId(studentId);
   },
 
-  getLatestMessageAtForStudents(studentIds) {
+  getLatestMessageAtForStudents(studentIds: Types.ObjectId[]) {
     return CommunicationDAO.getLatestMessageAtForStudents(studentIds);
   },
 
-  getUnansweredStudentMessages(studentIds) {
+  getUnansweredStudentMessages(studentIds: Types.ObjectId[]) {
     return CommunicationDAO.getUnansweredStudentMessages(studentIds);
   },
 
-  findThreadPopulated(studentId, options) {
+  findThreadPopulated(
+    studentId: string,
+    options?: {
+      populate?: string;
+      select?: string;
+      skip?: number;
+      limit?: number;
+      lean?: boolean;
+    }
+  ) {
     return CommunicationDAO.findThreadPopulated(studentId, options);
   },
 
-  searchThread(studentId, q, options) {
+  searchThread(studentId: string, q: string, options?: { limit?: number }) {
     return CommunicationDAO.searchThread(studentId, q, options);
   },
 
-  getThreadContext(studentId, messageId, options) {
+  getThreadContext(
+    studentId: string,
+    messageId: string,
+    options?: { before?: number; after?: number }
+  ) {
     return CommunicationDAO.getThreadContext(studentId, messageId, options);
   },
 
-  getAdjacentMessages(studentId, messageId, direction, limit) {
+  getAdjacentMessages(
+    studentId: string,
+    messageId: string,
+    direction: string,
+    limit?: number
+  ) {
     return CommunicationDAO.getAdjacentMessages(
       studentId,
       messageId,

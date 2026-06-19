@@ -8,7 +8,7 @@ import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from './error-handler';
 import EventService from '../services/events';
 
-const event_multitenant_filter = asyncHandler(async (req, res, next) => {
+export const event_multitenant_filter = asyncHandler(async (req, res, next) => {
   const {
     user,
     params: { event_id }
@@ -39,7 +39,3 @@ const event_multitenant_filter = asyncHandler(async (req, res, next) => {
 
   next();
 });
-
-export = {
-  event_multitenant_filter
-};

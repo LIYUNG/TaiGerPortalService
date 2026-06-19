@@ -14,7 +14,7 @@ import { s3Client } from './s3';
 import { getTemporaryCredentials } from './sts';
 import { AWS_REGION } from '../config';
 
-const callApiGateway = async (
+export const callApiGateway = async (
   credentials,
   apiGatewayUrl,
   method,
@@ -63,13 +63,14 @@ const callApiGateway = async (
   }
 };
 
-export = {
+// Re-export the AWS clients/commands gathered from the sibling modules so
+// callers can import everything from `../aws`.
+export {
   s3Client,
   ses,
   SendRawEmailCommand,
   sesv2Client,
   SendEmailCommand,
   limiter,
-  getTemporaryCredentials,
-  callApiGateway
+  getTemporaryCredentials
 };

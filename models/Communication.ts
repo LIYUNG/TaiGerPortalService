@@ -1,6 +1,4 @@
 import { communicationsSchema } from '@taiger-common/model';
 
 communicationsSchema.index({ student_id: 1 });
-export = {
-  communicationsSchema
-};
+export { communicationsSchema };

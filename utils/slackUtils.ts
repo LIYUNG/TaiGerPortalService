@@ -51,7 +51,7 @@ async function postToSlack({ channel, text, blocks, options = {} }) {
 /**
  * General purpose sender.
  */
-async function sendSlackMessage(text, channel, blocks, options = {}) {
+export async function sendSlackMessage(text, channel, blocks, options = {}) {
   if (!text || typeof text !== 'string') {
     throw new Error('Message text is required.');
   }
@@ -71,7 +71,7 @@ async function sendSlackMessage(text, channel, blocks, options = {}) {
   return postToSlack({ channel, text, blocks, options });
 }
 
-async function sendSlackMessageToWinChannel(student, application) {
+export async function sendSlackMessageToWinChannel(student, application) {
   const agents = student.agents || [];
   const editors = student.editors || [];
   const contributors = [...agents, ...editors]
@@ -194,7 +194,7 @@ async function logStaffNotificationToManagers(editor, message, note) {
  * Notifies a student's editors via Slack DM that an application has been
  * withdrawn or re-activated, so they know whether it still needs work.
  */
-async function sendApplicationWithdrawNotificationToEditors(
+export async function sendApplicationWithdrawNotificationToEditors(
   student,
   application,
   isWithdrawn
@@ -260,9 +260,3 @@ async function sendApplicationWithdrawNotificationToEditors(
     await logStaffNotificationToManagers(editor, slackMessage, devRedirectNote);
   }
 }
-
-export = {
-  sendSlackMessage,
-  sendSlackMessageToWinChannel,
-  sendApplicationWithdrawNotificationToEditors
-};

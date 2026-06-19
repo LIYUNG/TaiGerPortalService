@@ -16,7 +16,7 @@ const getStudentUniAssist = asyncHandler(async (req, res) => {
     });
   }
 
-  const student = await StudentService.getStudentById(studentId);
+  const student: any = await StudentService.getStudentById(studentId);
   const applications = await ApplicationService.getApplicationsByStudentId(
     studentId
   );

@@ -1,5 +1,6 @@
-import mongoose from 'mongoose';
+import mongoose, { FilterQuery, UpdateQuery } from 'mongoose';
 import { Role } from '@taiger-common/core';
+import { IStudent } from '@taiger-common/model';
 
 import { Student, User } from '../models';
 
@@ -54,7 +55,7 @@ const STUDENT_GLOBAL_SEARCH_FIELDS = [
   'application_preference.expected_application_semester'
 ];
 
-const escapeRegex = (value) =>
+const escapeRegex = (value: unknown) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Shared population specs reused across the read/update methods so the
@@ -71,7 +72,7 @@ const GENERALDOCS_THREADS_POPULATE = [
 
 // Reduce an array of agent/editor first names (e.g. `$_agents.firstname`) to a
 // single ", "-joined string. Used to materialise agentNames / editorNames.
-const joinFirstNames = (firstnamesPath) => ({
+const joinFirstNames = (firstnamesPath: string) => ({
   $reduce: {
     input: { $ifNull: [firstnamesPath, []] },
     initialValue: '',
@@ -85,7 +86,16 @@ const joinFirstNames = (firstnamesPath) => ({
   }
 });
 
-const parseStudentsQuery = (query = {}) => {
+const parseStudentsQuery = (
+  query: {
+    page?: string;
+    limit?: string;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    [key: string]: unknown;
+  } = {}
+) => {
   const { page, limit, search, sortBy, sortOrder } = query;
   const parsedPage = parseInt(page, 10);
   const parsedLimit = parseInt(limit, 10);
@@ -96,7 +106,7 @@ const parseStudentsQuery = (query = {}) => {
   const sortPath = STUDENT_SORT_FIELD_MAP[sortBy] || 'nameEn';
   const sortDir = String(sortOrder || 'asc').toLowerCase() === 'desc' ? -1 : 1;
 
-  const filters = {};
+  const filters: Record<string, string> = {};
   Object.keys(STUDENT_TEXT_FILTERS).forEach((field) => {
     if (query[field] !== undefined && query[field] !== '') {
       filters[STUDENT_TEXT_FILTERS[field]] = String(query[field]).trim();
@@ -170,7 +180,14 @@ const STUDENT_DERIVED_STAGES = [
  * default-connection models (see models/index.js); takes plain params, no req.
  */
 const StudentDAO = {
-  async fetchStudents(filter = {}, options = {}) {
+  async fetchStudents(
+    filter: FilterQuery<IStudent> = {},
+    options: {
+      sort?: Record<string, unknown>;
+      skip?: number;
+      limit?: number;
+    } = {}
+  ) {
     return Student.find(filter)
       .populate(...TEAM_POPULATE)
       .populate(...GENERALDOCS_THREADS_POPULATE)
@@ -181,7 +198,7 @@ const StudentDAO = {
       .lean();
   },
 
-  async fetchSimpleStudents(filter) {
+  async fetchSimpleStudents(filter: FilterQuery<IStudent>) {
     return Student.find(filter)
       .populate(...TEAM_POPULATE)
       .select('-notification')
@@ -195,7 +212,7 @@ const StudentDAO = {
    * @param {object} filter
    * @returns {Promise<Array<{ _id: import('mongoose').Types.ObjectId }>>}
    */
-  async fetchStudentIds(filter) {
+  async fetchStudentIds(filter: FilterQuery<IStudent>) {
     return Student.find(filter).select('_id').lean();
   },
 
@@ -205,7 +222,13 @@ const StudentDAO = {
    * @param {object} query raw req.query (page, limit, sortBy, sortOrder, search, column filters)
    * @returns {{ students: object[], total: number, page: number, limit: number }}
    */
-  async getStudentsPaginated({ filter = {}, query = {} }) {
+  async getStudentsPaginated({
+    filter = {},
+    query = {}
+  }: {
+    filter?: FilterQuery<IStudent>;
+    query?: Record<string, unknown>;
+  }) {
     const { page, limit, skip, search, filters, sort } =
       parseStudentsQuery(query);
 
@@ -255,7 +278,7 @@ const StudentDAO = {
     ];
 
     const [aggResult] = await Student.aggregate(pipeline).allowDiskUse(true);
-    const ids = (aggResult?.rows ?? []).map((row) => row._id);
+    const ids = (aggResult?.rows ?? []).map((row: any) => row._id);
     const total = aggResult?.total?.[0]?.count ?? 0;
 
     if (ids.length === 0) {
@@ -269,15 +292,24 @@ const StudentDAO = {
       .lean();
 
     // $in does not preserve the aggregation's sort order — restore it.
-    const orderMap = new Map(ids.map((id, index) => [id.toString(), index]));
+    const orderMap = new Map(
+      ids.map((id: any, index: number) => [id.toString(), index])
+    );
     docs.sort(
-      (a, b) => orderMap.get(a._id.toString()) - orderMap.get(b._id.toString())
+      (a: any, b: any) =>
+        orderMap.get(a._id.toString()) - orderMap.get(b._id.toString())
     );
 
     return { students: docs, total, page, limit };
   },
 
-  async getStudents({ filter = {}, options = {} }) {
+  async getStudents({
+    filter = {},
+    options = {}
+  }: {
+    filter?: FilterQuery<IStudent>;
+    options?: { sort?: Record<string, unknown>; skip?: number; limit?: number };
+  }) {
     return User.find(filter)
       .populate(...TEAM_POPULATE)
       .sort(options.sort)
@@ -286,7 +318,7 @@ const StudentDAO = {
       .lean();
   },
 
-  async getStudentById(id) {
+  async getStudentById(id: string) {
     return Student.findById(id)
       .populate(...TEAM_POPULATE)
       .populate(...GENERALDOCS_THREADS_POPULATE)
@@ -295,19 +327,19 @@ const StudentDAO = {
 
   // Bare lookup (no population) — used where only scalar student fields and the
   // raw agents/editors id arrays are needed.
-  async getStudentByIdLean(id) {
+  async getStudentByIdLean(id: string) {
     return Student.findById(id).lean();
   },
 
   // Live (non-lean) Student document — caller mutates generaldocs_threads /
   // notification and calls .save().
-  async getStudentDocById(id) {
+  async getStudentDocById(id: string) {
     return Student.findById(id);
   },
 
   // Generic id lookups with a caller-supplied list of populate argument tuples
   // (e.g. [['agents editors', 'firstname lastname email'], ['applications.programId']]).
-  async getStudentByIdPopulated(id, populates = []) {
+  async getStudentByIdPopulated(id: string, populates: any[] = []) {
     let query = Student.findById(id);
     populates.forEach((args) => {
       query = query.populate(...args);
@@ -317,7 +349,7 @@ const StudentDAO = {
 
   // Same as above but returns a LIVE document (caller mutates profile/notification
   // and calls .save()).
-  async getStudentDocByIdPopulated(id, populates = []) {
+  async getStudentDocByIdPopulated(id: string, populates: any[] = []) {
     let query = Student.findById(id);
     populates.forEach((args) => {
       query = query.populate(...args);
@@ -327,35 +359,38 @@ const StudentDAO = {
 
   // Positional applications update (findOneAndUpdate with the
   // 'applications.$' positional operator in `filter`), returning the new doc.
-  async updateStudentByFilter(filter, update) {
+  async updateStudentByFilter(
+    filter: FilterQuery<IStudent>,
+    update: UpdateQuery<IStudent>
+  ) {
     return Student.findOneAndUpdate(filter, update, { new: true });
   },
 
   // Raw id update (no populate; result usually unused).
-  async updateStudentByIdRaw(id, update) {
+  async updateStudentByIdRaw(id: string, update: UpdateQuery<IStudent>) {
     return Student.findByIdAndUpdate(id, update, {});
   },
 
   // Bare query (no population) for arbitrary student filters.
-  async findStudents(filter = {}) {
+  async findStudents(filter: FilterQuery<IStudent> = {}) {
     return Student.find(filter).lean();
   },
 
   // Students matching `filter` with only the supervising team names populated —
   // used by the archived-students view.
-  async findStudentsWithTeamNames(filter = {}) {
+  async findStudentsWithTeamNames(filter: FilterQuery<IStudent> = {}) {
     return Student.find(filter)
       .populate('agents editors', 'firstname lastname')
       .lean();
   },
 
-  async countStudents(filter = {}) {
+  async countStudents(filter: FilterQuery<IStudent> = {}) {
     return Student.find(filter).countDocuments();
   },
 
   // Student's applications projected to {programId, doc_thread ids} for the
   // response-interval report.
-  async getStudentApplicationsForIntervals(studentId) {
+  async getStudentApplicationsForIntervals(studentId: string) {
     return Student.findById(studentId)
       .populate({
         path: 'applications.programId',
@@ -368,20 +403,29 @@ const StudentDAO = {
       .lean();
   },
 
-  async getStudentByIdSelect(id, select) {
+  async getStudentByIdSelect(id: string, select: string) {
     return Student.findById(id).select(select).lean();
   },
 
   // Student by id with selected fields + a populate spec (live doc) — the chat
   // header in the communications controller.
-  async getStudentByIdSelectPopulated(id, select, populate, populateSelect) {
+  async getStudentByIdSelectPopulated(
+    id: string,
+    select: string,
+    populate: string,
+    populateSelect: string
+  ) {
     return Student.findById(id)
       .select(select)
       .populate(populate, populateSelect);
   },
 
   // Full-text student search ranked by textScore, capped — chat user search.
-  async searchStudentsByText(filter, select, limit = 10) {
+  async searchStudentsByText(
+    filter: FilterQuery<IStudent>,
+    select: string,
+    limit = 10
+  ) {
     return Student.find(filter, { score: { $meta: 'textScore' } })
       .sort({ score: { $meta: 'textScore' } })
       .limit(limit)
@@ -417,7 +461,7 @@ const StudentDAO = {
   },
 
   // Students (within `studentIds`) whose newest message is unread by `userId`.
-  async getUnreadCommunicationStudents(studentIds, userId) {
+  async getUnreadCommunicationStudents(studentIds: string[], userId: string) {
     return Student.aggregate([
       {
         $lookup: {
@@ -452,7 +496,7 @@ const StudentDAO = {
 
   // Students (within `studentIds`) with their newest message, newest-first —
   // the chat inbox list.
-  async getStudentsWithLatestCommunicationSorted(studentIds) {
+  async getStudentsWithLatestCommunicationSorted(studentIds: string[]) {
     return Student.aggregate([
       {
         $lookup: {
@@ -576,7 +620,7 @@ const StudentDAO = {
 
   // Students (matching `filter`) with team + general-doc threads and their
   // messages/authors fully populated — for the document-thread interval job.
-  async getStudentsForDocumentThreadIntervals(filter) {
+  async getStudentsForDocumentThreadIntervals(filter: FilterQuery<IStudent>) {
     return Student.find(filter)
       .populate('agents editors', 'firstname lastname email')
       .populate({
@@ -591,7 +635,11 @@ const StudentDAO = {
 
   // Filtered student lookup returning only `select` fields, capped at `limit` —
   // used by the AI-assist student picker.
-  async findStudentsSelect(filter = {}, select = '', limit = undefined) {
+  async findStudentsSelect(
+    filter: FilterQuery<IStudent> = {},
+    select = '',
+    limit: number | undefined = undefined
+  ) {
     const query = Student.find(filter).select(select).lean();
     if (limit !== undefined) {
       query.limit(limit);
@@ -630,7 +678,7 @@ const StudentDAO = {
   },
 
   // Students matching `filter`, populated for the per-staff expenses view.
-  async getStudentsForExpenses(filter) {
+  async getStudentsForExpenses(filter: FilterQuery<IStudent>) {
     return Student.find(filter)
       .populate('agents editors', 'firstname lastname email')
       .populate('generaldocs_threads.doc_thread_id', '-messages')
@@ -640,7 +688,7 @@ const StudentDAO = {
 
   // Lookup with only the supervising agents populated (firstname/lastname/email/
   // pictureUrl) — used by course-update notifications.
-  async getStudentByIdWithAgents(id) {
+  async getStudentByIdWithAgents(id: string) {
     return Student.findById(id)
       .populate('agents', 'firstname lastname email pictureUrl')
       .lean();
@@ -648,7 +696,7 @@ const StudentDAO = {
 
   // Lookup with both supervising agents and editors populated (incl. archiv) —
   // used by complaint-ticket notifications.
-  async getStudentByIdWithTeam(id) {
+  async getStudentByIdWithTeam(id: string) {
     return Student.findById(id)
       .populate('editors agents', 'firstname lastname email archiv pictureUrl')
       .lean();
@@ -656,7 +704,7 @@ const StudentDAO = {
 
   // Lookup with team + general-doc threads (and their latest message files)
   // populated, minus the heavy taigerai field — used by the student detail page.
-  async getStudentByIdWithDocThreads(id) {
+  async getStudentByIdWithDocThreads(id: string) {
     return Student.findById(id)
       .populate('agents editors', 'firstname lastname email pictureUrl')
       .populate({
@@ -671,13 +719,13 @@ const StudentDAO = {
       .lean();
   },
 
-  async updateStudentById(id, update) {
+  async updateStudentById(id: string, update: UpdateQuery<IStudent>) {
     return Student.findByIdAndUpdate(id, update, { new: true })
       .populate(...TEAM_POPULATE)
       .lean();
   },
 
-  async getStudentsWithApplications(filter) {
+  async getStudentsWithApplications(filter: FilterQuery<IStudent>) {
     const students = await Student.aggregate([
       {
         $match: filter

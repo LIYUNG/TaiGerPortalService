@@ -1,4 +1,5 @@
 import { desc, eq } from 'drizzle-orm';
+import type { Request } from 'express';
 import { Role } from '@taiger-common/core';
 
 import {
@@ -7,11 +8,8 @@ import {
   aiAssistToolCalls
 } from '../../drizzle/schema/schema';
 import aiTools from './aiTools';
-import {
-  getLlmProvider,
-  getConfiguredModel,
-  getModelLabel
-} from './llm';
+import { getLlmProvider, getConfiguredModel, getModelLabel } from './llm';
+import type { Turn } from './llm/types';
 
 // AI Assist orchestrator — a single provider-neutral agentic tool loop.
 // One model turn per round; tools execute between rounds until the model
@@ -20,9 +18,40 @@ import {
 const MAX_TOOL_ROUNDS = 12;
 const RECENT_MESSAGE_WINDOW = 12;
 
+interface MentionedStudent {
+  id?: string;
+  displayName?: string;
+}
+
+interface AssistContext {
+  mentionedStudent?: MentionedStudent;
+  analysisMode?: boolean;
+}
+
+interface ProgressEvent {
+  type: string;
+  [key: string]: unknown;
+}
+
+type ProgressEmitter = (event: ProgressEvent) => Promise<void> | void;
+type TokenEmitter = (token: string) => Promise<void> | void;
+
+interface LinkCandidate {
+  entityType: string;
+  entityId: string;
+  displayName: string;
+  school?: string;
+}
+
+interface OrchestratorToolCall {
+  id: string;
+  name: string;
+  input?: Record<string, unknown>;
+}
+
 const baseInstructions =
   'You are TaiGer AI Assist, an experienced admissions counselor embedded in the TaiGer study-abroad platform used by internal staff (agents, editors, managers). ' +
-  'Your goal: help staff understand each student\'s real situation and take the right actions to maximize admission success. ' +
+  "Your goal: help staff understand each student's real situation and take the right actions to maximize admission success. " +
   'You are an analyst and advisor — not a database query tool or summary bot.\n\n' +
   'REASONING RULES — apply to every student question:\n' +
   '1. Gather comprehensively before concluding. For any single-student question, always call get_student_overview AND get_communications together as a minimum. Never report status from just one tool.\n' +
@@ -64,7 +93,7 @@ const baseInstructions =
   '- admission: "X" → "rejected"\n' +
   'In general: if it looks like a database field name or a code value, rewrite it as something a non-technical staff member would say.';
 
-const roleGuidance = (role) => {
+const roleGuidance = (role: string) => {
   if (role === Role.Editor) {
     return ' As an editor, your primary concern is document quality and thread progress. Prioritize: which threads are waiting on the team, whether documents meet program requirements, and unresolved review comments.';
   }
@@ -88,7 +117,10 @@ const languageNameFromPreference = (preferredLanguage = 'en') => {
 const escapeRegExp = (value = '') =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const stripAssistControlTokens = (message = '', assistContext = {}) => {
+const stripAssistControlTokens = (
+  message = '',
+  assistContext: AssistContext = {}
+) => {
   let promptText = String(message || '');
   const displayName = assistContext?.mentionedStudent?.displayName;
   if (displayName) {
@@ -105,6 +137,11 @@ const buildLanguageInstruction = ({
   assistContext,
   preferredLanguage,
   analysisMode = false
+}: {
+  message: string;
+  assistContext: AssistContext;
+  preferredLanguage?: string;
+  analysisMode?: boolean;
 }) => {
   // For an auto-triggered deep-dive the "message" is a system-generated English
   // instruction, not the user's own writing — so the "match the message
@@ -115,7 +152,7 @@ const buildLanguageInstruction = ({
   }
   const extraPromptText = stripAssistControlTokens(message, assistContext);
   if (extraPromptText) {
-    return ' Match the language and writing system of the user\'s message exactly; do not translate unless asked.';
+    return " Match the language and writing system of the user's message exactly; do not translate unless asked.";
   }
   return ` Respond in ${languageNameFromPreference(preferredLanguage)}.`;
 };
@@ -144,17 +181,40 @@ STRUCTURED OUTPUT FORMAT — when performing a student deep-dive, you MUST outpu
 
 Rules: Use only urgency levels IMMEDIATE, URGENT, NORMAL. Use only target roles AGENT, STUDENT, EDITOR, TEAM. If no blockers, write "- None identified." under BLOCKERS. Sections must appear in this exact order. CRITICAL: keep the section headers and all bracket/label tokens — HEALTH, BLOCKERS, RISKS, ACTIONS, ANALYSIS, ROOT CAUSE, SINCE, WAITING ON, [BLOCKER], [RISK:...], [ACTION:...] — in English exactly as shown, even when the rest of your answer is in another language (e.g. Chinese). Only the descriptive prose after each token should follow the user's language. Always include all five section headers, including **ANALYSIS:**.`;
 
-const buildSystemPrompt = ({ role, languageInstruction, analysisMode = false }) =>
-  `${baseInstructions}${roleGuidance(role)}${languageInstruction}${analysisMode ? ANALYSIS_FORMAT_INSTRUCTION : ''}`;
+const buildSystemPrompt = ({
+  role,
+  languageInstruction,
+  analysisMode = false
+}: {
+  role: string;
+  languageInstruction: string;
+  analysisMode?: boolean;
+}) =>
+  `${baseInstructions}${roleGuidance(role)}${languageInstruction}${
+    analysisMode ? ANALYSIS_FORMAT_INSTRUCTION : ''
+  }`;
 
 // ---- Persistence helpers ----------------------------------------------------
 
-const insertReturningOne = async (postgres, table, values) => {
+// `postgres` is a drizzle NodePgDatabase instance, but the module also accepts a
+// lightweight mock (see the `!postgres.select` guard below). The drizzle query
+// builder's chained generics cannot be expressed structurally without coupling
+// to the full schema, so the param is left untyped here.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const insertReturningOne = async (
+  postgres: any,
+  table: unknown,
+  values: unknown
+) => {
   const [row] = await postgres.insert(table).values(values).returning();
   return row;
 };
 
-const createUserMessage = (postgres, { conversationId, content }) =>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const createUserMessage = (
+  postgres: any,
+  { conversationId, content }: { conversationId: string; content: string }
+) =>
   insertReturningOne(postgres, aiAssistMessages, {
     conversationId,
     role: 'user',
@@ -162,8 +222,21 @@ const createUserMessage = (postgres, { conversationId, content }) =>
   });
 
 const createAssistantMessage = (
-  postgres,
-  { conversationId, content, model, usage, linkHints }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  postgres: any,
+  {
+    conversationId,
+    content,
+    model,
+    usage,
+    linkHints
+  }: {
+    conversationId: string;
+    content: string;
+    model: string;
+    usage: unknown;
+    linkHints?: Record<string, unknown>;
+  }
 ) =>
   insertReturningOne(postgres, aiAssistMessages, {
     conversationId,
@@ -174,12 +247,21 @@ const createAssistantMessage = (
     linkHints: linkHints || {}
   });
 
-const createToolCall = (postgres, values) =>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const createToolCall = (postgres: any, values: Record<string, unknown>) =>
   insertReturningOne(postgres, aiAssistToolCalls, values);
 
-const loadConversationContext = async (postgres, conversationId) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const loadConversationContext = async (
+  postgres: any,
+  conversationId: string
+) => {
   if (!postgres.select) {
-    return { boundStudentId: undefined, boundStudentDisplayName: undefined, recentMessages: [] };
+    return {
+      boundStudentId: undefined,
+      boundStudentDisplayName: undefined,
+      recentMessages: []
+    };
   }
 
   const [conversation, messages] = await Promise.all([
@@ -207,13 +289,20 @@ const loadConversationContext = async (postgres, conversationId) => {
     recentMessages: messages
       .slice()
       .reverse()
-      .map((message) => ({ role: message.role, content: message.content }))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((message: any) => ({ role: message.role, content: message.content }))
   };
 };
 
 // ---- Link-hint candidate collection ----------------------------------------
 
-const addStudentCandidate = (student, byKey) => {
+const addStudentCandidate = (
+  student:
+    | { id?: string; displayName?: string; name?: string }
+    | null
+    | undefined,
+  byKey: Map<string, LinkCandidate>
+) => {
   const studentId = student?.id;
   const studentName = student?.displayName || student?.name;
   if (!studentId || !studentName) return;
@@ -224,7 +313,10 @@ const addStudentCandidate = (student, byKey) => {
   });
 };
 
-const collectCandidatesFromValue = (value, byKey) => {
+const collectCandidatesFromValue = (
+  value: unknown,
+  byKey: Map<string, LinkCandidate>
+) => {
   if (!value || typeof value !== 'object') return;
 
   if (Array.isArray(value)) {
@@ -232,12 +324,13 @@ const collectCandidatesFromValue = (value, byKey) => {
     return;
   }
 
-  const record = value;
+  const record = value as Record<string, any>;
 
   // Student shape: { id, name | displayName, email }
   if (
     typeof record.id === 'string' &&
-    (typeof record.name === 'string' || typeof record.displayName === 'string') &&
+    (typeof record.name === 'string' ||
+      typeof record.displayName === 'string') &&
     (record.email !== undefined || record.role !== undefined)
   ) {
     addStudentCandidate(record, byKey);
@@ -261,7 +354,10 @@ const collectCandidatesFromValue = (value, byKey) => {
 
 // ---- Tool execution ---------------------------------------------------------
 
-const safeEmitProgress = async (onProgress, event) => {
+const safeEmitProgress = async (
+  onProgress: ProgressEmitter | undefined,
+  event: ProgressEvent
+) => {
   if (typeof onProgress !== 'function') return;
   try {
     await onProgress({ timestamp: new Date().toISOString(), ...event });
@@ -270,7 +366,7 @@ const safeEmitProgress = async (onProgress, event) => {
   }
 };
 
-const stringifyToolOutput = (value) => {
+const stringifyToolOutput = (value: unknown) => {
   try {
     return JSON.stringify(value, null, 2);
   } catch {
@@ -278,12 +374,20 @@ const stringifyToolOutput = (value) => {
   }
 };
 
-const executeToolCall = async (req, toolCall, { onProgress } = {}) => {
+const executeToolCall = async (
+  req: Request,
+  toolCall: OrchestratorToolCall,
+  { onProgress }: { onProgress?: ProgressEmitter } = {}
+) => {
   const startedAt = Date.now();
   const toolName = toolCall.name;
   const args = toolCall.input || {};
 
-  await safeEmitProgress(onProgress, { type: 'tool_start', toolName, arguments: args });
+  await safeEmitProgress(onProgress, {
+    type: 'tool_start',
+    toolName,
+    arguments: args
+  });
 
   try {
     if (!aiTools.hasTool(toolName)) {
@@ -311,7 +415,8 @@ const executeToolCall = async (req, toolCall, { onProgress } = {}) => {
       output: stringifyToolOutput(result)
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Tool execution failed';
+    const message =
+      error instanceof Error ? error.message : 'Tool execution failed';
     const durationMs = Date.now() - startedAt;
     await safeEmitProgress(onProgress, {
       type: 'tool_done',
@@ -340,11 +445,19 @@ const executeToolCall = async (req, toolCall, { onProgress } = {}) => {
 
 // ---- Turn construction ------------------------------------------------------
 
-const buildTurns = ({ recentMessages, message, hints }) => {
-  const turns = (recentMessages || []).map((entry) =>
+const buildTurns = ({
+  recentMessages,
+  message,
+  hints
+}: {
+  recentMessages?: { role: string; content: string }[];
+  message: string;
+  hints: string[];
+}) => {
+  const turns: Turn[] = (recentMessages || []).map((entry) =>
     entry.role === 'assistant'
-      ? { role: 'assistant', text: entry.content, toolCalls: [] }
-      : { role: 'user', content: entry.content }
+      ? ({ role: 'assistant', text: entry.content, toolCalls: [] } as Turn)
+      : ({ role: 'user', content: entry.content } as Turn)
   );
 
   const composed = hints.length ? `${hints.join(' ')}\n\n${message}` : message;
@@ -355,12 +468,32 @@ const buildTurns = ({ recentMessages, message, hints }) => {
 // ---- Main entry -------------------------------------------------------------
 
 const runAiAssist = async (
-  postgres,
-  { conversationId, message, req, assistContext = {}, preferredLanguage, onProgress, onToken }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  postgres: any,
+  {
+    conversationId,
+    message,
+    req,
+    assistContext = {},
+    preferredLanguage,
+    onProgress,
+    onToken
+  }: {
+    conversationId: string;
+    message: string;
+    req: Request;
+    assistContext?: AssistContext;
+    preferredLanguage?: string;
+    onProgress?: ProgressEmitter;
+    onToken?: TokenEmitter;
+  }
 ) => {
   await safeEmitProgress(onProgress, { type: 'status', phase: 'start' });
 
-  const conversationContext = await loadConversationContext(postgres, conversationId);
+  const conversationContext = await loadConversationContext(
+    postgres,
+    conversationId
+  );
 
   const userMessage = await createUserMessage(postgres, {
     conversationId,
@@ -374,7 +507,8 @@ const runAiAssist = async (
     analysisMode: Boolean(assistContext?.analysisMode)
   });
   const system = buildSystemPrompt({
-    role: req?.user?.role,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    role: (req?.user as any)?.role,
     languageInstruction,
     analysisMode: Boolean(assistContext?.analysisMode)
   });
@@ -396,11 +530,15 @@ const runAiAssist = async (
   const hints = [];
   if (explicitStudent) {
     hints.push(
-      `The user is asking about student ${explicitStudent.displayName || ''} (id: ${explicitStudent.id}).`
+      `The user is asking about student ${
+        explicitStudent.displayName || ''
+      } (id: ${explicitStudent.id}).`
     );
   } else if (boundStudent) {
     hints.push(
-      `Active student in this conversation: ${boundStudent.displayName || ''} (id: ${boundStudent.id}).`
+      `Active student in this conversation: ${
+        boundStudent.displayName || ''
+      } (id: ${boundStudent.id}).`
     );
   }
 
@@ -412,8 +550,8 @@ const runAiAssist = async (
 
   const provider = getLlmProvider();
   const model = getConfiguredModel();
-  const trace = [];
-  const candidatesByKey = new Map();
+  const trace: Record<string, unknown>[] = [];
+  const candidatesByKey = new Map<string, LinkCandidate>();
   let answer = '';
   let usage;
 
@@ -436,7 +574,11 @@ const runAiAssist = async (
       break;
     }
 
-    turns.push({ role: 'assistant', text: turn.text, toolCalls: turn.toolCalls });
+    turns.push({
+      role: 'assistant',
+      text: turn.text,
+      toolCalls: turn.toolCalls
+    } as Turn);
 
     // eslint-disable-next-line no-await-in-loop
     const executed = await Promise.all(
@@ -445,7 +587,12 @@ const runAiAssist = async (
       )
     );
 
-    const results = [];
+    const results: {
+      id: string;
+      name: string;
+      output: string;
+      isError?: boolean;
+    }[] = [];
     executed.forEach((execution, index) => {
       const toolCall = turn.toolCalls[index];
       trace.push(execution.trace);
@@ -458,7 +605,7 @@ const runAiAssist = async (
       });
     });
 
-    turns.push({ role: 'tool', results });
+    turns.push({ role: 'tool', results } as Turn);
   }
 
   if (!answer) {

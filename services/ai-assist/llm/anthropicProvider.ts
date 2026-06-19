@@ -1,7 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 import { ANTHROPIC_API_KEY } from '../../../config';
-import type { LlmProvider, StreamParams, StreamResult } from './types';
+import type {
+  LlmProvider,
+  StreamParams,
+  StreamResult,
+  Turn,
+  LlmTool
+} from './types';
 
 // Anthropic implementation of the LlmProvider strategy.
 // One call to `stream` == one model turn. The orchestrator owns the multi-round
@@ -10,7 +16,7 @@ import type { LlmProvider, StreamParams, StreamResult } from './types';
 const DEFAULT_MODEL = 'claude-opus-4-8';
 const MAX_OUTPUT_TOKENS = 16000;
 
-let cachedClient;
+let cachedClient: Anthropic | undefined;
 const getClient = () => {
   if (!cachedClient) {
     cachedClient = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
@@ -18,7 +24,7 @@ const getClient = () => {
   return cachedClient;
 };
 
-const toAnthropicMessages = (turns = []) =>
+const toAnthropicMessages = (turns: Turn[] = []) =>
   turns
     .map((turn) => {
       if (turn.role === 'user') {
@@ -29,7 +35,7 @@ const toAnthropicMessages = (turns = []) =>
       }
 
       if (turn.role === 'assistant') {
-        const content = [];
+        const content: Record<string, unknown>[] = [];
         if (turn.text) {
           content.push({ type: 'text', text: turn.text });
         }
@@ -64,14 +70,17 @@ const toAnthropicMessages = (turns = []) =>
     })
     .filter(Boolean);
 
-const toAnthropicTools = (tools = []) =>
+const toAnthropicTools = (tools: LlmTool[] = []) =>
   tools.map((tool) => ({
     name: tool.name,
     description: tool.description,
     input_schema: tool.parameters
   }));
 
-const safeEmitToken = async (onToken, token) => {
+const safeEmitToken = async (
+  onToken: ((token: string) => Promise<void> | void) | undefined,
+  token: string
+) => {
   if (typeof onToken !== 'function' || !token) {
     return;
   }
@@ -97,7 +106,9 @@ const stream: LlmProvider['stream'] = async (
     ...(tools && tools.length ? { tools: toAnthropicTools(tools) } : {})
   };
 
-  const messageStream = client.messages.stream(requestPayload);
+  const messageStream = client.messages.stream(
+    requestPayload as Anthropic.MessageStreamParams
+  );
 
   for await (const event of messageStream) {
     if (
@@ -113,13 +124,17 @@ const stream: LlmProvider['stream'] = async (
   const blocks = message?.content || [];
 
   const text = blocks
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((block: any) => block.type === 'text')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((block: any) => block.text)
     .join('');
 
   const toolCalls = blocks
-    .filter((block) => block.type === 'tool_use')
-    .map((block) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((block: any) => block.type === 'tool_use')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((block: any) => ({
       id: block.id,
       name: block.name,
       input: block.input || {}

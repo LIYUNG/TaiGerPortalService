@@ -1,3 +1,5 @@
+import { FilterQuery, UpdateQuery } from 'mongoose';
+import { ISurveyInput } from '@taiger-common/model';
 import SurveyInputDAO from '../dao/surveyInput.dao';
 
 /**
@@ -5,23 +7,23 @@ import SurveyInputDAO from '../dao/surveyInput.dao';
  * to the DAO (controller -> service -> dao).
  */
 const SurveyInputService = {
-  findSurveyInputs(filter) {
+  findSurveyInputs(filter: FilterQuery<ISurveyInput>) {
     return SurveyInputDAO.findSurveyInputs(filter);
   },
 
-  getSurveyInputById(id) {
+  getSurveyInputById(id: string) {
     return SurveyInputDAO.getSurveyInputById(id);
   },
 
-  createSurveyInput(payload) {
+  createSurveyInput(payload: Partial<ISurveyInput>) {
     return SurveyInputDAO.createSurveyInput(payload);
   },
 
-  updateSurveyInputById(id, payload) {
+  updateSurveyInputById(id: string, payload: UpdateQuery<ISurveyInput>) {
     return SurveyInputDAO.updateSurveyInputById(id, payload);
   },
 
-  deleteSurveyInput(filter) {
+  deleteSurveyInput(filter: FilterQuery<ISurveyInput>) {
     return SurveyInputDAO.deleteSurveyInput(filter);
   }
 };

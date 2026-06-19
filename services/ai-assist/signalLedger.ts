@@ -26,6 +26,9 @@ const MAX_ACTIVE_STUDENTS = 1500;
 const MAX_MESSAGES_PER_SCAN = 40;
 const MSG_TEXT_CAP = 600;
 
+// Fixed risk categories (controlled vocabulary) — drives the i18n display label
+// on the card and lets the portfolio aggregate/filter by category. The specific
+// per-case wording lives in the bilingual summary (shown on hover).
 const SIGNAL_TYPES = Object.freeze([
   'frustration',
   'confusion',
@@ -49,7 +52,7 @@ const INSTRUCTIONS =
   'You are given PRIOR signals already detected (older history you cannot re-read) and the NEW messages since the last scan. ' +
   'Return the UPDATED signal set: keep prior signals that are still relevant, set "resolved": true on any the new messages clearly address, and add new ones. ' +
   'Only report real, evidenced signals — never invent. Keep evidence to one short quote or paraphrase. ' +
-  'For each signal also write a SPECIFIC short label of the actual risk (not the generic category) in BOTH English ("summaryEn") and Traditional Chinese ("summaryZh"), max ~12 words / ~20 characters, e.g. "Frustrated about slow document feedback" / "對文件回覆緩慢感到不滿". ' +
+  'Classify each signal under one fixed "type" category, AND write a SPECIFIC short description of the actual case (not the generic category) in BOTH English ("summaryEn") and Traditional Chinese ("summaryZh"), max ~12 words / ~20 characters, e.g. type "frustration" with "Frustrated about slow document feedback" / "對文件回覆緩慢感到不滿". ' +
   `Allowed "type" values: ${SIGNAL_TYPES.join(', ')}. Allowed "severity": ${SEVERITIES.join(', ')}. ` +
   'Return STRICT JSON only: {"signals":[{"type":"...","severity":"low|medium|high","summaryEn":"...","summaryZh":"...","evidence":"...","resolved":false}]}. ' +
   'If there are no signals, return {"signals":[]}.';
@@ -90,7 +93,8 @@ const rollupRiskLevel = (signals = []) => {
 
 // Validate + normalise the LLM output, then carry forward firstSeenAt from
 // prior signals (matched by type) so server time — not the model — owns dates.
-// Pure — unit tested.
+// `type` is a fixed category (i18n-displayed); summaryEn/summaryZh hold the
+// specific bilingual description (shown on hover). Pure — unit tested.
 const mergeSignals = (priorSignals = [], llmSignals = [], now = new Date()) => {
   const nowIso = now.toISOString();
   const firstSeenByType = new Map();
@@ -101,16 +105,11 @@ const mergeSignals = (priorSignals = [], llmSignals = [], now = new Date()) => {
   });
 
   // Normalise type/severity before validating — the model may return different
-  // case ("Low", "HIGH") or spaced types ("broken promise"); dropping those
-  // silently would leave a row with no signals and riskLevel "none" despite
-  // real findings.
+  // case ("Low") or spaced types ("broken promise"); dropping those silently
+  // would leave a row with no signals despite real findings.
   const normType = (value) =>
-    String(value || '')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '_');
+    String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
   const normSeverity = (value) => String(value || '').trim().toLowerCase();
-
   const str = (value, cap) =>
     typeof value === 'string' ? value.trim().slice(0, cap) : '';
 

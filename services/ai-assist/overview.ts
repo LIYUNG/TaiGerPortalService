@@ -23,8 +23,8 @@ const PORTFOLIO_BUCKET_LIMIT = 200;
 // Thresholds for the behaviour-based (not status-based) risk signals. These
 // surface the "who has gone quiet / what is stuck" questions that pure status
 // fields cannot answer.
-const COMMUNICATION_GAP_DAYS = 21;
 const THREAD_STALL_DAYS = 7;
+const COMMUNICATION_GAP_DAYS = 7;
 
 const OVERVIEW_STUDENT_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count createdAt';
@@ -99,17 +99,15 @@ const loadPortfolio = async (req, { maxStudents = MAX_PORTFOLIO_STUDENTS } = {})
     return { students, studentById, studentIds, applications: [], threads: [] };
   }
 
+  const studentObjectIds = students.map((s) => s._id || s.id).filter(Boolean);
+
   const [applications, threads] = await Promise.all([
     ApplicationService.findApplicationsSelectPopulate(
       { studentId: { $in: studentIds } },
       OVERVIEW_APPLICATION_FIELDS,
       OVERVIEW_APPLICATION_POPULATE
     ),
-    DocumentThreadService.findThreadsSelectSorted(
-      { student_id: { $in: studentIds } },
-      'file_type student_id isFinalVersion latest_message_left_by_id updatedAt',
-      { updatedAt: -1 }
-    )
+    DocumentThreadService.getThreadsWaitingOnTeam(studentObjectIds)
   ]);
 
   return { students, studentById, studentIds, applications, threads };
@@ -128,9 +126,18 @@ const studentLabel = (student) => {
   };
 };
 
+const buildFinalizedStudentIds = (applications): Set<string> => {
+  const ids = new Set<string>();
+  (applications || []).forEach((app) => {
+    if (isTruthyFlag(app.finalEnrolment)) ids.add(toIdString(app.studentId));
+  });
+  return ids;
+};
+
 // Applications with a real (non-rolling) deadline within `days`, still in
 // progress (not closed/admitted/rejected). Sorted soonest-first.
-const collectUpcomingDeadlines = (applications, studentById, days) => {
+// Items for students who confirmed enrolment elsewhere are flagged confirmedElsewhere.
+const collectUpcomingDeadlines = (applications, studentById, days, finalizedStudentIds: Set<string> = new Set()) => {
   const today = new Date();
   const items = [];
 
@@ -144,9 +151,10 @@ const collectUpcomingDeadlines = (applications, studentById, days) => {
     const daysUntil = differenceInDays(date, today);
     if (daysUntil < 0 || daysUntil > days) return;
 
-    const student = studentById.get(toIdString(application.studentId));
+    const studentId = toIdString(application.studentId);
+    const student = studentById.get(studentId);
     items.push({
-      student: student ? studentLabel(student) : { id: toIdString(application.studentId) },
+      student: student ? studentLabel(student) : { id: studentId },
       program: application.programId
         ? {
             school: application.programId.school,
@@ -156,7 +164,8 @@ const collectUpcomingDeadlines = (applications, studentById, days) => {
           }
         : null,
       deadline: label,
-      daysUntil
+      daysUntil,
+      ...(finalizedStudentIds.has(studentId) ? { confirmedElsewhere: true } : {})
     });
   });
 
@@ -185,40 +194,43 @@ const collectAdmittedNotConfirmed = (applications, studentById) =>
       };
     });
 
-const collectThreadsWaitingOnTeam = (threads, studentById) => {
+// threads here are already pre-filtered by the aggregation (student sent last
+// message, not ignored). stalledDays < 3 are skipped (too fresh to surface).
+// Items for students who confirmed enrolment elsewhere are flagged confirmedElsewhere.
+const collectThreadsWaitingOnTeam = (threads, studentById, finalizedStudentIds: Set<string> = new Set()) => {
   const today = new Date();
-  return (threads || [])
-    .filter((thread) => {
-      if (thread.isFinalVersion) return false;
-      const latestBy = toIdString(thread.latest_message_left_by_id);
-      const studentId = toIdString(thread.student_id);
-      // Pending on the team when the latest message came from the student.
-      return latestBy && studentId && latestBy === studentId;
-    })
+  const items = (threads || [])
+    .filter(
+      (thread) =>
+        !thread.isFinalVersion &&
+        toIdString(thread.latest_message_left_by_id) === toIdString(thread.student_id)
+    )
     .map((thread) => {
-      const student = studentById.get(toIdString(thread.student_id));
-      const updatedDate = safeDate(thread.updatedAt);
-      const stalledDays = updatedDate
-        ? Math.max(differenceInDays(today, updatedDate), 0)
-        : null;
+      const studentId = toIdString(thread.student_id);
+      const student = studentById.get(studentId);
+      const lastMsgDate = safeDate(thread.lastMsgAt ?? thread.updatedAt);
+      const stalledDays = lastMsgDate
+        ? Math.max(differenceInDays(today, lastMsgDate), 0)
+        : 0;
       return {
-        student: student ? studentLabel(student) : { id: toIdString(thread.student_id) },
+        student: student ? studentLabel(student) : { id: studentId },
         fileType: thread.file_type,
-        updatedAt: thread.updatedAt,
-        stalledDays
+        stalledDays,
+        ...(finalizedStudentIds.has(studentId) ? { confirmedElsewhere: true } : {})
       };
     })
-    // Most-stalled first so the capped sample surfaces the worst cases.
-    .sort((a, b) => (b.stalledDays ?? 0) - (a.stalledDays ?? 0));
+    .filter((item) => item.stalledDays >= 3);
+
+  return items.sort((a, b) => b.stalledDays - a.stalledDays);
 };
 
-// Students with at least one in-progress application who have not exchanged any
-// message in COMMUNICATION_GAP_DAYS (or have never been messaged). This is the
-// "the student went quiet" signal — derived from real activity, not a status.
+// Students with at least one in-progress application whose latest message was
+// sent by the student themselves and has not been marked "no reply needed".
+// Urgency: ≥14d → critical, ≥7d → high, ≥3d → medium.
 const collectCommunicationGaps = (
   students,
   applications,
-  latestMessageAtById
+  latestMessageAtById: Map<string, Date>  // studentId -> latest message date
 ) => {
   const today = new Date();
   const activeStudentIds = new Set(
@@ -227,26 +239,23 @@ const collectCommunicationGaps = (
       .map((application) => toIdString(application.studentId))
   );
 
-  const items = [];
-  (students || []).forEach((student) => {
-    const id = toIdString(student._id || student.id);
-    if (!activeStudentIds.has(id)) return;
-
-    const latestAt = latestMessageAtById.get(id);
-    const lastContactDays = latestAt
-      ? Math.max(differenceInDays(today, latestAt), 0)
-      : null;
-
-    // Flag when silent past the threshold, or no message has ever been logged.
-    if (lastContactDays === null || lastContactDays >= COMMUNICATION_GAP_DAYS) {
-      items.push({
-        student: studentLabel(student),
-        lastContactDays
-      });
-    }
+  const studentById = new Map();
+  (students || []).forEach((s) => {
+    studentById.set(toIdString(s._id || s.id), s);
   });
 
-  // Longest silence first (nulls — never contacted — sort to the top).
+  const items = [];
+  activeStudentIds.forEach((id) => {
+    const student = studentById.get(id);
+    if (!student) return;
+    const latestAt = latestMessageAtById.get(id) ?? null;
+    const daysSince = latestAt
+      ? Math.max(differenceInDays(today, latestAt), 0)
+      : null;
+    if (daysSince !== null && daysSince < COMMUNICATION_GAP_DAYS) return;
+    items.push({ student: studentLabel(student), lastContactDays: daysSince });
+  });
+
   return items.sort(
     (a, b) => (b.lastContactDays ?? Infinity) - (a.lastContactDays ?? Infinity)
   );
@@ -289,14 +298,41 @@ const buildStudentStats = (
   return stats;
 };
 
+const buildStudentTerms = (
+  applications: { studentId?: unknown; application_year?: string | number; programId?: { semester?: string } }[]
+): Record<string, string[]> => {
+  const termsById: Record<string, Set<string>> = {};
+  (applications || []).forEach((app) => {
+    const id = toIdString(app.studentId);
+    if (!id) return;
+    const semester = app.programId?.semester;
+    const year = app.application_year;
+    if (!semester || !year) return;
+    const term = `${semester}${year}`;
+    if (!termsById[id]) termsById[id] = new Set();
+    termsById[id].add(term);
+  });
+  return Object.fromEntries(
+    Object.entries(termsById).map(([id, set]) => [id, Array.from(set).sort()])
+  );
+};
+
 const enrichBucketItems = (
   bucketObj: { count: number; items: { student?: { id?: string } & Record<string, unknown> }[] },
-  statsById: Record<string, { offerCount: number; rejectCount: number }>
+  statsById: Record<string, { offerCount: number; rejectCount: number }>,
+  termsById: Record<string, string[]> = {}
 ) => ({
   count: bucketObj.count,
   items: bucketObj.items.map((item) =>
     item.student?.id
-      ? { ...item, student: { ...item.student, ...(statsById[item.student.id] ?? { offerCount: 0, rejectCount: 0 }) } }
+      ? {
+          ...item,
+          student: {
+            ...item.student,
+            ...(statsById[item.student.id] ?? { offerCount: 0, rejectCount: 0 }),
+            applicationTerms: termsById[item.student.id] ?? []
+          }
+        }
       : item
   )
 });
@@ -310,37 +346,38 @@ const buildOverview = async (
   const { students, studentById, applications, threads } =
     await loadPortfolio(req);
 
-  // Latest message timestamp per student (single aggregation) → communication
-  // gaps. Best-effort: a failure here must not break the rest of the overview.
-  const latestMessageAtById = new Map();
+  // Latest message dates per student — used to surface students who have gone
+  // quiet. Best-effort: a failure here must not break the rest of the overview.
+  let latestMessageAtById = new Map<string, Date>();
   try {
     const studentObjectIds = (students || [])
       .map((student) => student._id || student.id)
       .filter(Boolean);
-    const latestRows =
-      await CommunicationService.getLatestMessageAtForStudents(studentObjectIds);
-    (latestRows || []).forEach((row) => {
-      const date = safeDate(row?.latestAt);
-      if (date) {
-        latestMessageAtById.set(toIdString(row._id), date);
-      }
+    const rows = await CommunicationService.getLatestMessageAtForStudents(studentObjectIds);
+    (rows || []).forEach((row: any) => {
+      const id = toIdString(row._id ?? row.studentId);
+      const date = safeDate(row.latestAt);
+      if (id && date) latestMessageAtById.set(id, date);
     });
   } catch {
-    // Leave the map empty; communicationGaps will simply be conservative.
+    // Leave empty; communicationGaps will reflect no contact data.
   }
 
   const statsById = buildStudentStats(applications);
+  const termsById = buildStudentTerms(applications);
+  const finalizedStudentIds = buildFinalizedStudentIds(applications);
 
   const upcomingDeadlines = collectUpcomingDeadlines(
     applications,
     studentById,
-    days
+    days,
+    finalizedStudentIds
   );
   const admittedNotConfirmed = collectAdmittedNotConfirmed(
     applications,
     studentById
   );
-  const threadsWaitingOnTeam = collectThreadsWaitingOnTeam(threads, studentById);
+  const threadsWaitingOnTeam = collectThreadsWaitingOnTeam(threads, studentById, finalizedStudentIds);
   const missingBaseDocuments = collectMissingBaseDocuments(students);
   const communicationGaps = collectCommunicationGaps(
     students,
@@ -372,11 +409,11 @@ const buildOverview = async (
     deadlineWindowDays: days,
     emphasis,
     buckets: {
-      upcomingDeadlines: enrichBucketItems(bucket(upcomingDeadlines, sampleSize), statsById),
-      threadsWaitingOnTeam: enrichBucketItems(bucket(threadsWaitingOnTeam, sampleSize), statsById),
-      communicationGaps: enrichBucketItems(bucket(communicationGaps, sampleSize), statsById),
-      admittedNotConfirmed: enrichBucketItems(bucket(admittedNotConfirmed, sampleSize), statsById),
-      missingBaseDocuments: enrichBucketItems(bucket(missingBaseDocuments, sampleSize), statsById)
+      upcomingDeadlines: enrichBucketItems(bucket(upcomingDeadlines, sampleSize), statsById, termsById),
+      threadsWaitingOnTeam: enrichBucketItems(bucket(threadsWaitingOnTeam, sampleSize), statsById, termsById),
+      communicationGaps: enrichBucketItems(bucket(communicationGaps, sampleSize), statsById, termsById),
+      admittedNotConfirmed: enrichBucketItems(bucket(admittedNotConfirmed, sampleSize), statsById, termsById),
+      missingBaseDocuments: enrichBucketItems(bucket(missingBaseDocuments, sampleSize), statsById, termsById)
     }
   };
 };
@@ -391,7 +428,9 @@ export = {
   collectCommunicationGaps,
   parseDeadline,
   PORTFOLIO_BUCKET_LIMIT,
+  buildFinalizedStudentIds,
   buildStudentStats,
+  buildStudentTerms,
   enrichBucketItems,
   toIdString,
   safeDate,

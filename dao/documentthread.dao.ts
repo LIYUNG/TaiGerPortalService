@@ -216,6 +216,35 @@ const DocumentthreadDAO = {
     return Documentthread.find(filter).select(select).sort(sort).lean();
   },
 
+  // Threads where the student sent the last message and it's not marked
+  // "no reply needed". Returns { _id, student_id, file_type, lastMsgAt }.
+  async getThreadsWaitingOnTeam(studentIds) {
+    if (!studentIds?.length) return [];
+    return Documentthread.aggregate([
+      {
+        $match: {
+          student_id: { $in: studentIds },
+          isFinalVersion: { $ne: true },
+          'messages.0': { $exists: true }
+        }
+      },
+      { $addFields: { lastMsg: { $last: '$messages' } } },
+      {
+        $match: {
+          $expr: { $eq: ['$lastMsg.user_id', '$student_id'] },
+          'lastMsg.ignore_message': { $ne: true }
+        }
+      },
+      {
+        $project: {
+          student_id: 1,
+          file_type: 1,
+          lastMsgAt: '$lastMsg.createdAt'
+        }
+      }
+    ]);
+  },
+
   // Live (non-lean) document — caller mutates messages/fields and calls .save().
   async getThreadDocById(id) {
     return Documentthread.findById(id);

@@ -25,8 +25,6 @@ const MAX_STUDENTS_PER_RUN = 150;
 const MAX_ACTIVE_STUDENTS = 1500;
 const MAX_MESSAGES_PER_SCAN = 40;
 const MSG_TEXT_CAP = 600;
-// Cold start (no prior scan): how far back to read for first-time context.
-const COLD_START_DAYS = 60;
 
 const SIGNAL_TYPES = Object.freeze([
   'frustration',
@@ -169,29 +167,42 @@ const buildScanMessages = (rawMessages) =>
       text: String(message.text).slice(0, MSG_TEXT_CAP)
     }));
 
-// Scan one student: read new messages since last scan, classify, return the
-// merged signal row (or null if there was nothing new to look at).
+// Scan one student: read messages, classify, return the merged signal row (or
+// null if there was nothing to look at).
+// - Incremental (prior scan exists): only messages since the last scan.
+// - Cold start (first scan): the latest MAX_MESSAGES_PER_SCAN messages with NO
+//   date floor, so a student who has not been contacted in months still gets
+//   scanned over their most recent history instead of coming back empty.
 const scanStudent = async (student, priorRow) => {
   const studentId = toIdString(student._id || student.id);
-  const sinceDate = priorRow?.lastScannedAt
-    ? new Date(priorRow.lastScannedAt)
-    : new Date(Date.now() - COLD_START_DAYS * 24 * 60 * 60 * 1000);
+  const isColdStart = !priorRow?.lastScannedAt;
+  const filter: Record<string, unknown> = { student_id: studentId };
+  if (!isColdStart) {
+    filter.createdAt = { $gt: new Date(priorRow.lastScannedAt) };
+  }
 
-  const rawMessages = await CommunicationService.findPopulatedSorted(
-    { student_id: studentId, createdAt: { $gt: sinceDate } },
-    { limit: MAX_MESSAGES_PER_SCAN }
+  const rawMessages = await CommunicationService.findPopulatedSorted(filter, {
+    limit: MAX_MESSAGES_PER_SCAN
+  });
+  logger.info(
+    `[AI Assist signal] ${studentId}: ${rawMessages?.length || 0} raw messages (cold=${isColdStart}, latest ${MAX_MESSAGES_PER_SCAN})`
   );
   if (!rawMessages?.length) return null;
 
   const messages = buildScanMessages(rawMessages.slice().reverse());
-  if (!messages.length) return null;
+  if (!messages.length) {
+    logger.info(`[AI Assist signal] ${studentId}: no text-bearing messages`);
+    return null;
+  }
 
   const llmSignals = await classifySignals({
     priorSignals: priorRow?.signals || [],
     messages
   });
   if (llmSignals == null) {
-    // Parse/model failure: skip this student, leave the prior row untouched.
+    logger.warn(
+      `[AI Assist signal] ${studentId}: LLM returned no parseable signals (model=${SIGNAL_MODEL})`
+    );
     return null;
   }
 
@@ -255,9 +266,18 @@ const scanStudentSignals = async (req, studentId) => {
   const id = toIdString(student._id || student.id);
   const prior = await loadPriorRow(postgres, id);
 
+  logger.info(
+    `[AI Assist signal] scanStudentSignals start: student=${id} hasPriorRow=${Boolean(prior)}`
+  );
   const row = await scanStudent(student, prior);
-  if (!row) return prior; // nothing new since last scan
+  if (!row) {
+    logger.info(`[AI Assist signal] ${id}: no row written (nothing to scan)`);
+    return prior; // nothing new since last scan
+  }
   await upsertSignalRow(postgres, row);
+  logger.info(
+    `[AI Assist signal] ${id}: upserted, riskLevel=${row.riskLevel}, signals=${row.signals.length}`
+  );
   return row;
 };
 

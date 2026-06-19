@@ -70,6 +70,8 @@ const getStudentOverview = async (req, args = {}) => {
           signals: active.map((signal) => ({
             type: signal.type,
             severity: signal.severity,
+            summaryEn: signal.summaryEn,
+            summaryZh: signal.summaryZh,
             evidence: signal.evidence,
             sinceDays: signal.firstSeenAt
               ? Math.max(

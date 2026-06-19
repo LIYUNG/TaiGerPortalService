@@ -13,6 +13,8 @@ jest.mock('../../config', () => ({
 }));
 jest.mock('../../aws', () => ({
   ses: {},
+  sesv2Client: { send: jest.fn() },
+  SendEmailCommand: class {},
   limiter: { schedule: (fn) => fn() },
   SendRawEmailCommand: class {}
 }));

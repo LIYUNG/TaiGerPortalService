@@ -374,8 +374,8 @@ describe('forwardStudentDocuments', () => {
     (DocumentThreadService.getThreadByIdLean as jest.Mock).mockResolvedValue(
       cvThread()
     );
-    // 25 MB file — over the 20 MB ceiling.
-    (headS3ObjectSize as jest.Mock).mockResolvedValue(25 * 1024 * 1024);
+    // 30 MB file — over the 25 MB ceiling.
+    (headS3ObjectSize as jest.Mock).mockResolvedValue(30 * 1024 * 1024);
 
     await expect(
       ForwardDocumentsService.forwardStudentDocuments({

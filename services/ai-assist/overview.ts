@@ -588,36 +588,12 @@ const buildOverview = async (
     deadlineWindowDays: days,
     emphasis,
     buckets: {
-      upcomingDeadlines: enrichBucketItems(
-        bucket(upcomingDeadlines, sampleSize),
-        statsById,
-        termsById
-      ),
-      threadsWaitingOnTeam: enrichBucketItems(
-        bucket(threadsWaitingOnTeam, sampleSize),
-        statsById,
-        termsById
-      ),
-      communicationGaps: enrichBucketItems(
-        bucket(communicationGaps, sampleSize),
-        statsById,
-        termsById
-      ),
-      communicationRiskSignals: enrichBucketItems(
-        bucket(communicationRiskSignals, sampleSize),
-        statsById,
-        termsById
-      ),
-      admittedNotConfirmed: enrichBucketItems(
-        bucket(admittedNotConfirmed, sampleSize),
-        statsById,
-        termsById
-      ),
-      missingBaseDocuments: enrichBucketItems(
-        bucket(missingBaseDocuments, sampleSize),
-        statsById,
-        termsById
-      )
+      upcomingDeadlines: enrichBucketItems(bucket(upcomingDeadlines, sampleSize), statsById, termsById),
+      threadsWaitingOnTeam: enrichBucketItems(bucket(threadsWaitingOnTeam, sampleSize), statsById, termsById),
+      communicationGaps: enrichBucketItems(bucket(communicationGaps, sampleSize), statsById, termsById),
+      communicationRiskSignals: enrichBucketItems(bucket(communicationRiskSignals, sampleSize), statsById, termsById),
+      admittedNotConfirmed: enrichBucketItems(bucket(admittedNotConfirmed, sampleSize), statsById, termsById),
+      missingBaseDocuments: enrichBucketItems(bucket(missingBaseDocuments, sampleSize), statsById, termsById)
     }
   };
 };

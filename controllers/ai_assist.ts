@@ -3,7 +3,7 @@ import { asc, desc, eq, and, isNotNull } from 'drizzle-orm';
 import { ErrorResponse } from '../common/errors';
 // These modules use `export =` (CommonJS), so named ESM imports trigger TS2497.
 // Import the default export and destructure the members instead.
-import databaseModule = require('../database');
+import databaseModule from '../database';
 import { asyncHandler } from '../middlewares/error-handler';
 import {
   aiAssistConversations,
@@ -12,17 +12,10 @@ import {
 } from '../drizzle/schema/schema';
 import aiAssistOrchestrator from '../services/ai-assist/orchestrator';
 import signalLedger from '../services/ai-assist/signalLedger';
-import {
-  normalizeStudentPickerRow,
-  requireAccessibleStudent,
-  searchAccessibleStudents
-} from '../services/ai-assist/tools';
-import { getAccessibleStudentFilter } from '../services/ai-assist/studentAccess';
-import {
-  buildOverview,
-  PORTFOLIO_BUCKET_LIMIT
-} from '../services/ai-assist/overview';
-import { withPostgresRetry } from '../services/ai-assist/postgresRetry';
+import toolsModule from '../services/ai-assist/tools';
+import studentAccessModule from '../services/ai-assist/studentAccess';
+import overviewModule from '../services/ai-assist/overview';
+import postgresRetryModule from '../services/ai-assist/postgresRetry';
 import { openAIClient, OpenAiModel } from '../services/openai';
 import logger from '../services/logger';
 import StudentService from '../services/students';

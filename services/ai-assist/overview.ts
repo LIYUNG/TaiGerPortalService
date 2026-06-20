@@ -3,6 +3,7 @@ import type { Request } from 'express';
 import { Role } from '@taiger-common/core';
 
 import { getAccessibleStudentFilter } from './studentAccess';
+import { getSignalsForStudents } from './signalLedger';
 import { normalizeUser } from './normalizers';
 import { application_deadline_V2_calculator } from '../../constants';
 import StudentService from '../students';
@@ -28,7 +29,7 @@ const THREAD_STALL_DAYS = 7;
 const COMMUNICATION_GAP_DAYS = 7;
 
 const OVERVIEW_STUDENT_FIELDS =
-  'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count createdAt';
+  'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count createdAt attributes';
 const OVERVIEW_APPLICATION_FIELDS =
   'programId studentId admission decided closed finalEnrolment application_year uni_assist admission_letter';
 const OVERVIEW_APPLICATION_POPULATE = {
@@ -300,6 +301,93 @@ const collectCommunicationGaps = (
   );
 };
 
+const SIGNAL_SEVERITY_RANK = { none: 0, low: 1, medium: 2, high: 3 };
+
+// A student is "Done" when carrying the Done attribute (value 8) or has
+// confirmed enrolment — implicit comms risk for them is no longer actionable,
+// so it is capped to "low".
+const hasDoneAttribute = (student) =>
+  (student?.attributes || []).some(
+    (attribute) => String(attribute?.name).toLowerCase() === 'done'
+  );
+
+// Sortable term value: lower = sooner. Summer semester precedes winter within a
+// year. Students with no parseable term sort last (Infinity).
+const soonestTermValue = (applications) => {
+  let soonest = Infinity;
+  (applications || []).forEach((app) => {
+    const year = parseInt(String(app.application_year), 10);
+    if (!year) return;
+    const semester = String(app.programId?.semester || '').toLowerCase();
+    const isSummer =
+      semester.includes('sommer') ||
+      semester.includes('summer') ||
+      semester.includes('spring') ||
+      semester === 'ss' ||
+      semester.startsWith('s');
+    const value = year * 2 + (isSummer ? 0 : 1);
+    if (value < soonest) soonest = value;
+  });
+  return soonest;
+};
+
+// Content-derived implicit risk signals (from the signal ledger), joined to the
+// students in this portfolio. Sorted most-severe first; within the same risk
+// level, the student whose nearest application term (year + semester) is sooner
+// comes first. Unresolved signals only; "Done" students capped to low.
+const collectCommunicationRiskSignals = (
+  studentById,
+  signalsById,
+  applicationsByStudentId
+) => {
+  const items = [];
+  signalsById.forEach((row, studentId) => {
+    const student = studentById.get(studentId);
+    if (!student) return;
+    const signals = (row.signals || []).filter((signal) => !signal.resolved);
+    if (!signals.length) return;
+
+    const riskLevel =
+      hasDoneAttribute(student) &&
+      (SIGNAL_SEVERITY_RANK[row.riskLevel] || 0) > SIGNAL_SEVERITY_RANK.low
+        ? 'low'
+        : row.riskLevel;
+
+    items.push({
+      student: studentLabel(student),
+      riskLevel,
+      termValue: soonestTermValue(applicationsByStudentId.get(studentId)),
+      lastMessageAt: row.lastMessageAt ?? null,
+      signals: signals.map((signal) => ({
+        type: signal.type,
+        severity: signal.severity,
+        summaryEn: signal.summaryEn,
+        summaryZh: signal.summaryZh,
+        evidence: signal.evidence,
+        occurredAt: signal.occurredAt ?? null,
+        sourceMessageId: signal.sourceMessageId ?? null,
+        sinceDays: (signal.occurredAt || signal.firstSeenAt)
+          ? Math.max(
+              differenceInDays(
+                new Date(),
+                new Date(signal.occurredAt || signal.firstSeenAt)
+              ),
+              0
+            )
+          : null
+      }))
+    });
+  });
+
+  return items.sort((a, b) => {
+    const bySeverity =
+      (SIGNAL_SEVERITY_RANK[b.riskLevel] || 0) -
+      (SIGNAL_SEVERITY_RANK[a.riskLevel] || 0);
+    if (bySeverity !== 0) return bySeverity;
+    return a.termValue - b.termValue; // sooner term first
+  });
+};
+
 const collectMissingBaseDocuments = (students: OverviewStudent[]) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const items: any[] = [];
@@ -422,6 +510,15 @@ const buildOverview = async (
     // Leave empty; communicationGaps will reflect no contact data.
   }
 
+  // Content-derived implicit risk signals from the ledger. Best-effort: a
+  // failure (or an empty/never-run ledger) must not break the rest.
+  let signalsById = new Map<string, any>();
+  try {
+    signalsById = await getSignalsForStudents(Array.from(studentById.keys()));
+  } catch {
+    // Leave empty; the communicationRiskSignals bucket will simply be empty.
+  }
+
   const statsById = buildStudentStats(applications);
   const termsById = buildStudentTerms(applications);
   const finalizedStudentIds = buildFinalizedStudentIds(applications);
@@ -447,13 +544,31 @@ const buildOverview = async (
     applications,
     latestMessageAtById
   );
+  const applicationsByStudentId = new Map();
+  (applications || []).forEach((app) => {
+    const id = toIdString(app.studentId);
+    if (!id) return;
+    if (!applicationsByStudentId.has(id)) applicationsByStudentId.set(id, []);
+    applicationsByStudentId.get(id).push(app);
+  });
+  const communicationRiskSignals = collectCommunicationRiskSignals(
+    studentById,
+    signalsById,
+    applicationsByStudentId
+  );
 
   // Role-aware emphasis: which buckets matter most for this user.
   const emphasis =
     role === Role.Editor
-      ? ['threadsWaitingOnTeam', 'communicationGaps', 'upcomingDeadlines']
+      ? [
+          'threadsWaitingOnTeam',
+          'communicationRiskSignals',
+          'communicationGaps',
+          'upcomingDeadlines'
+        ]
       : role === Role.Manager
       ? [
+          'communicationRiskSignals',
           'upcomingDeadlines',
           'communicationGaps',
           'admittedNotConfirmed',
@@ -461,6 +576,7 @@ const buildOverview = async (
         ]
       : [
           'upcomingDeadlines',
+          'communicationRiskSignals',
           'communicationGaps',
           'missingBaseDocuments',
           'admittedNotConfirmed'
@@ -472,31 +588,12 @@ const buildOverview = async (
     deadlineWindowDays: days,
     emphasis,
     buckets: {
-      upcomingDeadlines: enrichBucketItems(
-        bucket(upcomingDeadlines, sampleSize),
-        statsById,
-        termsById
-      ),
-      threadsWaitingOnTeam: enrichBucketItems(
-        bucket(threadsWaitingOnTeam, sampleSize),
-        statsById,
-        termsById
-      ),
-      communicationGaps: enrichBucketItems(
-        bucket(communicationGaps, sampleSize),
-        statsById,
-        termsById
-      ),
-      admittedNotConfirmed: enrichBucketItems(
-        bucket(admittedNotConfirmed, sampleSize),
-        statsById,
-        termsById
-      ),
-      missingBaseDocuments: enrichBucketItems(
-        bucket(missingBaseDocuments, sampleSize),
-        statsById,
-        termsById
-      )
+      upcomingDeadlines: enrichBucketItems(bucket(upcomingDeadlines, sampleSize), statsById, termsById),
+      threadsWaitingOnTeam: enrichBucketItems(bucket(threadsWaitingOnTeam, sampleSize), statsById, termsById),
+      communicationGaps: enrichBucketItems(bucket(communicationGaps, sampleSize), statsById, termsById),
+      communicationRiskSignals: enrichBucketItems(bucket(communicationRiskSignals, sampleSize), statsById, termsById),
+      admittedNotConfirmed: enrichBucketItems(bucket(admittedNotConfirmed, sampleSize), statsById, termsById),
+      missingBaseDocuments: enrichBucketItems(bucket(missingBaseDocuments, sampleSize), statsById, termsById)
     }
   };
 };

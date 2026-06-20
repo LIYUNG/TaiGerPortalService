@@ -61,6 +61,16 @@ export const DAILY_TASKS_REMINDER_SCHEDULE = env(
   'DAILY_TASKS_REMINDER_SCHEDULE',
   '0 5 0 * * *'
 );
+
+// AI Assist communication-signal ledger cron. Off by default; set
+// AI_ASSIST_SIGNAL_SCAN_ENABLED=true to activate. Default: nightly 01:30.
+export const AI_ASSIST_SIGNAL_SCAN_ENABLED =
+  env('AI_ASSIST_SIGNAL_SCAN_ENABLED', 'false') === 'true';
+export const AI_ASSIST_SIGNAL_SCAN_SCHEDULE = env(
+  'AI_ASSIST_SIGNAL_SCAN_SCHEDULE',
+  '0 30 1 * * *'
+);
+
 export const COURSE_SELECTION_TASKS_REMINDER_JUNE_SCHEDULE = env(
   'COURSE_SELECTION_TASKS_REMINDER_JUNE_SCHEDULE',
   '2 5 3 * 6 5'

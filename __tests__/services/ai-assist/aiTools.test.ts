@@ -28,6 +28,9 @@ jest.mock('../../../utils/utils_function', () => ({
 jest.mock('../../../config', () => ({
   AWS_S3_BUCKET_NAME: 'test-bucket'
 }));
+jest.mock('../../../services/ai-assist/signalLedger', () => ({
+  getStudentSignalRow: jest.fn().mockResolvedValue(null)
+}));
 
 import aiTools from '../../../services/ai-assist/aiTools';
 import tools from '../../../services/ai-assist/tools';

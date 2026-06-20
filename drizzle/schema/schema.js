@@ -5,6 +5,9 @@ const { leadNotes } = require('./leadNotes');
 const { meetingTranscripts } = require('./meetingTranscripts');
 const { studentEmbeddings } = require('./studentEmbeddings');
 const {
+  studentCommunicationSignals
+} = require('./studentSignals');
+const {
   leadsRelations,
   leadProfileRelations,
   leadTagsRelations,
@@ -32,6 +35,7 @@ module.exports = {
   leadNotes,
   meetingTranscripts,
   studentEmbeddings,
+  studentCommunicationSignals,
   leadSimilarUsers,
   deals,
   dealStatusEnum,

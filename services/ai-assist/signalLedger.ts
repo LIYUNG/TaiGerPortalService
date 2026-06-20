@@ -39,7 +39,11 @@ const SIGNAL_TYPES = Object.freeze([
   'mentions_competitor_or_refund',
   'sentiment_declining',
   'dissatisfaction_with_service',
-  'urgent_unaddressed_request'
+  'urgent_unaddressed_request',
+  'technical_access_issue',
+  'missing_document_blocker',
+  'financial_concern',
+  'low_confidence_in_outcome'
 ]);
 
 const SEVERITY_RANK = { none: 0, low: 1, medium: 2, high: 3 };
@@ -48,7 +52,8 @@ const SEVERITIES = Object.freeze(['low', 'medium', 'high']);
 const INSTRUCTIONS =
   'You analyse the message history between a study-abroad student and the consultancy team (internal staff). ' +
   'Surface IMPLICIT risks that status/deadline metrics cannot show — tone, frustration, confusion, unanswered or repeated questions, ' +
-  'vague/broken promises, deadline anxiety, cooling engagement (shorter/slower replies), mentions of competitors/refund/quitting, declining sentiment, dissatisfaction. ' +
+  'vague/broken promises, deadline anxiety, cooling engagement (shorter/slower replies), mentions of competitors/refund/quitting, declining sentiment, dissatisfaction, ' +
+  'technical/access blockers (login, portal, upload, links, system bugs), missing/blocked documents, financial concerns (fees, funding, budget), low confidence in their own outcome (self-doubt, eligibility/admission odds). ' +
   'You are given PRIOR signals already detected (older history you cannot re-read) and the NEW messages since the last scan. ' +
   'Return the UPDATED signal set: keep prior signals that are still relevant, set "resolved": true on any the new messages clearly address, and add new ones. ' +
   'Only report real, evidenced signals — never invent. Keep evidence to one short quote or paraphrase. ' +

@@ -43,7 +43,11 @@ const SIGNAL_TYPES = Object.freeze([
   'technical_access_issue',
   'missing_document_blocker',
   'financial_concern',
-  'low_confidence_in_outcome'
+  'low_confidence_in_outcome',
+  // Catch-all so real edge-case signals survive the type filter instead of being
+  // dropped. Paired with `suggestedType` (free-text, internal-only) for harvesting
+  // new categories from live data — query it periodically, promote frequent ones.
+  'other'
 ]);
 
 const SEVERITY_RANK = { none: 0, low: 1, medium: 2, high: 3 };
@@ -60,7 +64,8 @@ const INSTRUCTIONS =
   'Classify each signal under one fixed "type" category, AND write a SPECIFIC short description of the actual case (not the generic category) in BOTH English ("summaryEn") and Traditional Chinese ("summaryZh"), max ~12 words / ~20 characters, e.g. type "frustration" with "Frustrated about slow document feedback" / "對文件回覆緩慢感到不滿". ' +
   'Also set "msgIndex" to the "i" of the single message in the NEW messages list that best evidences the signal (omit or use 0 if it comes only from prior context). ' +
   `Allowed "type" values: ${SIGNAL_TYPES.join(', ')}. Allowed "severity": ${SEVERITIES.join(', ')}. ` +
-  'Return STRICT JSON only: {"signals":[{"type":"...","severity":"low|medium|high","summaryEn":"...","summaryZh":"...","evidence":"...","msgIndex":0,"resolved":false}]}. ' +
+  'Use "other" ONLY when a real signal fits none of the listed categories; in that case set "suggestedType" to a snake_case category name you would propose for it. Leave "suggestedType" empty for any listed category. ' +
+  'Return STRICT JSON only: {"signals":[{"type":"...","severity":"low|medium|high","summaryEn":"...","summaryZh":"...","evidence":"...","msgIndex":0,"resolved":false,"suggestedType":""}]}. ' +
   'If there are no signals, return {"signals":[]}.';
 
 const safeParseJson = (value) => {
@@ -126,6 +131,8 @@ const mergeSignals = (priorSignals = [], llmSignals = [], now = new Date()) => {
       summaryEn: str(signal?.summaryEn, 120),
       summaryZh: str(signal?.summaryZh, 120),
       evidence: str(signal?.evidence, 400),
+      // Internal-only harvest field; only meaningful when type === 'other'.
+      suggestedType: normType(signal?.suggestedType).slice(0, 60),
       sourceMessageId: signal?.sourceMessageId || null,
       occurredAt: signal?.occurredAt || null,
       resolved: Boolean(signal?.resolved)
@@ -142,6 +149,7 @@ const mergeSignals = (priorSignals = [], llmSignals = [], now = new Date()) => {
         // Keep the original source/time when this scan did not re-reference it.
         sourceMessageId: signal.sourceMessageId || prior?.sourceMessageId || null,
         occurredAt: signal.occurredAt || prior?.occurredAt || null,
+        suggestedType: signal.suggestedType || prior?.suggestedType || '',
         firstSeenAt: prior?.firstSeenAt || nowIso,
         lastSeenAt: nowIso
       };

@@ -818,6 +818,14 @@ describe('buildOverview', () => {
     expect(result.deadlineWindowDays).toBe(7);
   });
 
+  it('queries only decided, non-withdrawn applications (ignores undecided/withdrawn)', async () => {
+    StudentService.findStudentsSelect.mockResolvedValue([student('s1', 'Ann')]);
+    await buildOverview({ user: { role: 'Agent' } });
+    const [filter] =
+      ApplicationService.findApplicationsSelectPopulate.mock.calls[0];
+    expect(filter).toMatchObject({ decided: 'O', closed: { $ne: 'X' } });
+  });
+
   it('handles a missing user (undefined role)', async () => {
     const result = await buildOverview({});
     expect(result.role).toBeUndefined();

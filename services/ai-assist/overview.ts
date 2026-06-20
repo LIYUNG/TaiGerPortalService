@@ -121,8 +121,12 @@ const loadPortfolio = async (
   const studentObjectIds = students.map((s) => s._id || s.id).filter(Boolean);
 
   const [applications, threads] = await Promise.all([
+    // Only committed, live applications: a program the student decided to apply
+    // to (decided === 'O') and has not withdrawn (closed !== 'X'). Undecided and
+    // withdrawn programs are excluded at the DB so nothing downstream surfaces
+    // them — matching isProgramDecided / isProgramWithdraw from @taiger-common.
     ApplicationService.findApplicationsSelectPopulate(
-      { studentId: { $in: studentIds } },
+      { studentId: { $in: studentIds }, decided: 'O', closed: { $ne: 'X' } },
       OVERVIEW_APPLICATION_FIELDS,
       OVERVIEW_APPLICATION_POPULATE
     ),
@@ -625,6 +629,9 @@ const buildOverview = async (
     // Leave empty; the communicationRiskSignals bucket will simply be empty.
   }
 
+  // `applications` is already filtered to committed, live programs (decided,
+  // not withdrawn) by loadPortfolio's DB query, so every aggregate below reflects
+  // only those.
   const statsById = buildStudentStats(applications);
   const termsById = buildStudentTerms(applications);
   const finalizedStudentIds = buildFinalizedStudentIds(applications);

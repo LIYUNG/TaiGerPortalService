@@ -1,13 +1,20 @@
 import { pgTable, text, timestamp, jsonb } from 'drizzle-orm/pg-core';
 
-// One unresolved/active communication risk signal, content-derived per student.
+// One active communication risk signal, content-derived per student. `type` is
+// a fixed category (controlled vocabulary); severity is validated to
+// low|medium|high at write time but stored as a plain string. summaryEn/summaryZh
+// hold the bilingual case description; firstSeenAt/lastSeenAt are server-owned.
 export type StudentSignal = {
   type: string;
-  severity: 'low' | 'medium' | 'high';
+  severity: string;
+  summaryEn: string;
+  summaryZh: string;
   evidence: string;
+  sourceMessageId: string | null;
+  occurredAt: string | null;
+  resolved: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
-  resolved: boolean;
 };
 
 // Accumulated, content-derived communication risk signals per student. Written

@@ -11,7 +11,7 @@ import {
   Guest,
   External
 } from './models/User';
-import postgresSchema from './drizzle/schema/schema.js';
+import * as postgresSchema from './drizzle/schema/schema';
 import { EventSchema } from './models/Event';
 import { documentThreadsSchema } from './models/Documentthread';
 import { programSchema } from './models/Program';

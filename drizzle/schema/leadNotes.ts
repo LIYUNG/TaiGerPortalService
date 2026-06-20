@@ -1,8 +1,8 @@
-const { pgTable, text, varchar, timestamp } = require('drizzle-orm/pg-core');
-const { nanoid } = require('nanoid');
-const { leads } = require('./leads');
+import { pgTable, text, varchar, timestamp } from 'drizzle-orm/pg-core';
+import { nanoid } from 'nanoid';
+import { leads } from './leads';
 
-const leadNotes = pgTable('lead_notes', {
+export const leadNotes = pgTable('lead_notes', {
   id: text('id')
     .primaryKey()
     .notNull()
@@ -15,4 +15,5 @@ const leadNotes = pgTable('lead_notes', {
   createdAt: timestamp('created_at').defaultNow()
 });
 
-module.exports = { leadNotes };
+export type LeadNote = typeof leadNotes.$inferSelect;
+export type NewLeadNote = typeof leadNotes.$inferInsert;

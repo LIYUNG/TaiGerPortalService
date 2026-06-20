@@ -1,14 +1,14 @@
-const {
+import {
   pgTable,
   varchar,
   jsonb,
   doublePrecision,
   bigint,
   boolean
-} = require('drizzle-orm/pg-core');
-const { leads } = require('./leads');
+} from 'drizzle-orm/pg-core';
+import { leads } from './leads';
 
-const meetingTranscripts = pgTable('meeting_transcripts', {
+export const meetingTranscripts = pgTable('meeting_transcripts', {
   id: varchar('id', { length: 32 }).primaryKey(),
   title: varchar('title', { length: 255 }),
   speakers: jsonb('speakers'),
@@ -26,4 +26,5 @@ const meetingTranscripts = pgTable('meeting_transcripts', {
   })
 });
 
-module.exports = { meetingTranscripts };
+export type MeetingTranscript = typeof meetingTranscripts.$inferSelect;
+export type NewMeetingTranscript = typeof meetingTranscripts.$inferInsert;

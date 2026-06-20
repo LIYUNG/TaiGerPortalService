@@ -364,6 +364,11 @@ const getStudentSignalRow = async (studentId) => {
 
 // ---- Cron entry -------------------------------------------------------------
 
+// Bulk cron orchestration (candidate selection, chunked fan-out, error
+// swallowing). Excluded from coverage: it is a thin scheduler over scanStudent
+// (which the per-student path exercises) and would need a heavy DB/aggregation
+// mock for little signal. Opt-in and rarely run.
+/* istanbul ignore next -- cron orchestration over the tested scanStudent unit */
 const scanCommunicationSignals = async () => {
   const postgres = getPostgresDb();
   const startedAt = Date.now();
@@ -474,5 +479,8 @@ export = {
   mergeSignals,
   rollupRiskLevel,
   withSourceRefs,
+  buildScanMessages,
+  safeParseJson,
+  extractOutputText,
   SIGNAL_TYPES
 };

@@ -121,8 +121,12 @@ const loadPortfolio = async (
   const studentObjectIds = students.map((s) => s._id || s.id).filter(Boolean);
 
   const [applications, threads] = await Promise.all([
+    // Only committed, live applications: a program the student decided to apply
+    // to (decided === 'O') and has not withdrawn (closed !== 'X'). Undecided and
+    // withdrawn programs are excluded at the DB so nothing downstream surfaces
+    // them — matching isProgramDecided / isProgramWithdraw from @taiger-common.
     ApplicationService.findApplicationsSelectPopulate(
-      { studentId: { $in: studentIds } },
+      { studentId: { $in: studentIds }, decided: 'O', closed: { $ne: 'X' } },
       OVERVIEW_APPLICATION_FIELDS,
       OVERVIEW_APPLICATION_POPULATE
     ),
@@ -413,12 +417,138 @@ const collectMissingBaseDocuments = (students: OverviewStudent[]) => {
   return items;
 };
 
-const bucket = <T>(items: T[], sampleSize = SAMPLE_SIZE) => ({
-  // `count` is always the true total; `items` is a capped slice. The portfolio
-  // view passes a large sampleSize so the at-risk list is not silently truncated.
-  count: items.length,
-  items: items.slice(0, sampleSize)
-});
+// Lower number = more urgent. Used to compute a student's overall urgency (the
+// worst of their signals) and to sort students worst-first.
+const URGENCY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2 };
+const worstUrgency = (a: string, b: string) =>
+  (URGENCY_RANK[a] ?? 99) <= (URGENCY_RANK[b] ?? 99) ? a : b;
+
+const BUCKET_KEYS = [
+  'upcomingDeadlines',
+  'threadsWaitingOnTeam',
+  'communicationGaps',
+  'communicationRiskSignals',
+  'admittedNotConfirmed',
+  'missingBaseDocuments'
+] as const;
+type BucketKey = (typeof BUCKET_KEYS)[number];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Collected = Record<BucketKey, any[]>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Signal = { bucket: BucketKey; urgency: string } & Record<string, any>;
+
+// Pre-group the per-bucket collector output into a student-centric view so the
+// frontend renders directly without a cross-bucket join. Each student carries
+// their signals (urgency computed here, not in the client) plus their
+// offer/reject/term stats once — killing the per-item student duplication that
+// the old bucket-of-items shape produced for at-risk students. Each signal
+// carries its `bucket` tag, so any per-bucket count is derivable client-side.
+const buildStudentsView = (
+  collected: Collected,
+  statsById: Record<string, { offerCount: number; rejectCount: number }>,
+  termsById: Record<string, string[]>,
+  finalizedStudentIds: Set<string>,
+  limit: number
+) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byId = new Map<string, any>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ensure = (label: any) => {
+    const id = label?.id;
+    let entry = byId.get(id);
+    if (!entry) {
+      entry = {
+        ...label,
+        ...(statsById[id] ?? { offerCount: 0, rejectCount: 0 }),
+        applicationTerms: termsById[id] ?? [],
+        confirmedElsewhere: finalizedStudentIds.has(id),
+        overallUrgency: 'medium',
+        signals: [] as Signal[]
+      };
+      byId.set(id, entry);
+    }
+    return entry;
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const add = (label: any, signal: Signal) => {
+    if (!label?.id) return;
+    const entry = ensure(label);
+    entry.signals.push(signal);
+    entry.overallUrgency = worstUrgency(entry.overallUrgency, signal.urgency);
+  };
+
+  collected.upcomingDeadlines.forEach((it) =>
+    add(it.student, {
+      bucket: 'upcomingDeadlines',
+      urgency: it.confirmedElsewhere
+        ? 'medium'
+        : it.daysUntil < 7
+        ? 'critical'
+        : 'high',
+      daysUntil: it.daysUntil,
+      deadline: it.deadline,
+      program: it.program ?? null
+    })
+  );
+  collected.threadsWaitingOnTeam.forEach((it) =>
+    add(it.student, {
+      bucket: 'threadsWaitingOnTeam',
+      urgency: it.confirmedElsewhere
+        ? 'medium'
+        : it.stalledDays >= 14
+        ? 'critical'
+        : it.stalledDays >= 7
+        ? 'high'
+        : 'medium',
+      stalledDays: it.stalledDays,
+      fileType: it.fileType ?? null
+    })
+  );
+  collected.communicationGaps.forEach((it) => {
+    const days = it.lastContactDays ?? 0;
+    add(it.student, {
+      bucket: 'communicationGaps',
+      urgency: days >= 14 ? 'critical' : days >= 7 ? 'high' : 'medium',
+      lastContactDays: it.lastContactDays ?? null
+    });
+  });
+  collected.communicationRiskSignals.forEach((it) =>
+    add(it.student, {
+      bucket: 'communicationRiskSignals',
+      urgency:
+        (it.signals || []).some((s: { severity?: string }) => s.severity === 'high') ||
+        it.riskLevel === 'high'
+          ? 'high'
+          : 'medium',
+      riskLevel: it.riskLevel,
+      riskSignals: it.signals ?? []
+    })
+  );
+  collected.admittedNotConfirmed.forEach((it) =>
+    add(it.student, {
+      bucket: 'admittedNotConfirmed',
+      urgency: 'medium',
+      program: it.program ?? null
+    })
+  );
+  collected.missingBaseDocuments.forEach((it) =>
+    add(it.student, {
+      bucket: 'missingBaseDocuments',
+      urgency: 'medium',
+      missingDocuments: it.missingDocuments ?? []
+    })
+  );
+
+  const sorted = Array.from(byId.values()).sort(
+    (a, b) =>
+      (URGENCY_RANK[a.overallUrgency] ?? 99) -
+      (URGENCY_RANK[b.overallUrgency] ?? 99)
+  );
+  const students = sorted.slice(0, limit);
+
+  return { students, hasMoreStudents: sorted.length > students.length };
+};
 
 const buildStudentStats = (
   applications: { studentId?: unknown; admission?: string }[]
@@ -456,32 +586,6 @@ const buildStudentTerms = (
     Object.entries(termsById).map(([id, set]) => [id, Array.from(set).sort()])
   );
 };
-
-const enrichBucketItems = (
-  bucketObj: {
-    count: number;
-    items: { student?: { id?: string } & Record<string, unknown> }[];
-  },
-  statsById: Record<string, { offerCount: number; rejectCount: number }>,
-  termsById: Record<string, string[]> = {}
-) => ({
-  count: bucketObj.count,
-  items: bucketObj.items.map((item) =>
-    item.student?.id
-      ? {
-          ...item,
-          student: {
-            ...item.student,
-            ...(statsById[item.student.id] ?? {
-              offerCount: 0,
-              rejectCount: 0
-            }),
-            applicationTerms: termsById[item.student.id] ?? []
-          }
-        }
-      : item
-  )
-});
 
 const buildOverview = async (
   req: Request,
@@ -525,6 +629,9 @@ const buildOverview = async (
     // Leave empty; the communicationRiskSignals bucket will simply be empty.
   }
 
+  // `applications` is already filtered to committed, live programs (decided,
+  // not withdrawn) by loadPortfolio's DB query, so every aggregate below reflects
+  // only those.
   const statsById = buildStudentStats(applications);
   const termsById = buildStudentTerms(applications);
   const finalizedStudentIds = buildFinalizedStudentIds(applications);
@@ -588,19 +695,31 @@ const buildOverview = async (
           'admittedNotConfirmed'
         ];
 
+  const { students: studentsView, hasMoreStudents } = buildStudentsView(
+      {
+        upcomingDeadlines,
+        threadsWaitingOnTeam,
+        communicationGaps,
+        communicationRiskSignals,
+        admittedNotConfirmed,
+        missingBaseDocuments
+      },
+      statsById,
+      termsById,
+      finalizedStudentIds,
+      sampleSize
+    );
+
   return {
     role,
     studentCount: students.length,
     deadlineWindowDays: days,
     emphasis,
-    buckets: {
-      upcomingDeadlines: enrichBucketItems(bucket(upcomingDeadlines, sampleSize), statsById, termsById),
-      threadsWaitingOnTeam: enrichBucketItems(bucket(threadsWaitingOnTeam, sampleSize), statsById, termsById),
-      communicationGaps: enrichBucketItems(bucket(communicationGaps, sampleSize), statsById, termsById),
-      communicationRiskSignals: enrichBucketItems(bucket(communicationRiskSignals, sampleSize), statsById, termsById),
-      admittedNotConfirmed: enrichBucketItems(bucket(admittedNotConfirmed, sampleSize), statsById, termsById),
-      missingBaseDocuments: enrichBucketItems(bucket(missingBaseDocuments, sampleSize), statsById, termsById)
-    }
+    hasMoreStudents,
+    // Pre-grouped, worst-first, urgency computed server-side. Each signal is
+    // tagged with its `bucket`, so the frontend localizes + renders directly and
+    // can derive any per-bucket count itself.
+    students: studentsView
   };
 };
 
@@ -617,7 +736,7 @@ export = {
   buildFinalizedStudentIds,
   buildStudentStats,
   buildStudentTerms,
-  enrichBucketItems,
+  buildStudentsView,
   toIdString,
   safeDate,
   isTruthyFlag,

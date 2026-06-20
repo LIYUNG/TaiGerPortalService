@@ -1,15 +1,14 @@
-const {
+import {
   pgTable,
   serial,
   text,
   varchar,
-  date,
   numeric,
   timestamp,
   pgEnum
-} = require('drizzle-orm/pg-core');
-const { leads } = require('./leads');
-const { salesReps } = require('./salesReps');
+} from 'drizzle-orm/pg-core';
+import { leads } from './leads';
+import { salesReps } from './salesReps';
 
 // Notes/assumptions:
 // - Using PostgreSQL types (Drizzle pg-core).
@@ -19,7 +18,7 @@ const { salesReps } = require('./salesReps');
 // - Timestamps default to now() (no ON UPDATE trigger applied in schema; app can update updated_at).
 
 // Postgres enum for deal status
-const dealStatusEnum = pgEnum('deal_status', [
+export const dealStatusEnum = pgEnum('deal_status', [
   'initiated',
   'sent',
   'signed',
@@ -27,7 +26,7 @@ const dealStatusEnum = pgEnum('deal_status', [
   'canceled'
 ]);
 
-const deals = pgTable('deals', {
+export const deals = pgTable('deals', {
   id: serial('id').primaryKey(),
   leadId: text('lead_id')
     .notNull()
@@ -51,4 +50,6 @@ const deals = pgTable('deals', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
-module.exports = { deals, dealStatusEnum };
+export type DealStatus = (typeof dealStatusEnum.enumValues)[number];
+export type Deal = typeof deals.$inferSelect;
+export type NewDeal = typeof deals.$inferInsert;

@@ -1,13 +1,13 @@
-const {
+import {
   pgTable,
   text,
   varchar,
   primaryKey,
   timestamp
-} = require('drizzle-orm/pg-core');
-const { leads } = require('./leads');
+} from 'drizzle-orm/pg-core';
+import { leads } from './leads';
 
-const leadSimilarUsers = pgTable(
+export const leadSimilarUsers = pgTable(
   'lead_similar_users',
   {
     leadId: text('lead_id')
@@ -25,4 +25,5 @@ const leadSimilarUsers = pgTable(
   })
 );
 
-module.exports = { leadSimilarUsers };
+export type LeadSimilarUser = typeof leadSimilarUsers.$inferSelect;
+export type NewLeadSimilarUser = typeof leadSimilarUsers.$inferInsert;

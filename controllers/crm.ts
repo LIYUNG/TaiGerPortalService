@@ -7,7 +7,7 @@ import {
   meetingTranscripts,
   salesReps,
   deals
-} from '../drizzle/schema/schema.js';
+} from '../drizzle/schema/schema';
 import database = require('../database');
 import { sql, getTableColumns, not, eq, desc, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';

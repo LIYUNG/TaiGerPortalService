@@ -1,14 +1,14 @@
-const {
+import {
   pgTable,
   text,
   timestamp,
   integer,
   jsonb,
   boolean
-} = require('drizzle-orm/pg-core');
-const { nanoid } = require('nanoid');
+} from 'drizzle-orm/pg-core';
+import { nanoid } from 'nanoid';
 
-const aiAssistConversations = pgTable('ai_assist_conversations', {
+export const aiAssistConversations = pgTable('ai_assist_conversations', {
   id: text('id')
     .primaryKey()
     .notNull()
@@ -30,7 +30,7 @@ const aiAssistConversations = pgTable('ai_assist_conversations', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
-const aiAssistMessages = pgTable('ai_assist_messages', {
+export const aiAssistMessages = pgTable('ai_assist_messages', {
   id: text('id')
     .primaryKey()
     .notNull()
@@ -48,7 +48,7 @@ const aiAssistMessages = pgTable('ai_assist_messages', {
   createdAt: timestamp('created_at').defaultNow()
 });
 
-const aiAssistToolCalls = pgTable('ai_assist_tool_calls', {
+export const aiAssistToolCalls = pgTable('ai_assist_tool_calls', {
   id: text('id')
     .primaryKey()
     .notNull()
@@ -70,8 +70,9 @@ const aiAssistToolCalls = pgTable('ai_assist_tool_calls', {
   createdAt: timestamp('created_at').defaultNow()
 });
 
-module.exports = {
-  aiAssistConversations,
-  aiAssistMessages,
-  aiAssistToolCalls
-};
+export type AiAssistConversation = typeof aiAssistConversations.$inferSelect;
+export type NewAiAssistConversation = typeof aiAssistConversations.$inferInsert;
+export type AiAssistMessage = typeof aiAssistMessages.$inferSelect;
+export type NewAiAssistMessage = typeof aiAssistMessages.$inferInsert;
+export type AiAssistToolCall = typeof aiAssistToolCalls.$inferSelect;
+export type NewAiAssistToolCall = typeof aiAssistToolCalls.$inferInsert;

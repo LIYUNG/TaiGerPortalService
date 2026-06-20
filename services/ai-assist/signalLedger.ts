@@ -2,7 +2,12 @@ import { eq, inArray } from 'drizzle-orm';
 import { Role } from '@taiger-common/core';
 
 import { getPostgresDb } from '../../database';
-import { studentCommunicationSignals } from '../../drizzle/schema/schema';
+import {
+  studentCommunicationSignals,
+  type StudentSignal,
+  type StudentCommunicationSignal,
+  type NewStudentCommunicationSignal
+} from '../../drizzle/schema/schema';
 import { openAIClient, OpenAiModel } from '../openai';
 import logger from '../logger';
 import StudentService from '../students';
@@ -42,7 +47,12 @@ const SIGNAL_TYPES = Object.freeze([
   'urgent_unaddressed_request'
 ]);
 
-const SEVERITY_RANK = { none: 0, low: 1, medium: 2, high: 3 };
+const SEVERITY_RANK: Record<string, number> = {
+  none: 0,
+  low: 1,
+  medium: 2,
+  high: 3
+};
 const SEVERITIES = Object.freeze(['low', 'medium', 'high']);
 
 const INSTRUCTIONS =
@@ -81,7 +91,7 @@ const toIdString = (value) => {
 };
 
 // Highest unresolved severity across signals. Pure — unit tested.
-const rollupRiskLevel = (signals = []) => {
+const rollupRiskLevel = (signals: StudentSignal[] = []) => {
   let level = 'none';
   signals.forEach((signal) => {
     if (signal?.resolved) return;
@@ -96,7 +106,11 @@ const rollupRiskLevel = (signals = []) => {
 // prior signals (matched by type) so server time — not the model — owns dates.
 // `type` is a fixed category (i18n-displayed); summaryEn/summaryZh hold the
 // specific bilingual description (shown on hover). Pure — unit tested.
-const mergeSignals = (priorSignals = [], llmSignals = [], now = new Date()) => {
+const mergeSignals = (
+  priorSignals: StudentSignal[] = [],
+  llmSignals: any[] = [],
+  now = new Date()
+): StudentSignal[] => {
   const nowIso = now.toISOString();
   // Prior record by type so server time + source refs survive incremental scans
   // that no longer include the original (old) message.
@@ -238,11 +252,14 @@ const withSourceRefs = (llmSignals, scanMessages) =>
 // - Cold start (first scan): the latest MAX_MESSAGES_PER_SCAN messages with NO
 //   date floor, so a student who has not been contacted in months still gets
 //   scanned over their most recent history instead of coming back empty.
-const scanStudent = async (student, priorRow) => {
+const scanStudent = async (
+  student: any,
+  priorRow: StudentCommunicationSignal | null | undefined
+) => {
   const studentId = toIdString(student._id || student.id);
   const isColdStart = !priorRow?.lastScannedAt;
   const filter: Record<string, unknown> = { student_id: studentId };
-  if (!isColdStart) {
+  if (priorRow?.lastScannedAt) {
     filter.createdAt = { $gt: new Date(priorRow.lastScannedAt) };
   }
 
@@ -295,7 +312,10 @@ const scanStudent = async (student, priorRow) => {
   };
 };
 
-const loadPriorRow = async (postgres, studentId) => {
+const loadPriorRow = async (
+  postgres: any,
+  studentId: string
+): Promise<StudentCommunicationSignal | null> => {
   const rows = await postgres
     .select()
     .from(studentCommunicationSignals)
@@ -304,7 +324,7 @@ const loadPriorRow = async (postgres, studentId) => {
   return rows[0] || null;
 };
 
-const upsertSignalRow = (postgres, row) =>
+const upsertSignalRow = (postgres: any, row: NewStudentCommunicationSignal) =>
   postgres
     .insert(studentCommunicationSignals)
     .values(row)
@@ -350,13 +370,15 @@ const scanStudentSignals = async (req, studentId) => {
   return row;
 };
 
-const hasUnresolvedSignals = (row) =>
+const hasUnresolvedSignals = (row: StudentCommunicationSignal | null) =>
   Boolean(row?.signals?.some?.((signal) => !signal.resolved));
 
 // Single read for the per-student overview tool. Null when nothing to show.
 // Gated on having ≥1 unresolved signal (not on riskLevel) so a row is shown
 // whenever there is actual content, independent of the rollup.
-const getStudentSignalRow = async (studentId) => {
+const getStudentSignalRow = async (
+  studentId: string | undefined
+): Promise<StudentCommunicationSignal | null> => {
   const postgres = getPostgresDb();
   const row = await loadPriorRow(postgres, toIdString(studentId));
   return hasUnresolvedSignals(row) ? row : null;
@@ -400,7 +422,9 @@ const scanCommunicationSignals = async () => {
     .select()
     .from(studentCommunicationSignals)
     .where(inArray(studentCommunicationSignals.studentId, studentIds));
-  const priorById = new Map(priorRows.map((r) => [r.studentId, r]));
+  const priorById = new Map<string, StudentCommunicationSignal>(
+    priorRows.map((r: StudentCommunicationSignal) => [r.studentId, r])
+  );
 
   // Candidates: have messages AND (never scanned OR new messages since scan).
   const candidates = students
@@ -410,8 +434,8 @@ const scanCommunicationSignals = async () => {
     })
     .filter(({ id, latestAt }) => {
       if (!latestAt) return false;
-      const prior = priorById.get(id);
-      return !prior?.lastScannedAt || latestAt > new Date(prior.lastScannedAt);
+      const lastScannedAt = priorById.get(id)?.lastScannedAt;
+      return !lastScannedAt || latestAt > new Date(lastScannedAt);
     })
     .sort((a, b) => (b.latestAt as Date).getTime() - (a.latestAt as Date).getTime())
     .slice(0, MAX_STUDENTS_PER_RUN);
@@ -455,7 +479,7 @@ const scanCommunicationSignals = async () => {
 // Returns rows with ≥1 unresolved signal for the given students, keyed by id.
 const getSignalsForStudents = async (studentIds: string[]) => {
   const ids = (studentIds || []).map(toIdString).filter(Boolean);
-  if (!ids.length) return new Map();
+  if (!ids.length) return new Map<string, StudentCommunicationSignal>();
 
   const postgres = getPostgresDb();
   const rows = await postgres
@@ -463,7 +487,7 @@ const getSignalsForStudents = async (studentIds: string[]) => {
     .from(studentCommunicationSignals)
     .where(inArray(studentCommunicationSignals.studentId, ids));
 
-  const byId = new Map<string, any>();
+  const byId = new Map<string, StudentCommunicationSignal>();
   rows.forEach((row) => {
     if (hasUnresolvedSignals(row)) byId.set(row.studentId, row);
   });

@@ -4,6 +4,7 @@ import { Role } from '@taiger-common/core';
 
 import { getAccessibleStudentFilter } from './studentAccess';
 import { getSignalsForStudents } from './signalLedger';
+import type { StudentCommunicationSignal } from '../../drizzle/schema/schema';
 import { normalizeUser } from './normalizers';
 import { application_deadline_V2_calculator } from '../../constants';
 import StudentService from '../students';
@@ -301,7 +302,12 @@ const collectCommunicationGaps = (
   );
 };
 
-const SIGNAL_SEVERITY_RANK = { none: 0, low: 1, medium: 2, high: 3 };
+const SIGNAL_SEVERITY_RANK: Record<string, number> = {
+  none: 0,
+  low: 1,
+  medium: 2,
+  high: 3
+};
 
 // A student is "Done" when carrying the Done attribute (value 8) or has
 // confirmed enrolment — implicit comms risk for them is no longer actionable,
@@ -336,9 +342,9 @@ const soonestTermValue = (applications) => {
 // level, the student whose nearest application term (year + semester) is sooner
 // comes first. Unresolved signals only; "Done" students capped to low.
 const collectCommunicationRiskSignals = (
-  studentById,
-  signalsById,
-  applicationsByStudentId
+  studentById: Map<string, any>,
+  signalsById: Map<string, StudentCommunicationSignal>,
+  applicationsByStudentId: Map<string, any>
 ) => {
   const items = [];
   signalsById.forEach((row, studentId) => {
@@ -512,7 +518,7 @@ const buildOverview = async (
 
   // Content-derived implicit risk signals from the ledger. Best-effort: a
   // failure (or an empty/never-run ledger) must not break the rest.
-  let signalsById = new Map<string, any>();
+  let signalsById = new Map<string, StudentCommunicationSignal>();
   try {
     signalsById = await getSignalsForStudents(Array.from(studentById.keys()));
   } catch {

@@ -44,7 +44,15 @@ const SIGNAL_TYPES = Object.freeze([
   'mentions_competitor_or_refund',
   'sentiment_declining',
   'dissatisfaction_with_service',
-  'urgent_unaddressed_request'
+  'urgent_unaddressed_request',
+  'technical_access_issue',
+  'missing_document_blocker',
+  'financial_concern',
+  'low_confidence_in_outcome',
+  // Catch-all so real edge-case signals survive the type filter instead of being
+  // dropped. Paired with `suggestedType` (free-text, internal-only) for harvesting
+  // new categories from live data — query it periodically, promote frequent ones.
+  'other'
 ]);
 
 const SEVERITY_RANK: Record<string, number> = {
@@ -58,14 +66,16 @@ const SEVERITIES = Object.freeze(['low', 'medium', 'high']);
 const INSTRUCTIONS =
   'You analyse the message history between a study-abroad student and the consultancy team (internal staff). ' +
   'Surface IMPLICIT risks that status/deadline metrics cannot show — tone, frustration, confusion, unanswered or repeated questions, ' +
-  'vague/broken promises, deadline anxiety, cooling engagement (shorter/slower replies), mentions of competitors/refund/quitting, declining sentiment, dissatisfaction. ' +
+  'vague/broken promises, deadline anxiety, cooling engagement (shorter/slower replies), mentions of competitors/refund/quitting, declining sentiment, dissatisfaction, ' +
+  'technical/access blockers (login, portal, upload, links, system bugs), missing/blocked documents, financial concerns (fees, funding, budget), low confidence in their own outcome (self-doubt, eligibility/admission odds). ' +
   'You are given PRIOR signals already detected (older history you cannot re-read) and the NEW messages since the last scan. ' +
   'Return the UPDATED signal set: keep prior signals that are still relevant, set "resolved": true on any the new messages clearly address, and add new ones. ' +
   'Only report real, evidenced signals — never invent. Keep evidence to one short quote or paraphrase. ' +
   'Classify each signal under one fixed "type" category, AND write a SPECIFIC short description of the actual case (not the generic category) in BOTH English ("summaryEn") and Traditional Chinese ("summaryZh"), max ~12 words / ~20 characters, e.g. type "frustration" with "Frustrated about slow document feedback" / "對文件回覆緩慢感到不滿". ' +
   'Also set "msgIndex" to the "i" of the single message in the NEW messages list that best evidences the signal (omit or use 0 if it comes only from prior context). ' +
   `Allowed "type" values: ${SIGNAL_TYPES.join(', ')}. Allowed "severity": ${SEVERITIES.join(', ')}. ` +
-  'Return STRICT JSON only: {"signals":[{"type":"...","severity":"low|medium|high","summaryEn":"...","summaryZh":"...","evidence":"...","msgIndex":0,"resolved":false}]}. ' +
+  'Use "other" ONLY when a real signal fits none of the listed categories; in that case set "suggestedType" to a snake_case category name you would propose for it. Leave "suggestedType" empty for any listed category. ' +
+  'Return STRICT JSON only: {"signals":[{"type":"...","severity":"low|medium|high","summaryEn":"...","summaryZh":"...","evidence":"...","msgIndex":0,"resolved":false,"suggestedType":""}]}. ' +
   'If there are no signals, return {"signals":[]}.';
 
 const safeParseJson = (value) => {
@@ -135,6 +145,8 @@ const mergeSignals = (
       summaryEn: str(signal?.summaryEn, 120),
       summaryZh: str(signal?.summaryZh, 120),
       evidence: str(signal?.evidence, 400),
+      // Internal-only harvest field; only meaningful when type === 'other'.
+      suggestedType: normType(signal?.suggestedType).slice(0, 60),
       sourceMessageId: signal?.sourceMessageId || null,
       occurredAt: signal?.occurredAt || null,
       resolved: Boolean(signal?.resolved)
@@ -151,6 +163,7 @@ const mergeSignals = (
         // Keep the original source/time when this scan did not re-reference it.
         sourceMessageId: signal.sourceMessageId || prior?.sourceMessageId || null,
         occurredAt: signal.occurredAt || prior?.occurredAt || null,
+        suggestedType: signal.suggestedType || prior?.suggestedType || '',
         firstSeenAt: prior?.firstSeenAt || nowIso,
         lastSeenAt: nowIso
       };

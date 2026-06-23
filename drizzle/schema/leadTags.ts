@@ -1,14 +1,14 @@
-const {
+import {
   pgTable,
   text,
   varchar,
   timestamp,
   uniqueIndex
-} = require('drizzle-orm/pg-core');
-const { nanoid } = require('nanoid');
-const { leads } = require('./leads');
+} from 'drizzle-orm/pg-core';
+import { nanoid } from 'nanoid';
+import { leads } from './leads';
 
-const leadTags = pgTable(
+export const leadTags = pgTable(
   'lead_tags',
   {
     id: text('id')
@@ -30,4 +30,5 @@ const leadTags = pgTable(
   })
 );
 
-module.exports = { leadTags };
+export type LeadTag = typeof leadTags.$inferSelect;
+export type NewLeadTag = typeof leadTags.$inferInsert;

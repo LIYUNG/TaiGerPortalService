@@ -3,7 +3,7 @@ import { asc, desc, eq, and, isNotNull } from 'drizzle-orm';
 import { ErrorResponse } from '../common/errors';
 // These modules use `export =` (CommonJS), so named ESM imports trigger TS2497.
 // Import the default export and destructure the members instead.
-import databaseModule = require('../database');
+import databaseModule from '../database';
 import { asyncHandler } from '../middlewares/error-handler';
 import {
   aiAssistConversations,
@@ -11,10 +11,11 @@ import {
   aiAssistToolCalls
 } from '../drizzle/schema/schema';
 import aiAssistOrchestrator from '../services/ai-assist/orchestrator';
-import toolsModule = require('../services/ai-assist/tools');
-import studentAccessModule = require('../services/ai-assist/studentAccess');
-import overviewModule = require('../services/ai-assist/overview');
-import postgresRetryModule = require('../services/ai-assist/postgresRetry');
+import signalLedger from '../services/ai-assist/signalLedger';
+import toolsModule from '../services/ai-assist/tools';
+import studentAccessModule from '../services/ai-assist/studentAccess';
+import overviewModule from '../services/ai-assist/overview';
+import postgresRetryModule from '../services/ai-assist/postgresRetry';
 import { openAIClient, OpenAiModel } from '../services/openai';
 import logger from '../services/logger';
 import StudentService from '../services/students';
@@ -1045,6 +1046,26 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
     analysisMode: Boolean(assistContext?.analysisMode)
   };
   let titleRefinementPayload = null;
+
+  // Refresh this student's implicit-risk signal ledger on each deep-dive
+  // analysis: cold-starts the first time, then scans only messages since the
+  // last scan. Best-effort — never block or fail the analysis. So the analysis
+  // (via get_student_overview) can reason over fresh content signals. A future
+  // cron can drive signalLedger.scanCommunicationSignals() for all students.
+  if (assistContext?.analysisMode && assistContext.mentionedStudent?.id) {
+    try {
+      await signalLedger.scanStudentSignals(
+        req,
+        assistContext.mentionedStudent.id
+      );
+    } catch (error) {
+      logger.warn(
+        `[AI Assist] pre-analysis signal scan skipped: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`
+      );
+    }
+  }
 
   if (isStreamingRequest(req)) {
     const postgres = getPostgresDb();

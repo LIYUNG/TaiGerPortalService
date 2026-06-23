@@ -1,7 +1,7 @@
-const { pgTable, text, timestamp } = require('drizzle-orm/pg-core');
-const { leads } = require('./leads');
+import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { leads } from './leads';
 
-const leadProfile = pgTable('lead_profile', {
+export const leadProfile = pgTable('lead_profile', {
   leadId: text('lead_id')
     .primaryKey()
     .notNull()
@@ -56,4 +56,5 @@ const leadProfile = pgTable('lead_profile', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
-module.exports = { leadProfile };
+export type LeadProfile = typeof leadProfile.$inferSelect;
+export type NewLeadProfile = typeof leadProfile.$inferInsert;

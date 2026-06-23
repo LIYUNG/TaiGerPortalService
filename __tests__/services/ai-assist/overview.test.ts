@@ -38,7 +38,7 @@ const {
   buildStudentTerms,
   buildFinalizedStudentIds,
   loadPortfolio,
-  enrichBucketItems,
+  buildStudentsView,
   parseDeadline,
   toIdString,
   safeDate,
@@ -74,10 +74,13 @@ const {
   buildStudentTerms: (applications: any[]) => Record<string, string[]>;
   buildFinalizedStudentIds: (applications: any[]) => Set<string>;
   loadPortfolio: (req: any, opts?: any) => Promise<any>;
-  enrichBucketItems: (
-    bucket: { count: number; items: any[] },
-    statsById: Record<string, { offerCount: number; rejectCount: number }>
-  ) => { count: number; items: any[] };
+  buildStudentsView: (
+    collected: Record<string, any[]>,
+    statsById: Record<string, { offerCount: number; rejectCount: number }>,
+    termsById: Record<string, string[]>,
+    finalizedStudentIds: Set<string>,
+    limit: number
+  ) => { students: any[]; hasMoreStudents: boolean };
   parseDeadline: (deadlineString: string) => {
     date: Date | null;
     rolling: boolean;
@@ -578,34 +581,93 @@ describe('buildStudentStats', () => {
   });
 });
 
-// ─── enrichBucketItems ─────────────────────────────────────────────────────
-describe('enrichBucketItems', () => {
-  it('merges offer/reject counts into student labels', () => {
-    const b = { count: 1, items: [{ student: { id: 's1', name: 'Ann' } }] };
-    const stats = { s1: { offerCount: 2, rejectCount: 1 } };
-    const result = enrichBucketItems(b, stats);
-    expect(result.count).toBe(1);
-    expect(result.items[0].student).toMatchObject({
+// ─── buildStudentsView ─────────────────────────────────────────────────────
+describe('buildStudentsView', () => {
+  const emptyCollected = {
+    upcomingDeadlines: [],
+    threadsWaitingOnTeam: [],
+    communicationGaps: [],
+    communicationRiskSignals: [],
+    admittedNotConfirmed: [],
+    missingBaseDocuments: []
+  };
+
+  it('groups a student appearing in several buckets into one record with all signals', () => {
+    const label = { id: 's1', name: 'Ann' };
+    const collected = {
+      ...emptyCollected,
+      upcomingDeadlines: [{ student: label, daysUntil: 3, deadline: '2099/01/01' }],
+      communicationGaps: [{ student: label, lastContactDays: 20 }],
+      missingBaseDocuments: [{ student: label, missingDocuments: ['CV'] }]
+    };
+    const { students } = buildStudentsView(
+      collected,
+      { s1: { offerCount: 2, rejectCount: 1 } },
+      { s1: ['WS2024'] },
+      new Set(),
+      200
+    );
+    expect(students).toHaveLength(1);
+    expect(students[0]).toMatchObject({
       id: 's1',
-      name: 'Ann',
       offerCount: 2,
-      rejectCount: 1
+      rejectCount: 1,
+      applicationTerms: ['WS2024'],
+      confirmedElsewhere: false
     });
+    expect(students[0].signals.map((s: any) => s.bucket).sort()).toEqual([
+      'communicationGaps',
+      'missingBaseDocuments',
+      'upcomingDeadlines'
+    ]);
+    // worst signal (deadline in 3 days) => critical overall
+    expect(students[0].overallUrgency).toBe('critical');
   });
 
-  it('uses zero defaults when student has no stats', () => {
-    const b = { count: 1, items: [{ student: { id: 's9', name: 'X' } }] };
-    expect(enrichBucketItems(b, {}).items[0].student).toMatchObject({
-      offerCount: 0,
-      rejectCount: 0
-    });
+  it('flags confirmedElsewhere from finalizedStudentIds', () => {
+    const collected = {
+      ...emptyCollected,
+      admittedNotConfirmed: [
+        { student: { id: 's1', name: 'Ann' }, program: { school: 'TU' } }
+      ]
+    };
+    const { students } = buildStudentsView(
+      collected,
+      {},
+      {},
+      new Set(['s1']),
+      200
+    );
+    expect(students[0].confirmedElsewhere).toBe(true);
+    expect(students[0].signals[0].bucket).toBe('admittedNotConfirmed');
   });
 
-  it('leaves items without a student id untouched', () => {
-    const b = { count: 1, items: [{ fileType: 'CV' }] };
-    expect(
-      enrichBucketItems(b, { s1: { offerCount: 1, rejectCount: 0 } }).items[0]
-    ).toEqual({ fileType: 'CV' });
+  it('caps students at the limit and flags hasMoreStudents', () => {
+    const collected = {
+      ...emptyCollected,
+      communicationGaps: [
+        { student: { id: 's1' }, lastContactDays: 30 },
+        { student: { id: 's2' }, lastContactDays: 20 }
+      ]
+    };
+    const { students, hasMoreStudents } = buildStudentsView(
+      collected,
+      {},
+      {},
+      new Set(),
+      1
+    );
+    expect(students).toHaveLength(1);
+    expect(hasMoreStudents).toBe(true);
+  });
+
+  it('ignores items without a student id', () => {
+    const collected = {
+      ...emptyCollected,
+      threadsWaitingOnTeam: [{ student: {}, stalledDays: 10, fileType: 'CV' }]
+    };
+    const { students } = buildStudentsView(collected, {}, {}, new Set(), 200);
+    expect(students).toHaveLength(0);
   });
 });
 
@@ -666,25 +728,6 @@ describe('buildStudentTerms', () => {
   });
 });
 
-// ─── enrichBucketItems with terms ──────────────────────────────────────────
-describe('enrichBucketItems (terms branch)', () => {
-  it('attaches applicationTerms when termsById has the student', () => {
-    const b = { count: 1, items: [{ student: { id: 's1', name: 'Ann' } }] };
-    const result = enrichBucketItems(
-      b,
-      { s1: { offerCount: 1, rejectCount: 0 } },
-      { s1: ['WS2024'] }
-    );
-    expect(result.items[0].student.applicationTerms).toEqual(['WS2024']);
-  });
-
-  it('defaults applicationTerms to [] when student missing from termsById', () => {
-    const b = { count: 1, items: [{ student: { id: 's2', name: 'Bob' } }] };
-    const result = enrichBucketItems(b, {}, {});
-    expect(result.items[0].student.applicationTerms).toEqual([]);
-  });
-});
-
 // ─── loadPortfolio ─────────────────────────────────────────────────────────
 describe('loadPortfolio', () => {
   beforeEach(() => {
@@ -742,11 +785,10 @@ describe('buildOverview', () => {
     CommunicationService.getLatestMessageAtForStudents.mockResolvedValue([]);
   });
 
-  it('returns structured overview with empty buckets for no students', async () => {
+  it('returns a structured overview with no students for an empty portfolio', async () => {
     const result = await buildOverview({ user: { role: 'Agent' } });
-    expect(result).toHaveProperty('buckets');
-    expect(result.buckets.upcomingDeadlines.count).toBe(0);
-    expect(result.buckets.threadsWaitingOnTeam.count).toBe(0);
+    expect(result.students).toEqual([]);
+    expect(result.hasMoreStudents).toBe(false);
     expect(result.studentCount).toBe(0);
   });
 
@@ -755,7 +797,7 @@ describe('buildOverview', () => {
       new Error('DB error')
     );
     const result = await buildOverview({ user: {} });
-    expect(result).toHaveProperty('buckets');
+    expect(result).toHaveProperty('students');
   });
 
   it('includes role in response', async () => {
@@ -774,6 +816,14 @@ describe('buildOverview', () => {
       { deadlineWindowDays: 7 }
     );
     expect(result.deadlineWindowDays).toBe(7);
+  });
+
+  it('queries only decided, non-withdrawn applications (ignores undecided/withdrawn)', async () => {
+    StudentService.findStudentsSelect.mockResolvedValue([student('s1', 'Ann')]);
+    await buildOverview({ user: { role: 'Agent' } });
+    const [filter] =
+      ApplicationService.findApplicationsSelectPopulate.mock.calls[0];
+    expect(filter).toMatchObject({ decided: 'O', closed: { $ne: 'X' } });
   });
 
   it('handles a missing user (undefined role)', async () => {

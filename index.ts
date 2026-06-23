@@ -25,10 +25,13 @@ import {
   COURSE_SELECTION_TASKS_REMINDER_JULY_SCHEDULE,
   COURSE_SELECTION_TASKS_REMINDER_NOVEMBER_SCHEDULE,
   AVERAGE_RESPONSE_TIME_CALCULATION_SCHEDULE,
+  AI_ASSIST_SIGNAL_SCAN_ENABLED,
+  AI_ASSIST_SIGNAL_SCAN_SCHEDULE,
   isLocal,
   isInPipeline
 } from './config';
 import logger from './services/logger';
+import signalLedger from './services/ai-assist/signalLedger';
 // const {
 //   DocumentationS3GarbageCollector
 // } = require('./controllers/documentations');
@@ -171,6 +174,21 @@ const launch = async () => {
     DAILY_TASKS_REMINDER_SCHEDULE,
     UnconfirmedMeetingDailyReminderChecker
   );
+
+  // AI Assist implicit-risk signal ledger: incrementally scan new messages and
+  // accumulate content-derived risk signals for the portfolio overview. Opt-in.
+  if (AI_ASSIST_SIGNAL_SCAN_ENABLED) {
+    logger.info(
+      `[AI Assist] signal scan scheduled: ${AI_ASSIST_SIGNAL_SCAN_SCHEDULE}`
+    );
+    schedule.scheduleJob(AI_ASSIST_SIGNAL_SCAN_SCHEDULE, () => {
+      signalLedger.scanCommunicationSignals().catch((error) => {
+        logger.error('[AI Assist] signal scan failed', {
+          message: error instanceof Error ? error.message : String(error)
+        });
+      });
+    });
+  }
 
   const _job14 = schedule.scheduleJob(
     DAILY_TASKS_REMINDER_SCHEDULE,

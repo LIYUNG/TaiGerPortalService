@@ -4,7 +4,7 @@ require('dotenv').config({ path: '.env.development' });
 const { POSTGRES_URI } = process.env;
 
 export default defineConfig({
-  schema: './drizzle/schema/schema.js',
+  schema: './drizzle/schema/schema.ts',
   out: './drizzle/migrations',
   dialect: 'postgresql',
   dbCredentials: {

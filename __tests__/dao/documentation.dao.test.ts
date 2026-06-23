@@ -52,7 +52,7 @@ describe('DocspageDAO (mocked models)', () => {
       { author: 'B' },
       { upsert: true, new: true }
     );
-    expect(res).toBe(page);
+    expect(res).toEqual(page);
   });
 
   it('getByCategory finds one by category', async () => {
@@ -62,7 +62,7 @@ describe('DocspageDAO (mocked models)', () => {
     const res = await DocspageDAO.getByCategory('visa');
 
     expect(Docspage.findOne).toHaveBeenCalledWith({ category: 'visa' });
-    expect(res).toBe(page);
+    expect(res).toEqual(page);
   });
 });
 
@@ -76,7 +76,7 @@ describe('DocumentationDAO (mocked models)', () => {
     expect(Documentation.find).toHaveBeenCalledWith();
     const chain = Documentation.find.mock.results[0].value;
     expect(chain.select).toHaveBeenCalledWith('title category');
-    expect(res).toBe(docs);
+    expect(res).toEqual(docs);
   });
 
   it('getById finds by id', async () => {
@@ -86,7 +86,7 @@ describe('DocumentationDAO (mocked models)', () => {
     const res = await DocumentationDAO.getById('d1');
 
     expect(Documentation.findById).toHaveBeenCalledWith('d1');
-    expect(res).toBe(doc);
+    expect(res).toEqual(doc);
   });
 
   it('create delegates to Documentation.create', async () => {
@@ -97,7 +97,7 @@ describe('DocumentationDAO (mocked models)', () => {
     const res = await DocumentationDAO.create(fields);
 
     expect(Documentation.create).toHaveBeenCalledWith(fields);
-    expect(res).toBe(created);
+    expect(res).toEqual(created);
   });
 
   it('updateById updates with { new: true }', async () => {
@@ -111,7 +111,7 @@ describe('DocumentationDAO (mocked models)', () => {
       { title: 'B' },
       { new: true }
     );
-    expect(res).toBe(updated);
+    expect(res).toEqual(updated);
   });
 
   it('deleteById deletes by id', async () => {
@@ -121,7 +121,7 @@ describe('DocumentationDAO (mocked models)', () => {
     const res = await DocumentationDAO.deleteById('d1');
 
     expect(Documentation.findByIdAndDelete).toHaveBeenCalledWith('d1');
-    expect(res).toBe(deleted);
+    expect(res).toEqual(deleted);
   });
 });
 
@@ -135,7 +135,7 @@ describe('InternaldocDAO (mocked models)', () => {
     expect(Internaldoc.find).toHaveBeenCalledWith();
     const chain = Internaldoc.find.mock.results[0].value;
     expect(chain.select).toHaveBeenCalledWith('title internal category');
-    expect(res).toBe(docs);
+    expect(res).toEqual(docs);
   });
 
   it('getById finds by id', async () => {
@@ -145,7 +145,7 @@ describe('InternaldocDAO (mocked models)', () => {
     const res = await InternaldocDAO.getById('i1');
 
     expect(Internaldoc.findById).toHaveBeenCalledWith('i1');
-    expect(res).toBe(doc);
+    expect(res).toEqual(doc);
   });
 
   it('create delegates to Internaldoc.create', async () => {
@@ -156,7 +156,7 @@ describe('InternaldocDAO (mocked models)', () => {
     const res = await InternaldocDAO.create(fields);
 
     expect(Internaldoc.create).toHaveBeenCalledWith(fields);
-    expect(res).toBe(created);
+    expect(res).toEqual(created);
   });
 
   it('updateById updates with { new: true }', async () => {
@@ -170,7 +170,7 @@ describe('InternaldocDAO (mocked models)', () => {
       { title: 'B' },
       { new: true }
     );
-    expect(res).toBe(updated);
+    expect(res).toEqual(updated);
   });
 
   it('deleteById deletes by id', async () => {
@@ -180,6 +180,6 @@ describe('InternaldocDAO (mocked models)', () => {
     const res = await InternaldocDAO.deleteById('i1');
 
     expect(Internaldoc.findByIdAndDelete).toHaveBeenCalledWith('i1');
-    expect(res).toBe(deleted);
+    expect(res).toEqual(deleted);
   });
 });

@@ -31,7 +31,7 @@ describe('ProgramAIDAO (mocked ProgramAI model)', () => {
     const found = await ProgramAIDAO.getByProgramId('p1');
 
     expect(ProgramAI.findOne).toHaveBeenCalledWith({ program_id: 'p1' });
-    expect(found).toBe(doc);
+    expect(found).toEqual(doc);
   });
 
   it('getByProgramId returns null when no doc matches', async () => {

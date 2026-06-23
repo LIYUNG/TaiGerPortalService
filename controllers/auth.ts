@@ -156,9 +156,7 @@ const activateAccount = asyncHandler(async (req, res) => {
 
   const { email, token: activationToken } = req.body;
 
-  const token = await TokenService.findOneToken({
-    value: hashToken(activationToken)
-  });
+  const token = await TokenService.findTokenByValue(hashToken(activationToken));
   if (!token) {
     logger.error('activateAccount: Invalid or expired token');
     throw new ErrorResponse(400, 'Invalid or expired token');
@@ -180,7 +178,7 @@ const activateAccount = asyncHandler(async (req, res) => {
     lastLoginAt: Date()
   });
 
-  await token.deleteOne();
+  await TokenService.deleteTokenById(token.id);
   const authToken = generateAuthToken(user, req.tenantId, JWT_EXPIRE);
   res
     .cookie('x-auth', authToken, {
@@ -267,9 +265,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 
   const { email, password, token: resetToken } = req.body;
 
-  const token = await TokenService.findOneToken({
-    value: hashToken(resetToken)
-  });
+  const token = await TokenService.findTokenByValue(hashToken(resetToken));
   if (!token) {
     logger.error('resetPassword: Invalid or expired token');
     throw new ErrorResponse(400, 'Invalid or expired token');
@@ -292,7 +288,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     lastname: user.lastname,
     address: email
   });
-  await token.deleteOne();
+  await TokenService.deleteTokenById(token.id);
 
   res.status(200).json({ success: true });
 });

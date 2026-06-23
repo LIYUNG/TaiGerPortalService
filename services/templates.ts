@@ -1,27 +1,32 @@
-import { UpdateQuery } from 'mongoose';
-import { ITemplate } from '@taiger-common/model';
 import TemplateDAO from '../dao/template.dao';
+import type { ITemplateDAO, Template } from '../dao/template.dao.types';
 
 /**
- * TemplateService — business layer for download templates. Delegates data
- * access to the DAO (controller -> service -> dao).
+ * TemplateService — business layer for download templates. Depends only on the
+ * ITemplateDAO strategy contract (constructor injection), so the storage engine
+ * can be swapped by constructing the service with a different DAO.
  */
-const TemplateService = {
+export class TemplateService {
+  constructor(private readonly dao: ITemplateDAO) {}
+
   getTemplates() {
-    return TemplateDAO.getTemplates();
-  },
+    return this.dao.getTemplates();
+  }
 
   getTemplateByCategory(categoryName: string) {
-    return TemplateDAO.getTemplateByCategory(categoryName);
-  },
+    return this.dao.getTemplateByCategory(categoryName);
+  }
 
   deleteTemplateByCategory(categoryName: string) {
-    return TemplateDAO.deleteTemplateByCategory(categoryName);
-  },
-
-  upsertTemplate(categoryName: string, payload: UpdateQuery<ITemplate>) {
-    return TemplateDAO.upsertTemplate(categoryName, payload);
+    return this.dao.deleteTemplateByCategory(categoryName);
   }
-};
 
-export = TemplateService;
+  upsertTemplate(categoryName: string, payload: Partial<Template>) {
+    return this.dao.upsertTemplate(categoryName, payload);
+  }
+}
+
+// Production instance, wired to the MongoDB strategy.
+const templateService = new TemplateService(TemplateDAO);
+
+export default templateService;

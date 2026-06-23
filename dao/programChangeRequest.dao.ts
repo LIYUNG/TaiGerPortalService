@@ -1,50 +1,69 @@
-import { ProgramChangeRequest } from '../models';
+import { ProgramChangeRequest as ProgramChangeRequestModel } from '../models';
+import type {
+  IProgramChangeRequestDAO,
+  ProgramChangeRequest
+} from './programChangeRequest.dao.types';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toDomain = (doc: any): ProgramChangeRequest | null => {
+  if (!doc) {
+    return null;
+  }
+  const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+  const out = { ...plain };
+  if (out._id != null) {
+    out._id = String(out._id);
+  }
+  return out as ProgramChangeRequest;
+};
 
 /**
- * ProgramChangeRequestDAO — data access for the ProgramChangeRequest model
- * (default-connection model from models/index.js). Plain params, no req.
+ * ProgramChangeRequestMongoDAO — MongoDB strategy for program change requests.
+ * Implements IProgramChangeRequestDAO; the open-request query is built HERE.
  */
-const ProgramChangeRequestDAO = {
-  async getOpenChangeRequestsByProgramId(programId: string) {
-    return ProgramChangeRequest.find({
+class ProgramChangeRequestMongoDAO implements IProgramChangeRequestDAO {
+  async getOpenChangeRequestsByProgramId(
+    programId: string
+  ): Promise<ProgramChangeRequest[]> {
+    const docs = await ProgramChangeRequestModel.find({
       programId,
       reviewedBy: { $exists: false }
     }).populate('requestedBy', 'firstname lastname');
-  },
+    return docs
+      .map((doc) => toDomain(doc))
+      .filter((cr): cr is ProgramChangeRequest => cr !== null);
+  }
 
-  // Upsert the open (not-yet-reviewed) change request for this program/user.
   async upsertChangeRequest(
     programId: string,
     requestedBy: string,
     changes: Record<string, unknown>
-  ) {
-    return ProgramChangeRequest.findOneAndUpdate(
-      {
-        programId,
-        requestedBy,
-        reviewedBy: {
-          $exists: false
-        }
-      },
-      {
-        programChanges: changes
-      },
-      { upsert: true }
+  ): Promise<ProgramChangeRequest | null> {
+    return toDomain(
+      await ProgramChangeRequestModel.findOneAndUpdate(
+        { programId, requestedBy, reviewedBy: { $exists: false } },
+        { programChanges: changes },
+        { upsert: true }
+      )
     );
-  },
+  }
 
-  async getChangeRequestById(requestId: string) {
-    return ProgramChangeRequest.findById(requestId);
-  },
+  async getChangeRequestById(
+    requestId: string
+  ): Promise<ProgramChangeRequest | null> {
+    return toDomain(await ProgramChangeRequestModel.findById(requestId));
+  }
 
   async updateChangeRequestById(
     requestId: string,
     payload: Record<string, unknown>
-  ) {
-    return ProgramChangeRequest.findByIdAndUpdate(requestId, payload, {
-      new: true
-    });
+  ): Promise<ProgramChangeRequest | null> {
+    return toDomain(
+      await ProgramChangeRequestModel.findByIdAndUpdate(requestId, payload, {
+        new: true
+      })
+    );
   }
-};
+}
 
-export = ProgramChangeRequestDAO;
+export = new ProgramChangeRequestMongoDAO();

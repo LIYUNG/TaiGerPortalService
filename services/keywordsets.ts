@@ -1,39 +1,47 @@
-import { FilterQuery, UpdateQuery } from 'mongoose';
-import { IKeywordset } from '@taiger-common/model';
 import KeywordSetDAO from '../dao/keywordset.dao';
 import ProgramRequirementDAO from '../dao/programRequirement.dao';
+import type {
+  IKeywordSetDAO,
+  KeywordSet,
+  KeywordSetMatchInput
+} from '../dao/keywordset.dao.types';
 
 /**
- * KeywordSetService — business layer for course keyword sets. Delegates data
- * access to the DAO (controller -> service -> dao).
+ * KeywordSetService — business layer for course keyword sets. Depends on the
+ * IKeywordSetDAO strategy contract (constructor injection). `deleteKeywordSet`
+ * also composes ProgramRequirementDAO for reference cleanup; that secondary DAO
+ * is imported directly for now and will be constructor-injected once its own
+ * domain is migrated to the same pattern.
  */
-const KeywordSetService = {
+export class KeywordSetService {
+  constructor(private readonly dao: IKeywordSetDAO) {}
+
   getKeywordSets() {
-    return KeywordSetDAO.getKeywordSets();
-  },
+    return this.dao.getKeywordSets();
+  }
 
-  findKeywordSet(query: FilterQuery<IKeywordset>) {
-    return KeywordSetDAO.findKeywordSet(query);
-  },
+  findKeywordSet(match: KeywordSetMatchInput) {
+    return this.dao.findKeywordSet(match);
+  }
 
-  createKeywordSet(fields: Partial<IKeywordset>) {
-    return KeywordSetDAO.createKeywordSet(fields);
-  },
+  createKeywordSet(fields: Partial<KeywordSet>) {
+    return this.dao.createKeywordSet(fields);
+  }
 
-  updateKeywordSetById(
-    keywordsSetId: string,
-    fields: UpdateQuery<IKeywordset>
-  ) {
-    return KeywordSetDAO.updateKeywordSetById(keywordsSetId, fields);
-  },
+  updateKeywordSetById(keywordsSetId: string, fields: Partial<KeywordSet>) {
+    return this.dao.updateKeywordSetById(keywordsSetId, fields);
+  }
 
   // Delete a keyword set and remove its id from every program requirement that
   // referenced it. (The legacy controller wrapped these in a session that was
   // never attached to the writes, so the behaviour is two sequential writes.)
   async deleteKeywordSet(keywordsSetId: string) {
-    await KeywordSetDAO.deleteKeywordSetById(keywordsSetId);
+    await this.dao.deleteKeywordSetById(keywordsSetId);
     await ProgramRequirementDAO.removeKeywordSetReferences(keywordsSetId);
   }
-};
+}
 
-export = KeywordSetService;
+// Production instance, wired to the MongoDB strategy.
+const keywordSetService = new KeywordSetService(KeywordSetDAO);
+
+export default keywordSetService;

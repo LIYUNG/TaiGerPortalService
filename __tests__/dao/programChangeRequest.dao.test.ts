@@ -49,7 +49,7 @@ describe('ProgramChangeRequestDAO (mocked ProgramChangeRequest model)', () => {
       'requestedBy',
       'firstname lastname'
     );
-    expect(result).toBe(docs);
+    expect(result).toEqual(docs);
   });
 
   it('upsertChangeRequest upserts the open request for the program/user', async () => {
@@ -71,7 +71,7 @@ describe('ProgramChangeRequestDAO (mocked ProgramChangeRequest model)', () => {
       { programChanges: { tuition_fee: '1000' } },
       { upsert: true }
     );
-    expect(result).toBe(res);
+    expect(result).toEqual(res);
   });
 
   it('getChangeRequestById forwards the id to findById', async () => {
@@ -81,7 +81,7 @@ describe('ProgramChangeRequestDAO (mocked ProgramChangeRequest model)', () => {
     const result = await ProgramChangeRequestDAO.getChangeRequestById('cr1');
 
     expect(ProgramChangeRequest.findById).toHaveBeenCalledWith('cr1');
-    expect(result).toBe(doc);
+    expect(result).toEqual(doc);
   });
 
   it('updateChangeRequestById uses findByIdAndUpdate with { new: true }', async () => {
@@ -100,6 +100,6 @@ describe('ProgramChangeRequestDAO (mocked ProgramChangeRequest model)', () => {
       { reviewedBy: 'u2' },
       { new: true }
     );
-    expect(result).toBe(updated);
+    expect(result).toEqual(updated);
   });
 });

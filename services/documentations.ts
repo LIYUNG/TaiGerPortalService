@@ -1,68 +1,86 @@
-import { UpdateQuery } from 'mongoose';
-import { IDocspage, IDocumentation, IInternaldoc } from '@taiger-common/model';
 import DocspageDAO from '../dao/docspage.dao';
 import DocumentationDAO from '../dao/documentation.dao';
 import InternaldocDAO from '../dao/internaldoc.dao';
+import type { Docspage, IDocspageDAO } from '../dao/docspage.dao.types';
+import type {
+  Documentation,
+  IDocumentationDAO
+} from '../dao/documentation.dao.types';
+import type {
+  IInternaldocDAO,
+  Internaldoc
+} from '../dao/internaldoc.dao.types';
 
 /**
  * DocumentationService — business layer for the docs feature, composing the
  * Docspage (doc landing pages), Documentation (public docs) and Internaldoc
- * (internal docs) DAOs (controller -> service -> dao).
+ * (internal docs) strategy contracts via constructor injection. Each storage
+ * engine can be swapped by constructing the service with different DAOs.
  */
-const DocumentationService = {
-  // ── Docspage ──────────────────────────────────────────────────────────────
-  upsertDocspageByCategory(category: string, fields: UpdateQuery<IDocspage>) {
-    return DocspageDAO.upsertByCategory(category, fields);
-  },
+export class DocumentationService {
+  constructor(
+    private readonly docspageDao: IDocspageDAO,
+    private readonly documentationDao: IDocumentationDAO,
+    private readonly internaldocDao: IInternaldocDAO
+  ) {}
+
+  // ── Docspage ────────────────────────────────────────────────────────────────
+  upsertDocspageByCategory(category: string, fields: Partial<Docspage>) {
+    return this.docspageDao.upsertByCategory(category, fields);
+  }
 
   getDocspageByCategory(category: string) {
-    return DocspageDAO.getByCategory(category);
-  },
+    return this.docspageDao.getByCategory(category);
+  }
 
-  // ── Documentation ─────────────────────────────────────────────────────────
+  // ── Documentation ───────────────────────────────────────────────────────────
   getAllDocumentations() {
-    return DocumentationDAO.findAllTitleCategory();
-  },
+    return this.documentationDao.findAllTitleCategory();
+  }
 
   getDocumentationById(docId: string) {
-    return DocumentationDAO.getById(docId);
-  },
+    return this.documentationDao.getById(docId);
+  }
 
-  createDocumentation(fields: Partial<IDocumentation>) {
-    return DocumentationDAO.create(fields);
-  },
+  createDocumentation(fields: Partial<Documentation>) {
+    return this.documentationDao.create(fields);
+  }
 
-  updateDocumentationById(docId: string, fields: UpdateQuery<IDocumentation>) {
-    return DocumentationDAO.updateById(docId, fields);
-  },
+  updateDocumentationById(docId: string, fields: Partial<Documentation>) {
+    return this.documentationDao.updateById(docId, fields);
+  }
 
   deleteDocumentationById(docId: string) {
-    return DocumentationDAO.deleteById(docId);
-  },
+    return this.documentationDao.deleteById(docId);
+  }
 
-  // ── Internaldoc ───────────────────────────────────────────────────────────
+  // ── Internaldoc ─────────────────────────────────────────────────────────────
   getAllInternalDocumentations() {
-    return InternaldocDAO.findAllTitleInternalCategory();
-  },
+    return this.internaldocDao.findAllTitleInternalCategory();
+  }
 
   getInternalDocumentationById(docId: string) {
-    return InternaldocDAO.getById(docId);
-  },
+    return this.internaldocDao.getById(docId);
+  }
 
-  createInternalDocumentation(fields: Partial<IInternaldoc>) {
-    return InternaldocDAO.create(fields);
-  },
+  createInternalDocumentation(fields: Partial<Internaldoc>) {
+    return this.internaldocDao.create(fields);
+  }
 
-  updateInternalDocumentationById(
-    docId: string,
-    fields: UpdateQuery<IInternaldoc>
-  ) {
-    return InternaldocDAO.updateById(docId, fields);
-  },
+  updateInternalDocumentationById(docId: string, fields: Partial<Internaldoc>) {
+    return this.internaldocDao.updateById(docId, fields);
+  }
 
   deleteInternalDocumentationById(docId: string) {
-    return InternaldocDAO.deleteById(docId);
+    return this.internaldocDao.deleteById(docId);
   }
-};
+}
 
-export = DocumentationService;
+// Production instance, wired to the MongoDB strategies.
+const documentationService = new DocumentationService(
+  DocspageDAO,
+  DocumentationDAO,
+  InternaldocDAO
+);
+
+export default documentationService;

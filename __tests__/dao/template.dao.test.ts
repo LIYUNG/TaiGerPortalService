@@ -22,41 +22,43 @@ beforeEach(() => {
 });
 
 describe('TemplateDAO (mocked models)', () => {
-  it('getTemplates finds all templates and returns the result', async () => {
-    const docs = [{ _id: 't1' }];
-    Template.find.mockResolvedValue(docs);
+  it('getTemplates finds all templates and returns the mapped result', async () => {
+    Template.find.mockResolvedValue([{ _id: 't1' }]);
 
     const result = await TemplateDAO.getTemplates();
 
     expect(Template.find).toHaveBeenCalledWith({});
-    expect(result).toBe(docs);
+    expect(result).toEqual([{ _id: 't1' }]);
   });
 
-  it('getTemplateByCategory queries by category_name and returns the doc', async () => {
-    const doc = { _id: 't2', category_name: 'cv' };
-    Template.findOne.mockResolvedValue(doc);
+  it('getTemplateByCategory queries by category_name and maps the doc', async () => {
+    Template.findOne.mockResolvedValue({ _id: 't2', category_name: 'cv' });
 
     const result = await TemplateDAO.getTemplateByCategory('cv');
 
     expect(Template.findOne).toHaveBeenCalledWith({ category_name: 'cv' });
-    expect(result).toBe(doc);
+    expect(result).toMatchObject({ _id: 't2', category_name: 'cv' });
   });
 
-  it('deleteTemplateByCategory uses findOneAndDelete and returns the result', async () => {
-    const deleted = { _id: 't3', category_name: 'cv' };
-    Template.findOneAndDelete.mockResolvedValue(deleted);
+  it('deleteTemplateByCategory uses findOneAndDelete and maps the result', async () => {
+    Template.findOneAndDelete.mockResolvedValue({
+      _id: 't3',
+      category_name: 'cv'
+    });
 
     const result = await TemplateDAO.deleteTemplateByCategory('cv');
 
     expect(Template.findOneAndDelete).toHaveBeenCalledWith({
       category_name: 'cv'
     });
-    expect(result).toBe(deleted);
+    expect(result).toMatchObject({ _id: 't3', category_name: 'cv' });
   });
 
-  it('upsertTemplate uses findOneAndUpdate with { upsert, new } and returns the doc', async () => {
-    const upserted = { _id: 't4', category_name: 'rl' };
-    Template.findOneAndUpdate.mockResolvedValue(upserted);
+  it('upsertTemplate uses findOneAndUpdate with { upsert, new } and maps the doc', async () => {
+    Template.findOneAndUpdate.mockResolvedValue({
+      _id: 't4',
+      category_name: 'rl'
+    });
     const payload = { content: 'body' };
 
     const result = await TemplateDAO.upsertTemplate('rl', payload);
@@ -66,6 +68,6 @@ describe('TemplateDAO (mocked models)', () => {
       payload,
       { upsert: true, new: true }
     );
-    expect(result).toBe(upserted);
+    expect(result).toMatchObject({ _id: 't4', category_name: 'rl' });
   });
 });

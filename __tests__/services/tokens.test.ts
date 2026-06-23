@@ -1,7 +1,7 @@
-// TokenService is a thin pass-through to TokenDAO (controller -> service ->
-// dao). This is a UNIT test: the DAO is mocked so no database (in-memory or
-// otherwise) is touched. Each test asserts the service delegates to the right
-// DAO method with the exact args and returns the DAO's result.
+// TokenService delegates to TokenDAO (controller -> service -> dao). This is a
+// UNIT test: the DAO is mocked so no database is touched. Each test asserts the
+// service delegates to the right DAO method with the exact args and returns the
+// DAO's result.
 jest.mock('../../dao/token.dao');
 
 import TokenDAO from '../../dao/token.dao';
@@ -12,27 +12,33 @@ beforeEach(() => {
 });
 
 describe('TokenService (mocked DAO)', () => {
-  it('createToken delegates with payload and returns its result', async () => {
-    const payload = { userId: 'u1', token: 'abc123' };
-    const daoResult = { _id: 'tok1', ...payload };
+  it('createToken delegates with the input and returns its result', async () => {
+    const input = { userId: 'u1', value: 'abc123' };
+    const daoResult = { id: 'tok1', ...input };
     TokenDAO.createToken.mockResolvedValue(daoResult);
 
-    const result = await TokenService.createToken(payload);
+    const result = await TokenService.createToken(input);
 
     expect(TokenDAO.createToken).toHaveBeenCalledTimes(1);
-    expect(TokenDAO.createToken).toHaveBeenCalledWith(payload);
+    expect(TokenDAO.createToken).toHaveBeenCalledWith(input);
     expect(result).toBe(daoResult);
   });
 
-  it('findOneToken delegates with filter and returns its result', async () => {
-    const filter = { token: 'abc123' };
-    const daoResult = { _id: 'tok1', userId: 'u1', token: 'abc123' };
-    TokenDAO.findOneToken.mockResolvedValue(daoResult);
+  it('findTokenByValue delegates with the value and returns its result', async () => {
+    const daoResult = { id: 'tok1', userId: 'u1', value: 'abc123' };
+    TokenDAO.findTokenByValue.mockResolvedValue(daoResult);
 
-    const result = await TokenService.findOneToken(filter);
+    const result = await TokenService.findTokenByValue('abc123');
 
-    expect(TokenDAO.findOneToken).toHaveBeenCalledTimes(1);
-    expect(TokenDAO.findOneToken).toHaveBeenCalledWith(filter);
+    expect(TokenDAO.findTokenByValue).toHaveBeenCalledTimes(1);
+    expect(TokenDAO.findTokenByValue).toHaveBeenCalledWith('abc123');
     expect(result).toBe(daoResult);
+  });
+
+  it('deleteTokenById delegates with the id', async () => {
+    await TokenService.deleteTokenById('tok1');
+
+    expect(TokenDAO.deleteTokenById).toHaveBeenCalledTimes(1);
+    expect(TokenDAO.deleteTokenById).toHaveBeenCalledWith('tok1');
   });
 });

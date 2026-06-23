@@ -109,7 +109,7 @@ const addUser = asyncHandler(async (req, res, next) => {
 
   const activationToken = generateRandomToken();
   await TokenService.createToken({
-    userId: newUser._id,
+    userId: newUser._id.toString(),
     value: hashToken(activationToken)
   });
 

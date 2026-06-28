@@ -593,6 +593,56 @@ describe('runAiAssist - single agentic loop', () => {
     expect(system).not.toContain('Match the language and writing system');
   });
 
+  it('injects the reply-draft system prompt and no analysis/language directive when replyMode is set', async () => {
+    const provider = makeProvider();
+    provider.stream.mockResolvedValueOnce({
+      text: '您好，關於您的問題…',
+      toolCalls: [],
+      usage: {}
+    });
+    getLlmProvider.mockReturnValue(provider);
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    const result = await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: "Draft a reply to the student's most recent message.",
+      req: REQ,
+      assistContext: { mentionedStudent: { id: 's1', displayName: 'Alice' } },
+      replyMode: true,
+      preferredLanguage: 'zh-TW'
+    });
+
+    const { system } = provider.stream.mock.calls[0][0];
+    expect(system).toContain('REPLY DRAFT MODE');
+    expect(system).not.toContain('STRUCTURED OUTPUT FORMAT');
+    // Reply mode owns the language rule, so no competing directive is emitted.
+    expect(system).not.toContain('Respond in');
+    expect(system).not.toContain('Match the language and writing system');
+    expect(result.answer).toBe('您好，關於您的問題…');
+  });
+
+  it('also enables reply-draft mode via assistContext.replyMode', async () => {
+    const provider = makeProvider();
+    provider.stream.mockResolvedValueOnce({
+      text: 'ok',
+      toolCalls: [],
+      usage: {}
+    });
+    getLlmProvider.mockReturnValue(provider);
+
+    const postgres = makePostgres({ selectResults: [[], []] });
+    await runAiAssist(postgres, {
+      conversationId: 'conv_1',
+      message: 'reply please',
+      req: REQ,
+      assistContext: { replyMode: true },
+      preferredLanguage: 'en'
+    });
+
+    const { system } = provider.stream.mock.calls[0][0];
+    expect(system).toContain('REPLY DRAFT MODE');
+  });
+
   it('tolerates a non-serializable tool result and a progress emitter that throws', async () => {
     const provider = makeProvider();
     provider.stream

@@ -19,6 +19,7 @@ import postgresRetryModule from '../services/ai-assist/postgresRetry';
 import { openAIClient, OpenAiModel } from '../services/openai';
 import logger from '../services/logger';
 import StudentService from '../services/students';
+import PermissionService from '../services/permissions';
 
 const { getPostgresDb } = databaseModule;
 const {
@@ -1230,9 +1231,97 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
   queueAiTitleRefinement(titleRefinementPayload || {});
 });
 
+// POST /api/ai-assist/students/:studentId/reply-draft — generate a ready-to-send
+// reply to the student, grounded in their context (overview, communications,
+// document threads, applications). Streams the message text back as it is
+// produced (raw text chunks, like the legacy chat assistant). The result is a
+// DRAFT only: it is never sent automatically — staff insert it into the
+// composer, review/edit, and press Send.
+const generateReplyDraft = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  // Access check: 404s if the student is not visible to this user.
+  await requireAccessibleStudent(req, studentId);
+
+  const preferredLanguage = resolvePreferredLanguage(req);
+
+  // Run statelessly: an ephemeral no-op persistence handle keeps reply-draft
+  // generation out of the AI Assist conversation history (no conversation,
+  // message, or trace rows are written). The orchestrator's `!postgres.select`
+  // guard skips context loads; the insert stub satisfies its message writes.
+  const ephemeralPostgres = {
+    insert: () => ({
+      values: () => ({
+        returning: async () => [{ id: 'reply-draft-ephemeral' }]
+      })
+    })
+  };
+
+  res.status(200);
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.flushHeaders?.();
+
+  let streamed = 0;
+  try {
+    const result = await aiAssistOrchestrator.runAiAssist(
+      ephemeralPostgres as never,
+      {
+        conversationId: 'reply-draft-ephemeral',
+        message:
+          "Draft a reply to the student's most recent message in this conversation.",
+        assistContext: {
+          mentionedStudent: { id: studentId }
+        } as OrchestratorAssistContext,
+        preferredLanguage,
+        replyMode: true,
+        req,
+        onToken: (text: string) => {
+          if (text) {
+            streamed += text.length;
+            res.write(text);
+          }
+        }
+      }
+    );
+
+    // Fallback for providers that resolve without per-token callbacks.
+    if (streamed === 0 && result?.answer) {
+      res.write(result.answer);
+    }
+
+    // Charge the TaiGer AI quota only on a successful generation (mirrors the
+    // legacy chat assistant). Best-effort: a quota bookkeeping failure must not
+    // fail an already-streamed reply.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await PermissionService.decrementTaigerAiQuota((req.user as any)._id);
+    } catch (quotaError) {
+      logger.warn(
+        `[AI Assist] reply-draft quota decrement skipped: ${
+          quotaError instanceof Error ? quotaError.message : 'unknown error'
+        }`
+      );
+    }
+  } catch (error) {
+    logger.error('[AI Assist] generateReplyDraft failed', {
+      message: error instanceof Error ? error.message : String(error)
+    });
+    // Headers/body already streaming as text — surface a short inline notice
+    // rather than a JSON error the text reader could not parse.
+    if (streamed === 0) {
+      res.write(
+        'AI reply draft is temporarily unavailable. Please try again.'
+      );
+    }
+  } finally {
+    res.end();
+  }
+});
+
 export = {
   archiveConversation,
   createConversation,
+  generateReplyDraft,
   getConversation,
   getLatestStudentAnalysis,
   getOverview,

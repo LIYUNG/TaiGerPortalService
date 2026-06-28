@@ -618,6 +618,9 @@ describe('runAiAssist - single agentic loop', () => {
     // Reply mode owns the language rule, so no competing directive is emitted.
     expect(system).not.toContain('Respond in');
     expect(system).not.toContain('Match the language and writing system');
+    // Reply mode also carries the curated TaiGer resource-link catalog.
+    expect(system).toContain('TAIGER RESOURCE LINKS');
+    expect(system).toContain('docs/uniassist');
     expect(result.answer).toBe('您好，關於您的問題…');
   });
 

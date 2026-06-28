@@ -9,6 +9,7 @@ import {
 } from '../../drizzle/schema/schema';
 import aiTools from './aiTools';
 import { getLlmProvider, getConfiguredModel, getModelLabel } from './llm';
+import { REPLY_RESOURCE_LINKS } from './replyResources';
 import type { Turn } from './llm/types';
 
 // AI Assist orchestrator — a single provider-neutral agentic tool loop.
@@ -221,9 +222,10 @@ const buildSystemPrompt = ({
   replyMode?: boolean;
 }) => {
   // Reply mode is student-facing; the analysis structured-format block must not
-  // also be appended (the two output contracts conflict).
+  // also be appended (the two output contracts conflict). Reply mode also gets
+  // the curated TAIGER resource-link catalog.
   const formatInstruction = replyMode
-    ? REPLY_FORMAT_INSTRUCTION
+    ? `${REPLY_FORMAT_INSTRUCTION}${REPLY_RESOURCE_LINKS}`
     : analysisMode
       ? ANALYSIS_FORMAT_INSTRUCTION
       : '';

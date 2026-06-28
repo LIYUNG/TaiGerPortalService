@@ -1125,4 +1125,24 @@ describe('generateReplyDraft', () => {
     expect(res.end).toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalled();
   });
+
+  it('never persists to the conversation store or sends a message (draft only)', async () => {
+    requireAccessibleStudent.mockResolvedValue(undefined);
+    orchestrator.runAiAssist.mockResolvedValue({ answer: 'Draft.' });
+    const req = mockReq({ user: USER, params: { studentId: 's1' } });
+    const res = streamRes();
+
+    await controller.generateReplyDraft(req, res, jest.fn());
+
+    // Reply-draft must not touch the shared conversation DB at all...
+    expect(getPostgresDb).not.toHaveBeenCalled();
+    // ...the handle handed to the orchestrator is the ephemeral, read-disabled
+    // stub (no `.select`), so no conversation/message/trace rows are written...
+    const pgHandle = orchestrator.runAiAssist.mock.calls[0][0];
+    expect(pgHandle.select).toBeUndefined();
+    // ...and it never returns a sent-message payload. The send pipeline replies
+    // via res.send; reply-draft only streams text and ends. This is the
+    // human-in-the-loop guarantee: generating a draft can never send it.
+    expect(res.send).not.toHaveBeenCalled();
+  });
 });

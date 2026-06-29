@@ -12,9 +12,30 @@ export interface CommunicationDraft {
   user_id: string;
   student_id: string;
   message: string;
+  // Provenance of the current draft text: 'human' for a hand-typed draft, 'ai'
+  // once an AI-generated reply has been inserted (stays 'ai' even after edits
+  // so AI-assisted sends can be audited). aiOriginalMessage holds the untouched
+  // AI text for "sent as-is vs edited" detection at send time.
+  source: 'human' | 'ai';
+  aiModel?: string;
+  aiGeneratedAt?: Date;
+  aiOriginalMessage?: string;
+  // A generated-but-not-yet-approved AI reply (raw markdown), kept separate from
+  // the editable `message` so it survives reload without clobbering typed text.
+  aiPendingSuggestion?: string;
+  aiPendingModel?: string;
   files: ICommunicationFile[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Optional AI provenance, passed to upsertDraft when an AI-generated reply is
+// saved as the draft. Omitted for normal human autosave (which leaves the
+// existing source untouched).
+export interface CommunicationDraftAiMeta {
+  source: 'ai';
+  aiModel?: string;
+  aiOriginalMessage?: string;
 }
 
 /**
@@ -32,10 +53,20 @@ export interface ICommunicationDraftDAO {
   upsertDraft(
     userId: string,
     studentId: string,
-    message: string
+    message: string,
+    aiMeta?: CommunicationDraftAiMeta
   ): Promise<CommunicationDraft>;
 
   deleteDraft(userId: string, studentId: string): Promise<void>;
+
+  // Set (or clear, when suggestion is '') a generated-but-unapproved AI reply,
+  // creating the draft if none exists. Leaves `message` untouched.
+  setAiPendingSuggestion(
+    userId: string,
+    studentId: string,
+    suggestion: string,
+    aiModel?: string
+  ): Promise<CommunicationDraft | null>;
 
   addDraftFiles(
     userId: string,

@@ -1020,7 +1020,9 @@ describe('communication drafts', () => {
     expect(CommunicationDraftService.upsertDraft).toHaveBeenCalledWith(
       agent._id.toString(),
       studentId,
-      validMessage
+      validMessage,
+      // No source:'ai' in the body -> no AI provenance meta is passed.
+      undefined
     );
     expect(CommunicationDraftService.deleteDraft).not.toHaveBeenCalled();
     expect(res.send.mock.calls[0][0]).toEqual({ success: true, data: draft });

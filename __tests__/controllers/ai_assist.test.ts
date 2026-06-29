@@ -36,6 +36,14 @@ jest.mock('../../services/students', () => ({
   findStudentsSelect: jest.fn()
 }));
 
+jest.mock('../../services/permissions', () => ({
+  decrementTaigerAiQuota: jest.fn()
+}));
+
+jest.mock('../../services/communications', () => ({
+  getRecentByStudentId: jest.fn()
+}));
+
 jest.mock('../../services/openai', () => ({
   openAIClient: { responses: { create: jest.fn() } },
   OpenAiModel: { GPT_5_4_nano: 'gpt-5.4-nano' }
@@ -58,6 +66,8 @@ import { getAccessibleStudentFilter } from '../../services/ai-assist/studentAcce
 import StudentService from '../../services/students';
 import { openAIClient } from '../../services/openai';
 import logger from '../../services/logger';
+import PermissionService from '../../services/permissions';
+import CommunicationService from '../../services/communications';
 import controller from '../../controllers/ai_assist';
 
 const USER = { _id: { toString: () => 'user_1' }, role: 'Agent' };
@@ -125,6 +135,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   db = makeDb();
   getPostgresDb.mockReturnValue(db);
+  // Default: no recent messages -> reply-draft sensitivity check resolves false.
+  CommunicationService.getRecentByStudentId.mockResolvedValue([]);
   delete process.env.NODE_ENV;
   process.env.NODE_ENV = 'test';
 });
@@ -1044,5 +1056,121 @@ describe('listRecentStudents pagination', () => {
       StudentService.findStudentsSelect.mock.calls[0][0]._id.$in
     ).toHaveLength(25);
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateReplyDraft
+// ---------------------------------------------------------------------------
+const streamRes = () => {
+  const res = mockRes();
+  res.setHeader = jest.fn(() => res);
+  res.flushHeaders = jest.fn(() => res);
+  res.write = jest.fn(() => true);
+  return res;
+};
+
+describe('generateReplyDraft', () => {
+  it('streams the model tokens and charges the AI quota on success', async () => {
+    requireAccessibleStudent.mockResolvedValue(undefined);
+    orchestrator.runAiAssist.mockImplementation(async (_pg, opts) => {
+      await opts.onToken('Hello ');
+      await opts.onToken('world');
+      return { answer: 'Hello world' };
+    });
+    const req = mockReq({ user: USER, params: { studentId: 's1' } });
+    const res = streamRes();
+
+    await controller.generateReplyDraft(req, res, jest.fn());
+
+    // Reply mode is requested, scoped to the student.
+    const opts = orchestrator.runAiAssist.mock.calls[0][1];
+    expect(opts.replyMode).toBe(true);
+    expect(opts.assistContext.mentionedStudent.id).toBe('s1');
+    expect(res.write).toHaveBeenCalledWith('Hello ');
+    expect(res.write).toHaveBeenCalledWith('world');
+    expect(res.end).toHaveBeenCalled();
+    expect(PermissionService.decrementTaigerAiQuota).toHaveBeenCalledTimes(1);
+    // No sensitive content by default.
+    expect(res.setHeader).toHaveBeenCalledWith('X-Reply-Sensitive', '0');
+  });
+
+  it('flags X-Reply-Sensitive when the latest student message reads as distressed', async () => {
+    requireAccessibleStudent.mockResolvedValue(undefined);
+    CommunicationService.getRecentByStudentId.mockResolvedValue([
+      {
+        user_id: { role: 'Student' },
+        message: JSON.stringify({
+          blocks: [{ type: 'paragraph', data: { text: 'I am so angry, I want a refund' } }]
+        })
+      }
+    ]);
+    orchestrator.runAiAssist.mockResolvedValue({ answer: 'Reply.' });
+    const req = mockReq({ user: USER, params: { studentId: 's1' } });
+    const res = streamRes();
+
+    await controller.generateReplyDraft(req, res, jest.fn());
+
+    expect(res.setHeader).toHaveBeenCalledWith('X-Reply-Sensitive', '1');
+  });
+
+  it('writes the full answer as a fallback when no tokens stream', async () => {
+    requireAccessibleStudent.mockResolvedValue(undefined);
+    orchestrator.runAiAssist.mockResolvedValue({ answer: 'Full reply.' });
+    const req = mockReq({ user: USER, params: { studentId: 's1' } });
+    const res = streamRes();
+
+    await controller.generateReplyDraft(req, res, jest.fn());
+
+    expect(res.write).toHaveBeenCalledWith('Full reply.');
+    expect(res.end).toHaveBeenCalled();
+  });
+
+  it('does not generate or charge quota when the student is not accessible', async () => {
+    requireAccessibleStudent.mockRejectedValue(new Error('forbidden'));
+    const req = mockReq({ user: USER, params: { studentId: 's_forbidden' } });
+    const res = streamRes();
+    const next = jest.fn();
+
+    await controller.generateReplyDraft(req, res, next);
+
+    expect(orchestrator.runAiAssist).not.toHaveBeenCalled();
+    expect(PermissionService.decrementTaigerAiQuota).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('emits an inline notice and never throws when generation fails mid-stream', async () => {
+    requireAccessibleStudent.mockResolvedValue(undefined);
+    orchestrator.runAiAssist.mockRejectedValue(new Error('provider down'));
+    const req = mockReq({ user: USER, params: { studentId: 's1' } });
+    const res = streamRes();
+
+    await controller.generateReplyDraft(req, res, jest.fn());
+
+    expect(res.write).toHaveBeenCalledWith(
+      expect.stringContaining('temporarily unavailable')
+    );
+    expect(res.end).toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalled();
+  });
+
+  it('never persists to the conversation store or sends a message (draft only)', async () => {
+    requireAccessibleStudent.mockResolvedValue(undefined);
+    orchestrator.runAiAssist.mockResolvedValue({ answer: 'Draft.' });
+    const req = mockReq({ user: USER, params: { studentId: 's1' } });
+    const res = streamRes();
+
+    await controller.generateReplyDraft(req, res, jest.fn());
+
+    // Reply-draft must not touch the shared conversation DB at all...
+    expect(getPostgresDb).not.toHaveBeenCalled();
+    // ...the handle handed to the orchestrator is the ephemeral, read-disabled
+    // stub (no `.select`), so no conversation/message/trace rows are written...
+    const pgHandle = orchestrator.runAiAssist.mock.calls[0][0];
+    expect(pgHandle.select).toBeUndefined();
+    // ...and it never returns a sent-message payload. The send pipeline replies
+    // via res.send; reply-draft only streams text and ends. This is the
+    // human-in-the-loop guarantee: generating a draft can never send it.
+    expect(res.send).not.toHaveBeenCalled();
   });
 });

@@ -8,8 +8,13 @@ import {
 } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
 import {
+  permission_canUseTaiGerAI_filter,
+  permission_TaiGerAIRatelimiter
+} from '../middlewares/permission-filter';
+import {
   archiveConversation,
   createConversation,
+  generateReplyDraft,
   getConversation,
   getLatestStudentAnalysis,
   getOverview,
@@ -52,6 +57,18 @@ router
 router
   .route('/students/:studentId/latest-analysis')
   .get(GeneralGETRequestRateLimiter, getLatestStudentAnalysis);
+
+// Reply-draft makes a full agentic LLM call, so it is gated by the TaiGer AI
+// permission + rate limiter (same surface as the legacy chat assistant it
+// replaces) and consumes the user's TaiGer AI quota.
+router
+  .route('/students/:studentId/reply-draft')
+  .post(
+    GeneralPOSTRequestRateLimiter,
+    permission_canUseTaiGerAI_filter,
+    permission_TaiGerAIRatelimiter,
+    generateReplyDraft
+  );
 
 router
   .route('/conversations/:conversationId/messages')

@@ -2,6 +2,7 @@ import { CommunicationDraft as CommunicationDraftModel } from '../models';
 import type { ICommunicationFile } from '@taiger-common/model';
 import type {
   CommunicationDraft,
+  CommunicationDraftAiMeta,
   ICommunicationDraftDAO
 } from './communicationDraft.dao.types';
 
@@ -24,6 +25,12 @@ const toDomain = (doc: any): CommunicationDraft | null => {
     user_id: String(doc.user_id),
     student_id: String(doc.student_id),
     message: doc.message ?? '',
+    source: doc.source === 'ai' ? 'ai' : 'human',
+    aiModel: doc.aiModel ?? '',
+    aiGeneratedAt: doc.aiGeneratedAt as Date | undefined,
+    aiOriginalMessage: doc.aiOriginalMessage ?? '',
+    aiPendingSuggestion: doc.aiPendingSuggestion ?? '',
+    aiPendingModel: doc.aiPendingModel ?? '',
     files: Array.isArray(doc.files)
       ? doc.files.map((file: ICommunicationFile) => ({
           name: file.name,
@@ -57,11 +64,31 @@ class CommunicationDraftMongoDAO implements ICommunicationDraftDAO {
   async upsertDraft(
     userId: string,
     studentId: string,
-    message: string
+    message: string,
+    aiMeta?: CommunicationDraftAiMeta
   ): Promise<CommunicationDraft> {
+    // Normal human autosave only touches `message`, leaving any existing
+    // provenance intact. When aiMeta is supplied (an AI reply was inserted),
+    // stamp the source + model + the untouched AI text for later audit.
+    // Coerce every user-derived value to a primitive string before it reaches
+    // the query, so a malicious object (e.g. Mongo query operators) can't be
+    // injected through the filter or the update document (NoSQL injection).
+    const safeMessage = String(message ?? '');
+    const update = aiMeta
+      ? {
+          message: safeMessage,
+          source: 'ai',
+          aiModel: String(aiMeta.aiModel ?? ''),
+          aiGeneratedAt: new Date(),
+          aiOriginalMessage: String(aiMeta.aiOriginalMessage ?? safeMessage),
+          // Approving an AI reply consumes any pending suggestion.
+          aiPendingSuggestion: '',
+          aiPendingModel: ''
+        }
+      : { message: safeMessage };
     const doc = await CommunicationDraftModel.findOneAndUpdate(
-      { user_id: userId, student_id: studentId },
-      { message },
+      { user_id: String(userId), student_id: String(studentId) },
+      update,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     ).lean();
     // upsert + `new: true` always yields a document.
@@ -73,6 +100,26 @@ class CommunicationDraftMongoDAO implements ICommunicationDraftDAO {
       user_id: userId,
       student_id: studentId
     });
+  }
+
+  // Persist (or clear, when suggestion is '') a generated-but-unapproved AI
+  // reply. Upserts so the suggestion can be stored before any human text exists.
+  async setAiPendingSuggestion(
+    userId: string,
+    studentId: string,
+    suggestion: string,
+    aiModel?: string
+  ): Promise<CommunicationDraft | null> {
+    // Coerce user-derived values to strings before the query (NoSQL injection).
+    const doc = await CommunicationDraftModel.findOneAndUpdate(
+      { user_id: String(userId), student_id: String(studentId) },
+      {
+        aiPendingSuggestion: String(suggestion ?? ''),
+        aiPendingModel: String(aiModel ?? '')
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean();
+    return toDomain(doc);
   }
 
   // Attach: push file refs, creating the draft if none exists yet (a user can

@@ -9,6 +9,7 @@ import {
 } from '../../drizzle/schema/schema';
 import aiTools from './aiTools';
 import { getLlmProvider, getConfiguredModel, getModelLabel } from './llm';
+import { REPLY_RESOURCE_LINKS } from './replyResources';
 import type { Turn } from './llm/types';
 
 // AI Assist orchestrator — a single provider-neutral agentic tool loop.
@@ -26,6 +27,9 @@ interface MentionedStudent {
 interface AssistContext {
   mentionedStudent?: MentionedStudent;
   analysisMode?: boolean;
+  // When true, the orchestrator drafts a ready-to-send, student-facing reply
+  // (reviewed by staff before sending) instead of an internal analysis.
+  replyMode?: boolean;
 }
 
 interface ProgressEvent {
@@ -136,13 +140,21 @@ const buildLanguageInstruction = ({
   message,
   assistContext,
   preferredLanguage,
-  analysisMode = false
+  analysisMode = false,
+  replyMode = false
 }: {
   message: string;
   assistContext: AssistContext;
   preferredLanguage?: string;
   analysisMode?: boolean;
+  replyMode?: boolean;
 }) => {
+  // Reply drafts must be written in the STUDENT's language (not the staff
+  // member's preference). REPLY_FORMAT_INSTRUCTION owns that rule, so emit no
+  // competing language directive here.
+  if (replyMode) {
+    return '';
+  }
   // For an auto-triggered deep-dive the "message" is a system-generated English
   // instruction, not the user's own writing — so the "match the message
   // language" heuristic would wrongly force the analysis into English. Honour
@@ -181,18 +193,46 @@ STRUCTURED OUTPUT FORMAT — when performing a student deep-dive, you MUST outpu
 
 Rules: Use only urgency levels IMMEDIATE, URGENT, NORMAL. Use only target roles AGENT, STUDENT, EDITOR, TEAM. If no blockers, write "- None identified." under BLOCKERS. Sections must appear in this exact order. CRITICAL: keep the section headers and all bracket/label tokens — HEALTH, BLOCKERS, RISKS, ACTIONS, ANALYSIS, ROOT CAUSE, SINCE, WAITING ON, [BLOCKER], [RISK:...], [ACTION:...] — in English exactly as shown, even when the rest of your answer is in another language (e.g. Chinese). Only the descriptive prose after each token should follow the user's language. Always include all five section headers, including **ANALYSIS:**.`;
 
+const REPLY_FORMAT_INSTRUCTION = `
+
+REPLY DRAFT MODE — you are drafting a message that the staff member will REVIEW and then SEND TO THE STUDENT. This is not an internal analysis; it is the actual reply text.
+
+GATHER FIRST: before drafting, call get_student_overview AND get_communications, and call get_thread_messages for any document thread the student's question is about. Ground every statement in that tool data — the student's applications, program requirements, documents, profile, and chat history. Never invent deadlines, requirements, statuses, links, or facts.
+
+WHAT TO WRITE:
+- Address the student directly and answer their most recent message/question specifically and accurately.
+- Tone: warm, professional, encouraging.
+- Language: reply in the student's OWN language — match the language they write in. Use Traditional Chinese for Taiwanese students; never Simplified Chinese. If their language is unclear, use the staff member's preferred language.
+- Point them to the clear next action, and include an official TaiGer guide/document link ONLY when it is genuinely on-topic.
+- If required information is missing from the data, ask the student for it or tell them the team will follow up — do not guess.
+
+OUTPUT RULES — strict:
+- Output ONLY the message body to send to the student. No preamble ("Here is a draft"), no internal notes, no section headers/labels, no health/risk/analysis structure, no database ids.
+- Light inline markdown (bold, links) is fine; do not use headings or tables.`;
+
 const buildSystemPrompt = ({
   role,
   languageInstruction,
-  analysisMode = false
+  analysisMode = false,
+  replyMode = false
 }: {
   role: string;
   languageInstruction: string;
   analysisMode?: boolean;
-}) =>
-  `${baseInstructions}${roleGuidance(role)}${languageInstruction}${
-    analysisMode ? ANALYSIS_FORMAT_INSTRUCTION : ''
-  }`;
+  replyMode?: boolean;
+}) => {
+  // Reply mode is student-facing; the analysis structured-format block must not
+  // also be appended (the two output contracts conflict). Reply mode also gets
+  // the curated TAIGER resource-link catalog.
+  const formatInstruction = replyMode
+    ? `${REPLY_FORMAT_INSTRUCTION}${REPLY_RESOURCE_LINKS}`
+    : analysisMode
+      ? ANALYSIS_FORMAT_INSTRUCTION
+      : '';
+  return `${baseInstructions}${roleGuidance(
+    role
+  )}${languageInstruction}${formatInstruction}`;
+};
 
 // ---- Persistence helpers ----------------------------------------------------
 
@@ -476,6 +516,7 @@ const runAiAssist = async (
     req,
     assistContext = {},
     preferredLanguage,
+    replyMode = false,
     onProgress,
     onToken
   }: {
@@ -484,6 +525,7 @@ const runAiAssist = async (
     req: Request;
     assistContext?: AssistContext;
     preferredLanguage?: string;
+    replyMode?: boolean;
     onProgress?: ProgressEmitter;
     onToken?: TokenEmitter;
   }
@@ -500,17 +542,20 @@ const runAiAssist = async (
     content: message
   });
 
+  const replyDraftMode = Boolean(replyMode || assistContext?.replyMode);
   const languageInstruction = buildLanguageInstruction({
     message,
     assistContext,
     preferredLanguage,
-    analysisMode: Boolean(assistContext?.analysisMode)
+    analysisMode: Boolean(assistContext?.analysisMode),
+    replyMode: replyDraftMode
   });
   const system = buildSystemPrompt({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     role: (req?.user as any)?.role,
     languageInstruction,
-    analysisMode: Boolean(assistContext?.analysisMode)
+    analysisMode: Boolean(assistContext?.analysisMode),
+    replyMode: replyDraftMode
   });
 
   // Context hints injected into the current user turn.

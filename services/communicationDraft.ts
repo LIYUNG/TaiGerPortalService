@@ -1,6 +1,9 @@
 import type { ICommunicationFile } from '@taiger-common/model';
 import CommunicationDraftDAO from '../dao/communicationDraft.dao';
-import type { ICommunicationDraftDAO } from '../dao/communicationDraft.dao.types';
+import type {
+  CommunicationDraftAiMeta,
+  ICommunicationDraftDAO
+} from '../dao/communicationDraft.dao.types';
 
 /**
  * CommunicationDraftService — business layer for message drafts. Depends only on
@@ -20,12 +23,31 @@ export class CommunicationDraftService {
     return this.dao.getDraft(userId, studentId);
   }
 
-  upsertDraft(userId: string, studentId: string, message: string) {
-    return this.dao.upsertDraft(userId, studentId, message);
+  upsertDraft(
+    userId: string,
+    studentId: string,
+    message: string,
+    aiMeta?: CommunicationDraftAiMeta
+  ) {
+    return this.dao.upsertDraft(userId, studentId, message, aiMeta);
   }
 
   deleteDraft(userId: string, studentId: string) {
     return this.dao.deleteDraft(userId, studentId);
+  }
+
+  setAiPendingSuggestion(
+    userId: string,
+    studentId: string,
+    suggestion: string,
+    aiModel?: string
+  ) {
+    return this.dao.setAiPendingSuggestion(
+      userId,
+      studentId,
+      suggestion,
+      aiModel
+    );
   }
 
   addDraftFiles(

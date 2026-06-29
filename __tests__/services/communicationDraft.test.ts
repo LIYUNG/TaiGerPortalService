@@ -31,7 +31,8 @@ describe('CommunicationDraftService (delegates to DAO)', () => {
     expect(CommunicationDraftDAO.upsertDraft).toHaveBeenCalledWith(
       'u1',
       's1',
-      'msg'
+      'msg',
+      undefined
     );
   });
 

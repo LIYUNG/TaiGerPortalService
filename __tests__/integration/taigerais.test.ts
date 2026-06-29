@@ -140,7 +140,7 @@ import PermissionDAO from '../../dao/permission.dao';
 import { protect } from '../../middlewares/auth';
 import { app } from '../../app';
 import { TENANT_ID } from '../fixtures/constants';
-import { admin, agent, student } from '../mock/user';
+import { admin, student } from '../mock/user';
 const { ObjectId } = require('mongoose').Types;
 import { generateProgram } from '../fixtures/faker';
 
@@ -169,35 +169,9 @@ beforeEach(() => {
   });
 });
 
-describe('TaiGerAiChat Controller (full stack)', () => {
-  it('POST /api/taigerai/chat/:studentId streams a response built from the DAO reads', async () => {
-    CommunicationDAO.getRecentByStudentId.mockResolvedValue([
-      {
-        createdAt: new Date(),
-        user_id: { firstname: agent.firstname, role: agent.role },
-        message: JSON.stringify({
-          blocks: [{ type: 'paragraph', data: { text: 'hello' } }]
-        })
-      }
-    ]);
-    ApplicationDAO.getApplicationsByStudentId.mockResolvedValue([]);
-
-    const resp = await requestWithSupertest
-      .post(`/api/taigerai/chat/${student._id}`)
-      .set('tenantId', TENANT_ID)
-      .send({ prompt: 'What documents do I need?' });
-
-    expect(resp.status).not.toBe(500);
-    expect(resp.text).toContain('mocked AI response');
-    expect(CommunicationDAO.getRecentByStudentId).toHaveBeenCalledWith(
-      student._id.toString(),
-      3
-    );
-    expect(ApplicationDAO.getApplicationsByStudentId).toHaveBeenCalledWith(
-      student._id.toString()
-    );
-  });
-});
+// NOTE: the legacy POST /api/taigerai/chat/:studentId route was retired; the
+// chat composer now uses /api/ai-assist/students/:id/reply-draft. Its test was
+// removed with the route.
 
 describe('cvmlrlAi Controller (full stack)', () => {
   it('POST /api/taigerai/cvmlrl streams a generated document without a server error', async () => {

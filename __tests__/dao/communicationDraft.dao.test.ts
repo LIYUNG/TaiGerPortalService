@@ -55,6 +55,12 @@ describe('CommunicationDraftDAO (mocked models)', () => {
       user_id: 'u1',
       student_id: 's1',
       message: 'hello',
+      source: 'human',
+      aiModel: '',
+      aiGeneratedAt: undefined,
+      aiOriginalMessage: '',
+      aiPendingSuggestion: '',
+      aiPendingModel: '',
       files: [],
       createdAt: created,
       updatedAt: updated

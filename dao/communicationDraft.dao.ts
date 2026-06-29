@@ -70,20 +70,24 @@ class CommunicationDraftMongoDAO implements ICommunicationDraftDAO {
     // Normal human autosave only touches `message`, leaving any existing
     // provenance intact. When aiMeta is supplied (an AI reply was inserted),
     // stamp the source + model + the untouched AI text for later audit.
+    // Coerce every user-derived value to a primitive string before it reaches
+    // the query, so a malicious object (e.g. Mongo query operators) can't be
+    // injected through the filter or the update document (NoSQL injection).
+    const safeMessage = String(message ?? '');
     const update = aiMeta
       ? {
-          message,
+          message: safeMessage,
           source: 'ai',
-          aiModel: aiMeta.aiModel ?? '',
+          aiModel: String(aiMeta.aiModel ?? ''),
           aiGeneratedAt: new Date(),
-          aiOriginalMessage: aiMeta.aiOriginalMessage ?? message,
+          aiOriginalMessage: String(aiMeta.aiOriginalMessage ?? safeMessage),
           // Approving an AI reply consumes any pending suggestion.
           aiPendingSuggestion: '',
           aiPendingModel: ''
         }
-      : { message };
+      : { message: safeMessage };
     const doc = await CommunicationDraftModel.findOneAndUpdate(
-      { user_id: userId, student_id: studentId },
+      { user_id: String(userId), student_id: String(studentId) },
       update,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     ).lean();
@@ -106,9 +110,13 @@ class CommunicationDraftMongoDAO implements ICommunicationDraftDAO {
     suggestion: string,
     aiModel?: string
   ): Promise<CommunicationDraft | null> {
+    // Coerce user-derived values to strings before the query (NoSQL injection).
     const doc = await CommunicationDraftModel.findOneAndUpdate(
-      { user_id: userId, student_id: studentId },
-      { aiPendingSuggestion: suggestion, aiPendingModel: aiModel ?? '' },
+      { user_id: String(userId), student_id: String(studentId) },
+      {
+        aiPendingSuggestion: String(suggestion ?? ''),
+        aiPendingModel: String(aiModel ?? '')
+      },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     ).lean();
     return toDomain(doc);

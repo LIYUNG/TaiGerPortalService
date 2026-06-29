@@ -28,6 +28,7 @@ import {
   getCommunicationDraft,
   upsertCommunicationDraft,
   deleteCommunicationDraft,
+  setCommunicationDraftAiSuggestion,
   uploadCommunicationDraftFiles,
   deleteCommunicationDraftFile
 } from '../controllers/communications';
@@ -148,6 +149,20 @@ router
     multitenant_filter,
     chatMultitenantFilter,
     deleteCommunicationDraft
+  );
+
+// Pending (generated-but-unapproved) AI suggestion. Registered before
+// '/:studentId/:messageId' so "draft" isn't captured as a messageId.
+router
+  .route('/:studentId/draft/ai-suggestion')
+  .put(
+    validateStudentId,
+    filter_archiv_user,
+    getMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    multitenant_filter,
+    chatMultitenantFilter,
+    setCommunicationDraftAiSuggestion
   );
 
 // Draft attachments (upload-on-attach). Registered before '/:studentId/:messageId'.

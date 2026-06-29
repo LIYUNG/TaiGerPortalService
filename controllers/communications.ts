@@ -101,17 +101,29 @@ export const upsertCommunicationDraft = asyncHandler(async (req, res) => {
   const {
     user,
     params: { studentId },
-    body: { message }
+    body: { message, source, aiModel }
   } = req;
   const userId = user._id.toString();
+  // When the client saves an AI-generated reply it marks source: 'ai'; we stamp
+  // provenance (model + the untouched AI text) so the send can be audited.
+  // Plain human autosave omits `source` and leaves any existing provenance be.
+  const aiMeta =
+    source === 'ai' && !isDraftEmpty(message)
+      ? {
+          source: 'ai' as const,
+          aiModel: typeof aiModel === 'string' ? aiModel : '',
+          aiOriginalMessage: message
+        }
+      : undefined;
   if (isDraftEmpty(message)) {
-    // An empty-text draft is only discarded when it has no attachments;
-    // otherwise keep the draft (with its files) and just clear the text.
+    // An empty-text draft is only discarded when it has nothing else worth
+    // keeping — no attachments and no pending AI suggestion; otherwise keep the
+    // draft and just clear the text.
     const existing = await CommunicationDraftService.getDraft(
       userId,
       studentId
     );
-    if (!existing?.files?.length) {
+    if (!existing?.files?.length && !existing?.aiPendingSuggestion) {
       await CommunicationDraftService.deleteDraft(userId, studentId);
       return res.status(200).send({ success: true, data: null });
     }
@@ -125,10 +137,31 @@ export const upsertCommunicationDraft = asyncHandler(async (req, res) => {
   const draft = await CommunicationDraftService.upsertDraft(
     userId,
     studentId,
-    message
+    message,
+    aiMeta
   );
   return res.status(200).send({ success: true, data: draft });
 });
+
+// PUT /api/communications/:studentId/draft/ai-suggestion — store (or clear, with
+// an empty suggestion) a generated-but-not-yet-approved AI reply, so it survives
+// a reload and the agent can still approve/dismiss it. Leaves `message` alone.
+export const setCommunicationDraftAiSuggestion = asyncHandler(
+  async (req, res) => {
+    const {
+      user,
+      params: { studentId },
+      body: { suggestion, aiModel }
+    } = req;
+    const draft = await CommunicationDraftService.setAiPendingSuggestion(
+      user._id.toString(),
+      studentId,
+      typeof suggestion === 'string' ? suggestion : '',
+      typeof aiModel === 'string' ? aiModel : ''
+    );
+    res.status(200).send({ success: true, data: draft });
+  }
+);
 
 // DELETE /api/communications/:studentId/draft — discard the draft: delete its
 // staged attachments from S3 (they were never sent), then remove the document.

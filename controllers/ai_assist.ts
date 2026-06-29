@@ -20,6 +20,12 @@ import { openAIClient, OpenAiModel } from '../services/openai';
 import logger from '../services/logger';
 import StudentService from '../services/students';
 import PermissionService from '../services/permissions';
+import CommunicationService from '../services/communications';
+import {
+  detectSensitivity,
+  extractPlainText
+} from '../services/ai-assist/sensitivity';
+import { Role } from '@taiger-common/core';
 
 const { getPostgresDb } = databaseModule;
 const {
@@ -1244,6 +1250,33 @@ const generateReplyDraft = asyncHandler(async (req, res) => {
 
   const preferredLanguage = resolvePreferredLanguage(req);
 
+  // Sensitivity pre-check on the student's latest message. Surfaced as a
+  // response header so the body stays pure reply text; the UI warns the agent
+  // and suppresses one-click insert for sensitive cases. Best-effort.
+  let sensitive = false;
+  try {
+    const recent = await CommunicationService.getRecentByStudentId(
+      studentId,
+      5
+    );
+    const latestStudentMessage = (recent || []).find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (entry: any) => entry?.user_id?.role === Role.Student
+    );
+    sensitive = detectSensitivity(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      extractPlainText((latestStudentMessage as any)?.message)
+    ).sensitive;
+  } catch (sensitivityError) {
+    logger.warn(
+      `[AI Assist] reply-draft sensitivity check skipped: ${
+        sensitivityError instanceof Error
+          ? sensitivityError.message
+          : 'unknown error'
+      }`
+    );
+  }
+
   // Run statelessly: an ephemeral no-op persistence handle keeps reply-draft
   // generation out of the AI Assist conversation history (no conversation,
   // message, or trace rows are written). The orchestrator's `!postgres.select`
@@ -1259,6 +1292,9 @@ const generateReplyDraft = asyncHandler(async (req, res) => {
   res.status(200);
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('X-Reply-Sensitive', sensitive ? '1' : '0');
+  // Make the custom header readable by the browser fetch (cross-origin safety).
+  res.setHeader('Access-Control-Expose-Headers', 'X-Reply-Sensitive');
   res.flushHeaders?.();
 
   let streamed = 0;

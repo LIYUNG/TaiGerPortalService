@@ -40,6 +40,10 @@ jest.mock('../../services/permissions', () => ({
   decrementTaigerAiQuota: jest.fn()
 }));
 
+jest.mock('../../services/communications', () => ({
+  getRecentByStudentId: jest.fn()
+}));
+
 jest.mock('../../services/openai', () => ({
   openAIClient: { responses: { create: jest.fn() } },
   OpenAiModel: { GPT_5_4_nano: 'gpt-5.4-nano' }
@@ -63,6 +67,7 @@ import StudentService from '../../services/students';
 import { openAIClient } from '../../services/openai';
 import logger from '../../services/logger';
 import PermissionService from '../../services/permissions';
+import CommunicationService from '../../services/communications';
 import controller from '../../controllers/ai_assist';
 
 const USER = { _id: { toString: () => 'user_1' }, role: 'Agent' };
@@ -130,6 +135,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   db = makeDb();
   getPostgresDb.mockReturnValue(db);
+  // Default: no recent messages -> reply-draft sensitivity check resolves false.
+  CommunicationService.getRecentByStudentId.mockResolvedValue([]);
   delete process.env.NODE_ENV;
   process.env.NODE_ENV = 'test';
 });
@@ -1084,6 +1091,27 @@ describe('generateReplyDraft', () => {
     expect(res.write).toHaveBeenCalledWith('world');
     expect(res.end).toHaveBeenCalled();
     expect(PermissionService.decrementTaigerAiQuota).toHaveBeenCalledTimes(1);
+    // No sensitive content by default.
+    expect(res.setHeader).toHaveBeenCalledWith('X-Reply-Sensitive', '0');
+  });
+
+  it('flags X-Reply-Sensitive when the latest student message reads as distressed', async () => {
+    requireAccessibleStudent.mockResolvedValue(undefined);
+    CommunicationService.getRecentByStudentId.mockResolvedValue([
+      {
+        user_id: { role: 'Student' },
+        message: JSON.stringify({
+          blocks: [{ type: 'paragraph', data: { text: 'I am so angry, I want a refund' } }]
+        })
+      }
+    ]);
+    orchestrator.runAiAssist.mockResolvedValue({ answer: 'Reply.' });
+    const req = mockReq({ user: USER, params: { studentId: 's1' } });
+    const res = streamRes();
+
+    await controller.generateReplyDraft(req, res, jest.fn());
+
+    expect(res.setHeader).toHaveBeenCalledWith('X-Reply-Sensitive', '1');
   });
 
   it('writes the full answer as a fallback when no tokens stream', async () => {

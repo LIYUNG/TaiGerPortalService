@@ -106,6 +106,7 @@ type LooseDoc = Record<string, any>;
 
 export interface CreateCVDraftParams {
   student: LooseDoc;
+  additionalInformation?: string;
   fileType?: string;
   studentId: string;
   programId?: string;

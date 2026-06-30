@@ -15,6 +15,7 @@ const createCVDraft = async (
 
   const aggregate = buildCVAggregate({
     student: params.student,
+    additionalInformation: params.additionalInformation,
     editorRequirements: params.editorRequirements,
     targetProgram: params.targetProgram
   });

@@ -51,6 +51,10 @@ export const cvDraftUserPrompt = (input: CVAggregateInput): string =>
     'Known structured facts (from the student profile — reliable but sparse; empty values mean unknown):',
     JSON.stringify(input.knownFacts, null, 2),
     '',
+    input.additionalInformation
+      ? `Additional information the student/editor added for this document:\n${input.additionalInformation}`
+      : 'Additional information for this document: (none)',
+    '',
     input.editorRequirements
       ? `Editor-supplied facts and instructions (use these; they are authoritative):\n${input.editorRequirements}`
       : 'Editor-supplied facts and instructions: (none)',

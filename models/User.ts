@@ -13,6 +13,40 @@ import bcrypt from 'bcryptjs';
 
 const options = { discriminatorKey: 'role', timestamps: true };
 
+// CV / profile detail fields consumed by the CV draft generator and reusable by
+// other documents (ML/RL/visa). Added here via schema.add() so the shared
+// @taiger-common/model package does not need republishing. These are general
+// profile metadata that the CV happens to use — not CV-owned data.
+UserSchema.add({
+  personal_information: {
+    nationality: { type: String, default: '' },
+    birthplace: { type: String, default: '' },
+    address: { type: String, default: '' },
+    phone: { type: String, default: '' }
+  },
+  professional_experience: [
+    {
+      _id: false,
+      period: String,
+      job_title: String,
+      company: String,
+      city: String,
+      country: String,
+      bullets: [String]
+    }
+  ],
+  awards: [{ _id: false, date: String, title: String, description: String }],
+  skills: {
+    computer: [{ _id: false, name: String, level: String }],
+    other: [String]
+  },
+  interests: {
+    hobbies: { type: String, default: '' },
+    social_engagement: { type: String, default: '' },
+    competitive_sports: { type: String, default: '' }
+  }
+});
+
 // eslint-disable-next-line func-names, consistent-return
 UserSchema.pre('save', async function (next) {
   const user = this;

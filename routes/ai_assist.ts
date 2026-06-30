@@ -21,6 +21,7 @@ import {
   updateConversation,
   searchStudents
 } from '../controllers/ai_assist';
+import cvDraftController from '../controllers/cv_draft';
 
 const router = Router();
 
@@ -52,6 +53,10 @@ router
 router
   .route('/students/:studentId/latest-analysis')
   .get(GeneralGETRequestRateLimiter, getLatestStudentAnalysis);
+
+router
+  .route('/students/:studentId/cv-draft')
+  .post(GeneralPOSTRequestRateLimiter, cvDraftController.generateCvDraft);
 
 router
   .route('/conversations/:conversationId/messages')

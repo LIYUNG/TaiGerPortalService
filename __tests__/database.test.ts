@@ -85,80 +85,6 @@ describe('mongoDb', () => {
   });
 });
 
-describe('connectToDatabase', () => {
-  test('creates the connection once and registers the core models', () => {
-    const { db, conn } = loadDatabase();
-    const result = db.connectToDatabase('TaiGer', 'mongodb://memory/test');
-
-    expect(result).toBe(conn);
-    expect(mockCreateConnection).toHaveBeenCalledTimes(1);
-    expect(mockCreateConnection).toHaveBeenCalledWith(
-      'mongodb://memory/test',
-      {}
-    );
-
-    // A representative spread of the registered models.
-    expect(conn.registered).toHaveProperty('User');
-    expect(conn.registered).toHaveProperty('Application');
-    expect(conn.registered).toHaveProperty('Program');
-    expect(conn.registered).toHaveProperty('Token');
-    expect(conn.registered).toHaveProperty('Ticket');
-  });
-
-  test('registers the User discriminators', () => {
-    const { db, conn } = loadDatabase();
-    db.connectToDatabase('TaiGer', 'mongodb://memory/test');
-
-    const names = conn.userModel.discriminator.mock.calls.map((c) => c[0]);
-    expect(names).toEqual(
-      expect.arrayContaining([
-        'Agent',
-        'Editor',
-        'Student',
-        'Admin',
-        'External',
-        'Guest'
-      ])
-    );
-  });
-
-  test('memoizes the connection across calls', () => {
-    const { db } = loadDatabase();
-    const a = db.connectToDatabase('TaiGer', 'mongodb://memory/test');
-    const b = db.connectToDatabase('TaiGer');
-    expect(a).toBe(b);
-    expect(mockCreateConnection).toHaveBeenCalledTimes(1);
-  });
-
-  test('falls back to the configured URI when none is passed', () => {
-    const { db } = loadDatabase();
-    db.connectToDatabase('TaiGer');
-    expect(mockCreateConnection).toHaveBeenCalledTimes(1);
-    const uri = mockCreateConnection.mock.calls[0][0];
-    expect(uri).toContain('retryWrites=true');
-  });
-});
-
-describe('disconnectFromDatabase', () => {
-  test('closes the open connection and clears the cache', async () => {
-    const { db, conn } = loadDatabase();
-    db.connectToDatabase('TaiGer', 'mongodb://memory/test');
-
-    await db.disconnectFromDatabase();
-    expect(conn.close).toHaveBeenCalledTimes(1);
-
-    // After closing, a subsequent connect creates a brand new connection.
-    db.connectToDatabase('TaiGer', 'mongodb://memory/test');
-    expect(mockCreateConnection).toHaveBeenCalledTimes(2);
-  });
-
-  test('is a no-op when no connection is open', async () => {
-    const { db, conn } = loadDatabase();
-    await db.disconnectFromDatabase();
-    expect(conn.close).not.toHaveBeenCalled();
-  });
-});
-
 describe('Postgres helpers', () => {
   test('getPostgresDb lazily builds a Pool + mockDrizzle client and memoizes both', () => {
     const { db } = loadDatabase();
@@ -203,14 +129,7 @@ describe('exports', () => {
   test('exposes the expected public surface', () => {
     const { db } = loadDatabase();
     expect(Object.keys(db).sort()).toEqual(
-      [
-        'mongoDb',
-        'getPostgresDb',
-        'closePostgresPool',
-        'tenantDb',
-        'connectToDatabase',
-        'disconnectFromDatabase'
-      ].sort()
+      ['mongoDb', 'getPostgresDb', 'closePostgresPool', 'tenantDb'].sort()
     );
     expect(db.tenantDb).toBe('Tenant');
   });

@@ -70,8 +70,6 @@ jest.mock('../../database', () => {
 
   return {
     getPostgresDb: jest.fn(() => mockPostgresDb),
-    connectToDatabase: jest.fn(),
-    disconnectFromDatabase: jest.fn(async () => {}),
     connections: {},
     mongoDb: jest.fn().mockReturnValue('mongodb://localhost:27017/test'),
     tenantDb: 'Tenant'

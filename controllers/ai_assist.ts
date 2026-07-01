@@ -3,7 +3,7 @@ import { asc, desc, eq, and, isNotNull } from 'drizzle-orm';
 import { ErrorResponse } from '../common/errors';
 // These modules use `export =` (CommonJS), so named ESM imports trigger TS2497.
 // Import the default export and destructure the members instead.
-import databaseModule from '../database';
+import { getPostgresDb } from '../database';
 import { asyncHandler } from '../middlewares/error-handler';
 import {
   aiAssistConversations,
@@ -27,7 +27,6 @@ import {
 } from '../services/ai-assist/sensitivity';
 import { Role } from '@taiger-common/core';
 
-const { getPostgresDb } = databaseModule;
 const {
   normalizeStudentPickerRow,
   requireAccessibleStudent,
@@ -1345,9 +1344,7 @@ const generateReplyDraft = asyncHandler(async (req, res) => {
     // Headers/body already streaming as text — surface a short inline notice
     // rather than a JSON error the text reader could not parse.
     if (streamed === 0) {
-      res.write(
-        'AI reply draft is temporarily unavailable. Please try again.'
-      );
+      res.write('AI reply draft is temporarily unavailable. Please try again.');
     }
   } finally {
     res.end();

@@ -85,4 +85,4 @@ if (isLocal()) {
 router(app);
 app.use(errorHandler);
 
-export = { app };
+export { app };

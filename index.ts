@@ -48,13 +48,6 @@ import {
 import { sweepStaleCommunicationDrafts } from './utils/communicationDraftCleanup';
 // const { UserS3GarbageCollector } = require('./controllers/users');
 
-// process.on('SIGINT', () => {
-//   disconnectFromDatabase(() => {
-//     logger.error('Database disconnected through app termination');
-//     process.exit(0);
-//   });
-// });
-
 // Safety net: log (don't crash on) unhandled promise rejections. Node 15+
 // terminates the process by default, so a single failed fire-and-forget side
 // effect (e.g. a notification email) could take the server down. Individual

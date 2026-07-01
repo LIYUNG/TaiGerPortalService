@@ -1,4 +1,5 @@
 import { Role, is_TaiGer_Student, is_TaiGer_Guest } from '@taiger-common/core';
+import { NextFunction, Request, Response } from 'express';
 
 import { ErrorResponse } from '../common/errors';
 import logger from '../services/logger';
@@ -7,7 +8,7 @@ import DocumentThreadService from '../services/documentthreads';
 import SurveyInputService from '../services/surveyInputs';
 
 export const docThreadMultitenant_filter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const {
       user,
       params: { messagesThreadId }
@@ -39,37 +40,39 @@ export const docThreadMultitenant_filter = asyncHandler(
   }
 );
 
-export const surveyMultitenantFilter = asyncHandler(async (req, res, next) => {
-  const {
-    user,
-    params: { surveyInputId }
-  } = req;
+export const surveyMultitenantFilter = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const {
+      user,
+      params: { surveyInputId }
+    } = req;
 
-  if (user.role === Role.Student || user.role === Role.Guest) {
-    // On POST: where surveyInputId not yet exist, check if created document is assign to the user
-    const surveyDocument = req?.body?.input;
-    if (
-      !surveyInputId &&
-      surveyDocument?.studentId.toString() !== user._id.toString()
-    ) {
-      return next(
-        new ErrorResponse(403, 'Not allowed to create/edit other resource.')
+    if (user.role === Role.Student || user.role === Role.Guest) {
+      // On POST: where surveyInputId not yet exist, check if created document is assign to the user
+      const surveyDocument = req?.body?.input;
+      if (
+        !surveyInputId &&
+        surveyDocument?.studentId.toString() !== user._id.toString()
+      ) {
+        return next(
+          new ErrorResponse(403, 'Not allowed to create/edit other resource.')
+        );
+      }
+
+      // On PUT/DELETE: use surveyInputId to validate the document belongs to the user
+      const surveyInputs = await SurveyInputService.getSurveyInputById(
+        surveyInputId
       );
-    }
+      if (surveyInputs.studentId.toString() !== user._id.toString()) {
+        return next(
+          new ErrorResponse(403, 'Not allowed to access other resource.')
+        );
+      }
 
-    // On PUT/DELETE: use surveyInputId to validate the document belongs to the user
-    const surveyInputs = await SurveyInputService.getSurveyInputById(
-      surveyInputId
-    );
-    if (surveyInputs.studentId.toString() !== user._id.toString()) {
-      return next(
-        new ErrorResponse(403, 'Not allowed to access other resource.')
-      );
+      if (!surveyInputs) {
+        return next(new ErrorResponse(404, 'Survey input not found!'));
+      }
     }
-
-    if (!surveyInputs) {
-      return next(new ErrorResponse(404, 'Survey input not found!'));
-    }
+    next();
   }
-  next();
-});
+);

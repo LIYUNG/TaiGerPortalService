@@ -1,5 +1,5 @@
 import { is_TaiGer_Editor, is_TaiGer_Agent } from '@taiger-common/core';
-
+import { NextFunction, Request, Response } from 'express';
 import { ErrorResponse } from '../common/errors';
 import {
   getPermission,
@@ -8,7 +8,7 @@ import {
 import { asyncHandler } from './error-handler';
 
 export const InnerTaigerMultitenantFilter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const {
       user,
       params: { studentId }

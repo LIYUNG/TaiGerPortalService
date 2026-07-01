@@ -1,9 +1,14 @@
 import { Role, is_TaiGer_Student, is_TaiGer_Guest } from '@taiger-common/core';
+import { NextFunction, Request, Response } from 'express';
 
 import { ErrorResponse } from '../common/errors';
 import ComplaintService from '../services/complaints';
 
-export const multitenant_filter = (req, res, next) => {
+export const multitenant_filter = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const {
     user,
     params: { studentId, user_id }
@@ -21,7 +26,11 @@ export const multitenant_filter = (req, res, next) => {
   next();
 };
 
-export const complaintTicketMultitenant_filter = async (req, res, next) => {
+export const complaintTicketMultitenant_filter = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const {
     user,
     params: { ticketId }

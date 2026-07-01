@@ -1,14 +1,15 @@
+import { Request, Response } from 'express';
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
 import KeywordSetService from '../services/keywordsets';
 
-const getKeywordSets = asyncHandler(async (req, res) => {
+const getKeywordSets = asyncHandler(async (req: Request, res: Response) => {
   const keywordsets = await KeywordSetService.getKeywordSets();
   res.send({ success: true, data: keywordsets });
 });
 
-const createKeywordSet = asyncHandler(async (req, res) => {
+const createKeywordSet = asyncHandler(async (req: Request, res: Response) => {
   const fields = req.body;
   const existed = await KeywordSetService.findKeywordSet({
     keywords: fields.keywords,
@@ -51,7 +52,7 @@ const createKeywordSet = asyncHandler(async (req, res) => {
   res.status(201).send({ success: true, data: newKeywordSet });
 });
 
-const updateKeywordSet = asyncHandler(async (req, res) => {
+const updateKeywordSet = asyncHandler(async (req: Request, res: Response) => {
   const { keywordsSetId } = req.params;
   const fields = req.body;
 
@@ -71,7 +72,7 @@ const updateKeywordSet = asyncHandler(async (req, res) => {
 });
 
 // will also remove the keywordId from the programs who has keywordsetid in one of their requirement
-const deleteKeywordSet = asyncHandler(async (req, res) => {
+const deleteKeywordSet = asyncHandler(async (req: Request, res: Response) => {
   const { keywordsSetId } = req.params;
   try {
     await KeywordSetService.deleteKeywordSet(keywordsSetId);

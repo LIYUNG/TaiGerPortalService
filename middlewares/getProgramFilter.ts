@@ -1,9 +1,14 @@
+import { NextFunction, Request, Response } from 'express';
 import { is_TaiGer_Student } from '@taiger-common/core';
 import { ErrorResponse } from '../common/errors';
 import logger from '../services/logger';
 import ApplicationService from '../services/applications';
 
-const getProgramFilter = async (req, res, next) => {
+const getProgramFilter = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const { user } = req;
   const { programId } = req.params;
   if (is_TaiGer_Student(user)) {

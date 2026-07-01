@@ -1,4 +1,5 @@
 import path from 'path';
+import { Request, Response } from 'express';
 import { is_TaiGer_Student } from '@taiger-common/core';
 import { IAgent, ICourse, IStudent } from '@taiger-common/model';
 
@@ -23,7 +24,7 @@ type PopulatedCourse = Omit<ICourse, 'student_id'> & {
   student_id?: IStudent;
 };
 
-const getMycourses = asyncHandler(async (req, res) => {
+const getMycourses = asyncHandler(async (req: Request, res: Response) => {
   const { studentId } = req.params;
   const student = await StudentService.getStudentByIdLean(studentId);
   if (!student) {
@@ -57,7 +58,7 @@ const getMycourses = asyncHandler(async (req, res) => {
   return res.send({ success: true, data: courses });
 });
 
-const putMycourses = asyncHandler(async (req, res) => {
+const putMycourses = asyncHandler(async (req: Request, res: Response) => {
   const { user } = req;
   const { studentId } = req.params;
   const fields = req.body;
@@ -117,72 +118,79 @@ const putMycourses = asyncHandler(async (req, res) => {
   }
 });
 
-const processTranscript_api_gatway = asyncHandler(async (req, res) => {
-  const {
-    params: { studentId, language },
-    body: { requirementIds, factor }
-  } = req;
+const processTranscript_api_gatway = asyncHandler(
+  async (req: Request, res: Response) => {
+    const {
+      params: { studentId, language },
+      body: { requirementIds, factor }
+    } = req;
 
-  try {
-    const credentialsResult = await getTemporaryCredentials(
-      roleToAssumeForCourseAnalyzerAPIG
-    );
-    const Credentials = credentialsResult?.Credentials;
+    try {
+      const credentialsResult = await getTemporaryCredentials(
+        roleToAssumeForCourseAnalyzerAPIG
+      );
+      const Credentials = credentialsResult?.Credentials;
 
-    const courses = (await CourseService.getCourse({
-      student_id: studentId
-    })) as unknown as PopulatedCourse | null;
+      const courses = (await CourseService.getCourse({
+        student_id: studentId
+      })) as unknown as PopulatedCourse | null;
 
-    if (!courses) {
-      logger.error('no course for this student!');
-      return res.send({ success: true, data: {} });
-    }
-    const stringified_courses = JSON.stringify(courses.table_data_string);
-    const stringified_courses_taiger_guided = JSON.stringify(
-      courses.table_data_string_taiger_guided
-    );
-
-    let student_name = `${courses.student_id?.firstname}_${courses.student_id?.lastname}`;
-    student_name = student_name.replace(/ /g, '-');
-    const response = await callApiGateway(Credentials, apiGatewayUrl, 'POST', {
-      courses: stringified_courses,
-      student_id: studentId,
-      student_name,
-      factor: factor || 1.5,
-      language,
-      courses_taiger_guided: stringified_courses_taiger_guided,
-      requirement_ids: JSON.stringify(requirementIds)
-    } as unknown as null);
-    logger.info('course response', { response });
-    // TODO: update json to S3
-    await uploadJsonToS3(
-      response.result,
-      AWS_S3_BUCKET_NAME,
-      `${studentId}/analysed_transcript_${student_name}.json`
-    );
-
-    await CourseService.updateCourse(
-      { student_id: studentId },
-      {
-        analysis: {
-          isAnalysedV2: true,
-          pathV2: path.join(
-            studentId,
-            `analysed_transcript_${student_name}.json`
-          ),
-          updatedAtV2: new Date()
-        }
+      if (!courses) {
+        logger.error('no course for this student!');
+        return res.send({ success: true, data: {} });
       }
-    );
+      const stringified_courses = JSON.stringify(courses.table_data_string);
+      const stringified_courses_taiger_guided = JSON.stringify(
+        courses.table_data_string_taiger_guided
+      );
 
-    res.status(200).send({ success: true, data: courses.analysis });
-  } catch (err) {
-    logger.info(err as string);
-    throw new ErrorResponse(500, 'Error occurs while analyzing courses');
+      let student_name = `${courses.student_id?.firstname}_${courses.student_id?.lastname}`;
+      student_name = student_name.replace(/ /g, '-');
+      const response = await callApiGateway(
+        Credentials,
+        apiGatewayUrl,
+        'POST',
+        {
+          courses: stringified_courses,
+          student_id: studentId,
+          student_name,
+          factor: factor || 1.5,
+          language,
+          courses_taiger_guided: stringified_courses_taiger_guided,
+          requirement_ids: JSON.stringify(requirementIds)
+        } as unknown as null
+      );
+      logger.info('course response', { response });
+      // TODO: update json to S3
+      await uploadJsonToS3(
+        response.result,
+        AWS_S3_BUCKET_NAME,
+        `${studentId}/analysed_transcript_${student_name}.json`
+      );
+
+      await CourseService.updateCourse(
+        { student_id: studentId },
+        {
+          analysis: {
+            isAnalysedV2: true,
+            pathV2: path.join(
+              studentId,
+              `analysed_transcript_${student_name}.json`
+            ),
+            updatedAtV2: new Date()
+          }
+        }
+      );
+
+      res.status(200).send({ success: true, data: courses.analysis });
+    } catch (err) {
+      logger.info(err as string);
+      throw new ErrorResponse(500, 'Error occurs while analyzing courses');
+    }
   }
-});
+);
 
-const downloadJson = asyncHandler(async (req, res) => {
+const downloadJson = asyncHandler(async (req: Request, res: Response) => {
   const {
     params: { studentId }
   } = req;
@@ -221,7 +229,7 @@ const downloadJson = asyncHandler(async (req, res) => {
   });
 });
 
-const deleteMyCourse = asyncHandler(async (req, res) => {
+const deleteMyCourse = asyncHandler(async (req: Request, res: Response) => {
   const { studentId } = req.params;
   const course = await CourseService.getCourse({
     student_id: studentId

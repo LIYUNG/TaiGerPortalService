@@ -3,14 +3,14 @@ import {
   is_TaiGer_Editor,
   is_TaiGer_Admin
 } from '@taiger-common/core';
-
+import { NextFunction, Request, Response } from 'express';
 import { ErrorResponse } from '../common/errors';
 import logger from '../services/logger';
 import { getPermission } from '../utils/queryFunctions';
 import { asyncHandler } from './error-handler';
 
 export const permission_canAssignEditor_filter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const { user } = req;
     const cachedPermission = await getPermission(req, user);
 
@@ -24,7 +24,7 @@ export const permission_canAssignEditor_filter = asyncHandler(
 );
 
 export const permission_canAssignAgent_filter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const { user } = req;
     const cachedPermission = await getPermission(req, user);
     if (is_TaiGer_Admin(user) || cachedPermission?.canAssignAgents) {
@@ -37,7 +37,7 @@ export const permission_canAssignAgent_filter = asyncHandler(
 );
 
 export const permission_canModifyDocs_filter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const { user } = req;
     if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       const cachedPermission = await getPermission(req, user);
@@ -53,7 +53,7 @@ export const permission_canModifyDocs_filter = asyncHandler(
 );
 
 export const permission_canAccessStudentDatabase_filter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const { user } = req;
     if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       const cachedPermission = await getPermission(req, user);
@@ -71,7 +71,7 @@ export const permission_canAccessStudentDatabase_filter = asyncHandler(
 );
 
 export const permission_canAddUser_filter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const { user } = req;
     if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       const cachedPermission = await getPermission(req, user);
@@ -89,7 +89,7 @@ export const permission_canAddUser_filter = asyncHandler(
 );
 
 export const permission_TaiGerAIRatelimiter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const { user } = req;
     const permission = await getPermission(req, user);
     if (!permission?.taigerAiQuota || permission.taigerAiQuota === 0) {
@@ -102,7 +102,7 @@ export const permission_TaiGerAIRatelimiter = asyncHandler(
 );
 
 export const permission_canUseTaiGerAI_filter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const { user } = req;
     const permission = await getPermission(req, user);
     if (!is_TaiGer_Admin(user) && !permission?.canUseTaiGerAI) {
@@ -114,7 +114,7 @@ export const permission_canUseTaiGerAI_filter = asyncHandler(
 );
 
 export const permission_canModifyProgramList_filter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const { user } = req;
     if (is_TaiGer_Agent(user)) {
       const permission = await getPermission(req, user);
@@ -132,7 +132,7 @@ export const permission_canModifyProgramList_filter = asyncHandler(
 );
 
 export const permission_canModifyTicketList_filter = asyncHandler(
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const { user } = req;
     if (is_TaiGer_Agent(user)) {
       const permission = await getPermission(req, user);
@@ -150,9 +150,9 @@ export const permission_canModifyTicketList_filter = asyncHandler(
 );
 
 export const permission_canModifyComplaintList_filter = async (
-  req,
-  res,
-  next
+  req: Request,
+  res: Response,
+  next: NextFunction
 ) => {
   const { user } = req;
   if (is_TaiGer_Agent(user)) {

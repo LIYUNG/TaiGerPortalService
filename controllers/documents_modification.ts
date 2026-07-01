@@ -53,7 +53,6 @@ import {
   patternMatched,
   userChangesHelperFunction
 } from '../utils/utils_function';
-import { getPermission } from '../utils/queryFunctions';
 import StudentService from '../services/students';
 import DocumentThreadService from '../services/documentthreads';
 import UserService from '../services/users';
@@ -2136,17 +2135,6 @@ const IgnoreMessageInDocumentThread = asyncHandler(async (req, res) => {
   );
   res.status(200).send({ success: true, data: thread });
 });
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _isAdminOrAccessAllChat = async (req: any) => {
-  const { user } = req;
-  const permissions = await getPermission(req, user);
-  return (
-    user.role === Role.Admin ||
-    ((is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) &&
-      permissions?.canAccessAllChat)
-  );
-};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getActiveThreadsByStudent = (student: any) => [

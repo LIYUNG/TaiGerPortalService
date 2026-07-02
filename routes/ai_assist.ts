@@ -59,6 +59,18 @@ router
   .post(GeneralPOSTRequestRateLimiter, cvDraftController.generateCvDraft);
 
 router
+  .route('/students/:studentId/cv-draft/render')
+  .post(GeneralPOSTRequestRateLimiter, cvDraftController.renderCvDraft);
+
+router
+  .route('/students/:studentId/cv-draft/render/download')
+  .post(GeneralPOSTRequestRateLimiter, cvDraftController.downloadCvDraft);
+
+router
+  .route('/threads/:documentsthreadId/cv-draft')
+  .get(GeneralGETRequestRateLimiter, cvDraftController.getSavedCvDraft);
+
+router
   .route('/conversations/:conversationId/messages')
   .post(GeneralPOSTRequestRateLimiter, sendMessage);
 

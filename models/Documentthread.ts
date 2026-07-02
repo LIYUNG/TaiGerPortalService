@@ -7,7 +7,10 @@ import { model } from 'mongoose';
 // Cast: documentThreadsSchema is typed to IDocumentthread, which does not yet
 // declare this field; schema.add() accepts the extra path at runtime.
 documentThreadsSchema.add({
-  additional_information: { type: String, default: '' }
+  additional_information: { type: String, default: '' },
+  // Persisted AI CV draft (CVDraftResult: draft + validation + meta) so it
+  // survives a page refresh until the editor renders/discards it.
+  cv_draft: { type: Object }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any);
 

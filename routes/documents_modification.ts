@@ -53,6 +53,7 @@ import {
   getMyStudentsThreads,
   forwardStudentDocuments
 } from '../controllers/documents_modification';
+import cvDraftController from '../controllers/cv_draft';
 import {
   docThreadMultitenant_filter,
   surveyMultitenantFilter
@@ -213,6 +214,16 @@ router
     permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
     docThreadMultitenant_filter,
     putThreadFavorite
+  );
+
+router
+  .route('/:messagesThreadId/additional-information')
+  .put(
+    filter_archiv_user,
+    putMessagesRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Editor, Role.Agent, Role.Student),
+    docThreadMultitenant_filter,
+    cvDraftController.updateAdditionalInformation
   );
 
 router

@@ -138,7 +138,7 @@ const renderCvDraft = asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  const buffer = renderCVDraftDocx(draft, photo);
+  const buffer = await renderCVDraftDocx(draft, photo);
 
   const studentName = [student.firstname, student.lastname]
     .filter(Boolean)
@@ -233,7 +233,7 @@ const downloadCvDraft = asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  const buffer = renderCVDraftDocx(draft, photo);
+  const buffer = await renderCVDraftDocx(draft, photo);
   const studentName = [student?.firstname, student?.lastname]
     .filter(Boolean)
     .join('_')

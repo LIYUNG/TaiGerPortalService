@@ -48,6 +48,8 @@
     "crypto": "^1.0.1",
     "date-fns": "^4.1.0",
     "debug": "~2.6.9",
+    "docxtemplater": "^3.50.0",
+    "docxtemplater-image-module-free": "^1.1.1",
     "dotenv": "^10.0.0",
     "drizzle-orm": "^0.44.2",
     "ejson": "^2.2.3",
@@ -83,6 +85,7 @@
     "passport-local": "^1.0.0",
     "pdf-parse": "^1.1.1",
     "pg": "^8.13.1",
+    "pizzip": "^3.1.7",
     "query-string": "^7.0.1",
     "uuid": "^9.0.0",
     "validator": "^13.9.0"

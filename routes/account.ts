@@ -34,7 +34,9 @@ import {
   updateApplicationPreferenceSkill,
   updatePersonalData,
   updateCredentials,
-  updateOfficehours
+  updateOfficehours,
+  getCvProfile,
+  updateCvProfile
 } from '../controllers/account';
 
 import { validateStudentId } from '../common/validation';
@@ -165,6 +167,41 @@ router
     multitenant_filter,
     InnerTaigerMultitenantFilter,
     updateLanguageSkill
+  );
+
+router
+  .route('/survey/cv-profile/:studentId')
+  .get(
+    validateStudentId,
+    filter_archiv_user,
+    GeneralGETRequestRateLimiter,
+    permit(
+      Role.Admin,
+      Role.Manager,
+      Role.Agent,
+      Role.Editor,
+      Role.Student,
+      Role.Guest
+    ),
+    multitenant_filter,
+    InnerTaigerMultitenantFilter,
+    getCvProfile
+  )
+  .post(
+    validateStudentId,
+    filter_archiv_user,
+    updatePersonalInformationRateLimiter,
+    permit(
+      Role.Admin,
+      Role.Manager,
+      Role.Agent,
+      Role.Editor,
+      Role.Student,
+      Role.Guest
+    ),
+    multitenant_filter,
+    InnerTaigerMultitenantFilter,
+    updateCvProfile
   );
 
 router

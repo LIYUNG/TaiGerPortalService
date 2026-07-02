@@ -412,3 +412,65 @@ export const updatePersonalData = asyncHandler(async (req, res) => {
     logger.error(err as string);
   }
 });
+
+
+// --- CV profile (reusable structured fields consumed by the CV draft) ---
+// These live on the student User document so they are reusable across all CV/
+// ML/RL documents and can be edited from either the CV thread or the student
+// survey tab — both surfaces read/write the same data.
+const CV_PROFILE_KEYS = [
+  'personal_information',
+  'professional_experience',
+  'awards',
+  'skills',
+  'interests'
+] as const;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pickCvProfile = (u: Record<string, any>) => ({
+  personal_information: u.personal_information ?? {},
+  professional_experience: u.professional_experience ?? [],
+  awards: u.awards ?? [],
+  skills: u.skills ?? {},
+  interests: u.interests ?? {}
+});
+
+export const getCvProfile = asyncHandler(async (req, res) => {
+  const studentId = String(req.params.studentId);
+  const student = (await UserService.getUserById(
+    studentId
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  )) as unknown as Record<string, any> | null;
+  if (!student) {
+    throw new ErrorResponse(404, 'Student not found');
+  }
+  return res
+    .status(200)
+    .send({ success: true, data: pickCvProfile(student) });
+});
+
+export const updateCvProfile = asyncHandler(async (req, res) => {
+  const studentId = String(req.params.studentId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body = (req.body || {}) as Record<string, any>;
+  const update: Record<string, unknown> = {};
+  CV_PROFILE_KEYS.forEach((k) => {
+    if (body[k] !== undefined) {
+      update[k] = body[k];
+    }
+  });
+
+  const updated = await UserService.updateUserDoc(
+    studentId,
+    update as Parameters<typeof UserService.updateUserDoc>[1],
+    { new: true }
+  );
+  if (!updated) {
+    throw new ErrorResponse(404, 'Student not found');
+  }
+  return res.status(200).send({
+    success: true,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: pickCvProfile(updated as unknown as Record<string, any>)
+  });
+});

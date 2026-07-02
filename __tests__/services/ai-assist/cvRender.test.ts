@@ -18,13 +18,12 @@ jest.mock('docxtemplater', () =>
     return inst;
   })
 );
-jest.mock('pizzip', () => jest.fn().mockImplementation((buf) => ({ _buf: buf })));
+jest.mock('pizzip', () =>
+  jest.fn().mockImplementation((buf) => ({ _buf: buf }))
+);
 jest.mock('docxtemplater-image-module-free', () =>
   jest.fn().mockImplementation((o) => ({ _image: true, ...o }))
 );
-jest.mock('../../../services/ai-assist/cv/cvTemplate', () => ({
-  CV_TEMPLATE_BASE64: Buffer.from('template').toString('base64')
-}));
 
 import { renderCVDraftDocx } from '../../../services/ai-assist/cv/render';
 import { emptyCVDraft } from '../../../services/ai-assist/cv/types';

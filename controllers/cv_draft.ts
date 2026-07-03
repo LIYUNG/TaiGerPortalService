@@ -32,6 +32,25 @@ const draftHash = (draft: CVDraft): string =>
 const cvDraftKey = (studentId: string, documentsthreadId: string): string =>
   `${studentId}/${documentsthreadId}/cv_ai_draft.docx`;
 
+// Keep the last N draft snapshots on the thread so an editor can see what a
+// regenerate/edit changed and undo it. JSON only — this does NOT create extra
+// stored files and is unrelated to the single stable working-docx key.
+const HISTORY_LIMIT = 5;
+const pushDraftHistory = (existing: Loose | null | undefined): Loose[] => {
+  if (!existing?.draft) {
+    return (existing?.history as Loose[]) || [];
+  }
+  const snapshot = {
+    draft: existing.draft,
+    meta: existing.meta,
+    savedAt: new Date().toISOString()
+  };
+  return [snapshot, ...((existing.history as Loose[]) || [])].slice(
+    0,
+    HISTORY_LIMIT
+  );
+};
+
 // True when the student has an actually-uploaded passport photo: a profile doc
 // named Passport_Photo that has a stored file path.
 const hasPassportPhoto = (student: Loose | null | undefined): boolean =>
@@ -65,11 +84,13 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
 
   // Per-document free-text context (student + editor editable) lives on the thread.
   let additionalInformation = '';
+  let existingCvDraft: Loose | null = null;
   if (documentsthreadId) {
     const thread = (await DocumentThreadService.getThreadByIdLean(
       documentsthreadId
     )) as Loose | null;
     additionalInformation = thread?.additional_information || '';
+    existingCvDraft = (thread?.cv_draft as Loose) || null;
   }
 
   const result = await createCVDraft({
@@ -93,13 +114,16 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
   // for a non-result is unfair. Return it so the UI can show a retry state, but
   // neither persist nor charge.
   const parseFailed = Boolean(result.meta.parseError);
+  // Snapshot the outgoing (previous) draft into history before overwriting it.
+  const history = parseFailed ? [] : pushDraftHistory(existingCvDraft);
+  const payloadWithHistory = { ...payload, history };
 
   if (documentsthreadId && !parseFailed) {
     // Persist the generated draft on the thread so a page refresh restores it.
     // This also drops any previous `rendered` metadata, so a freshly generated
     // draft is correctly treated as not-yet-rendered.
     await DocumentThreadService.updateThreadById(documentsthreadId, {
-      cv_draft: payload
+      cv_draft: payloadWithHistory
     });
   }
 
@@ -107,7 +131,9 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
     await PermissionService.decrementTaigerAiQuota(user._id);
   }
 
-  return res.status(200).send({ success: true, data: payload });
+  return res
+    .status(200)
+    .send({ success: true, data: payloadWithHistory });
 });
 
 // PUT /api/document-threads/:messagesThreadId/additional-information
@@ -290,6 +316,35 @@ const attachCvDraftToThread = asyncHandler(
       );
     }
 
+    // Snapshot-copy the working docx to a message-scoped key. The stable working
+    // key is overwritten on the next render, so pointing a historical message at
+    // it would silently rewrite the thread's audit trail. Copying keeps the
+    // attached file immutable.
+    let attachKey = String(rendered.key);
+    try {
+      const bytes = await getS3Object(AWS_S3_BUCKET_NAME, String(rendered.key));
+      if (!bytes) {
+        throw new Error('empty draft file');
+      }
+      const snapshotKey = String(rendered.key).replace(
+        /\.docx$/i,
+        `_${Date.now()}.docx`
+      );
+      await putS3Object({
+        bucketName: AWS_S3_BUCKET_NAME,
+        key: snapshotKey,
+        Body: Buffer.from(bytes as Uint8Array),
+        ContentType:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      });
+      attachKey = snapshotKey;
+    } catch {
+      throw new ErrorResponse(
+        500,
+        'Could not snapshot the CV draft file for attaching. Please try again.'
+      );
+    }
+
     const noteBlocks = JSON.stringify({
       blocks: [{ type: 'paragraph', data: { text: String(message || '') } }]
     });
@@ -297,14 +352,14 @@ const attachCvDraftToThread = asyncHandler(
       user_id: user?._id,
       message: noteBlocks,
       createdAt: new Date(),
-      file: [{ name: rendered.name, path: rendered.key }]
+      file: [{ name: rendered.name, path: attachKey }]
     });
     thread.updatedAt = new Date();
     await thread.save();
 
     return res.status(200).send({
       success: true,
-      data: { name: rendered.name, path: rendered.key }
+      data: { name: rendered.name, path: attachKey }
     });
   }
 );
@@ -494,7 +549,9 @@ const updateCvDraft = asyncHandler(async (req: Request, res: Response) => {
       ...(existing.meta || {}),
       degree: effectiveDegree,
       editedAt: new Date().toISOString()
-    }
+    },
+    // Snapshot the pre-edit draft so the editor can undo the edit.
+    history: pushDraftHistory(existing)
   };
   delete payload.rendered;
 

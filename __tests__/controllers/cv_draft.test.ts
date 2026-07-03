@@ -96,6 +96,32 @@ describe('generateCvDraft', () => {
       )
     ).rejects.toMatchObject({ statusCode: 404 });
   });
+
+  it('snapshots the previous draft into history on regenerate', async () => {
+    asMock(StudentService.getStudentByIdLean).mockResolvedValue({ _id: 's1' });
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
+      additional_information: '',
+      cv_draft: { draft: { personal: { fullName: 'OLD' } }, meta: {} }
+    });
+    asMock(cvService.createCVDraft).mockResolvedValue({
+      draft: SAMPLE_DRAFT,
+      meta: {}
+    });
+    const res = mockRes();
+    await cvDraftController.generateCvDraft(
+      mockReq({
+        params: { studentId: 's1' },
+        body: { documentsthreadId: 't1' },
+        user
+      }),
+      res
+    );
+    const persisted = asMock(DocumentThreadService.updateThreadById).mock
+      .calls[0][1].cv_draft;
+    expect(persisted.history[0].draft).toEqual({
+      personal: { fullName: 'OLD' }
+    });
+  });
 });
 
 describe('updateAdditionalInformation', () => {
@@ -229,6 +255,7 @@ describe('attachCvDraftToThread', () => {
         }
       }
     });
+    asMock(getS3Object).mockResolvedValue(new Uint8Array([1, 2, 3]));
     const res = mockRes();
     await cvDraftController.attachCvDraftToThread(
       mockReq({
@@ -240,6 +267,12 @@ describe('attachCvDraftToThread', () => {
     );
     expect(messages).toHaveLength(1);
     expect(save).toHaveBeenCalled();
+    // The attached file is a message-scoped SNAPSHOT copy, not the mutable
+    // stable working key (so thread history stays immutable).
+    expect(putS3Object).toHaveBeenCalled();
+    const attachedPath = (messages[0] as { file: { path: string }[] }).file[0]
+      .path;
+    expect(attachedPath).toMatch(/cv_ai_draft_\d+\.docx$/);
     expect(res.send).toHaveBeenCalledWith(
       expect.objectContaining({ success: true })
     );

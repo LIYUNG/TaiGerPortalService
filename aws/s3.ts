@@ -15,7 +15,13 @@ import {
 import logger from '../services/logger';
 import { AWS_KEY_CONFIG } from './constants';
 
-export const s3Client = new S3Client(AWS_KEY_CONFIG);
+// `followRegionRedirects` lets a single client transparently read buckets that
+// live in a different region than AWS_REGION (e.g. the public template bucket).
+// Without it, cross-region GetObject fails with S3 "PermanentRedirect".
+export const s3Client = new S3Client({
+  ...AWS_KEY_CONFIG,
+  followRegionRedirects: true
+});
 
 export const putS3Object = async ({ bucketName, key, Body, ContentType }) => {
   const client = new S3Client({});

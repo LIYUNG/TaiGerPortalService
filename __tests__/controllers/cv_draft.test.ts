@@ -3,6 +3,8 @@
 // asyncHandler-wrapped and take (req, res); rejections surface via the awaited
 // promise (asyncHandler forwards to `next`, which is undefined here).
 
+import crypto from 'crypto';
+
 jest.mock('../../services/students');
 jest.mock('../../services/documentthreads');
 jest.mock('../../services/permissions');
@@ -24,6 +26,8 @@ import { getS3Object, putS3Object } from '../../aws/s3';
 
 const asMock = (fn: unknown) => fn as jest.Mock;
 const user = { _id: { toString: () => 'u1' } };
+const hashOf = (d: unknown) =>
+  crypto.createHash('sha256').update(JSON.stringify(d)).digest('hex');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockRes = (): any => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -110,17 +114,62 @@ describe('updateAdditionalInformation', () => {
 });
 
 describe('renderCvDraft', () => {
-  it('renders, embeds the photo, uploads to S3 and attaches to the thread', async () => {
+  it('renders to the stable key, persists render metadata, and does NOT post to the thread', async () => {
     asMock(StudentService.getStudentByIdLean).mockResolvedValue({
       firstname: 'Wei',
       lastname: 'Chen',
       profile: [{ name: 'Passport_Photo', path: 's1/photo.jpg' }]
     });
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
+      cv_draft: {}
+    });
     asMock(getS3Object).mockResolvedValue(new Uint8Array([1, 2, 3]));
-    const save = jest.fn().mockResolvedValue(undefined);
-    asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
-      messages: [],
-      save
+    const res = mockRes();
+    await cvDraftController.renderCvDraft(
+      mockReq({
+        params: { studentId: 's1' },
+        body: { draft: SAMPLE_DRAFT, documentsthreadId: 't1' },
+        user
+      }),
+      res
+    );
+    expect(renderCVDraftDocx).toHaveBeenCalled();
+    expect(putS3Object).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 's1/t1/cv_ai_draft.docx' })
+    );
+    // Metadata persisted, but no message pushed to the thread.
+    expect(DocumentThreadService.updateThreadById).toHaveBeenCalledWith(
+      't1',
+      expect.objectContaining({
+        cv_draft: expect.objectContaining({
+          rendered: expect.objectContaining({
+            key: 's1/t1/cv_ai_draft.docx',
+            hash: hashOf(SAMPLE_DRAFT)
+          })
+        })
+      })
+    );
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ path: 's1/t1/cv_ai_draft.docx' })
+      })
+    );
+  });
+
+  it('reuses the existing render when the draft is unchanged (no re-render)', async () => {
+    asMock(StudentService.getStudentByIdLean).mockResolvedValue({
+      firstname: 'A',
+      profile: []
+    });
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
+      cv_draft: {
+        rendered: {
+          hash: hashOf(SAMPLE_DRAFT),
+          key: 's1/t1/cv_ai_draft.docx',
+          name: 'A_AI_first_draft.docx'
+        }
+      }
     });
     const res = mockRes();
     await cvDraftController.renderCvDraft(
@@ -131,12 +180,13 @@ describe('renderCvDraft', () => {
       }),
       res
     );
-    expect(getS3Object).toHaveBeenCalledWith(expect.anything(), 's1/photo.jpg');
-    expect(renderCVDraftDocx).toHaveBeenCalled();
-    expect(putS3Object).toHaveBeenCalled();
-    expect(save).toHaveBeenCalled();
+    expect(renderCVDraftDocx).not.toHaveBeenCalled();
+    expect(putS3Object).not.toHaveBeenCalled();
     expect(res.send).toHaveBeenCalledWith(
-      expect.objectContaining({ success: true })
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ reused: true })
+      })
     );
   });
 
@@ -148,26 +198,88 @@ describe('renderCvDraft', () => {
       )
     ).rejects.toMatchObject({ statusCode: 400 });
   });
+});
 
-  it('renders without a photo when the student has none', async () => {
-    asMock(StudentService.getStudentByIdLean).mockResolvedValue({
-      firstname: 'A',
-      profile: []
-    });
+describe('attachCvDraftToThread', () => {
+  it('attaches the rendered file with the editor message when up to date', async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    const messages: unknown[] = [];
     asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
-      messages: [],
-      save: jest.fn().mockResolvedValue(undefined)
+      messages,
+      save,
+      cv_draft: {
+        rendered: {
+          hash: hashOf(SAMPLE_DRAFT),
+          key: 's1/t1/cv_ai_draft.docx',
+          name: 'A_AI_first_draft.docx'
+        }
+      }
     });
-    await cvDraftController.renderCvDraft(
+    const res = mockRes();
+    await cvDraftController.attachCvDraftToThread(
       mockReq({
-        params: { studentId: 's1' },
-        body: { draft: SAMPLE_DRAFT, documentsthreadId: 't1' },
+        params: { documentsthreadId: 't1' },
+        body: { draft: SAMPLE_DRAFT, message: 'Please review your CV draft.' },
         user
       }),
-      mockRes()
+      res
     );
-    expect(getS3Object).not.toHaveBeenCalled();
-    expect(renderCVDraftDocx).toHaveBeenCalledWith(SAMPLE_DRAFT, undefined);
+    expect(messages).toHaveLength(1);
+    expect(save).toHaveBeenCalled();
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true })
+    );
+  });
+
+  it('409s when the draft changed since it was rendered (stale)', async () => {
+    asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
+      messages: [],
+      save: jest.fn(),
+      cv_draft: {
+        rendered: {
+          hash: 'OLD_HASH',
+          key: 's1/t1/cv_ai_draft.docx',
+          name: 'A_AI_first_draft.docx'
+        }
+      }
+    });
+    await expect(
+      cvDraftController.attachCvDraftToThread(
+        mockReq({
+          params: { documentsthreadId: 't1' },
+          body: { draft: SAMPLE_DRAFT, message: 'hi' },
+          user
+        }),
+        mockRes()
+      )
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('409s when nothing has been rendered yet', async () => {
+    asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
+      messages: [],
+      save: jest.fn(),
+      cv_draft: {}
+    });
+    await expect(
+      cvDraftController.attachCvDraftToThread(
+        mockReq({
+          params: { documentsthreadId: 't1' },
+          body: { draft: SAMPLE_DRAFT, message: 'hi' },
+          user
+        }),
+        mockRes()
+      )
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('400s without a draft', async () => {
+    await expect(
+      cvDraftController.attachCvDraftToThread(
+        mockReq({ params: { documentsthreadId: 't1' }, body: { message: 'hi' }, user }),
+        mockRes()
+      )
+    ).rejects.toMatchObject({ statusCode: 400 });
   });
 });
 

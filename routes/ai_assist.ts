@@ -88,6 +88,17 @@ router
   .get(GeneralGETRequestRateLimiter, cvDraftController.getSavedCvDraft);
 
 router
+  .route('/students/:studentId/cv-photo')
+  .get(GeneralGETRequestRateLimiter, cvDraftController.getCvPassportPhoto);
+
+router
+  .route('/threads/:documentsthreadId/cv-draft/attach')
+  .post(
+    GeneralPOSTRequestRateLimiter,
+    cvDraftController.attachCvDraftToThread
+  );
+
+router
   .route('/conversations/:conversationId/messages')
   .post(GeneralPOSTRequestRateLimiter, sendMessage);
 

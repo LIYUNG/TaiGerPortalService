@@ -107,7 +107,22 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
   // Whether the student has a passport photo on file — surfaced in the AI Draft
   // tab coverage panel and embedded into the .docx at render time.
   const hasPhoto = hasPassportPhoto(student as Loose);
-  const payload = { ...result, hasPhoto };
+  // Provenance (which editor notes fed this draft) + an input fingerprint so a
+  // later profile/photo/context change can be flagged as stale (W3/W6).
+  const inputsHash = crypto
+    .createHash('sha256')
+    .update(String(additionalInformation || ''))
+    .digest('hex');
+  const payload = {
+    ...result,
+    hasPhoto,
+    meta: {
+      ...result.meta,
+      editorNotes: String(editorRequirements || ''),
+      inputsHash,
+      hadPhoto: hasPhoto
+    }
+  };
 
   // A parse failure yields an EMPTY draft. Persisting it would clobber a good
   // saved draft (e.g. an editor regenerating a near-final one), and billing quota
@@ -402,11 +417,28 @@ const getSavedCvDraft = asyncHandler(async (req: Request, res: Response) => {
       rendered?.key && rendered?.hash === draftHash(saved.draft as CVDraft)
     );
 
+    // Have the generation inputs changed since this draft was made? Compare the
+    // stored fingerprint (thread additional_information + whether a photo existed)
+    // to the current state, so the UI can prompt a regenerate (W3).
+    const currentHasPhoto = hasPassportPhoto(student);
+    const savedMeta = (saved.meta as Loose) || {};
+    const currentInputsHash = crypto
+      .createHash('sha256')
+      .update(String(thread.additional_information || ''))
+      .digest('hex');
+    const inputsChanged = Boolean(
+      (savedMeta.inputsHash !== undefined &&
+        savedMeta.inputsHash !== currentInputsHash) ||
+        (savedMeta.hadPhoto !== undefined &&
+          savedMeta.hadPhoto !== currentHasPhoto)
+    );
+
     return res.status(200).send({
       success: true,
       data: {
         ...saved,
-        hasPhoto: hasPassportPhoto(student),
+        hasPhoto: currentHasPhoto,
+        inputsChanged,
         renderedCurrent,
         rendered: renderedCurrent
           ? {

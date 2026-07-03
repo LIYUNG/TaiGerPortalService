@@ -84,6 +84,10 @@ router
   );
 
 router
+  .route('/students/:studentId/cv-draft/readiness')
+  .get(GeneralGETRequestRateLimiter, cvDraftController.getCvReadiness);
+
+router
   .route('/students/:studentId/cv-draft/validate')
   .post(GeneralPOSTRequestRateLimiter, cvDraftController.validateCvDraft);
 

@@ -7,6 +7,7 @@ import StudentService from '../services/students';
 import DocumentThreadService from '../services/documentthreads';
 import PermissionService from '../services/permissions';
 import cvDraftService from '../services/ai-assist/cv';
+import { buildCVReadiness } from '../services/ai-assist/cv/aggregator';
 import {
   renderCVDraftDocx,
   getCvTemplateVersion
@@ -512,11 +513,31 @@ const updateCvDraft = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+// GET /api/ai-assist/students/:studentId/cv-draft/readiness
+// A pre-generation readiness snapshot computed from the student profile (shared
+// aggregator code), so the AI Draft tab can show what's already fillable BEFORE
+// spending an AI credit — fewer wasted generations and regenerate loops.
+const getCvReadiness = asyncHandler(async (req: Request, res: Response) => {
+  const studentId = String(req.params.studentId);
+  const student = (await StudentService.getStudentByIdLean(
+    studentId
+  )) as Loose | null;
+  if (!student) {
+    throw new ErrorResponse(404, 'Student not found');
+  }
+  const readiness = [
+    { key: 'photo', ok: hasPassportPhoto(student) },
+    ...buildCVReadiness(student)
+  ];
+  return res.status(200).send({ success: true, data: { readiness } });
+});
+
 export = {
   generateCvDraft,
   updateAdditionalInformation,
   validateCvDraft,
   updateCvDraft,
+  getCvReadiness,
   renderCvDraft,
   attachCvDraftToThread,
   getCvPassportPhoto,

@@ -441,6 +441,36 @@ describe('updateCvDraft', () => {
   });
 });
 
+describe('getCvReadiness', () => {
+  it('returns a profile readiness snapshot (no LLM, no persistence)', async () => {
+    asMock(StudentService.getStudentByIdLean).mockResolvedValue({
+      firstname: 'A',
+      academic_background: {}
+    });
+    const res = mockRes();
+    await cvDraftController.getCvReadiness(
+      mockReq({ params: { studentId: 's1' } }),
+      res
+    );
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ readiness: expect.any(Array) })
+      })
+    );
+  });
+
+  it('404s when the student is missing', async () => {
+    asMock(StudentService.getStudentByIdLean).mockResolvedValue(null);
+    await expect(
+      cvDraftController.getCvReadiness(
+        mockReq({ params: { studentId: 'x' } }),
+        mockRes()
+      )
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
 describe('downloadCvDraft', () => {
   it('streams the docx with attachment headers', async () => {
     asMock(StudentService.getStudentByIdLean).mockResolvedValue({

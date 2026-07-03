@@ -320,6 +320,55 @@ describe('attachCvDraftToThread', () => {
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
+  it('409s when the thread is marked final', async () => {
+    asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
+      messages: [],
+      save: jest.fn(),
+      isFinalVersion: true,
+      cv_draft: {
+        rendered: {
+          hash: hashOf(SAMPLE_DRAFT),
+          key: 's1/t1/cv_ai_draft.docx',
+          name: 'A_AI_first_draft.docx'
+        }
+      }
+    });
+    await expect(
+      cvDraftController.attachCvDraftToThread(
+        mockReq({
+          params: { documentsthreadId: 't1' },
+          body: { draft: SAMPLE_DRAFT, message: 'hi' },
+          user
+        }),
+        mockRes()
+      )
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('400s when the attach message is empty', async () => {
+    asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
+      messages: [],
+      save: jest.fn(),
+      cv_draft: {
+        rendered: {
+          hash: hashOf(SAMPLE_DRAFT),
+          key: 's1/t1/cv_ai_draft.docx',
+          name: 'A_AI_first_draft.docx'
+        }
+      }
+    });
+    await expect(
+      cvDraftController.attachCvDraftToThread(
+        mockReq({
+          params: { documentsthreadId: 't1' },
+          body: { draft: SAMPLE_DRAFT, message: '   ' },
+          user
+        }),
+        mockRes()
+      )
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
   it('400s without a draft', async () => {
     await expect(
       cvDraftController.attachCvDraftToThread(

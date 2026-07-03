@@ -69,7 +69,7 @@ const loadTemplateContent = async (): Promise<{
   );
   if (!template?.path) {
     throw new Error(
-      `CV template '${CV_TEMPLATE_CATEGORY}' not found. Upload it via the template admin flow.`
+      'The CV draft template has not been set up yet. Please ask an administrator to upload it in the template admin area.'
     );
   }
   const fileKey = templateFileKey(template.path);

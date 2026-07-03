@@ -315,6 +315,16 @@ const attachCvDraftToThread = asyncHandler(
         'CV_DRAFT_STALE'
       );
     }
+    if (thread.isFinalVersion) {
+      throw new ErrorResponse(
+        409,
+        'This thread is marked as final. Reopen it before attaching a new CV draft.',
+        'CV_DRAFT_THREAD_FINAL'
+      );
+    }
+    if (!String(message || '').trim()) {
+      throw new ErrorResponse(400, 'A message is required to attach the draft.');
+    }
 
     // Snapshot-copy the working docx to a message-scoped key. The stable working
     // key is overwritten on the next render, so pointing a historical message at

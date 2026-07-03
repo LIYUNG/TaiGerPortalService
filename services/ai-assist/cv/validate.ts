@@ -21,8 +21,11 @@ const LANGUAGE_LEVELS = [
 ];
 const COMPUTER_LEVELS = ['very good knowledge', 'good knowledge', 'basic knowledge'];
 
-// Matches Chinese / Japanese / fullwidth characters — used for the English-only rule.
-const CJK = /[　-〿㐀-䶿一-鿿豈-﫿＀-￯]/;
+// Matches CJK (Chinese/Japanese), Hangul, kana and fullwidth forms — used for the
+// English-only rule. Accented Latin (ü, é, ñ, ...) is intentionally NOT flagged, as
+// it is legitimate in European names/place names.
+const CJK =
+  /[\u3000-\u303F\u3040-\u30FF\u3130-\u318F\u1100-\u11FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7A3\uF900-\uFAFF\uFF00-\uFFEF]/;
 
 const ONGOING = ['present', 'current', 'now', 'jetzt', 'till now', 'til now'];
 
@@ -30,6 +33,10 @@ interface Interval {
   start: number; // months since year 0 (year*12 + month)
   end: number;
   label: string;
+  // Month-level precision. Bare-year inputs are coarse (snapped to January), so a
+  // gap next to a coarse endpoint must be a full year before we flag it.
+  startPrecise: boolean;
+  endPrecise: boolean;
 }
 
 const MONTHS: Record<string, number> = {
@@ -38,25 +45,31 @@ const MONTHS: Record<string, number> = {
 };
 
 // Parse "MM/YYYY", "YYYY", "Mon YYYY" -> months since year 0; null if unknown.
-const parsePoint = (raw: string, nowMonths: number): number | null => {
+const parsePoint = (
+  raw: string,
+  nowMonths: number
+): { months: number; precise: boolean } | null => {
   const t = (raw || '').trim().toLowerCase();
   if (!t) {
     return null;
   }
   if (ONGOING.some((o) => t.includes(o))) {
-    return nowMonths;
+    return { months: nowMonths, precise: true };
   }
   let m = t.match(/(\d{1,2})\s*\/\s*(\d{4})/); // MM/YYYY
   if (m) {
-    return parseInt(m[2], 10) * 12 + parseInt(m[1], 10);
+    return {
+      months: parseInt(m[2], 10) * 12 + parseInt(m[1], 10),
+      precise: true
+    };
   }
   m = t.match(/([a-z]{3})[a-z]*\.?\s*(\d{4})/); // Mon YYYY
   if (m && MONTHS[m[1]]) {
-    return parseInt(m[2], 10) * 12 + MONTHS[m[1]];
+    return { months: parseInt(m[2], 10) * 12 + MONTHS[m[1]], precise: true };
   }
   m = t.match(/(\d{4})/); // bare year
   if (m) {
-    return parseInt(m[1], 10) * 12 + 1;
+    return { months: parseInt(m[1], 10) * 12 + 1, precise: false };
   }
   return null;
 };
@@ -65,14 +78,28 @@ const parseInterval = (period: string, nowMonths: number): Interval | null => {
   const parts = (period || '').split(/[–—-]/); // en/em dash or hyphen
   if (parts.length < 2) {
     const single = parsePoint(period, nowMonths);
-    return single === null ? null : { start: single, end: single, label: period };
+    return single === null
+      ? null
+      : {
+          start: single.months,
+          end: single.months,
+          label: period,
+          startPrecise: single.precise,
+          endPrecise: single.precise
+        };
   }
   const start = parsePoint(parts[0], nowMonths);
   const end = parsePoint(parts.slice(1).join('-'), nowMonths);
   if (start === null || end === null) {
     return null;
   }
-  return { start, end, label: period };
+  return {
+    start: start.months,
+    end: end.months,
+    label: period,
+    startPrecise: start.precise,
+    endPrecise: end.precise
+  };
 };
 
 const ym = (months: number): string => {
@@ -193,12 +220,21 @@ export const validateCVDraft = (
     .sort((a, b) => a.start - b.start);
 
   let coveredUntil = -Infinity;
+  let coveredUntilPrecise = true;
   intervals.forEach((iv) => {
-    if (coveredUntil !== -Infinity && iv.start - coveredUntil > 1) {
-      add('timeline', 'warning', 'gap',
-        `Possible gap between ${ym(coveredUntil)} and ${ym(iv.start)} — every period must be covered or explained.`);
+    if (coveredUntil !== -Infinity) {
+      // If either boundary is year-only, require a full year before flagging —
+      // bare years snap to January and otherwise manufacture spurious gaps.
+      const threshold = coveredUntilPrecise && iv.startPrecise ? 1 : 12;
+      if (iv.start - coveredUntil > threshold) {
+        add('timeline', 'warning', 'gap',
+          `Possible gap between ${ym(coveredUntil)} and ${ym(iv.start)} — every period must be covered or explained.`);
+      }
     }
-    coveredUntil = Math.max(coveredUntil, iv.end);
+    if (iv.end >= coveredUntil) {
+      coveredUntil = iv.end;
+      coveredUntilPrecise = iv.endPrecise;
+    }
   });
 
   // --- English-only ---

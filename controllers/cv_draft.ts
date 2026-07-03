@@ -12,6 +12,7 @@ import {
   getCvTemplateVersion
 } from '../services/ai-assist/cv/render';
 import { CVDraft } from '../services/ai-assist/cv/types';
+import { validateCVDraft } from '../services/ai-assist/cv/validate';
 import { getS3Object, putS3Object } from '../aws/s3';
 import { AWS_S3_BUCKET_NAME } from '../config';
 
@@ -436,9 +437,86 @@ const getCvPassportPhoto = asyncHandler(async (req: Request, res: Response) => {
   return res.end(buffer);
 });
 
+// POST /api/ai-assist/students/:studentId/cv-draft/validate
+// Body: { draft: CVDraft, fileType?, degree? }
+// Re-runs the deterministic checklist over an EDITOR-EDITED draft (no LLM, no
+// persistence). Lets the AI Draft tab keep the checklist honest after inline
+// edits — an edited draft must never show green while carrying a bad value.
+const validateCvDraft = asyncHandler(async (req: Request, res: Response) => {
+  const {
+    draft,
+    fileType = 'CV',
+    degree
+  } = (req.body || {}) as { draft?: CVDraft; fileType?: string; degree?: string };
+  if (!draft) {
+    throw new ErrorResponse(400, 'Missing draft');
+  }
+  const validation = validateCVDraft(draft, fileType, degree);
+  return res.status(200).send({ success: true, data: { validation } });
+});
+
+// PUT /api/ai-assist/threads/:documentsthreadId/cv-draft
+// Body: { draft: CVDraft, degree? }
+// Persists editor inline edits to the reviewed draft. Re-validates deterministically
+// and DROPS any previous `rendered` metadata, so the working .docx must be
+// re-created from the edited draft before it can be attached (keeps the stale
+// guard honest). Preserves meta so provenance/model survive the edit.
+const updateCvDraft = asyncHandler(async (req: Request, res: Response) => {
+  const documentsthreadId = String(req.params.documentsthreadId);
+  const { draft, degree } = (req.body || {}) as {
+    draft?: CVDraft;
+    degree?: string;
+  };
+  if (!draft) {
+    throw new ErrorResponse(400, 'Missing draft');
+  }
+
+  const thread = (await DocumentThreadService.getThreadByIdLean(
+    documentsthreadId
+  )) as Loose | null;
+  if (!thread) {
+    throw new ErrorResponse(404, 'Thread not found');
+  }
+
+  const existing = (thread.cv_draft as Loose) || {};
+  const fileType = (existing.meta?.fileType as string) || 'CV';
+  const effectiveDegree = degree ?? (existing.meta?.degree as string | undefined);
+  const validation = validateCVDraft(draft, fileType, effectiveDegree);
+
+  // Replace draft + validation; keep meta; drop `rendered` (the edited draft no
+  // longer matches any previously rendered file).
+  const payload: Loose = {
+    ...existing,
+    draft,
+    validation,
+    meta: {
+      ...(existing.meta || {}),
+      degree: effectiveDegree,
+      editedAt: new Date().toISOString()
+    }
+  };
+  delete payload.rendered;
+
+  await DocumentThreadService.updateThreadById(documentsthreadId, {
+    cv_draft: payload
+  });
+
+  const sid = thread.student_id?._id ?? thread.student_id;
+  const student = sid
+    ? ((await StudentService.getStudentByIdLean(String(sid))) as Loose | null)
+    : null;
+
+  return res.status(200).send({
+    success: true,
+    data: { ...payload, hasPhoto: hasPassportPhoto(student), renderedCurrent: false, rendered: null }
+  });
+});
+
 export = {
   generateCvDraft,
   updateAdditionalInformation,
+  validateCvDraft,
+  updateCvDraft,
   renderCvDraft,
   attachCvDraftToThread,
   getCvPassportPhoto,

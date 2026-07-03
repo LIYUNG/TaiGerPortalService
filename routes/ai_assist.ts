@@ -84,6 +84,10 @@ router
   );
 
 router
+  .route('/students/:studentId/cv-draft/validate')
+  .post(GeneralPOSTRequestRateLimiter, cvDraftController.validateCvDraft);
+
+router
   .route('/students/:studentId/cv-draft/render')
   .post(GeneralPOSTRequestRateLimiter, cvDraftController.renderCvDraft);
 
@@ -93,7 +97,8 @@ router
 
 router
   .route('/threads/:documentsthreadId/cv-draft')
-  .get(GeneralGETRequestRateLimiter, cvDraftController.getSavedCvDraft);
+  .get(GeneralGETRequestRateLimiter, cvDraftController.getSavedCvDraft)
+  .put(GeneralPOSTRequestRateLimiter, cvDraftController.updateCvDraft);
 
 router
   .route('/students/:studentId/cv-photo')

@@ -326,6 +326,121 @@ describe('getSavedCvDraft', () => {
   });
 });
 
+// A structurally-complete draft so the REAL validateCVDraft (validate.ts is not
+// mocked) can run over it without throwing on missing arrays.
+const FULL_DRAFT = {
+  personal: {
+    fullName: 'A',
+    birthday: '',
+    birthplace: '',
+    nationality: '',
+    address: '',
+    phone: '',
+    email: 'a@b.com'
+  },
+  universities: [],
+  seniorHighSchools: [],
+  juniorHighSchools: [],
+  experience: [],
+  awards: [],
+  languages: [],
+  computer: [],
+  otherSkills: '',
+  socialEngagement: '',
+  competitiveSports: '',
+  hobbies: '',
+  anythingElse: ''
+};
+
+describe('validateCvDraft', () => {
+  it('runs the deterministic checklist without persisting', async () => {
+    const res = mockRes();
+    await cvDraftController.validateCvDraft(
+      mockReq({ params: { studentId: 's1' }, body: { draft: FULL_DRAFT } }),
+      res
+    );
+    expect(DocumentThreadService.updateThreadById).not.toHaveBeenCalled();
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({
+          validation: expect.objectContaining({
+            items: expect.any(Array)
+          })
+        })
+      })
+    );
+  });
+
+  it('400s without a draft', async () => {
+    await expect(
+      cvDraftController.validateCvDraft(
+        mockReq({ params: { studentId: 's1' }, body: {} }),
+        mockRes()
+      )
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+describe('updateCvDraft', () => {
+  it('re-validates, persists the edited draft and drops the rendered file', async () => {
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
+      cv_draft: {
+        meta: { fileType: 'CV', model: 'm' },
+        rendered: { key: 's1/t1/cv_ai_draft.docx', hash: 'h' }
+      }
+    });
+    const res = mockRes();
+    await cvDraftController.updateCvDraft(
+      mockReq({
+        params: { documentsthreadId: 't1' },
+        body: { draft: FULL_DRAFT }
+      }),
+      res
+    );
+    expect(DocumentThreadService.updateThreadById).toHaveBeenCalledWith(
+      't1',
+      expect.objectContaining({
+        cv_draft: expect.objectContaining({
+          draft: FULL_DRAFT,
+          validation: expect.any(Object)
+        })
+      })
+    );
+    const persisted = asMock(DocumentThreadService.updateThreadById).mock
+      .calls[0][1].cv_draft;
+    expect(persisted.rendered).toBeUndefined();
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ renderedCurrent: false })
+      })
+    );
+  });
+
+  it('404s when the thread is missing', async () => {
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue(null);
+    await expect(
+      cvDraftController.updateCvDraft(
+        mockReq({
+          params: { documentsthreadId: 'x' },
+          body: { draft: FULL_DRAFT }
+        }),
+        mockRes()
+      )
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('400s without a draft', async () => {
+    await expect(
+      cvDraftController.updateCvDraft(
+        mockReq({ params: { documentsthreadId: 't1' }, body: {} }),
+        mockRes()
+      )
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
 describe('downloadCvDraft', () => {
   it('streams the docx with attachment headers', async () => {
     asMock(StudentService.getStudentByIdLean).mockResolvedValue({

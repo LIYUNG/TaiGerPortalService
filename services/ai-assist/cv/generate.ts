@@ -20,7 +20,8 @@ export interface GenerateCVDraftResult {
 
 export const generateCVDraft = async (
   input: CVAggregateInput,
-  fileType: string
+  fileType: string,
+  degree?: string
 ): Promise<GenerateCVDraftResult> => {
   // CV drafting is text-only and benefits from a capable writer; force the
   // OpenAI provider here regardless of the global AI-Assist default.
@@ -28,7 +29,7 @@ export const generateCVDraft = async (
   const model = getConfiguredModel();
 
   const result = await provider.stream({
-    system: cvDraftSystemPrompt(fileType),
+    system: cvDraftSystemPrompt(fileType, degree),
     turns: [{ role: 'user', content: cvDraftUserPrompt(input) }],
     model
   });

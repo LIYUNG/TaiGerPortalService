@@ -10,6 +10,7 @@ const mockGetTemplateByCategory = jest.fn();
 const mockGetS3Object = jest.fn();
 const mockCacheGet = jest.fn();
 const mockCacheSet = jest.fn();
+const mockHeadETag = jest.fn();
 
 jest.mock('easy-template-x', () => ({
   TemplateHandler: jest.fn().mockImplementation(() => ({
@@ -31,7 +32,8 @@ jest.mock('../../../services/templates', () => ({
   }
 }));
 jest.mock('../../../aws/s3', () => ({
-  getS3Object: (...args: unknown[]) => mockGetS3Object(...args)
+  getS3Object: (...args: unknown[]) => mockGetS3Object(...args),
+  headS3ObjectETag: (...args: unknown[]) => mockHeadETag(...args)
 }));
 jest.mock('../../../config', () => ({
   AWS_S3_PUBLIC_BUCKET_NAME: 'test-public-bucket'
@@ -62,12 +64,15 @@ beforeEach(() => {
   });
   mockCacheGet.mockReturnValue(undefined);
   mockGetS3Object.mockResolvedValue(new Uint8Array([80, 75])); // "PK"
+  mockHeadETag.mockResolvedValue('"etag-1"');
 });
 
 describe('renderCVDraftDocx', () => {
   it('returns the processed docx buffer', async () => {
     const out = await renderCVDraftDocx(emptyCVDraft());
-    expect(out.toString()).toBe('DOCX-BYTES');
+    expect(out.buffer.toString()).toBe('DOCX-BYTES');
+    expect(out.photoEmbedded).toBe(false);
+    expect(typeof out.templateVersion).toBe('string');
     expect(mockProcess).toHaveBeenCalledTimes(1);
   });
 
@@ -81,7 +86,7 @@ describe('renderCVDraftDocx', () => {
       'templates/cv_template.docx'
     );
     expect(mockCacheSet).toHaveBeenCalledWith(
-      'templates/cv_template.docx',
+      expect.stringContaining('templates/cv_template.docx'),
       expect.any(Buffer)
     );
   });

@@ -97,7 +97,11 @@ export interface CVDraftResult {
     model: string;
     studentId: string;
     programId?: string;
+    degree?: string;
     generatedAt: string;
+    // Set when Stage A returned an unparseable draft. Callers must NOT persist
+    // such a result (it is an empty draft) nor bill AI quota for it.
+    parseError?: string;
   };
 }
 
@@ -110,6 +114,7 @@ export interface CreateCVDraftParams {
   fileType?: string;
   studentId: string;
   programId?: string;
+  degree?: string;
   targetProgram?: string;
   editorRequirements?: string;
 }

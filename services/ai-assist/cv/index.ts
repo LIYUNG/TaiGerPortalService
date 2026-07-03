@@ -20,8 +20,12 @@ const createCVDraft = async (
     targetProgram: params.targetProgram
   });
 
-  const { draft, model, parseError } = await generateCVDraft(aggregate, fileType);
-  const validation = validateCVDraft(draft, fileType);
+  const { draft, model, parseError } = await generateCVDraft(
+    aggregate,
+    fileType,
+    params.degree
+  );
+  const validation = validateCVDraft(draft, fileType, params.degree);
 
   // Surface a parse failure as a checklist error so the caller sees one shape.
   if (parseError) {
@@ -43,7 +47,9 @@ const createCVDraft = async (
       model,
       studentId: params.studentId,
       programId: params.programId,
-      generatedAt: new Date().toISOString()
+      degree: params.degree,
+      generatedAt: new Date().toISOString(),
+      parseError
     }
   };
 };

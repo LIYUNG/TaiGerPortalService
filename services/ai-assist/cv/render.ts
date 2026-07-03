@@ -12,7 +12,7 @@ import { TemplateHandler, MimeType } from 'easy-template-x';
 
 import { CVDraft } from './types';
 import TemplateService from '../../templates';
-import { getS3Object } from '../../../aws/s3';
+import { getS3Object, headS3ObjectETag } from '../../../aws/s3';
 import { AWS_S3_PUBLIC_BUCKET_NAME } from '../../../config';
 import { ten_minutes_cache } from '../../../cache/node-cache';
 
@@ -32,9 +32,38 @@ const templateFileKey = (templatePath: string): string => {
   return path.join(directory, fileName).replace(/\\/g, '/');
 };
 
-// Load the raw template bytes from S3. Cached in-memory (ten_minutes_cache) so a
-// render does not hit S3 every time — the template changes rarely.
-const loadTemplateContent = async (): Promise<Buffer> => {
+// A cheap version token for the current CV template: its S3 ETag (changes on any
+// re-upload) with the file key and the stored doc's updatedAt as fallbacks. Used
+// to (a) bust the in-memory cache and (b) invalidate render dedup so a template
+// update always re-renders even when the draft JSON is unchanged.
+const templateVersionToken = async (
+  fileKey: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  template: any
+): Promise<string> => {
+  const etag = await headS3ObjectETag(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
+  return etag || String(template?.updatedAt || '') || fileKey;
+};
+
+// Resolve the current template file key + version, without downloading the bytes.
+// Lets the controller fold the template version into its render-dedup check.
+export const getCvTemplateVersion = async (): Promise<string> => {
+  const template = await TemplateService.getTemplateByCategory(
+    CV_TEMPLATE_CATEGORY
+  );
+  if (!template?.path) {
+    return '';
+  }
+  return templateVersionToken(templateFileKey(template.path), template);
+};
+
+// Load the raw template bytes from S3. Cached in-memory (ten_minutes_cache) keyed
+// by file key + version, so a template re-upload (new ETag) busts the cache
+// immediately instead of serving stale bytes for up to the TTL.
+const loadTemplateContent = async (): Promise<{
+  buffer: Buffer;
+  version: string;
+}> => {
   const template = await TemplateService.getTemplateByCategory(
     CV_TEMPLATE_CATEGORY
   );
@@ -44,14 +73,16 @@ const loadTemplateContent = async (): Promise<Buffer> => {
     );
   }
   const fileKey = templateFileKey(template.path);
-  const cached = ten_minutes_cache.get<Buffer>(fileKey);
+  const version = await templateVersionToken(fileKey, template);
+  const cacheKey = `${fileKey}::${version}`;
+  const cached = ten_minutes_cache.get<Buffer>(cacheKey);
   if (cached) {
-    return cached;
+    return { buffer: cached, version };
   }
   const bytes = await getS3Object(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
   const buffer = Buffer.from(bytes as Uint8Array);
-  ten_minutes_cache.set(fileKey, buffer);
-  return buffer;
+  ten_minutes_cache.set(cacheKey, buffer);
+  return { buffer, version };
 };
 
 // Detect the image MIME type from the file's magic bytes, so we embed common
@@ -79,7 +110,12 @@ const detectImageFormat = (buf: Buffer): MimeType | null => {
 // Flatten the CVDraft into the flat tag namespace the template expects (personal
 // fields at top level; arrays match the {#...} loops verbatim). The passport
 // photo, when present and in a supported format, is added as an image content.
-const toTemplateData = (draft: CVDraft, photo?: Buffer) => {
+// Returns `photoEmbedded` so the caller can warn when a photo existed but could
+// not be embedded (unsupported format), instead of shipping a silently photo-less CV.
+const toTemplateData = (
+  draft: CVDraft,
+  photo?: Buffer
+): { data: Record<string, unknown>; photoEmbedded: boolean } => {
   const data: Record<string, unknown> = {
     ...draft.personal,
     universities: draft.universities,
@@ -100,6 +136,7 @@ const toTemplateData = (draft: CVDraft, photo?: Buffer) => {
     hobbies: draft.hobbies,
     anythingElse: draft.anythingElse
   };
+  let photoEmbedded = false;
   if (photo && photo.length) {
     const format = detectImageFormat(photo);
     if (format) {
@@ -110,17 +147,30 @@ const toTemplateData = (draft: CVDraft, photo?: Buffer) => {
         width: PHOTO_WIDTH_PX,
         height: PHOTO_HEIGHT_PX
       };
+      photoEmbedded = true;
     }
   }
-  return data;
+  return { data, photoEmbedded };
 };
 
 const templateHandler = new TemplateHandler();
 
+export interface RenderCVDraftResult {
+  buffer: Buffer;
+  // True when a passport photo was actually embedded into the document. False
+  // when no photo was supplied OR it was in a format we can't embed.
+  photoEmbedded: boolean;
+  // Version token of the template used, so the caller can tie its render-dedup
+  // cache to the exact template revision.
+  templateVersion: string;
+}
+
 export const renderCVDraftDocx = async (
   draft: CVDraft,
   photo?: Buffer
-): Promise<Buffer> => {
-  const content = await loadTemplateContent();
-  return templateHandler.process(content, toTemplateData(draft, photo));
+): Promise<RenderCVDraftResult> => {
+  const { buffer: content, version } = await loadTemplateContent();
+  const { data, photoEmbedded } = toTemplateData(draft, photo);
+  const buffer = await templateHandler.process(content, data);
+  return { buffer, photoEmbedded, templateVersion: version };
 };

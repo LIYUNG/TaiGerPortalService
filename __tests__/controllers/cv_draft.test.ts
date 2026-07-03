@@ -10,7 +10,12 @@ jest.mock('../../services/documentthreads');
 jest.mock('../../services/permissions');
 jest.mock('../../services/ai-assist/cv');
 jest.mock('../../services/ai-assist/cv/render', () => ({
-  renderCVDraftDocx: jest.fn(() => Buffer.from('DOCX'))
+  renderCVDraftDocx: jest.fn(() => ({
+    buffer: Buffer.from('DOCX'),
+    photoEmbedded: false,
+    templateVersion: 'tpl-v1'
+  })),
+  getCvTemplateVersion: jest.fn(() => 'tpl-v1')
 }));
 jest.mock('../../aws/s3', () => ({
   getS3Object: jest.fn(),
@@ -58,20 +63,28 @@ describe('generateCvDraft', () => {
     asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
       additional_information: 'ctx'
     });
-    asMock(cvService.createCVDraft).mockResolvedValue({ draft: SAMPLE_DRAFT });
+    asMock(cvService.createCVDraft).mockResolvedValue({
+      draft: SAMPLE_DRAFT,
+      meta: {}
+    });
     const res = mockRes();
     await cvDraftController.generateCvDraft(
       mockReq({ params: { studentId: 's1' }, body: { documentsthreadId: 't1' }, user }),
       res
     );
     expect(cvService.createCVDraft).toHaveBeenCalled();
-    expect(DocumentThreadService.updateThreadById).toHaveBeenCalledWith('t1', {
-      cv_draft: { draft: SAMPLE_DRAFT }
-    });
-    expect(res.send).toHaveBeenCalledWith({
-      success: true,
-      data: { draft: SAMPLE_DRAFT }
-    });
+    expect(DocumentThreadService.updateThreadById).toHaveBeenCalledWith(
+      't1',
+      expect.objectContaining({
+        cv_draft: expect.objectContaining({ draft: SAMPLE_DRAFT })
+      })
+    );
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ draft: SAMPLE_DRAFT })
+      })
+    );
   });
 
   it('404s when the student is missing', async () => {
@@ -167,7 +180,8 @@ describe('renderCvDraft', () => {
         rendered: {
           hash: hashOf(SAMPLE_DRAFT),
           key: 's1/t1/cv_ai_draft.docx',
-          name: 'A_AI_first_draft.docx'
+          name: 'A_AI_first_draft.docx',
+          templateVersion: 'tpl-v1'
         }
       }
     });
@@ -293,10 +307,12 @@ describe('getSavedCvDraft', () => {
       mockReq({ params: { documentsthreadId: 't1' } }),
       res
     );
-    expect(res.send).toHaveBeenCalledWith({
-      success: true,
-      data: { draft: SAMPLE_DRAFT }
-    });
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ draft: SAMPLE_DRAFT })
+      })
+    );
   });
 
   it('returns null when no draft is saved', async () => {

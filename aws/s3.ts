@@ -111,6 +111,36 @@ export const headS3ObjectSize = async (bucketName, objectKey) => {
   }
 };
 
+// Cheap version token for an object: its S3 ETag (a content fingerprint that
+// changes whenever the object is overwritten). Returns null if absent or on a
+// non-fatal S3 error, so callers can fall back to another version signal.
+export const headS3ObjectETag = async (bucketName, objectKey) => {
+  try {
+    const response = await s3Client.send(
+      new HeadObjectCommand({
+        Bucket: bucketName,
+        Key: objectKey
+      })
+    );
+    return typeof response.ETag === 'string' ? response.ETag : null;
+  } catch (caught) {
+    if (
+      caught instanceof NotFound ||
+      caught instanceof NoSuchKey ||
+      caught?.$metadata?.httpStatusCode === 404
+    ) {
+      return null;
+    }
+    if (caught instanceof S3ServiceException) {
+      logger.error(
+        `Error from S3 while heading ETag of "${objectKey}" from "${bucketName}".  ${caught.name}: ${caught.message}`
+      );
+      return null;
+    }
+    throw caught;
+  }
+};
+
 export const deleteS3Object = async (bucketName, objectKey) => {
   try {
     await s3Client.send(

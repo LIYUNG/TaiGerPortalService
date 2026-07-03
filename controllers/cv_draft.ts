@@ -7,7 +7,10 @@ import StudentService from '../services/students';
 import DocumentThreadService from '../services/documentthreads';
 import PermissionService from '../services/permissions';
 import cvDraftService from '../services/ai-assist/cv';
-import { renderCVDraftDocx } from '../services/ai-assist/cv/render';
+import {
+  renderCVDraftDocx,
+  getCvTemplateVersion
+} from '../services/ai-assist/cv/render';
 import { CVDraft } from '../services/ai-assist/cv/types';
 import { getS3Object, putS3Object } from '../aws/s3';
 import { AWS_S3_BUCKET_NAME } from '../config';
@@ -48,6 +51,7 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
     fileType = 'CV',
     programId,
     programFullName,
+    degree,
     editorRequirements,
     documentsthreadId
   } = req.body || {};
@@ -72,6 +76,7 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
     fileType,
     studentId,
     programId,
+    degree,
     targetProgram: programFullName,
     editorRequirements
   });
@@ -81,16 +86,22 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
   const hasPhoto = hasPassportPhoto(student as Loose);
   const payload = { ...result, hasPhoto };
 
-  // Persist the generated draft on the thread so a page refresh restores it.
-  // This also drops any previous `rendered` metadata, so a freshly generated
-  // draft is correctly treated as not-yet-rendered.
-  if (documentsthreadId) {
+  // A parse failure yields an EMPTY draft. Persisting it would clobber a good
+  // saved draft (e.g. an editor regenerating a near-final one), and billing quota
+  // for a non-result is unfair. Return it so the UI can show a retry state, but
+  // neither persist nor charge.
+  const parseFailed = Boolean(result.meta.parseError);
+
+  if (documentsthreadId && !parseFailed) {
+    // Persist the generated draft on the thread so a page refresh restores it.
+    // This also drops any previous `rendered` metadata, so a freshly generated
+    // draft is correctly treated as not-yet-rendered.
     await DocumentThreadService.updateThreadById(documentsthreadId, {
       cv_draft: payload
     });
   }
 
-  if (user?._id) {
+  if (user?._id && !parseFailed) {
     await PermissionService.decrementTaigerAiQuota(user._id);
   }
 
@@ -163,18 +174,26 @@ const renderCvDraft = asyncHandler(async (req: Request, res: Response) => {
   const fileName = `${studentName || 'CV'}_AI_first_draft.docx`;
   const key = cvDraftKey(studentId, documentsthreadId);
   const hash = draftHash(draft);
+  // Current template revision — folded into the dedup so an admin template update
+  // invalidates a previously-rendered (otherwise-identical) draft.
+  const templateVersion = await getCvTemplateVersion();
 
-  // Dedup: the same draft was already rendered to the stable key — reuse it
-  // instead of re-rendering and re-uploading.
+  // Dedup: the same draft was already rendered to the stable key against the same
+  // template — reuse it instead of re-rendering and re-uploading.
   const rendered = thread.cv_draft?.rendered as Loose | undefined;
-  if (rendered?.hash === hash && rendered?.key) {
+  if (
+    rendered?.hash === hash &&
+    rendered?.key &&
+    (rendered?.templateVersion ?? '') === templateVersion
+  ) {
     return res.status(200).send({
       success: true,
       data: {
         name: rendered.name || fileName,
         path: rendered.key,
         hash,
-        reused: true
+        reused: true,
+        photoEmbedded: rendered.photoEmbedded
       }
     });
   }
@@ -196,7 +215,7 @@ const renderCvDraft = asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  const buffer = await renderCVDraftDocx(draft, photo);
+  const { buffer, photoEmbedded } = await renderCVDraftDocx(draft, photo);
 
   await putS3Object({
     bucketName: AWS_S3_BUCKET_NAME,
@@ -211,13 +230,21 @@ const renderCvDraft = asyncHandler(async (req: Request, res: Response) => {
   await DocumentThreadService.updateThreadById(documentsthreadId, {
     cv_draft: {
       ...(thread.cv_draft || {}),
-      rendered: { hash, key, name: fileName, at: new Date() }
+      rendered: {
+        hash,
+        key,
+        name: fileName,
+        at: new Date(),
+        templateVersion,
+        photoEmbedded
+      }
     }
   });
 
-  return res
-    .status(200)
-    .send({ success: true, data: { name: fileName, path: key, hash } });
+  return res.status(200).send({
+    success: true,
+    data: { name: fileName, path: key, hash, photoEmbedded }
+  });
 });
 
 // POST /api/ai-assist/threads/:documentsthreadId/cv-draft/attach
@@ -249,13 +276,15 @@ const attachCvDraftToThread = asyncHandler(
     if (!rendered?.key) {
       throw new ErrorResponse(
         409,
-        'No rendered CV draft to attach. Please generate the .docx first.'
+        'No rendered CV draft to attach. Please generate the .docx first.',
+        'CV_DRAFT_NO_RENDER'
       );
     }
     if (rendered.hash !== draftHash(draft)) {
       throw new ErrorResponse(
         409,
-        'The CV draft changed since the .docx was generated. Please regenerate before attaching.'
+        'The CV draft changed since the .docx was generated. Please regenerate before attaching.',
+        'CV_DRAFT_STALE'
       );
     }
 
@@ -297,9 +326,29 @@ const getSavedCvDraft = asyncHandler(async (req: Request, res: Response) => {
     const student = sid
       ? ((await StudentService.getStudentByIdLean(String(sid))) as Loose | null)
       : null;
+
+    // Is the persisted rendered .docx still current for the saved draft? If so,
+    // the client can restore the "ready to attach" state after a refresh / tab
+    // switch instead of forcing a re-render (this is exactly what attach checks).
+    const rendered = saved.rendered as Loose | undefined;
+    const renderedCurrent = Boolean(
+      rendered?.key && rendered?.hash === draftHash(saved.draft as CVDraft)
+    );
+
     return res.status(200).send({
       success: true,
-      data: { ...saved, hasPhoto: hasPassportPhoto(student) }
+      data: {
+        ...saved,
+        hasPhoto: hasPassportPhoto(student),
+        renderedCurrent,
+        rendered: renderedCurrent
+          ? {
+              name: rendered?.name,
+              path: rendered?.key,
+              photoEmbedded: rendered?.photoEmbedded
+            }
+          : null
+      }
     });
   }
   return res.status(200).send({ success: true, data: null });
@@ -334,7 +383,7 @@ const downloadCvDraft = asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  const buffer = await renderCVDraftDocx(draft, photo);
+  const { buffer } = await renderCVDraftDocx(draft, photo);
   const studentName = [student?.firstname, student?.lastname]
     .filter(Boolean)
     .join('_')

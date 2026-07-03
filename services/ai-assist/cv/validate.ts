@@ -86,7 +86,8 @@ const commaCount = (s: string): number =>
 
 export const validateCVDraft = (
   draft: CVDraft,
-  fileType = 'CV'
+  fileType = 'CV',
+  degree?: string
 ): CVValidationResult => {
   const items: CVChecklistItem[] = [];
   const add = (
@@ -115,7 +116,10 @@ export const validateCVDraft = (
     add('education', 'warning', 'no_senior_high',
       'No senior high school. German universities usually require it.');
   }
-  const isBachelor = /bachelor|b\.?(sc|a|eng|ba)\b/i.test(fileType);
+  // The bachelor rule keys off the target program's degree (passed explicitly).
+  // It falls back to fileType only for backwards compatibility; fileType is
+  // normally 'CV' and never carries the degree, which is why this used to be dead.
+  const isBachelor = /bachelor|b\.?(sc|a|eng|ba)\b/i.test(degree || fileType);
   if (isBachelor && draft.juniorHighSchools.length === 0) {
     add('education', 'warning', 'no_junior_high',
       'Bachelor application: junior high school is usually required.');

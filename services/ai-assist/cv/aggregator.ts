@@ -21,7 +21,7 @@ const s = (v: unknown): string =>
 
 // Pull the profile subset that maps onto CV fields. Empty values stay '' so the
 // model treats them as unknown (it must never invent missing data).
-const extractKnownFacts = (student: Loose): Loose => {
+export const extractKnownFacts = (student: Loose): Loose => {
   const ab = student?.academic_background || {};
   const uni = ab.university || {};
   const lang = ab.language || {};

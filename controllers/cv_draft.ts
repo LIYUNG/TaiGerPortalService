@@ -7,7 +7,10 @@ import StudentService from '../services/students';
 import DocumentThreadService from '../services/documentthreads';
 import PermissionService from '../services/permissions';
 import cvDraftService from '../services/ai-assist/cv';
-import { buildCVReadiness } from '../services/ai-assist/cv/aggregator';
+import {
+  buildCVReadiness,
+  extractKnownFacts
+} from '../services/ai-assist/cv/aggregator';
 import {
   renderCVDraftDocx,
   getCvTemplateVersion
@@ -111,7 +114,14 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
   // later profile/photo/context change can be flagged as stale (W3/W6).
   const inputsHash = crypto
     .createHash('sha256')
-    .update(String(additionalInformation || ''))
+    .update(
+      JSON.stringify({
+        knownFacts: extractKnownFacts(student as Loose),
+        additionalInformation: String(additionalInformation || ''),
+        degree: String(degree || ''),
+        hasPhoto
+      })
+    )
     .digest('hex');
   const payload = {
     ...result,
@@ -119,8 +129,7 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
     meta: {
       ...result.meta,
       editorNotes: String(editorRequirements || ''),
-      inputsHash,
-      hadPhoto: hasPhoto
+      inputsHash
     }
   };
 
@@ -428,15 +437,22 @@ const getSavedCvDraft = asyncHandler(async (req: Request, res: Response) => {
     // to the current state, so the UI can prompt a regenerate (W3).
     const currentHasPhoto = hasPassportPhoto(student);
     const savedMeta = (saved.meta as Loose) || {};
+    // Fingerprint ALL generation inputs the server can see (profile knownFacts,
+    // thread additional_information, degree, photo) so any of them changing since
+    // generation flags the draft as stale. Editor notes are compared client-side.
     const currentInputsHash = crypto
       .createHash('sha256')
-      .update(String(thread.additional_information || ''))
+      .update(
+        JSON.stringify({
+          knownFacts: extractKnownFacts((student || {}) as Loose),
+          additionalInformation: String(thread.additional_information || ''),
+          degree: String(savedMeta.degree || ''),
+          hasPhoto: currentHasPhoto
+        })
+      )
       .digest('hex');
     const inputsChanged = Boolean(
-      (savedMeta.inputsHash !== undefined &&
-        savedMeta.inputsHash !== currentInputsHash) ||
-        (savedMeta.hadPhoto !== undefined &&
-          savedMeta.hadPhoto !== currentHasPhoto)
+      savedMeta.inputsHash && savedMeta.inputsHash !== currentInputsHash
     );
 
     return res.status(200).send({

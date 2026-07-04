@@ -468,6 +468,28 @@ describe('getSavedCvDraft', () => {
     );
   });
 
+  it('flags inputsChanged when the saved fingerprint no longer matches', async () => {
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
+      student_id: 's1',
+      additional_information: 'context changed since generation',
+      cv_draft: {
+        draft: SAMPLE_DRAFT,
+        meta: { inputsHash: 'STALE-HASH' }
+      }
+    });
+    asMock(StudentService.getStudentByIdLean).mockResolvedValue({
+      firstname: 'A',
+      academic_background: {}
+    });
+    const res = mockRes();
+    await cvDraftController.getSavedCvDraft(
+      mockReq({ params: { documentsthreadId: 't1' } }),
+      res
+    );
+    const data = asMock(res.send).mock.calls[0][0].data;
+    expect(data.inputsChanged).toBe(true);
+  });
+
   it('returns null when no draft is saved', async () => {
     asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({});
     const res = mockRes();

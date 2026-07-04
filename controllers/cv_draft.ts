@@ -38,20 +38,24 @@ const cvDraftKey = (studentId: string, documentsthreadId: string): string =>
 // Keep the last N draft snapshots on the thread so an editor can see what a
 // regenerate/edit changed and undo it. JSON only — this does NOT create extra
 // stored files and is unrelated to the single stable working-docx key.
-const HISTORY_LIMIT = 5;
+const HISTORY_LIMIT = 10;
 const pushDraftHistory = (existing: Loose | null | undefined): Loose[] => {
+  const prev = (existing?.history as Loose[]) || [];
   if (!existing?.draft) {
-    return (existing?.history as Loose[]) || [];
+    return prev;
+  }
+  // Dedupe: never record a snapshot identical to the newest one. This stops an
+  // A<->B restore loop from evicting genuinely older versions from the cap.
+  if (prev[0]?.draft && draftHash(prev[0].draft) === draftHash(existing.draft)) {
+    return prev;
   }
   const snapshot = {
     draft: existing.draft,
+    // meta carries how that version was made (source: generate/edit/restore).
     meta: existing.meta,
     savedAt: new Date().toISOString()
   };
-  return [snapshot, ...((existing.history as Loose[]) || [])].slice(
-    0,
-    HISTORY_LIMIT
-  );
+  return [snapshot, ...prev].slice(0, HISTORY_LIMIT);
 };
 
 // True when the student has an actually-uploaded passport photo: a profile doc
@@ -129,7 +133,8 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
     meta: {
       ...result.meta,
       editorNotes: String(editorRequirements || ''),
-      inputsHash
+      inputsHash,
+      source: 'generate'
     }
   };
 
@@ -330,21 +335,6 @@ const attachCvDraftToThread = asyncHandler(
       throw new ErrorResponse(404, 'Thread not found');
     }
 
-    const rendered = thread.cv_draft?.rendered as Loose | undefined;
-    if (!rendered?.key) {
-      throw new ErrorResponse(
-        409,
-        'No rendered CV draft to attach. Please generate the .docx first.',
-        'CV_DRAFT_NO_RENDER'
-      );
-    }
-    if (rendered.hash !== draftHash(draft)) {
-      throw new ErrorResponse(
-        409,
-        'The CV draft changed since the .docx was generated. Please regenerate before attaching.',
-        'CV_DRAFT_STALE'
-      );
-    }
     if (thread.isFinalVersion) {
       throw new ErrorResponse(
         409,
@@ -356,17 +346,83 @@ const attachCvDraftToThread = asyncHandler(
       throw new ErrorResponse(400, 'A message is required to attach the draft.');
     }
 
+    // Self-heal: ensure a CURRENT working .docx exists — render it now if there
+    // is none or it's stale (draft/template changed). This removes the manual
+    // "Create .docx" step and the CV_DRAFT_STALE / CV_DRAFT_NO_RENDER error class;
+    // the editor just attaches and the file is produced on demand.
+    const hash = draftHash(draft);
+    const templateVersion = await getCvTemplateVersion();
+    let rendered = thread.cv_draft?.rendered as Loose | undefined;
+    const renderCurrent = Boolean(
+      rendered?.key &&
+        rendered.hash === hash &&
+        (rendered.templateVersion ?? '') === templateVersion
+    );
+    if (!renderCurrent) {
+      const sid = String(thread.student_id?._id ?? thread.student_id ?? '');
+      const student = sid
+        ? ((await StudentService.getStudentByIdLean(sid)) as Loose | null)
+        : null;
+      let photo: Buffer | undefined;
+      const photoPath = (student?.profile || []).find(
+        (pf: Loose) => pf?.name === 'Passport_Photo'
+      )?.path;
+      if (photoPath) {
+        try {
+          const bytes = await getS3Object(AWS_S3_BUCKET_NAME, photoPath);
+          if (bytes) {
+            photo = Buffer.from(bytes);
+          }
+        } catch {
+          // photo is best-effort
+        }
+      }
+      const {
+        buffer,
+        photoEmbedded,
+        templateVersion: renderedTemplateVersion
+      } = await renderCVDraftDocx(draft, photo);
+      const workingKey = cvDraftKey(sid, documentsthreadId);
+      await putS3Object({
+        bucketName: AWS_S3_BUCKET_NAME,
+        key: workingKey,
+        Body: buffer,
+        ContentType:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      });
+      const studentName = [student?.firstname, student?.lastname]
+        .filter(Boolean)
+        .join('_')
+        .replace(/[^\w-]/g, '');
+      rendered = {
+        hash,
+        key: workingKey,
+        name: studentName ? `${studentName}_CV.docx` : 'CV.docx',
+        at: new Date(),
+        templateVersion: renderedTemplateVersion,
+        photoEmbedded
+      };
+      thread.cv_draft = { ...(thread.cv_draft || {}), rendered };
+      if (typeof thread.markModified === 'function') {
+        thread.markModified('cv_draft');
+      }
+    }
+    const finalRendered = rendered as Loose;
+
     // Snapshot-copy the working docx to a message-scoped key. The stable working
     // key is overwritten on the next render, so pointing a historical message at
     // it would silently rewrite the thread's audit trail. Copying keeps the
     // attached file immutable.
-    let attachKey = String(rendered.key);
+    let attachKey = String(finalRendered.key);
     try {
-      const bytes = await getS3Object(AWS_S3_BUCKET_NAME, String(rendered.key));
+      const bytes = await getS3Object(
+        AWS_S3_BUCKET_NAME,
+        String(finalRendered.key)
+      );
       if (!bytes) {
         throw new Error('empty draft file');
       }
-      const snapshotKey = String(rendered.key).replace(
+      const snapshotKey = String(finalRendered.key).replace(
         /\.docx$/i,
         `_${Date.now()}.docx`
       );
@@ -394,7 +450,7 @@ const attachCvDraftToThread = asyncHandler(
       d.getDate()
     )}_${pad(d.getHours())}${pad(d.getMinutes())}`;
     const cleanBase =
-      String(rendered.name || 'CV')
+      String(finalRendered.name || 'CV')
         .replace(/\.docx$/i, '')
         .replace(/_?AI[_-]?CV[_-]?draft/gi, '')
         .replace(/_?AI[_-]?first[_-]?draft/gi, '')
@@ -416,7 +472,11 @@ const attachCvDraftToThread = asyncHandler(
 
     return res.status(200).send({
       success: true,
-      data: { name: attachName, path: attachKey }
+      data: {
+        name: attachName,
+        path: attachKey,
+        photoEmbedded: finalRendered.photoEmbedded
+      }
     });
   }
 );
@@ -600,9 +660,10 @@ const validateCvDraft = asyncHandler(async (req: Request, res: Response) => {
 // guard honest). Preserves meta so provenance/model survive the edit.
 const updateCvDraft = asyncHandler(async (req: Request, res: Response) => {
   const documentsthreadId = String(req.params.documentsthreadId);
-  const { draft, degree } = (req.body || {}) as {
+  const { draft, degree, source } = (req.body || {}) as {
     draft?: CVDraft;
     degree?: string;
+    source?: string;
   };
   if (!draft) {
     throw new ErrorResponse(400, 'Missing draft');
@@ -629,7 +690,8 @@ const updateCvDraft = asyncHandler(async (req: Request, res: Response) => {
     meta: {
       ...(existing.meta || {}),
       degree: effectiveDegree,
-      editedAt: new Date().toISOString()
+      editedAt: new Date().toISOString(),
+      source: source === 'restore' ? 'restore' : 'edit'
     },
     // Snapshot the pre-edit draft so the editor can undo the edit.
     history: pushDraftHistory(existing)

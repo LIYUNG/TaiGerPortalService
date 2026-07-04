@@ -322,7 +322,8 @@ describe('attachCvDraftToThread', () => {
         rendered: {
           hash: hashOf(SAMPLE_DRAFT),
           key: 's1/t1/cv_ai_draft.docx',
-          name: 'A_AI_first_draft.docx'
+          name: 'A_AI_first_draft.docx',
+          templateVersion: 'tpl-v1'
         }
       }
     });
@@ -353,46 +354,35 @@ describe('attachCvDraftToThread', () => {
     );
   });
 
-  it('409s when the draft changed since it was rendered (stale)', async () => {
+  it('self-renders and attaches when no current working .docx exists', async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    const messages: unknown[] = [];
     asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
-      messages: [],
-      save: jest.fn(),
-      cv_draft: {
-        rendered: {
-          hash: 'OLD_HASH',
-          key: 's1/t1/cv_ai_draft.docx',
-          name: 'A_AI_first_draft.docx'
-        }
-      }
-    });
-    await expect(
-      cvDraftController.attachCvDraftToThread(
-        mockReq({
-          params: { documentsthreadId: 't1' },
-          body: { draft: SAMPLE_DRAFT, message: 'hi' },
-          user
-        }),
-        mockRes()
-      )
-    ).rejects.toMatchObject({ statusCode: 409 });
-  });
-
-  it('409s when nothing has been rendered yet', async () => {
-    asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
-      messages: [],
-      save: jest.fn(),
+      messages,
+      save,
+      student_id: 's1',
       cv_draft: {}
     });
-    await expect(
-      cvDraftController.attachCvDraftToThread(
-        mockReq({
-          params: { documentsthreadId: 't1' },
-          body: { draft: SAMPLE_DRAFT, message: 'hi' },
-          user
-        }),
-        mockRes()
-      )
-    ).rejects.toMatchObject({ statusCode: 409 });
+    asMock(StudentService.getStudentByIdLean).mockResolvedValue({
+      firstname: 'A',
+      profile: []
+    });
+    asMock(getS3Object).mockResolvedValue(new Uint8Array([1, 2, 3]));
+    const res = mockRes();
+    await cvDraftController.attachCvDraftToThread(
+      mockReq({
+        params: { documentsthreadId: 't1' },
+        body: { draft: SAMPLE_DRAFT, message: 'hi' },
+        user
+      }),
+      res
+    );
+    // Rendered on demand, then snapshot-copied and attached — no 409.
+    expect(renderCVDraftDocx).toHaveBeenCalled();
+    expect(messages).toHaveLength(1);
+    expect(res.send).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true })
+    );
   });
 
   it('409s when the thread is marked final', async () => {

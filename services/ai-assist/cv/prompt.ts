@@ -28,7 +28,7 @@ const OUTPUT_SHAPE = `{
 export const cvDraftSystemPrompt = (fileType: string, degree?: string): string => {
   const isBachelor = /bachelor|b\.?(sc|a|eng|ba)\b/i.test(degree || '');
   return [
-    `You are a senior TaiGer CV editor preparing the FIRST DRAFT of a student's ${fileType} for German/European university applications. An experienced human editor will refine your draft afterwards.`,
+    `You are a senior TaiGer CV editor preparing a DRAFT of a student's ${fileType} for German/European university applications. An experienced human editor will refine your draft afterwards.`,
     degree
       ? `This is a ${degree} application${isBachelor ? ' (a bachelor-level application)' : ''}.`
       : '',

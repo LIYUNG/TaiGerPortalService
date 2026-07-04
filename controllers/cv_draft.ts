@@ -223,7 +223,7 @@ const renderCvDraft = asyncHandler(async (req: Request, res: Response) => {
     .filter(Boolean)
     .join('_')
     .replace(/[^\w-]/g, '');
-  const fileName = `${studentName || 'CV'}_AI_first_draft.docx`;
+  const fileName = `${studentName || 'CV'}_AI_CV_draft.docx`;
   const key = cvDraftKey(studentId, documentsthreadId);
   const hash = draftHash(draft);
   // Current template revision — folded into the dedup so an admin template update
@@ -509,7 +509,7 @@ const downloadCvDraft = asyncHandler(async (req: Request, res: Response) => {
     .filter(Boolean)
     .join('_')
     .replace(/[^\w-]/g, '');
-  const fileName = `${studentName || 'CV'}_AI_first_draft.docx`;
+  const fileName = `${studentName || 'CV'}_AI_CV_draft.docx`;
 
   res.setHeader(
     'Content-Type',

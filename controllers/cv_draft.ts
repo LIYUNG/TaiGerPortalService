@@ -532,10 +532,22 @@ const getSavedCvDraft = asyncHandler(async (req: Request, res: Response) => {
       savedMeta.inputsHash && savedMeta.inputsHash !== currentInputsHash
     );
 
+    // Trim the changelog payload: the client only needs each entry's draft,
+    // its source label and when it was saved — drop the rest of meta (model,
+    // timestamps, inputsHash, etc.) to keep every tab open / refresh cheap.
+    const trimmedHistory = Array.isArray(saved.history)
+      ? (saved.history as Loose[]).map((h) => ({
+          draft: h.draft,
+          meta: { source: (h.meta as Loose)?.source },
+          savedAt: h.savedAt
+        }))
+      : undefined;
+
     return res.status(200).send({
       success: true,
       data: {
         ...saved,
+        ...(trimmedHistory ? { history: trimmedHistory } : {}),
         hasPhoto: currentHasPhoto,
         inputsChanged,
         renderedCurrent,
@@ -660,10 +672,9 @@ const validateCvDraft = asyncHandler(async (req: Request, res: Response) => {
 // guard honest). Preserves meta so provenance/model survive the edit.
 const updateCvDraft = asyncHandler(async (req: Request, res: Response) => {
   const documentsthreadId = String(req.params.documentsthreadId);
-  const { draft, degree, source } = (req.body || {}) as {
+  const { draft, degree } = (req.body || {}) as {
     draft?: CVDraft;
     degree?: string;
-    source?: string;
   };
   if (!draft) {
     throw new ErrorResponse(400, 'Missing draft');
@@ -691,9 +702,12 @@ const updateCvDraft = asyncHandler(async (req: Request, res: Response) => {
       ...(existing.meta || {}),
       degree: effectiveDegree,
       editedAt: new Date().toISOString(),
-      source: source === 'restore' ? 'restore' : 'edit'
+      // Edits are the only thing this endpoint records now; restore was removed
+      // (history is a read-only changelog). Legacy 'restore' snapshots may still
+      // exist in stored history and are labelled generically by the client.
+      source: 'edit'
     },
-    // Snapshot the pre-edit draft so the editor can undo the edit.
+    // Snapshot the pre-edit draft into the changelog.
     history: pushDraftHistory(existing)
   };
   delete payload.rendered;

@@ -462,6 +462,39 @@ describe('getSavedCvDraft', () => {
     );
   });
 
+  it('trims each changelog entry to draft, source and savedAt', async () => {
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
+      cv_draft: {
+        draft: SAMPLE_DRAFT,
+        history: [
+          {
+            draft: SAMPLE_DRAFT,
+            meta: {
+              source: 'edit',
+              model: 'm',
+              generatedAt: 'g',
+              editedAt: 'e',
+              inputsHash: 'h'
+            },
+            savedAt: '2026-01-01T00:00:00.000Z'
+          }
+        ]
+      }
+    });
+    const res = mockRes();
+    await cvDraftController.getSavedCvDraft(
+      mockReq({ params: { documentsthreadId: 't1' } }),
+      res
+    );
+    const data = asMock(res.send).mock.calls[0][0].data;
+    expect(data.history).toHaveLength(1);
+    expect(data.history[0]).toEqual({
+      draft: SAMPLE_DRAFT,
+      meta: { source: 'edit' },
+      savedAt: '2026-01-01T00:00:00.000Z'
+    });
+  });
+
   it('flags inputsChanged when the saved fingerprint no longer matches', async () => {
     asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
       student_id: 's1',
@@ -585,6 +618,23 @@ describe('updateCvDraft', () => {
         data: expect.objectContaining({ renderedCurrent: false })
       })
     );
+  });
+
+  it("ignores a legacy source:'restore' and records the edit as 'edit'", async () => {
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
+      cv_draft: { meta: { fileType: 'CV', model: 'm' } }
+    });
+    const res = mockRes();
+    await cvDraftController.updateCvDraft(
+      mockReq({
+        params: { documentsthreadId: 't1' },
+        body: { draft: FULL_DRAFT, source: 'restore' }
+      }),
+      res
+    );
+    const persisted = asMock(DocumentThreadService.updateThreadById).mock
+      .calls[0][1].cv_draft;
+    expect(persisted.meta.source).toBe('edit');
   });
 
   it('404s when the thread is missing', async () => {

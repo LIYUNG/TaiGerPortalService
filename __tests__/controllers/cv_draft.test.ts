@@ -341,9 +341,13 @@ describe('attachCvDraftToThread', () => {
     // The attached file is a message-scoped SNAPSHOT copy, not the mutable
     // stable working key (so thread history stays immutable).
     expect(putS3Object).toHaveBeenCalled();
-    const attachedPath = (messages[0] as { file: { path: string }[] }).file[0]
-      .path;
-    expect(attachedPath).toMatch(/cv_ai_draft_\d+\.docx$/);
+    const attachedFile = (
+      messages[0] as { file: { name: string; path: string }[] }
+    ).file[0];
+    expect(attachedFile.path).toMatch(/cv_ai_draft_\d+\.docx$/);
+    // Student-visible name: version-distinct timestamp, no "AI" wording.
+    expect(attachedFile.name).not.toMatch(/AI/i);
+    expect(attachedFile.name).toMatch(/_CV_\d{8}_\d{4}\.docx$/);
     expect(res.send).toHaveBeenCalledWith(
       expect.objectContaining({ success: true })
     );

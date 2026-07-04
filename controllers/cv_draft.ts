@@ -223,7 +223,7 @@ const renderCvDraft = asyncHandler(async (req: Request, res: Response) => {
     .filter(Boolean)
     .join('_')
     .replace(/[^\w-]/g, '');
-  const fileName = `${studentName || 'CV'}_AI_CV_draft.docx`;
+  const fileName = studentName ? `${studentName}_CV.docx` : 'CV.docx';
   const key = cvDraftKey(studentId, documentsthreadId);
   const hash = draftHash(draft);
   // Current template revision — folded into the dedup so an admin template update
@@ -385,6 +385,23 @@ const attachCvDraftToThread = asyncHandler(
       );
     }
 
+    // Student-visible file name: version-distinct (readable timestamp) and free of
+    // any "AI" wording. Sanitise the working-copy base so legacy "_AI_..." names
+    // don't leak through.
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(
+      d.getDate()
+    )}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+    const cleanBase =
+      String(rendered.name || 'CV')
+        .replace(/\.docx$/i, '')
+        .replace(/_?AI[_-]?CV[_-]?draft/gi, '')
+        .replace(/_?AI[_-]?first[_-]?draft/gi, '')
+        .replace(/_?CV$/i, '')
+        .replace(/_+$/g, '') || 'CV';
+    const attachName = `${cleanBase}_CV_${stamp}.docx`;
+
     const noteBlocks = JSON.stringify({
       blocks: [{ type: 'paragraph', data: { text: String(message || '') } }]
     });
@@ -392,14 +409,14 @@ const attachCvDraftToThread = asyncHandler(
       user_id: user?._id,
       message: noteBlocks,
       createdAt: new Date(),
-      file: [{ name: rendered.name, path: attachKey }]
+      file: [{ name: attachName, path: attachKey }]
     });
     thread.updatedAt = new Date();
     await thread.save();
 
     return res.status(200).send({
       success: true,
-      data: { name: rendered.name, path: attachKey }
+      data: { name: attachName, path: attachKey }
     });
   }
 );
@@ -509,7 +526,7 @@ const downloadCvDraft = asyncHandler(async (req: Request, res: Response) => {
     .filter(Boolean)
     .join('_')
     .replace(/[^\w-]/g, '');
-  const fileName = `${studentName || 'CV'}_AI_CV_draft.docx`;
+  const fileName = studentName ? `${studentName}_CV.docx` : 'CV.docx';
 
   res.setHeader(
     'Content-Type',

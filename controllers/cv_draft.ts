@@ -637,12 +637,35 @@ const getCvReadiness = asyncHandler(async (req: Request, res: Response) => {
   return res.status(200).send({ success: true, data: { readiness } });
 });
 
+// GET /api/ai-assist/ai-quota
+// The current user's remaining TaiGer AI quota, so the AI Draft tab can show how
+// many credits are left and that Generate costs one.
+const getMyAiQuota = asyncHandler(async (req: Request, res: Response) => {
+  const user = req.user as Loose;
+  if (!user?._id) {
+    return res
+      .status(200)
+      .send({ success: true, data: { quota: null, canUse: false } });
+  }
+  const permission = (await PermissionService.getPermissionByUserId(
+    String(user._id)
+  )) as Loose | null;
+  return res.status(200).send({
+    success: true,
+    data: {
+      quota: permission?.taigerAiQuota ?? null,
+      canUse: Boolean(permission?.canUseTaiGerAI)
+    }
+  });
+});
+
 export = {
   generateCvDraft,
   updateAdditionalInformation,
   validateCvDraft,
   updateCvDraft,
   getCvReadiness,
+  getMyAiQuota,
   renderCvDraft,
   attachCvDraftToThread,
   getCvPassportPhoto,

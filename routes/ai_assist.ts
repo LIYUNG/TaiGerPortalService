@@ -84,6 +84,10 @@ router
   );
 
 router
+  .route('/ai-quota')
+  .get(GeneralGETRequestRateLimiter, cvDraftController.getMyAiQuota);
+
+router
   .route('/students/:studentId/cv-draft/readiness')
   .get(GeneralGETRequestRateLimiter, cvDraftController.getCvReadiness);
 

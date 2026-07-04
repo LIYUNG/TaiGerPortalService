@@ -136,17 +136,26 @@ export const validateCVDraft = (
   });
 
   // --- education presence ---
+  // The bachelor rule keys off the target program's degree (passed explicitly).
+  // It falls back to fileType only for backwards compatibility; fileType is
+  // normally 'CV' and never carries the degree, which is why this used to be dead.
+  const isBachelor = /bachelor|b\.?(sc|a|eng|ba)\b/i.test(degree || fileType);
   if (draft.universities.length === 0) {
-    add('education', 'error', 'no_university', 'No university entry. At least one is required.');
+    if (isBachelor) {
+      // A bachelor / school-leaver applicant legitimately has no university yet,
+      // so this is a review warning rather than a hard error (also covers gap
+      // years and transfers that simply have not started university).
+      add('education', 'warning', 'no_university',
+        'No university entry — expected for a bachelor / school-leaver application; add one only if the student has actually attended university.');
+    } else {
+      add('education', 'error', 'no_university',
+        'No university entry. At least one is required for this application.');
+    }
   }
   if (draft.seniorHighSchools.length === 0) {
     add('education', 'warning', 'no_senior_high',
       'No senior high school. German universities usually require it.');
   }
-  // The bachelor rule keys off the target program's degree (passed explicitly).
-  // It falls back to fileType only for backwards compatibility; fileType is
-  // normally 'CV' and never carries the degree, which is why this used to be dead.
-  const isBachelor = /bachelor|b\.?(sc|a|eng|ba)\b/i.test(degree || fileType);
   if (isBachelor && draft.juniorHighSchools.length === 0) {
     add('education', 'warning', 'no_junior_high',
       'Bachelor application: junior high school is usually required.');

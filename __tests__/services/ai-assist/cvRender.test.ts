@@ -101,7 +101,7 @@ describe('renderCVDraftDocx', () => {
   it('throws when the template is not configured in S3', async () => {
     mockGetTemplateByCategory.mockResolvedValue(null);
     await expect(renderCVDraftDocx(emptyCVDraft())).rejects.toThrow(
-      'CV_AI_Draft_Template'
+      'template has not been set up'
     );
     expect(mockGetS3Object).not.toHaveBeenCalled();
   });

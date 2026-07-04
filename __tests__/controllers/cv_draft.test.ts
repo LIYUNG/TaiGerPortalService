@@ -28,6 +28,7 @@ import DocumentThreadService from '../../services/documentthreads';
 import cvService from '../../services/ai-assist/cv';
 import { renderCVDraftDocx } from '../../services/ai-assist/cv/render';
 import { getS3Object, putS3Object } from '../../aws/s3';
+import PermissionService from '../../services/permissions';
 
 const asMock = (fn: unknown) => fn as jest.Mock;
 const user = { _id: { toString: () => 'u1' } };
@@ -121,6 +122,47 @@ describe('generateCvDraft', () => {
     expect(persisted.history[0].draft).toEqual({
       personal: { fullName: 'OLD' }
     });
+  });
+
+  it('does not persist or charge quota on a parse failure', async () => {
+    asMock(StudentService.getStudentByIdLean).mockResolvedValue({ _id: 's1' });
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
+      additional_information: ''
+    });
+    asMock(cvService.createCVDraft).mockResolvedValue({
+      draft: SAMPLE_DRAFT,
+      meta: { parseError: 'unparseable' }
+    });
+    await cvDraftController.generateCvDraft(
+      mockReq({
+        params: { studentId: 's1' },
+        body: { documentsthreadId: 't1' },
+        user
+      }),
+      mockRes()
+    );
+    expect(DocumentThreadService.updateThreadById).not.toHaveBeenCalled();
+    expect(PermissionService.decrementTaigerAiQuota).not.toHaveBeenCalled();
+  });
+
+  it('decrements the AI quota on a successful generation', async () => {
+    asMock(StudentService.getStudentByIdLean).mockResolvedValue({ _id: 's1' });
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
+      additional_information: ''
+    });
+    asMock(cvService.createCVDraft).mockResolvedValue({
+      draft: SAMPLE_DRAFT,
+      meta: {}
+    });
+    await cvDraftController.generateCvDraft(
+      mockReq({
+        params: { studentId: 's1' },
+        body: { documentsthreadId: 't1' },
+        user
+      }),
+      mockRes()
+    );
+    expect(PermissionService.decrementTaigerAiQuota).toHaveBeenCalled();
   });
 });
 
@@ -228,6 +270,35 @@ describe('renderCvDraft', () => {
         data: expect.objectContaining({ reused: true })
       })
     );
+  });
+
+  it('re-renders when the stored template version no longer matches', async () => {
+    asMock(StudentService.getStudentByIdLean).mockResolvedValue({
+      firstname: 'A',
+      profile: []
+    });
+    asMock(DocumentThreadService.getThreadByIdLean).mockResolvedValue({
+      cv_draft: {
+        rendered: {
+          hash: hashOf(SAMPLE_DRAFT),
+          key: 's1/t1/cv_ai_draft.docx',
+          name: 'A_AI_first_draft.docx',
+          templateVersion: 'OLD-TEMPLATE'
+        }
+      }
+    });
+    const res = mockRes();
+    await cvDraftController.renderCvDraft(
+      mockReq({
+        params: { studentId: 's1' },
+        body: { draft: SAMPLE_DRAFT, documentsthreadId: 't1' },
+        user
+      }),
+      res
+    );
+    // getCvTemplateVersion mock returns 'tpl-v1' != 'OLD-TEMPLATE' -> re-render.
+    expect(renderCVDraftDocx).toHaveBeenCalled();
+    expect(putS3Object).toHaveBeenCalled();
   });
 
   it('400s without a draft', async () => {

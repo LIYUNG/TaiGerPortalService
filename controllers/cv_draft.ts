@@ -258,7 +258,13 @@ const renderCvDraft = asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  const { buffer, photoEmbedded } = await renderCVDraftDocx(draft, photo);
+  // Use the template version the renderer ACTUALLY loaded (not the one fetched
+  // for the dedup pre-check) — avoids a race where the template changed in between.
+  const {
+    buffer,
+    photoEmbedded,
+    templateVersion: renderedTemplateVersion
+  } = await renderCVDraftDocx(draft, photo);
 
   await putS3Object({
     bucketName: AWS_S3_BUCKET_NAME,
@@ -278,7 +284,7 @@ const renderCvDraft = asyncHandler(async (req: Request, res: Response) => {
         key,
         name: fileName,
         at: new Date(),
-        templateVersion,
+        templateVersion: renderedTemplateVersion,
         photoEmbedded
       }
     }

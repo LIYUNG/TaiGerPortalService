@@ -1,35 +1,29 @@
-// UNIT test for services/ai-assist/cv/render (Stage B docx rendering).
-// docxtemplater / pizzip / the image module are mocked, and the template is
-// loaded from S3 via TemplateService + getS3Object (both mocked) — so NOTHING
-// real is compiled or fetched. We assert the data mapping, the returned buffer,
-// and the S3 template-loading / caching behaviour.
+// UNIT test for services/ai-assist/cv/render (Stage B docx rendering via
+// easy-template-x). The template engine, S3 template fetch and cache are all
+// mocked — NOTHING real is compiled or fetched. We assert the data mapping, the
+// returned buffer, S3 template-loading/caching, and passport-photo embedding
+// (magic-byte format detection for common image formats).
 
-const mockRender = jest.fn();
-const mockGenerate = jest.fn(() => Buffer.from('DOCX-BYTES'));
-const mockDocInstances: Array<Record<string, unknown>> = [];
+const mockProcess = jest.fn(() => Buffer.from('DOCX-BYTES'));
 
 const mockGetTemplateByCategory = jest.fn();
 const mockGetS3Object = jest.fn();
 const mockCacheGet = jest.fn();
 const mockCacheSet = jest.fn();
+const mockHeadETag = jest.fn();
 
-jest.mock('docxtemplater', () =>
-  jest.fn().mockImplementation((_zip, opts) => {
-    const inst = {
-      opts,
-      render: mockRender,
-      getZip: () => ({ generate: mockGenerate })
-    };
-    mockDocInstances.push(inst);
-    return inst;
-  })
-);
-jest.mock('pizzip', () =>
-  jest.fn().mockImplementation((buf) => ({ _buf: buf }))
-);
-jest.mock('docxtemplater-image-module-free', () =>
-  jest.fn().mockImplementation((o) => ({ _image: true, ...o }))
-);
+jest.mock('easy-template-x', () => ({
+  TemplateHandler: jest.fn().mockImplementation(() => ({
+    process: mockProcess
+  })),
+  MimeType: {
+    Png: 'image/png',
+    Jpeg: 'image/jpeg',
+    Gif: 'image/gif',
+    Bmp: 'image/bmp',
+    Svg: 'image/svg+xml'
+  }
+}));
 jest.mock('../../../services/templates', () => ({
   __esModule: true,
   default: {
@@ -38,7 +32,8 @@ jest.mock('../../../services/templates', () => ({
   }
 }));
 jest.mock('../../../aws/s3', () => ({
-  getS3Object: (...args: unknown[]) => mockGetS3Object(...args)
+  getS3Object: (...args: unknown[]) => mockGetS3Object(...args),
+  headS3ObjectETag: (...args: unknown[]) => mockHeadETag(...args)
 }));
 jest.mock('../../../config', () => ({
   AWS_S3_PUBLIC_BUCKET_NAME: 'test-public-bucket'
@@ -53,23 +48,32 @@ jest.mock('../../../cache/node-cache', () => ({
 import { renderCVDraftDocx } from '../../../services/ai-assist/cv/render';
 import { emptyCVDraft } from '../../../services/ai-assist/cv/types';
 
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+const GIF = Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
+const BMP = Buffer.from([0x42, 0x4d, 0x00, 0x00]);
+const UNKNOWN = Buffer.from([0x00, 0x01, 0x02, 0x03]);
+
+const dataOf = () =>
+  mockProcess.mock.calls[0][1] as Record<string, unknown>;
+
 beforeEach(() => {
   jest.clearAllMocks();
-  mockDocInstances.length = 0;
-  // Default: template found in S3, cache miss -> fetch the bytes.
   mockGetTemplateByCategory.mockResolvedValue({
     path: 'templates/cv_template.docx'
   });
   mockCacheGet.mockReturnValue(undefined);
   mockGetS3Object.mockResolvedValue(new Uint8Array([80, 75])); // "PK"
+  mockHeadETag.mockResolvedValue('"etag-1"');
 });
 
 describe('renderCVDraftDocx', () => {
-  it('returns the generated nodebuffer', async () => {
+  it('returns the processed docx buffer', async () => {
     const out = await renderCVDraftDocx(emptyCVDraft());
-    expect(out.toString()).toBe('DOCX-BYTES');
-    expect(mockRender).toHaveBeenCalledTimes(1);
-    expect(mockGenerate).toHaveBeenCalledWith({ type: 'nodebuffer' });
+    expect(out.buffer.toString()).toBe('DOCX-BYTES');
+    expect(out.photoEmbedded).toBe(false);
+    expect(typeof out.templateVersion).toBe('string');
+    expect(mockProcess).toHaveBeenCalledTimes(1);
   });
 
   it('loads the template from S3 (public bucket) and caches it', async () => {
@@ -82,7 +86,7 @@ describe('renderCVDraftDocx', () => {
       'templates/cv_template.docx'
     );
     expect(mockCacheSet).toHaveBeenCalledWith(
-      'templates/cv_template.docx',
+      expect.stringContaining('templates/cv_template.docx'),
       expect.any(Buffer)
     );
   });
@@ -97,32 +101,45 @@ describe('renderCVDraftDocx', () => {
   it('throws when the template is not configured in S3', async () => {
     mockGetTemplateByCategory.mockResolvedValue(null);
     await expect(renderCVDraftDocx(emptyCVDraft())).rejects.toThrow(
-      'CV_AI_Draft_Template'
+      'template has not been set up'
     );
     expect(mockGetS3Object).not.toHaveBeenCalled();
   });
 
-  it('flattens personal fields to the top level and marks hasPhoto=false without a photo', async () => {
+  it('flattens personal fields to the top level', async () => {
     const draft = emptyCVDraft();
     draft.personal.fullName = 'Wei-Ting Chen';
     await renderCVDraftDocx(draft);
-    const data = mockRender.mock.calls[0][0] as Record<string, unknown>;
+    const data = dataOf();
     expect(data.fullName).toBe('Wei-Ting Chen');
-    expect(data.hasPhoto).toBe(false);
     expect(data.universities).toEqual([]);
+    expect(data.photo).toBeUndefined();
   });
 
-  it('marks hasPhoto=true and passes the photo buffer when provided', async () => {
-    const photo = Buffer.from([1, 2, 3]);
-    await renderCVDraftDocx(emptyCVDraft(), photo);
-    const data = mockRender.mock.calls[0][0] as Record<string, unknown>;
-    expect(data.hasPhoto).toBe(true);
-    expect(data.photo).toBe(photo);
+  it.each([
+    ['PNG', PNG, 'image/png'],
+    ['JPEG', JPEG, 'image/jpeg'],
+    ['GIF', GIF, 'image/gif'],
+    ['BMP', BMP, 'image/bmp']
+  ])('embeds a %s photo with the detected format', async (_label, buf, mime) => {
+    await renderCVDraftDocx(emptyCVDraft(), buf as Buffer);
+    const photo = dataOf().photo as Record<string, unknown>;
+    expect(photo).toMatchObject({
+      _type: 'image',
+      format: mime,
+      source: buf
+    });
+    expect(photo.width).toBeGreaterThan(0);
+    expect(photo.height).toBeGreaterThan(0);
   });
 
-  it('treats an empty photo buffer as no photo', async () => {
+  it('skips a photo in an unsupported/unknown format', async () => {
+    await renderCVDraftDocx(emptyCVDraft(), UNKNOWN);
+    expect(dataOf().photo).toBeUndefined();
+  });
+
+  it('skips an empty photo buffer', async () => {
     await renderCVDraftDocx(emptyCVDraft(), Buffer.alloc(0));
-    const data = mockRender.mock.calls[0][0] as Record<string, unknown>;
-    expect(data.hasPhoto).toBe(false);
+    expect(dataOf().photo).toBeUndefined();
   });
 });

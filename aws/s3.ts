@@ -15,7 +15,13 @@ import {
 import logger from '../services/logger';
 import { AWS_KEY_CONFIG } from './constants';
 
-export const s3Client = new S3Client(AWS_KEY_CONFIG);
+// `followRegionRedirects` lets a single client transparently read buckets that
+// live in a different region than AWS_REGION (e.g. the public template bucket).
+// Without it, cross-region GetObject fails with S3 "PermanentRedirect".
+export const s3Client = new S3Client({
+  ...AWS_KEY_CONFIG,
+  followRegionRedirects: true
+});
 
 export const putS3Object = async ({ bucketName, key, Body, ContentType }) => {
   const client = new S3Client({});
@@ -98,6 +104,36 @@ export const headS3ObjectSize = async (bucketName, objectKey) => {
     if (caught instanceof S3ServiceException) {
       logger.error(
         `Error from S3 while heading object "${objectKey}" from "${bucketName}".  ${caught.name}: ${caught.message}`
+      );
+      return null;
+    }
+    throw caught;
+  }
+};
+
+// Cheap version token for an object: its S3 ETag (a content fingerprint that
+// changes whenever the object is overwritten). Returns null if absent or on a
+// non-fatal S3 error, so callers can fall back to another version signal.
+export const headS3ObjectETag = async (bucketName, objectKey) => {
+  try {
+    const response = await s3Client.send(
+      new HeadObjectCommand({
+        Bucket: bucketName,
+        Key: objectKey
+      })
+    );
+    return typeof response.ETag === 'string' ? response.ETag : null;
+  } catch (caught) {
+    if (
+      caught instanceof NotFound ||
+      caught instanceof NoSuchKey ||
+      caught?.$metadata?.httpStatusCode === 404
+    ) {
+      return null;
+    }
+    if (caught instanceof S3ServiceException) {
+      logger.error(
+        `Error from S3 while heading ETag of "${objectKey}" from "${bucketName}".  ${caught.name}: ${caught.message}`
       );
       return null;
     }

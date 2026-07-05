@@ -71,9 +71,29 @@ router
     generateReplyDraft
   );
 
+// CV-draft generation makes an LLM call and consumes the user's TaiGer AI quota,
+// so it is gated by the same permission + rate limiter as reply-draft. (render,
+// download and attach are deterministic/no-LLM and stay ungated.)
 router
   .route('/students/:studentId/cv-draft')
-  .post(GeneralPOSTRequestRateLimiter, cvDraftController.generateCvDraft);
+  .post(
+    GeneralPOSTRequestRateLimiter,
+    permission_canUseTaiGerAI_filter,
+    permission_TaiGerAIRatelimiter,
+    cvDraftController.generateCvDraft
+  );
+
+router
+  .route('/ai-quota')
+  .get(GeneralGETRequestRateLimiter, cvDraftController.getMyAiQuota);
+
+router
+  .route('/students/:studentId/cv-draft/readiness')
+  .get(GeneralGETRequestRateLimiter, cvDraftController.getCvReadiness);
+
+router
+  .route('/students/:studentId/cv-draft/validate')
+  .post(GeneralPOSTRequestRateLimiter, cvDraftController.validateCvDraft);
 
 router
   .route('/students/:studentId/cv-draft/render')
@@ -85,7 +105,19 @@ router
 
 router
   .route('/threads/:documentsthreadId/cv-draft')
-  .get(GeneralGETRequestRateLimiter, cvDraftController.getSavedCvDraft);
+  .get(GeneralGETRequestRateLimiter, cvDraftController.getSavedCvDraft)
+  .put(GeneralPOSTRequestRateLimiter, cvDraftController.updateCvDraft);
+
+router
+  .route('/students/:studentId/cv-photo')
+  .get(GeneralGETRequestRateLimiter, cvDraftController.getCvPassportPhoto);
+
+router
+  .route('/threads/:documentsthreadId/cv-draft/attach')
+  .post(
+    GeneralPOSTRequestRateLimiter,
+    cvDraftController.attachCvDraftToThread
+  );
 
 router
   .route('/conversations/:conversationId/messages')

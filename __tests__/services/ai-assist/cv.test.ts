@@ -121,6 +121,20 @@ describe('validateCVDraft', () => {
     expect(r.items.some((i) => i.code === 'no_university')).toBe(true);
   });
 
+  it('keeps no_university an error for a non-bachelor application', () => {
+    const r = validateCVDraft(emptyCVDraft(), 'CV', 'Master');
+    expect(r.items.find((i) => i.code === 'no_university')?.level).toBe(
+      'error'
+    );
+  });
+
+  it('downgrades no_university to a warning for a bachelor application', () => {
+    const r = validateCVDraft(emptyCVDraft(), 'CV', 'Bachelor');
+    expect(r.items.find((i) => i.code === 'no_university')?.level).toBe(
+      'warning'
+    );
+  });
+
   it('rejects an out-of-vocabulary language level', () => {
     const bad = JSON.parse(JSON.stringify(SAMPLE)) as CVDraft;
     bad.languages[1].level = 'very good';

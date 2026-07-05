@@ -30,9 +30,11 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   }
 
   if (err instanceof ErrorResponse) {
-    return res
-      .status(err.statusCode)
-      .json({ success: false, message: err.message });
+    return res.status(err.statusCode).json({
+      success: false,
+      message: err.message,
+      ...(err.code ? { code: err.code } : {})
+    });
   }
 
   // TODO: body-parser error, mongoose error, validation error

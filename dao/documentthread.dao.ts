@@ -126,6 +126,10 @@ const parseActiveThreadsQuery = (query: ActiveThreadsQuery = {}) => {
 const THREAD_CATEGORY_FIELDS = (viewerId: string | null) => ({
   _hasMessages: { $gt: [{ $size: { $ifNull: ['$messages', []] } }, 0] },
   _isFinal: { $eq: ['$isFinalVersion', true] },
+  // Withdrawn application (app.closed === 'X'). Requires the `app` field to be
+  // populated (post application $lookup). General threads have no app, so this
+  // resolves to false.
+  _isWithdraw: { $eq: ['$app.closed', 'X'] },
   _noWriter: {
     $eq: [{ $size: { $ifNull: ['$outsourced_user_id', []] } }, 0]
   },
@@ -161,10 +165,14 @@ const buildCategoryMatch = (category: string, viewerId: string | null) => {
   switch (category) {
     case 'closed':
       return { _isFinal: true };
+    case 'withdraw':
+      // Active (non-final) threads whose application has been withdrawn. Pulled
+      // out of in_progress / no_input so those tabs only show live work.
+      return { _isFinal: false, _isWithdraw: true };
     case 'in_progress':
-      return { _isFinal: false, _hasMessages: true };
+      return { _isFinal: false, _hasMessages: true, _isWithdraw: false };
     case 'no_input':
-      return { _isFinal: false, _hasMessages: false };
+      return { _isFinal: false, _hasMessages: false, _isWithdraw: false };
     case 'no_writer':
       return { _isFinal: false, _noWriter: true };
     case 'new_message':
@@ -1160,6 +1168,7 @@ const DocumentthreadDAO = {
     const zero = {
       all: 0,
       closed: 0,
+      withdraw: 0,
       in_progress: 0,
       no_input: 0,
       no_writer: 0,
@@ -1234,7 +1243,7 @@ const DocumentthreadDAO = {
           let: { aid: '$application_id' },
           pipeline: [
             { $match: { $expr: { $eq: ['$_id', '$$aid'] } } },
-            { $project: { decided: 1 } }
+            { $project: { decided: 1, closed: 1 } }
           ],
           as: 'app'
         }
@@ -1252,8 +1261,20 @@ const DocumentthreadDAO = {
           _id: null,
           all: { $sum: 1 },
           closed: { $sum: { $cond: ['$_isFinal', 1, 0] } },
-          in_progress: open('$_hasMessages'),
-          no_input: open({ $eq: ['$_hasMessages', false] }),
+          // Non-final withdrawn threads, kept out of in_progress / no_input.
+          withdraw: open({ $eq: ['$_isWithdraw', true] }),
+          in_progress: open({
+            $and: [
+              { $eq: ['$_hasMessages', true] },
+              { $eq: ['$_isWithdraw', false] }
+            ]
+          }),
+          no_input: open({
+            $and: [
+              { $eq: ['$_hasMessages', false] },
+              { $eq: ['$_isWithdraw', false] }
+            ]
+          }),
           no_writer: open('$_noWriter'),
           new_message: open({
             $not: [{ $in: ['$_latestById', ['- None - ', viewerKey]] }]

@@ -422,6 +422,36 @@ describe('attachCvDraftToThread', () => {
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
+  it('409s when the same draft was already attached (nothing changed)', async () => {
+    // lastAttachedHash matches the submitted draft -> duplicate, must be blocked
+    // even though a working render exists.
+    asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
+      messages: [],
+      save: jest.fn(),
+      student_id: 's1',
+      file_type: 'CV',
+      cv_draft: {
+        lastAttachedHash: hashOf(SAMPLE_DRAFT),
+        rendered: {
+          hash: hashOf(SAMPLE_DRAFT),
+          key: 's1/t1/cv_ai_draft.docx',
+          name: 'Wang_A_CV.docx',
+          templateVersion: 'tpl-v1'
+        }
+      }
+    });
+    await expect(
+      cvDraftController.attachCvDraftToThread(
+        mockReq({
+          params: { documentsthreadId: 't1' },
+          body: { draft: SAMPLE_DRAFT, message: 'attach again' },
+          user
+        }),
+        mockRes()
+      )
+    ).rejects.toMatchObject({ statusCode: 409, code: 'CV_DRAFT_DUPLICATE' });
+  });
+
   it('400s when the attach message is empty', async () => {
     asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
       messages: [],

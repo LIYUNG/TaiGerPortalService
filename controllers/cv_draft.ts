@@ -150,7 +150,15 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
   const parseFailed = Boolean(result.meta.parseError);
   // Snapshot the outgoing (previous) draft into history before overwriting it.
   const history = parseFailed ? [] : pushDraftHistory(existingCvDraft);
-  const payloadWithHistory = { ...payload, history };
+  const payloadWithHistory = {
+    ...payload,
+    history,
+    // Carry the "last attached to student" fingerprint across regenerates so the
+    // duplicate-attach guard still fires if a regenerate reproduces identical
+    // content. (updateCvDraft preserves it via its `...existing` spread.)
+    lastAttachedHash: existingCvDraft?.lastAttachedHash,
+    lastAttachedAt: existingCvDraft?.lastAttachedAt
+  };
 
   if (documentsthreadId && !parseFailed) {
     // Persist the generated draft on the thread so a page refresh restores it.
@@ -356,6 +364,21 @@ const attachCvDraftToThread = asyncHandler(
     // "Create .docx" step and the CV_DRAFT_STALE / CV_DRAFT_NO_RENDER error class;
     // the editor just attaches and the file is produced on demand.
     const hash = draftHash(draft);
+
+    // Duplicate-attach guard: block re-attaching content the student already
+    // received. `lastAttachedHash` fingerprints the draft that was last attached
+    // to this thread; if the submitted draft matches it, nothing changed since —
+    // even a fresh regenerate that reproduced identical content — so we 409 and
+    // ask the editor to edit/update before sharing again. (The hash is carried
+    // across generate/edit, so it survives a regenerate.)
+    if (thread.cv_draft?.lastAttachedHash === hash) {
+      throw new ErrorResponse(
+        409,
+        'This draft is identical to the one already attached to this thread. Edit or update the CV before attaching it again.',
+        'CV_DRAFT_DUPLICATE'
+      );
+    }
+
     const templateVersion = await getCvTemplateVersion();
     let rendered = thread.cv_draft?.rendered as Loose | undefined;
     const renderCurrent = Boolean(
@@ -477,6 +500,16 @@ const attachCvDraftToThread = asyncHandler(
       createdAt: new Date(),
       file: [{ name: attachName, path: attachKey }]
     });
+    // Remember what we just attached so the next attach of identical content is
+    // blocked by the duplicate guard above.
+    thread.cv_draft = {
+      ...(thread.cv_draft || {}),
+      lastAttachedHash: hash,
+      lastAttachedAt: new Date()
+    };
+    if (typeof thread.markModified === 'function') {
+      thread.markModified('cv_draft');
+    }
     thread.updatedAt = new Date();
     await thread.save();
 

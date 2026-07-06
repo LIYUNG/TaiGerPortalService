@@ -34,7 +34,8 @@ const {
   withSourceRefs,
   buildScanMessages,
   safeParseJson,
-  extractOutputText
+  extractOutputText,
+  compareScanCandidates
 } = signalLedger as any;
 
 describe('signalLedger.safeParseJson', () => {
@@ -195,6 +196,117 @@ describe('signalLedger.mergeSignals', () => {
     const out = mergeSignals([], [{ type: 'frustration', severity: 'low', evidence: 'e' }], now);
     expect(out[0].firstSeenAt).toBe(now.toISOString());
   });
+
+  it('carries forward an unresolved prior signal the LLM did not re-emit', () => {
+    const prior = [
+      {
+        type: 'frustration',
+        severity: 'high',
+        evidence: 'old',
+        resolved: false,
+        firstSeenAt: '2026-04-01T00:00:00.000Z',
+        lastSeenAt: '2026-05-01T00:00:00.000Z'
+      }
+    ];
+    const out = mergeSignals(prior, [], now);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      type: 'frustration',
+      severity: 'high',
+      // Not re-observed this scan — lastSeenAt must NOT be bumped.
+      lastSeenAt: '2026-05-01T00:00:00.000Z'
+    });
+  });
+
+  it('keeps carrying an unresolved signal across repeated omissions', () => {
+    // The source message is immutable and later scans never re-read it, so
+    // repeated omission is noise, not resolution — the signal must persist
+    // with its original timestamps until explicitly resolved.
+    const prior = [
+      {
+        type: 'frustration',
+        severity: 'high',
+        resolved: false,
+        firstSeenAt: '2026-04-01T00:00:00.000Z',
+        lastSeenAt: '2026-05-01T00:00:00.000Z'
+      }
+    ];
+    const afterFirstOmission = mergeSignals(prior, [], now);
+    const afterSecondOmission = mergeSignals(afterFirstOmission, [], now);
+    expect(afterSecondOmission).toHaveLength(1);
+    expect(afterSecondOmission[0]).toMatchObject({
+      type: 'frustration',
+      severity: 'high',
+      lastSeenAt: '2026-05-01T00:00:00.000Z'
+    });
+  });
+
+  it('bumps lastSeenAt when the LLM re-states the signal', () => {
+    const prior = [
+      {
+        type: 'frustration',
+        severity: 'high',
+        resolved: false,
+        firstSeenAt: '2026-04-01T00:00:00.000Z',
+        lastSeenAt: '2026-05-01T00:00:00.000Z'
+      }
+    ];
+    const out = mergeSignals(
+      prior,
+      [{ type: 'frustration', severity: 'medium', evidence: 'again' }],
+      now
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].lastSeenAt).toBe(now.toISOString());
+    expect(out[0].firstSeenAt).toBe('2026-04-01T00:00:00.000Z');
+    expect(out[0].severity).toBe('medium');
+  });
+
+  it('does not carry forward resolved prior signals the LLM omitted', () => {
+    const prior = [
+      {
+        type: 'confusion',
+        severity: 'low',
+        resolved: true,
+        firstSeenAt: '2026-04-01T00:00:00.000Z',
+        lastSeenAt: '2026-05-01T00:00:00.000Z'
+      }
+    ];
+    expect(mergeSignals(prior, [], now)).toEqual([]);
+  });
+});
+
+describe('signalLedger.compareScanCandidates', () => {
+  const c = (lastScannedAt: string | null, latestAt: string) => ({
+    lastScannedAt,
+    latestAt: new Date(latestAt)
+  });
+
+  it('puts never-scanned students before previously scanned ones', () => {
+    const sorted = [
+      c('2026-06-01T00:00:00.000Z', '2026-06-20T00:00:00.000Z'),
+      c(null, '2026-06-10T00:00:00.000Z')
+    ].sort(compareScanCandidates);
+    expect(sorted[0].lastScannedAt).toBeNull();
+  });
+
+  it('orders least-recently-scanned first', () => {
+    const sorted = [
+      c('2026-06-15T00:00:00.000Z', '2026-06-20T00:00:00.000Z'),
+      c('2026-06-01T00:00:00.000Z', '2026-06-16T00:00:00.000Z')
+    ].sort(compareScanCandidates);
+    expect(sorted[0].lastScannedAt).toBe('2026-06-01T00:00:00.000Z');
+  });
+
+  it('tie-breaks equal scan times by newest activity first', () => {
+    const sorted = [
+      c(null, '2026-06-10T00:00:00.000Z'),
+      c(null, '2026-06-18T00:00:00.000Z')
+    ].sort(compareScanCandidates);
+    expect(sorted[0].latestAt.toISOString()).toBe(
+      '2026-06-18T00:00:00.000Z'
+    );
+  });
 });
 
 describe('signalLedger.rollupRiskLevel', () => {
@@ -320,6 +432,59 @@ describe('signalLedger.scanStudentSignals', () => {
 
     expect(insertMock).not.toHaveBeenCalled();
     expect(row).toEqual(prior);
+  });
+
+  it('sends the resolved flag with prior signals and carries forward what the LLM omits', async () => {
+    const insertMock = okInsert();
+    const prior = {
+      studentId: 's1',
+      lastScannedAt: '2026-04-01T00:00:00.000Z',
+      signals: [
+        {
+          type: 'frustration',
+          severity: 'high',
+          resolved: false,
+          firstSeenAt: '2026-03-01T00:00:00.000Z',
+          lastSeenAt: '2026-04-01T00:00:00.000Z'
+        },
+        {
+          type: 'confusion',
+          severity: 'low',
+          resolved: true,
+          firstSeenAt: '2026-03-01T00:00:00.000Z',
+          lastSeenAt: '2026-04-01T00:00:00.000Z'
+        }
+      ]
+    };
+    getPostgresDb.mockReturnValue(buildPg([prior], insertMock));
+    findPopulatedSorted.mockResolvedValue([
+      studentMsg('m9', 'ok thanks', '2026-05-01T00:00:00.000Z')
+    ]);
+    // The model "forgets" everything.
+    openAiCreate.mockResolvedValue({
+      output_text: JSON.stringify({ signals: [] })
+    });
+
+    const row = await scanStudentSignals({}, 's1');
+
+    // Prior signals reach the model WITH their resolved flag.
+    const promptContent = openAiCreate.mock.calls[0][0].input[0].content;
+    const promptPayload = JSON.parse(promptContent);
+    expect(promptPayload.priorSignals).toEqual([
+      expect.objectContaining({ type: 'frustration', resolved: false }),
+      expect.objectContaining({ type: 'confusion', resolved: true })
+    ]);
+
+    // Unresolved prior survives with its original timestamps (not re-observed,
+    // so lastSeenAt is not bumped); resolved prior is let go.
+    expect(row.signals).toHaveLength(1);
+    expect(row.signals[0]).toMatchObject({
+      type: 'frustration',
+      severity: 'high',
+      lastSeenAt: '2026-04-01T00:00:00.000Z'
+    });
+    expect(row.riskLevel).toBe('high');
+    expect(insertMock).toHaveBeenCalled();
   });
 
   it('LLM unparseable: returns prior, no upsert', async () => {

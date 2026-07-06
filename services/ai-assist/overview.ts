@@ -24,10 +24,17 @@ const SAMPLE_SIZE = 8;
 // triage rather than a handful of examples. Still bounded to avoid huge payloads.
 const PORTFOLIO_BUCKET_LIMIT = 200;
 // Thresholds for the behaviour-based (not status-based) risk signals. These
-// surface the "who has gone quiet / what is stuck" questions that pure status
-// fields cannot answer.
-const THREAD_STALL_DAYS = 7;
+// surface the "who is waiting on us / who has gone quiet / what is stuck"
+// questions that pure status fields cannot answer.
+// A student message unanswered by the team for this many days.
 const COMMUNICATION_GAP_DAYS = 7;
+// No message FROM the student for this many days (they may have gone quiet
+// even while the team keeps writing). ≥ SILENCE_HIGH_DAYS escalates to high.
+const STUDENT_SILENCE_DAYS = 10;
+const STUDENT_SILENCE_HIGH_DAYS = 21;
+// How far past its deadline an in-progress application keeps being surfaced
+// as overdue. Beyond this it is treated as stale data, not an actionable item.
+const OVERDUE_DEADLINE_LOOKBACK_DAYS = 60;
 
 const OVERVIEW_STUDENT_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count createdAt attributes';
@@ -161,7 +168,11 @@ const buildFinalizedStudentIds = (
 };
 
 // Applications with a real (non-rolling) deadline within `days`, still in
-// progress (not closed/admitted/rejected). Sorted soonest-first.
+// progress (not closed/admitted/rejected). Deadlines already MISSED (up to
+// OVERDUE_DEADLINE_LOOKBACK_DAYS ago) are included with overdue: true — an
+// in-progress application whose deadline passed is the single most urgent
+// state there is, and silently dropping it hid exactly those students.
+// Sorted soonest-first (overdue first, most-overdue at the top).
 // Items for students who confirmed enrolment elsewhere are flagged confirmedElsewhere.
 const collectUpcomingDeadlines = (
   applications: OverviewApplication[],
@@ -181,7 +192,7 @@ const collectUpcomingDeadlines = (
     if (rolling || !date) return;
 
     const daysUntil = differenceInDays(date, today);
-    if (daysUntil < 0 || daysUntil > days) return;
+    if (daysUntil < -OVERDUE_DEADLINE_LOOKBACK_DAYS || daysUntil > days) return;
 
     const studentId = toIdString(application.studentId);
     const student = studentById.get(studentId);
@@ -196,6 +207,7 @@ const collectUpcomingDeadlines = (
         : null,
       deadline: label,
       daysUntil,
+      ...(daysUntil < 0 ? { overdue: true } : {}),
       ...(finalizedStudentIds.has(studentId)
         ? { confirmedElsewhere: true }
         : {})
@@ -268,13 +280,16 @@ const collectThreadsWaitingOnTeam = (
   return items.sort((a, b) => b.stalledDays - a.stalledDays);
 };
 
-// Students with at least one in-progress application whose latest message was
-// sent by the student themselves and has not been marked "no reply needed".
-// Urgency: ≥14d → critical, ≥7d → high, ≥3d → medium.
+// "The student is waiting on US": students with at least one in-progress
+// application whose LATEST message was sent by the student themselves, has not
+// been marked "no reply needed", and has waited ≥ COMMUNICATION_GAP_DAYS for a
+// team reply. `unansweredSinceById` comes from getUnansweredStudentMessages —
+// NOT from getLatestMessageAtForStudents, whose any-author timestamp made this
+// bucket claim "student waiting" even when the team spoke last.
 const collectCommunicationGaps = (
   students: OverviewStudent[],
   applications: OverviewApplication[],
-  latestMessageAtById: Map<string, Date> // studentId -> latest message date
+  unansweredSinceById: Map<string, Date> // studentId -> unanswered student msg date
 ) => {
   const today = new Date();
   const activeStudentIds = new Set(
@@ -293,17 +308,55 @@ const collectCommunicationGaps = (
   activeStudentIds.forEach((id) => {
     const student = studentById.get(id);
     if (!student) return;
-    const latestAt = latestMessageAtById.get(id) ?? null;
-    const daysSince = latestAt
-      ? Math.max(differenceInDays(today, latestAt), 0)
-      : null;
-    if (daysSince !== null && daysSince < COMMUNICATION_GAP_DAYS) return;
+    const unansweredSince = unansweredSinceById.get(id) ?? null;
+    if (!unansweredSince) return; // team replied last (or no messages at all)
+    const daysSince = Math.max(differenceInDays(today, unansweredSince), 0);
+    if (daysSince < COMMUNICATION_GAP_DAYS) return;
     items.push({ student: studentLabel(student), lastContactDays: daysSince });
   });
 
-  return items.sort(
-    (a, b) => (b.lastContactDays ?? Infinity) - (a.lastContactDays ?? Infinity)
+  return items.sort((a, b) => b.lastContactDays - a.lastContactDays);
+};
+
+// "The student has gone quiet": students with an in-progress application who
+// HAVE messaged before but whose last message of their own is
+// ≥ STUDENT_SILENCE_DAYS old — even if the team kept writing since. Students
+// currently waiting on a team reply (in `unansweredSinceById`) are excluded:
+// for them the ball is in our court, and communicationGaps already covers it.
+// Students who never sent a message are excluded too (that is an onboarding
+// state, not a gone-quiet signal). Sorted longest silence first.
+const collectStudentSilence = (
+  students: OverviewStudent[],
+  applications: OverviewApplication[],
+  latestStudentMessageAtById: Map<string, Date>, // studentId -> last own msg
+  unansweredSinceById: Map<string, Date> = new Map()
+) => {
+  const today = new Date();
+  const activeStudentIds = new Set(
+    (applications || [])
+      .filter((application) => deriveStatus(application) === 'in_progress')
+      .map((application) => toIdString(application.studentId))
   );
+
+  const studentById = new Map<string, OverviewStudent>();
+  (students || []).forEach((s) => {
+    studentById.set(toIdString(s._id || s.id), s);
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const items: any[] = [];
+  activeStudentIds.forEach((id) => {
+    const student = studentById.get(id);
+    if (!student) return;
+    if (unansweredSinceById.has(id)) return; // waiting on team, not silent
+    const lastOwnMessageAt = latestStudentMessageAtById.get(id) ?? null;
+    if (!lastOwnMessageAt) return; // never messaged — onboarding, not silence
+    const silentDays = Math.max(differenceInDays(today, lastOwnMessageAt), 0);
+    if (silentDays < STUDENT_SILENCE_DAYS) return;
+    items.push({ student: studentLabel(student), silentDays });
+  });
+
+  return items.sort((a, b) => b.silentDays - a.silentDays);
 };
 
 const SIGNAL_SEVERITY_RANK: Record<string, number> = {
@@ -427,6 +480,7 @@ const BUCKET_KEYS = [
   'upcomingDeadlines',
   'threadsWaitingOnTeam',
   'communicationGaps',
+  'studentSilence',
   'communicationRiskSignals',
   'admittedNotConfirmed',
   'missingBaseDocuments'
@@ -481,12 +535,15 @@ const buildStudentsView = (
   collected.upcomingDeadlines.forEach((it) =>
     add(it.student, {
       bucket: 'upcomingDeadlines',
+      // Overdue (daysUntil < 0) is critical by definition — unless the student
+      // already confirmed elsewhere, in which case it is stale housekeeping.
       urgency: it.confirmedElsewhere
         ? 'medium'
         : it.daysUntil < 7
         ? 'critical'
         : 'high',
       daysUntil: it.daysUntil,
+      ...(it.overdue ? { overdue: true } : {}),
       deadline: it.deadline,
       program: it.program ?? null
     })
@@ -513,14 +570,21 @@ const buildStudentsView = (
       lastContactDays: it.lastContactDays ?? null
     });
   });
+  collected.studentSilence.forEach((it) =>
+    add(it.student, {
+      bucket: 'studentSilence',
+      urgency:
+        it.silentDays >= STUDENT_SILENCE_HIGH_DAYS ? 'high' : 'medium',
+      silentDays: it.silentDays
+    })
+  );
   collected.communicationRiskSignals.forEach((it) =>
     add(it.student, {
       bucket: 'communicationRiskSignals',
-      urgency:
-        (it.signals || []).some((s: { severity?: string }) => s.severity === 'high') ||
-        it.riskLevel === 'high'
-          ? 'high'
-          : 'medium',
+      // riskLevel is the (possibly Done-capped) rollup of unresolved signal
+      // severities. Deriving urgency from individual signal severities here
+      // bypassed that cap, so use the capped rollup alone.
+      urgency: it.riskLevel === 'high' ? 'high' : 'medium',
       riskLevel: it.riskLevel,
       riskSignals: it.signals ?? []
     })
@@ -601,23 +665,35 @@ const buildOverview = async (
     req
   );
 
-  // Latest message dates per student — used to surface students who have gone
-  // quiet. Best-effort: a failure here must not break the rest of the overview.
-  const latestMessageAtById = new Map<string, Date>();
+  // Two independent message clocks per student:
+  // - unansweredSinceById: latest STUDENT message still waiting on a team
+  //   reply ("the student is waiting on us") → communicationGaps.
+  // - latestStudentMessageAtById: last message the student themselves sent,
+  //   regardless of team activity ("the student went quiet") → studentSilence.
+  // Best-effort: a failure here must not break the rest of the overview.
+  const unansweredSinceById = new Map<string, Date>();
+  const latestStudentMessageAtById = new Map<string, Date>();
   try {
     const studentObjectIds = (students || [])
       .map((student) => student._id || student.id)
       .filter(Boolean);
-    const rows = await CommunicationService.getLatestMessageAtForStudents(
-      studentObjectIds
-    );
-    (rows || []).forEach((row: any) => {
-      const id = toIdString(row._id ?? row.studentId);
-      const date = safeDate(row.latestAt);
-      if (id && date) latestMessageAtById.set(id, date);
-    });
+    const collectInto = (rows: any[], target: Map<string, Date>) => {
+      (rows || []).forEach((row: any) => {
+        const id = toIdString(row._id ?? row.studentId);
+        const date = safeDate(row.latestAt);
+        if (id && date) target.set(id, date);
+      });
+    };
+    const [unansweredRows, latestOwnRows] = await Promise.all([
+      CommunicationService.getUnansweredStudentMessages(studentObjectIds),
+      CommunicationService.getLatestStudentMessageAtForStudents(
+        studentObjectIds
+      )
+    ]);
+    collectInto(unansweredRows, unansweredSinceById);
+    collectInto(latestOwnRows, latestStudentMessageAtById);
   } catch {
-    // Leave empty; communicationGaps will reflect no contact data.
+    // Leave empty; communicationGaps / studentSilence will simply be empty.
   }
 
   // Content-derived implicit risk signals from the ledger. Best-effort: a
@@ -655,7 +731,13 @@ const buildOverview = async (
   const communicationGaps = collectCommunicationGaps(
     students,
     applications,
-    latestMessageAtById
+    unansweredSinceById
+  );
+  const studentSilence = collectStudentSilence(
+    students,
+    applications,
+    latestStudentMessageAtById,
+    unansweredSinceById
   );
   const applicationsByStudentId = new Map();
   (applications || []).forEach((app) => {
@@ -677,11 +759,13 @@ const buildOverview = async (
           'threadsWaitingOnTeam',
           'communicationRiskSignals',
           'communicationGaps',
+          'studentSilence',
           'upcomingDeadlines'
         ]
       : role === Role.Manager
       ? [
           'communicationRiskSignals',
+          'studentSilence',
           'upcomingDeadlines',
           'communicationGaps',
           'admittedNotConfirmed',
@@ -691,6 +775,7 @@ const buildOverview = async (
           'upcomingDeadlines',
           'communicationRiskSignals',
           'communicationGaps',
+          'studentSilence',
           'missingBaseDocuments',
           'admittedNotConfirmed'
         ];
@@ -700,6 +785,7 @@ const buildOverview = async (
         upcomingDeadlines,
         threadsWaitingOnTeam,
         communicationGaps,
+        studentSilence,
         communicationRiskSignals,
         admittedNotConfirmed,
         missingBaseDocuments
@@ -731,6 +817,7 @@ export = {
   collectMissingBaseDocuments,
   collectThreadsWaitingOnTeam,
   collectCommunicationGaps,
+  collectStudentSilence,
   parseDeadline,
   PORTFOLIO_BUCKET_LIMIT,
   buildFinalizedStudentIds,

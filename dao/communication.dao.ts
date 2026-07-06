@@ -140,6 +140,25 @@ const CommunicationDAO = {
     ]);
   },
 
+  // Latest message authored BY the student themselves (user_id == student_id)
+  // per student, one aggregation. Used by the AI-assist portfolio overview to
+  // detect students who have gone silent — getLatestMessageAtForStudents cannot
+  // answer this because a team message resets its clock. Students who never
+  // sent a message are absent from the result.
+  // Returns [{ _id: <studentObjectId>, latestAt: <Date> }].
+  async getLatestStudentMessageAtForStudents(studentIds: Types.ObjectId[]) {
+    if (!studentIds?.length) return [];
+    return Communication.aggregate([
+      {
+        $match: {
+          student_id: { $in: studentIds },
+          $expr: { $eq: ['$user_id', '$student_id'] }
+        }
+      },
+      { $group: { _id: '$student_id', latestAt: { $max: '$createdAt' } } }
+    ]);
+  },
+
   // A student's chat thread, newest-first, with the given populate spec.
   // Returns live documents unless `lean` is set (callers that mark-as-read
   // mutate + .save() the returned docs).

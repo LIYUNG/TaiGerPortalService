@@ -15,6 +15,8 @@ export type StudentSignal = {
   resolved: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
+  // Internal-only category harvest field; only meaningful when type === 'other'.
+  suggestedType?: string;
 };
 
 // Accumulated, content-derived communication risk signals per student. Written

@@ -69,6 +69,7 @@ const INSTRUCTIONS =
   'vague/broken promises, deadline anxiety, cooling engagement (shorter/slower replies), mentions of competitors/refund/quitting, declining sentiment, dissatisfaction, ' +
   'technical/access blockers (login, portal, upload, links, system bugs), missing/blocked documents, financial concerns (fees, funding, budget), low confidence in their own outcome (self-doubt, eligibility/admission odds). ' +
   'You are given PRIOR signals already detected (older history you cannot re-read) and the NEW messages since the last scan. ' +
+  'Each prior signal carries a "resolved" flag: do NOT re-report a resolved prior signal unless the NEW messages show it has recurred. ' +
   'Return the UPDATED signal set: keep prior signals that are still relevant, set "resolved": true on any the new messages clearly address, and add new ones. ' +
   'Only report real, evidenced signals — never invent. Keep evidence to one short quote or paraphrase. ' +
   'Classify each signal under one fixed "type" category, AND write a SPECIFIC short description of the actual case (not the generic category) in BOTH English ("summaryEn") and Traditional Chinese ("summaryZh"), max ~12 words / ~20 characters, e.g. type "frustration" with "Frustrated about slow document feedback" / "對文件回覆緩慢感到不滿". ' +
@@ -114,8 +115,17 @@ const rollupRiskLevel = (signals: StudentSignal[] = []) => {
 
 // Validate + normalise the LLM output, then carry forward firstSeenAt from
 // prior signals (matched by type) so server time — not the model — owns dates.
-// `type` is a fixed category (i18n-displayed); summaryEn/summaryZh hold the
-// specific bilingual description (shown on hover). Pure — unit tested.
+// Prior UNRESOLVED signals the model did not re-emit are carried forward
+// unconditionally: a signal is anchored to an immutable source message that
+// later scans never re-read, so the model omitting it carries no evidence the
+// risk went away (the new messages may simply be unrelated). Signals only
+// leave the ledger when the model explicitly marks them resolved (or, in the
+// future, a human dismisses them). lastSeenAt is bumped only on re-statement,
+// so "how long since the model last re-affirmed this" is always readable from
+// the timestamps — no separate staleness counter. Prior RESOLVED signals the
+// model did not re-emit are let go. `type` is a fixed category
+// (i18n-displayed); summaryEn/summaryZh hold the specific bilingual
+// description (shown on hover). Pure — unit tested.
 const mergeSignals = (
   priorSignals: StudentSignal[] = [],
   llmSignals: any[] = [],
@@ -138,7 +148,7 @@ const mergeSignals = (
   const str = (value, cap) =>
     typeof value === 'string' ? value.trim().slice(0, cap) : '';
 
-  return (Array.isArray(llmSignals) ? llmSignals : [])
+  const merged = (Array.isArray(llmSignals) ? llmSignals : [])
     .map((signal) => ({
       type: normType(signal?.type),
       severity: normSeverity(signal?.severity),
@@ -168,6 +178,19 @@ const mergeSignals = (
         lastSeenAt: nowIso
       };
     });
+
+  // Code-level carry-forward: prior UNRESOLVED signals the model did not
+  // re-emit survive unchanged (their lastSeenAt is NOT bumped — they were not
+  // re-observed). They persist until explicitly resolved. Resolved prior
+  // signals are only kept when the model re-emits them, so the row does not
+  // accumulate history forever.
+  const mergedTypes = new Set(merged.map((signal) => signal.type));
+  (priorSignals || []).forEach((prior) => {
+    if (!prior?.type || prior.resolved || mergedTypes.has(prior.type)) return;
+    merged.push(prior);
+  });
+
+  return merged;
 };
 
 const extractOutputText = (response) =>
@@ -191,7 +214,10 @@ const classifySignals = async ({ priorSignals, messages }) => {
               severity: signal.severity,
               summaryEn: signal.summaryEn,
               summaryZh: signal.summaryZh,
-              evidence: signal.evidence
+              evidence: signal.evidence,
+              // Without this flag the model cannot tell an active prior signal
+              // from an already-resolved one and may resurrect the latter.
+              resolved: Boolean(signal.resolved)
             })),
             // 1-based index `i`; the id is kept server-side, not exposed.
             messages: (messages || []).map((message, index) => ({
@@ -357,9 +383,9 @@ const upsertSignalRow = (postgres: any, row: NewStudentCommunicationSignal) =>
 
 // Scan ONE student's new messages and update their ledger row. Access-scoped
 // via requireAccessibleStudent (user-triggered). Incremental by construction:
-// first call cold-starts (last COLD_START_DAYS), later calls read only messages
-// since the previous scan. Returns the updated row (or the prior row when there
-// was nothing new). This is the same per-student unit the bulk cron
+// first call cold-starts (latest MAX_MESSAGES_PER_SCAN messages, no date
+// floor), later calls read only messages since the previous scan. Returns the
+// updated row (or the prior row when there was nothing new). This is the same per-student unit the bulk cron
 // (scanCommunicationSignals) runs over — kept separate so a cron can be split
 // out later without touching this path.
 const scanStudentSignals = async (req, studentId) => {
@@ -398,6 +424,25 @@ const getStudentSignalRow = async (
 };
 
 // ---- Cron entry -------------------------------------------------------------
+
+// Least-recently-scanned first (never-scanned before everything else); within
+// the same scan time, newest activity first. The previous "newest activity
+// first" ordering systematically starved quiet students: with more daily
+// candidates than MAX_STUDENTS_PER_RUN, the students most in need of a first
+// scan never reached the front of the queue. Pure — unit tested.
+const compareScanCandidates = (
+  a: { latestAt: Date | null; lastScannedAt?: Date | string | null },
+  b: { latestAt: Date | null; lastScannedAt?: Date | string | null }
+) => {
+  const scannedAt = (value?: Date | string | null) =>
+    value ? new Date(value).getTime() : 0;
+  const byScanTime = scannedAt(a.lastScannedAt) - scannedAt(b.lastScannedAt);
+  if (byScanTime !== 0) return byScanTime;
+  return (
+    (b.latestAt ? b.latestAt.getTime() : 0) -
+    (a.latestAt ? a.latestAt.getTime() : 0)
+  );
+};
 
 // Bulk cron orchestration (candidate selection, chunked fan-out, error
 // swallowing). Excluded from coverage: it is a thin scheduler over scanStudent
@@ -443,14 +488,18 @@ const scanCommunicationSignals = async () => {
   const candidates = students
     .map((student) => {
       const id = toIdString(student._id || student.id);
-      return { student, id, latestAt: latestById.get(id) || null };
+      return {
+        student,
+        id,
+        latestAt: latestById.get(id) || null,
+        lastScannedAt: priorById.get(id)?.lastScannedAt || null
+      };
     })
-    .filter(({ id, latestAt }) => {
+    .filter(({ latestAt, lastScannedAt }) => {
       if (!latestAt) return false;
-      const lastScannedAt = priorById.get(id)?.lastScannedAt;
       return !lastScannedAt || latestAt > new Date(lastScannedAt);
     })
-    .sort((a, b) => (b.latestAt as Date).getTime() - (a.latestAt as Date).getTime())
+    .sort(compareScanCandidates)
     .slice(0, MAX_STUDENTS_PER_RUN);
 
   let scanned = 0;
@@ -519,5 +568,6 @@ export = {
   buildScanMessages,
   safeParseJson,
   extractOutputText,
+  compareScanCandidates,
   SIGNAL_TYPES
 };

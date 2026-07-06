@@ -13,7 +13,9 @@ jest.mock('../../../services/documentthreads', () => ({
   getThreadsWaitingOnTeam: jest.fn()
 }));
 jest.mock('../../../services/communications', () => ({
-  getLatestMessageAtForStudents: jest.fn()
+  getLatestMessageAtForStudents: jest.fn(),
+  getUnansweredStudentMessages: jest.fn(),
+  getLatestStudentMessageAtForStudents: jest.fn()
 }));
 jest.mock('../../../services/ai-assist/studentAccess', () => ({
   getAccessibleStudentFilter: jest.fn().mockResolvedValue({})
@@ -31,6 +33,7 @@ const CommunicationService = require('../../../services/communications');
 const {
   collectThreadsWaitingOnTeam,
   collectCommunicationGaps,
+  collectStudentSilence,
   collectUpcomingDeadlines,
   collectAdmittedNotConfirmed,
   collectMissingBaseDocuments,
@@ -55,7 +58,13 @@ const {
   collectCommunicationGaps: (
     students: any[],
     applications: any[],
-    latestMessageAtById: Map<string, Date>
+    unansweredSinceById: Map<string, Date>
+  ) => any[];
+  collectStudentSilence: (
+    students: any[],
+    applications: any[],
+    latestStudentMessageAtById: Map<string, Date>,
+    unansweredSinceById?: Map<string, Date>
   ) => any[];
   collectUpcomingDeadlines: (
     applications: any[],
@@ -343,6 +352,25 @@ describe('collectUpcomingDeadlines', () => {
     expect(result[0].confirmedElsewhere).toBe(true);
     expect(result[0].program.name).toBe('CS');
   });
+
+  it('includes recently missed deadlines as overdue, but not beyond the lookback', () => {
+    application_deadline_V2_calculator.mockImplementation(
+      (app: any) => app._deadline
+    );
+    const ymd = (d: Date) =>
+      `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(
+        d.getDate()
+      ).padStart(2, '0')}`;
+    const byId = new Map([['s1', student('s1')]]);
+    const apps = [
+      { studentId: 's1', _deadline: ymd(daysAgo(10)) }, // recently missed
+      { studentId: 's1', _deadline: ymd(daysAgo(90)) } // beyond 60d lookback
+    ];
+    const result = collectUpcomingDeadlines(apps, byId, 30);
+    expect(result).toHaveLength(1);
+    expect(result[0].overdue).toBe(true);
+    expect(result[0].daysUntil).toBeLessThan(0);
+  });
 });
 
 // ─── collectAdmittedNotConfirmed ───────────────────────────────────────────
@@ -516,7 +544,7 @@ describe('collectThreadsWaitingOnTeam', () => {
 
 // ─── collectCommunicationGaps ──────────────────────────────────────────────
 describe('collectCommunicationGaps', () => {
-  it('flags active students silent past the threshold or never contacted, longest silence first', () => {
+  it('flags active students whose unanswered message waited past the threshold, longest first', () => {
     const students = [
       student('s1', 'Ann'),
       student('s2', 'Bob'),
@@ -526,26 +554,91 @@ describe('collectCommunicationGaps', () => {
     const applications = [
       { studentId: 's1' },
       { studentId: 's2' },
-      { studentId: 's3', admission: 'O' },
+      { studentId: 's3', admission: 'O' }, // not in progress
       { studentId: 's4' }
     ];
-    const latest = new Map<string, Date>([
+    // Only students present here have an unanswered message of their own.
+    const unanswered = new Map<string, Date>([
       ['s1', daysAgo(30)],
-      ['s2', daysAgo(3)]
+      ['s2', daysAgo(3)], // below threshold
+      ['s4', daysAgo(9)]
     ]);
 
-    const result = collectCommunicationGaps(students, applications, latest);
-    expect(result.map((item) => item.student.id)).toEqual(['s4', 's1']);
-    expect(result[0].lastContactDays).toBeNull();
-    expect(result[1].lastContactDays).toBe(30);
+    const result = collectCommunicationGaps(students, applications, unanswered);
+    expect(result.map((item) => item.student.id)).toEqual(['s1', 's4']);
+    expect(result[0].lastContactDays).toBe(30);
+    expect(result[1].lastContactDays).toBe(9);
+  });
+
+  it('does not flag students whose latest message was answered (absent from the map)', () => {
+    const students = [student('s5', 'Eve')];
+    const applications = [{ studentId: 's5' }];
+    expect(
+      collectCommunicationGaps(students, applications, new Map())
+    ).toEqual([]);
   });
 
   it('does not flag students without an in-progress application', () => {
     const students = [student('s3', 'Cara')];
     const applications = [{ studentId: 's3', finalEnrolment: true }];
-    expect(collectCommunicationGaps(students, applications, new Map())).toEqual(
+    expect(
+      collectCommunicationGaps(
+        students,
+        applications,
+        new Map([['s3', daysAgo(30)]])
+      )
+    ).toEqual([]);
+  });
+});
+
+// ─── collectStudentSilence ─────────────────────────────────────────────────
+describe('collectStudentSilence', () => {
+  it('flags active students whose own last message is old, longest silence first', () => {
+    const students = [
+      student('s1', 'Ann'),
+      student('s2', 'Bob'),
+      student('s3', 'Cara')
+    ];
+    const applications = [
+      { studentId: 's1' },
+      { studentId: 's2' },
+      { studentId: 's3' }
+    ];
+    const lastOwn = new Map<string, Date>([
+      ['s1', daysAgo(15)],
+      ['s2', daysAgo(40)],
+      ['s3', daysAgo(5)] // below threshold
+    ]);
+
+    const result = collectStudentSilence(students, applications, lastOwn);
+    expect(result.map((item) => item.student.id)).toEqual(['s2', 's1']);
+    expect(result[0].silentDays).toBe(40);
+    expect(result[1].silentDays).toBe(15);
+  });
+
+  it('excludes students who never sent a message (onboarding, not silence)', () => {
+    const students = [student('s1', 'Ann')];
+    const applications = [{ studentId: 's1' }];
+    expect(collectStudentSilence(students, applications, new Map())).toEqual(
       []
     );
+  });
+
+  it('excludes students currently waiting on a team reply (gap bucket owns them)', () => {
+    const students = [student('s1', 'Ann')];
+    const applications = [{ studentId: 's1' }];
+    const lastOwn = new Map<string, Date>([['s1', daysAgo(20)]]);
+    const unanswered = new Map<string, Date>([['s1', daysAgo(20)]]);
+    expect(
+      collectStudentSilence(students, applications, lastOwn, unanswered)
+    ).toEqual([]);
+  });
+
+  it('excludes students without an in-progress application', () => {
+    const students = [student('s1', 'Ann')];
+    const applications = [{ studentId: 's1', admission: 'X' }];
+    const lastOwn = new Map<string, Date>([['s1', daysAgo(20)]]);
+    expect(collectStudentSilence(students, applications, lastOwn)).toEqual([]);
   });
 });
 
@@ -587,6 +680,7 @@ describe('buildStudentsView', () => {
     upcomingDeadlines: [],
     threadsWaitingOnTeam: [],
     communicationGaps: [],
+    studentSilence: [],
     communicationRiskSignals: [],
     admittedNotConfirmed: [],
     missingBaseDocuments: []
@@ -668,6 +762,73 @@ describe('buildStudentsView', () => {
     };
     const { students } = buildStudentsView(collected, {}, {}, new Set(), 200);
     expect(students).toHaveLength(0);
+  });
+
+  it('marks overdue deadlines critical and passes the overdue flag through', () => {
+    const collected = {
+      ...emptyCollected,
+      upcomingDeadlines: [
+        {
+          student: { id: 's1', name: 'Ann' },
+          daysUntil: -3,
+          overdue: true,
+          deadline: '2026/07/02'
+        }
+      ]
+    };
+    const { students } = buildStudentsView(collected, {}, {}, new Set(), 200);
+    expect(students[0].signals[0]).toMatchObject({
+      bucket: 'upcomingDeadlines',
+      urgency: 'critical',
+      overdue: true,
+      daysUntil: -3
+    });
+  });
+
+  it('maps studentSilence urgency: high past the escalation threshold, else medium', () => {
+    const collected = {
+      ...emptyCollected,
+      studentSilence: [
+        { student: { id: 's1', name: 'Ann' }, silentDays: 40 },
+        { student: { id: 's2', name: 'Bob' }, silentDays: 12 }
+      ]
+    };
+    const { students } = buildStudentsView(collected, {}, {}, new Set(), 200);
+    const byId = new Map(students.map((s: any) => [s.id, s]));
+    expect((byId.get('s1') as any).signals[0]).toMatchObject({
+      bucket: 'studentSilence',
+      urgency: 'high',
+      silentDays: 40
+    });
+    expect((byId.get('s2') as any).signals[0]).toMatchObject({
+      bucket: 'studentSilence',
+      urgency: 'medium',
+      silentDays: 12
+    });
+  });
+
+  it('derives comm-risk urgency from the capped riskLevel, not raw signal severity', () => {
+    const collected = {
+      ...emptyCollected,
+      communicationRiskSignals: [
+        {
+          // e.g. a "Done" student whose rollup was capped to low even though
+          // an individual signal is high — the cap must hold.
+          student: { id: 's1', name: 'Ann' },
+          riskLevel: 'low',
+          signals: [{ type: 'frustration', severity: 'high' }]
+        },
+        {
+          student: { id: 's2', name: 'Bob' },
+          riskLevel: 'high',
+          signals: [{ type: 'frustration', severity: 'high' }]
+        }
+      ]
+    };
+    const { students } = buildStudentsView(collected, {}, {}, new Set(), 200);
+    const byId = new Map(students.map((s: any) => [s.id, s]));
+    expect((byId.get('s1') as any).signals[0].urgency).toBe('medium');
+    expect((byId.get('s2') as any).signals[0].urgency).toBe('high');
   });
 });
 
@@ -782,7 +943,10 @@ describe('buildOverview', () => {
     ApplicationService.findApplicationsSelectPopulate.mockResolvedValue([]);
     DocumentThreadService.findThreadsSelectSorted.mockResolvedValue([]);
     DocumentThreadService.getThreadsWaitingOnTeam.mockResolvedValue([]);
-    CommunicationService.getLatestMessageAtForStudents.mockResolvedValue([]);
+    CommunicationService.getUnansweredStudentMessages.mockResolvedValue([]);
+    CommunicationService.getLatestStudentMessageAtForStudents.mockResolvedValue(
+      []
+    );
   });
 
   it('returns a structured overview with no students for an empty portfolio', async () => {
@@ -793,7 +957,7 @@ describe('buildOverview', () => {
   });
 
   it('survives when communication service throws', async () => {
-    CommunicationService.getLatestMessageAtForStudents.mockRejectedValue(
+    CommunicationService.getUnansweredStudentMessages.mockRejectedValue(
       new Error('DB error')
     );
     const result = await buildOverview({ user: {} });
@@ -832,21 +996,34 @@ describe('buildOverview', () => {
     expect(result.emphasis[0]).toBe('upcomingDeadlines');
   });
 
-  it('populates latest message dates and surfaces communication gaps', async () => {
-    StudentService.findStudentsSelect.mockResolvedValue([student('s1', 'Ann')]);
-    ApplicationService.findApplicationsSelectPopulate.mockResolvedValue([
-      { studentId: 's1', finalEnrolment: true } // exercises buildFinalizedStudentIds via buildOverview
+  it('populates message clocks and surfaces communication gaps + silence', async () => {
+    StudentService.findStudentsSelect.mockResolvedValue([
+      student('s1', 'Ann'),
+      student('s2', 'Bob')
     ]);
-    CommunicationService.getLatestMessageAtForStudents.mockResolvedValue([
+    ApplicationService.findApplicationsSelectPopulate.mockResolvedValue([
+      { studentId: 's1' },
+      { studentId: 's2' }
+    ]);
+    CommunicationService.getUnansweredStudentMessages.mockResolvedValue([
       { _id: 's1', latestAt: daysAgo(30) },
       { studentId: 's1', latestAt: 'not-a-date' }, // safeDate -> null, skipped
       { _id: null, latestAt: daysAgo(5) } // no id, skipped
     ]);
+    CommunicationService.getLatestStudentMessageAtForStudents.mockResolvedValue(
+      [
+        { _id: 's1', latestAt: daysAgo(30) }, // waiting on team → gap, not silence
+        { _id: 's2', latestAt: daysAgo(15) } // silent
+      ]
+    );
 
     const result = await buildOverview({ user: { role: 'Agent' } });
-    expect(result.studentCount).toBe(1);
-    expect(
-      CommunicationService.getLatestMessageAtForStudents
-    ).toHaveBeenCalled();
+    expect(result.studentCount).toBe(2);
+    const buckets = result.students.flatMap((s: any) =>
+      s.signals.map((signal: any) => `${s.id}:${signal.bucket}`)
+    );
+    expect(buckets).toContain('s1:communicationGaps');
+    expect(buckets).toContain('s2:studentSilence');
+    expect(buckets).not.toContain('s1:studentSilence');
   });
 });

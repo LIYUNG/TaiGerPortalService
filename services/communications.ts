@@ -65,6 +65,10 @@ const CommunicationService = {
     return CommunicationDAO.getUnansweredStudentMessages(studentIds);
   },
 
+  getLatestStudentMessageAtForStudents(studentIds: Types.ObjectId[]) {
+    return CommunicationDAO.getLatestStudentMessageAtForStudents(studentIds);
+  },
+
   findThreadPopulated(
     studentId: string,
     options?: {

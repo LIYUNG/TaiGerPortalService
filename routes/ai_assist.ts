@@ -109,10 +109,6 @@ router
   .put(GeneralPOSTRequestRateLimiter, cvDraftController.updateCvDraft);
 
 router
-  .route('/students/:studentId/cv-photo')
-  .get(GeneralGETRequestRateLimiter, cvDraftController.getCvPassportPhoto);
-
-router
   .route('/threads/:documentsthreadId/cv-draft/attach')
   .post(
     GeneralPOSTRequestRateLimiter,

@@ -608,44 +608,6 @@ const downloadCvDraft = asyncHandler(async (req: Request, res: Response) => {
   return res.send(buffer);
 });
 
-// GET /api/ai-assist/students/:studentId/cv-photo
-// Streams the student's passport photo (profile doc "Passport_Photo") for the CV
-// Details preview, or 404 when none is uploaded.
-const getCvPassportPhoto = asyncHandler(async (req: Request, res: Response) => {
-  const studentId = String(req.params.studentId);
-  const student = (await StudentService.getStudentByIdLean(
-    studentId
-  )) as Loose | null;
-  if (!student) {
-    throw new ErrorResponse(404, 'Student not found');
-  }
-  const photoPath = (student.profile || []).find(
-    (p: Loose) => p?.name === 'Passport_Photo' && p?.path
-  )?.path;
-  if (!photoPath) {
-    throw new ErrorResponse(404, 'No passport photo');
-  }
-  const bytes = await getS3Object(AWS_S3_BUCKET_NAME, photoPath);
-  if (!bytes) {
-    throw new ErrorResponse(404, 'No passport photo');
-  }
-  const buffer = Buffer.from(bytes as Uint8Array);
-  const b0 = buffer[0];
-  const type =
-    b0 === 0x89
-      ? 'image/png'
-      : b0 === 0xff
-        ? 'image/jpeg'
-        : b0 === 0x47
-          ? 'image/gif'
-          : b0 === 0x42
-            ? 'image/bmp'
-            : 'application/octet-stream';
-  res.setHeader('Content-Type', type);
-  res.setHeader('Cache-Control', 'private, max-age=30');
-  return res.end(buffer);
-});
-
 // POST /api/ai-assist/students/:studentId/cv-draft/validate
 // Body: { draft: CVDraft, fileType?, degree? }
 // Re-runs the deterministic checklist over an EDITOR-EDITED draft (no LLM, no
@@ -777,7 +739,6 @@ export = {
   getMyAiQuota,
   renderCvDraft,
   attachCvDraftToThread,
-  getCvPassportPhoto,
   getSavedCvDraft,
   downloadCvDraft
 };

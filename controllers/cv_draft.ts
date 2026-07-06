@@ -5,6 +5,7 @@ import { asyncHandler } from '../middlewares/error-handler';
 import { ErrorResponse } from '../common/errors';
 import StudentService from '../services/students';
 import DocumentThreadService from '../services/documentthreads';
+import ProgramService from '../services/programs';
 import PermissionService from '../services/permissions';
 import cvDraftService from '../services/ai-assist/cv';
 import {
@@ -19,6 +20,10 @@ import { CVDraft } from '../services/ai-assist/cv/types';
 import { validateCVDraft } from '../services/ai-assist/cv/validate';
 import { getS3Object, putS3Object } from '../aws/s3';
 import { AWS_S3_BUCKET_NAME } from '../config';
+import {
+  buildThreadFileName,
+  nextThreadFileVersion
+} from '../utils/threadFileName';
 
 const { createCVDraft } = cvDraftService;
 
@@ -441,22 +446,27 @@ const attachCvDraftToThread = asyncHandler(
       );
     }
 
-    // Student-visible file name: version-distinct (readable timestamp) and free of
-    // any "AI" wording. Sanitise the working-copy base so legacy "_AI_..." names
-    // don't leak through.
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const d = new Date();
-    const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(
-      d.getDate()
-    )}_${pad(d.getHours())}${pad(d.getMinutes())}`;
-    const cleanBase =
-      String(finalRendered.name || 'CV')
-        .replace(/\.docx$/i, '')
-        .replace(/_?AI[_-]?CV[_-]?draft/gi, '')
-        .replace(/_?AI[_-]?first[_-]?draft/gi, '')
-        .replace(/_?CV$/i, '')
-        .replace(/_+$/g, '') || 'CV';
-    const attachName = `${cleanBase}_CV_${stamp}.docx`;
+    // Student-visible file name: reuse the SAME helper as manual thread uploads
+    // (buildThreadFileName / nextThreadFileVersion) so AI drafts version
+    // alongside manual uploads in one continuous sequence, with no duplicated
+    // naming logic. getThreadDocById is unpopulated, so fetch the student/program
+    // for the name here.
+    const sidForName = String(thread.student_id?._id ?? thread.student_id ?? '');
+    const studentForName = sidForName
+      ? ((await StudentService.getStudentByIdLean(sidForName)) as Loose | null)
+      : null;
+    const programForName = thread.program_id
+      ? ((await ProgramService.getProgramByIdLean(
+          thread.program_id
+        )) as Loose | null)
+      : null;
+    const attachName = buildThreadFileName({
+      student: studentForName,
+      program: programForName,
+      fileType: thread.file_type,
+      version: nextThreadFileVersion(thread),
+      ext: '.docx'
+    });
 
     const noteBlocks = JSON.stringify({
       blocks: [{ type: 'paragraph', data: { text: String(message || '') } }]

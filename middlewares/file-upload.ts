@@ -1,5 +1,4 @@
 import path from 'path';
-import _ from 'lodash';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
 // Namespace import: `uuid` has no default export, so `import uuid from 'uuid'`
@@ -13,6 +12,10 @@ import ApplicationService from '../services/applications';
 import ComplaintService from '../services/complaints';
 import DocumentThreadService from '../services/documentthreads';
 import ProgramService from '../services/programs';
+import {
+  buildThreadFileName,
+  nextThreadFileVersion
+} from '../utils/threadFileName';
 
 const MAX_FILE_SIZE_MB = 2 * 1024 * 1024; // 2 MB
 const MAX_DOC_FILE_SIZE_MB = 1 * 1024 * 1024; // 1 MB
@@ -377,59 +380,24 @@ const storage_messagesthread_file_s3 = multerS3({
       if (!thread) {
         throw new ErrorResponse(404, 'Thread not found');
       }
-      let program_name = '';
       if (thread.program_id) {
         ProgramService.getProgramByIdLean(thread.program_id).then((program) => {
-          program_name = `${program?.school}_${program?.program_name}`;
-          let version_number_max = 0;
-
-          thread.messages.forEach((message) => {
-            message.file.forEach((file_data) => {
-              let fileversion = 0;
-              const lastPart = _.last(file_data.name.split('_'));
-              fileversion = parseInt(lastPart.replace(/[^\d]/g, ''), 10);
-
-              if (fileversion > version_number_max) {
-                version_number_max = fileversion; // get the max version number
-              }
-            });
+          const temp_name = buildThreadFileName({
+            student: thread.student_id,
+            program,
+            fileType: thread.file_type,
+            version: nextThreadFileVersion(thread),
+            ext: path.extname(file.originalname).toLowerCase()
           });
-
-          const version_number = parseInt(version_number_max, 10) + 1;
-          let temp_name = `${thread.student_id?.lastname}_${
-            thread.student_id?.firstname
-          }_${program_name}_${
-            thread.file_type
-          }_v${version_number.toString()}${path
-            .extname(file.originalname)
-            .toLowerCase()}`;
-          temp_name = temp_name.replace(/ /g, '_');
-          temp_name = temp_name.replace(/\//g, '_');
-
           cb(null, `${studentId}/${messagesThreadId}/${temp_name}`);
         });
       } else {
-        let version_number_max = 0;
-
-        thread.messages.forEach((message) => {
-          message.file.forEach((file_data) => {
-            let fileversion = 0;
-            fileversion = parseInt(file_data.name.replace(/[^\d]/g, ''), 10);
-
-            if (fileversion > version_number_max) {
-              version_number_max = fileversion; // get the max version number
-            }
-          });
+        const temp_name = buildThreadFileName({
+          student: thread.student_id,
+          fileType: thread.file_type,
+          version: nextThreadFileVersion(thread),
+          ext: path.extname(file.originalname)
         });
-
-        const version_number = parseInt(version_number_max, 10) + 1;
-        let temp_name = `${thread.student_id?.lastname}_${
-          thread.student_id?.firstname
-        }_${thread.file_type}_v${version_number.toString()}${path.extname(
-          file.originalname
-        )}`;
-        temp_name = temp_name.replace(/ /g, '_');
-        temp_name = temp_name.replace(/\//g, '_');
         cb(null, `${studentId}/${messagesThreadId}/${temp_name}`);
       }
     });

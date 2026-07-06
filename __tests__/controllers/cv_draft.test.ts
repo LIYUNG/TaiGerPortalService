@@ -312,12 +312,18 @@ describe('renderCvDraft', () => {
 });
 
 describe('attachCvDraftToThread', () => {
-  it('attaches the rendered file with the editor message when up to date', async () => {
+  it('attaches the rendered file with a versioned name that continues the thread sequence', async () => {
     const save = jest.fn().mockResolvedValue(undefined);
-    const messages: unknown[] = [];
+    // An existing manual upload at v3 — the AI draft must attach as v4, sharing
+    // one continuous version sequence (matches the upload middleware).
+    const messages: unknown[] = [
+      { file: [{ name: 'Wang_A_CV_v3.docx', path: 's1/t1/prev.docx' }] }
+    ];
     asMock(DocumentThreadService.getThreadDocById).mockResolvedValue({
       messages,
       save,
+      student_id: 's1',
+      file_type: 'CV',
       cv_draft: {
         rendered: {
           hash: hashOf(SAMPLE_DRAFT),
@@ -326,6 +332,11 @@ describe('attachCvDraftToThread', () => {
           templateVersion: 'tpl-v1'
         }
       }
+    });
+    asMock(StudentService.getStudentByIdLean).mockResolvedValue({
+      firstname: 'A',
+      lastname: 'Wang',
+      profile: []
     });
     asMock(getS3Object).mockResolvedValue(new Uint8Array([1, 2, 3]));
     const res = mockRes();
@@ -337,18 +348,19 @@ describe('attachCvDraftToThread', () => {
       }),
       res
     );
-    expect(messages).toHaveLength(1);
+    expect(messages).toHaveLength(2);
     expect(save).toHaveBeenCalled();
     // The attached file is a message-scoped SNAPSHOT copy, not the mutable
     // stable working key (so thread history stays immutable).
     expect(putS3Object).toHaveBeenCalled();
     const attachedFile = (
-      messages[0] as { file: { name: string; path: string }[] }
+      messages[1] as { file: { name: string; path: string }[] }
     ).file[0];
     expect(attachedFile.path).toMatch(/cv_ai_draft_\d+\.docx$/);
-    // Student-visible name: version-distinct timestamp, no "AI" wording.
+    // Student-visible name: same {lastname}_{firstname}_{fileType}_v{N} scheme as
+    // manual uploads, auto-incremented (v3 -> v4), with no "AI" wording.
     expect(attachedFile.name).not.toMatch(/AI/i);
-    expect(attachedFile.name).toMatch(/_CV_\d{8}_\d{4}\.docx$/);
+    expect(attachedFile.name).toBe('Wang_A_CV_v4.docx');
     expect(res.send).toHaveBeenCalledWith(
       expect.objectContaining({ success: true })
     );

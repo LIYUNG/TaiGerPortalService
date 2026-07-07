@@ -18,7 +18,7 @@ import StudentService from '../../services/students';
 import { getS3Object } from '../../aws/s3';
 import {
   getAdmissionsOverview,
-  getAdmissions,
+  getAdmissionsProgramCounts,
   getAdmissionLetter,
   getAdmissionsYear
 } from '../../controllers/admissions';
@@ -53,67 +53,45 @@ describe('getAdmissionsOverview', () => {
 
     await getAdmissionsOverview(mockReq(), mockRes(), next);
 
-    // The controller re-wraps non-ErrorResponse errors into a 500 ErrorResponse,
-    // so next() receives an ErrorResponse (status 500), not the raw error.
-    const passed = next.mock.calls[0][0];
-    expect(passed).toBeInstanceOf(Error);
-    expect(passed.statusCode).toBe(500);
+    // The controller calls the service directly, so asyncHandler forwards the
+    // raw error to next() untouched.
+    expect(next).toHaveBeenCalledWith(err);
   });
 });
 
-describe('getAdmissions', () => {
-  it('200: forwards the admission filter and returns applications + counts', async () => {
-    const applications = [{ _id: 'app1', studentId }];
+describe('getAdmissionsProgramCounts', () => {
+  // Returns only the per-program application counts; the paginated applications
+  // list is served by getStudentsApplicationsPaginated.
+  it('200: returns the program application counts', async () => {
     const result = [{ programId: 'p1', count: 3 }];
     ApplicationService.getProgramApplicationCounts.mockResolvedValue(result);
-    ApplicationService.getApplicationsWithStudentDetails.mockResolvedValue(
-      applications
-    );
-    const req = mockReq({ query: { admission: 'O' } });
+
     const res = mockRes();
 
-    await getAdmissions(req, res, jest.fn());
+    await getAdmissionsProgramCounts(mockReq(), res, jest.fn());
 
-    // ApplicationQueryBuilder.withAdmission('O') -> filter { admission: 'O' }.
     expect(
-      ApplicationService.getApplicationsWithStudentDetails
-    ).toHaveBeenCalledWith({ admission: 'O' });
+      ApplicationService.getProgramApplicationCounts
+    ).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.send).toHaveBeenCalledWith({
-      success: true,
-      data: applications,
-      result
-    });
+    expect(res.send).toHaveBeenCalledWith({ success: true, result });
   });
 
-  it('200: defaults data to [] when getApplicationsWithStudentDetails resolves nullish', async () => {
-    // getProgramApplicationCounts must resolve an array — the internal helper
-    // logs result.length, so undefined would throw before res.send.
-    ApplicationService.getProgramApplicationCounts.mockResolvedValue([]);
-    ApplicationService.getApplicationsWithStudentDetails.mockResolvedValue(
-      null
-    );
+  it('200: defaults result to [] when the service resolves nullish', async () => {
+    ApplicationService.getProgramApplicationCounts.mockResolvedValue(null);
     const res = mockRes();
 
-    await getAdmissions(mockReq({ query: {} }), res, jest.fn());
+    await getAdmissionsProgramCounts(mockReq(), res, jest.fn());
 
-    expect(
-      ApplicationService.getApplicationsWithStudentDetails
-    ).toHaveBeenCalledWith({});
-    expect(res.send).toHaveBeenCalledWith({
-      success: true,
-      data: [],
-      result: []
-    });
+    expect(res.send).toHaveBeenCalledWith({ success: true, result: [] });
   });
 
   it('forwards a service error to next()', async () => {
     const err = new Error('db down');
-    ApplicationService.getProgramApplicationCounts.mockResolvedValue([]);
-    ApplicationService.getApplicationsWithStudentDetails.mockRejectedValue(err);
+    ApplicationService.getProgramApplicationCounts.mockRejectedValue(err);
     const next = jest.fn();
 
-    await getAdmissions(mockReq({ query: {} }), mockRes(), next);
+    await getAdmissionsProgramCounts(mockReq(), mockRes(), next);
 
     expect(next).toHaveBeenCalledWith(err);
   });

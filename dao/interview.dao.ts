@@ -340,7 +340,7 @@ const InterviewDAO = {
   /**
    * Server-side paginated / sorted / searchable interviews.
    *
-   * Strategy mirrors getActiveStudentsApplicationsPaginated: a lightweight
+   * Strategy mirrors getStudentsApplicationsPaginated: a lightweight
    * aggregation joins program/student/trainer/event/survey, materialises the
    * three computed columns (status, isDuplicate, surveySubmitted), applies
    * search/filter/sort and returns only the page of `_id`s (+ total via $facet).

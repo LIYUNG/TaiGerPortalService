@@ -74,20 +74,24 @@ export const getApplications = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: applications });
 });
 
-// Server-side paginated active (non-archived) students' applications. Without
-// `userId` it covers all active students; with `userId` (query param) it scopes
-// to the students that TaiGer user supervises (as agent OR editor).
-export const getActiveStudentsApplicationsPaginated = asyncHandler(
+// Server-side paginated students' applications. Scoping is driven by query
+// params:
+// - `archiv`: `false` -> active (non-archived) students only; `true` -> archived
+//   only; omitted -> all students (used by the admissions overview, which spans
+//   archived students too).
+// - `userId`: when set, scopes to the students that TaiGer user supervises (as
+//   agent OR editor).
+export const getStudentsApplicationsPaginated = asyncHandler(
   async (req, res) => {
-    const { userId } = req.query;
+    const { userId, archiv } = req.query;
 
     const { filter } = new UserQueryBuilder()
       .withRole(Role.Student)
-      .withArchiv(false)
+      .withArchiv(archiv)
       .build();
 
     if (userId) {
-      // withArchiv(false) already populated filter.$or (archiv condition); merge
+      // withArchiv(false) may have populated filter.$or (archiv condition); merge
       // the supervision condition via $and so neither clobbers the other.
       const supervisionOr = { $or: [{ agents: userId }, { editors: userId }] };
       if (filter.$or) {
@@ -103,11 +107,10 @@ export const getActiveStudentsApplicationsPaginated = asyncHandler(
       options: {}
     });
 
-    const result =
-      await ApplicationService.getActiveStudentsApplicationsPaginated({
-        studentIds: students.map((student) => student._id.toString()),
-        query: req.query
-      });
+    const result = await ApplicationService.getStudentsApplicationsPaginated({
+      studentIds: students.map((student) => student._id.toString()),
+      query: req.query
+    });
 
     res.status(200).send({
       success: true,

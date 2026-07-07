@@ -1,10 +1,10 @@
-/api/admissions:
+/api/admissions/program-counts:
   get:
     tags:
       - Admissions
-    summary: Get all admissions
-    description: Get all admission records
-    operationId: getAllAdmissions
+    summary: Get admissions program counts
+    description: Get per-program application counts for the admissions Program tab
+    operationId: getAdmissionsProgramCounts
     responses:
       '200':
         description: Admissions retrieved successfully

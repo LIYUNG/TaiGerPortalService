@@ -29,14 +29,14 @@ class ApplicationService {
     return this.dao.createApplication(studentId, programId);
   }
 
-  getActiveStudentsApplicationsPaginated({
+  getStudentsApplicationsPaginated({
     studentIds = [],
     query = {}
   }: {
     studentIds?: string[];
     query?: Record<string, unknown>;
   }) {
-    return this.dao.getActiveStudentsApplicationsPaginated({
+    return this.dao.getStudentsApplicationsPaginated({
       studentIds,
       query
     });

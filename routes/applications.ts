@@ -15,7 +15,7 @@ import {
   deleteApplication,
   createApplicationV2,
   updateStudentApplications,
-  getActiveStudentsApplicationsPaginated,
+  getStudentsApplicationsPaginated,
   getApplicationsDeadlineDistribution,
   getApplicationProgramsUpdateStatus,
   getMyStudentsApplicationsStats,
@@ -48,19 +48,19 @@ router.route('/application/:application_id').delete(
 );
 
 router
+  .route('/applications/paginated')
+  .get(
+    GeneralGETRequestRateLimiter,
+    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+    getStudentsApplicationsPaginated
+  );
+
+router
   .route('/:applicationId/refresh')
   .post(
     getMessagesRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     refreshApplication
-  );
-
-router
-  .route('/all/active/applications/paginated')
-  .get(
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getActiveStudentsApplicationsPaginated
   );
 
 router

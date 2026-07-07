@@ -330,7 +330,7 @@ class ApplicationMongoDAO {
    * @param {object} query raw req.query (page, limit, sortBy, sortOrder, search, filters)
    * @returns {{ applications: object[], total: number, page: number, limit: number }}
    */
-  async getActiveStudentsApplicationsPaginated({
+  async getStudentsApplicationsPaginated({
     studentIds = [],
     query = {}
   }: {

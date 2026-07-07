@@ -454,6 +454,7 @@ describe('DocumentthreadDAO.countActiveThreads (mocked models)', () => {
   const zero = {
     all: 0,
     closed: 0,
+    withdraw: 0,
     in_progress: 0,
     no_input: 0,
     no_writer: 0,

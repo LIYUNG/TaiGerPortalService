@@ -24,7 +24,7 @@ import * as EmailService from '../../services/email';
 import {
   getApplications,
   deleteApplication,
-  getActiveStudentsApplicationsPaginated,
+  getStudentsApplicationsPaginated,
   getApplicationsDeadlineDistribution,
   getApplicationProgramsUpdateStatus,
   getMyStudentsApplicationsStats,
@@ -81,23 +81,23 @@ describe('getApplications', () => {
   });
 });
 
-describe('getActiveStudentsApplicationsPaginated', () => {
+describe('getStudentsApplicationsPaginated', () => {
   it('200: resolves student ids then forwards them + the query to the service', async () => {
     StudentService.getStudents.mockResolvedValue([
       { _id: studentId },
       { _id: '012345678901234567891234' }
     ]);
     const result = { applications: [], total: 0 };
-    ApplicationService.getActiveStudentsApplicationsPaginated.mockResolvedValue(
+    ApplicationService.getStudentsApplicationsPaginated.mockResolvedValue(
       result
     );
     const req = mockReq({ query: { page: '1' } });
     const res = mockRes();
 
-    await getActiveStudentsApplicationsPaginated(req, res, jest.fn());
+    await getStudentsApplicationsPaginated(req, res, jest.fn());
 
     expect(
-      ApplicationService.getActiveStudentsApplicationsPaginated
+      ApplicationService.getStudentsApplicationsPaginated
     ).toHaveBeenCalledWith({
       studentIds: [studentId, '012345678901234567891234'],
       query: { page: '1' }
@@ -106,22 +106,43 @@ describe('getActiveStudentsApplicationsPaginated', () => {
     expect(res.send).toHaveBeenCalledWith({ success: true, data: result });
   });
 
-  it('scopes to a supervising user when userId is present', async () => {
+  it('scopes to a supervising user + active students when archiv=false', async () => {
     StudentService.getStudents.mockResolvedValue([]);
-    ApplicationService.getActiveStudentsApplicationsPaginated.mockResolvedValue(
-      { applications: [], total: 0 }
-    );
-    const req = mockReq({ query: { userId: agentId } });
+    ApplicationService.getStudentsApplicationsPaginated.mockResolvedValue({
+      applications: [],
+      total: 0
+    });
+    const req = mockReq({ query: { userId: agentId, archiv: 'false' } });
 
-    await getActiveStudentsApplicationsPaginated(req, mockRes(), jest.fn());
+    await getStudentsApplicationsPaginated(req, mockRes(), jest.fn());
 
-    // withArchiv(false) sets $or, so the supervision condition is merged via $and.
+    // withArchiv('false') sets $or, so the supervision condition is merged via $and.
     const passedFilter = StudentService.getStudents.mock.calls[0][0].filter;
     expect(passedFilter.$and).toEqual([
       { $or: [{ archiv: { $exists: false } }, { archiv: false }] },
       { $or: [{ agents: agentId }, { editors: agentId }] }
     ]);
     expect(passedFilter.$or).toBeUndefined();
+  });
+
+  it('spans all students (no archiv condition) when archiv is omitted', async () => {
+    StudentService.getStudents.mockResolvedValue([]);
+    ApplicationService.getStudentsApplicationsPaginated.mockResolvedValue({
+      applications: [],
+      total: 0
+    });
+    const req = mockReq({ query: { userId: agentId } });
+
+    await getStudentsApplicationsPaginated(req, mockRes(), jest.fn());
+
+    // No archiv filter, so the supervision $or is set directly (no $and merge).
+    const passedFilter = StudentService.getStudents.mock.calls[0][0].filter;
+    expect(passedFilter.$or).toEqual([
+      { agents: agentId },
+      { editors: agentId }
+    ]);
+    expect(passedFilter.$and).toBeUndefined();
+    expect(passedFilter.archiv).toBeUndefined();
   });
 });
 

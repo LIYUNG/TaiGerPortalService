@@ -6,7 +6,6 @@ import { AWS_S3_BUCKET_NAME } from '../config';
 import { getS3Object } from '../aws/s3';
 import ApplicationService from '../services/applications';
 import StudentService from '../services/students';
-import ApplicationQueryBuilder from '../builders/ApplicationQueryBuilder';
 
 // Overall admission/rejection/pending/notYetSubmitted counts.
 const getApplicationCountsResultCount = async (_req?: Request) => {
@@ -51,21 +50,11 @@ const getAdmissionsOverview = asyncHandler(async (req, res) => {
 });
 
 const getAdmissions = asyncHandler(async (req, res, _next) => {
-  const { decided, closed, admission } = req.query;
-  const { filter } = new ApplicationQueryBuilder()
-    .withDecided(decided)
-    .withClosed(closed)
-    .withAdmission(admission)
-    .build();
-
-  const [result, applications] = await Promise.all([
-    getProgramApplicationCounts(req),
-    ApplicationService.getApplicationsWithStudentDetails(filter)
-  ]);
+  const [result] = await Promise.all([getProgramApplicationCounts(req)]);
 
   res.status(200).send({
     success: true,
-    data: applications || [],
+    data: [],
     result: result || []
   });
 });

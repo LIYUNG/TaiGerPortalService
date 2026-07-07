@@ -2,7 +2,7 @@
 // UNIT test: the DAO is mocked so no database (in-memory or otherwise) is
 // touched. Each test asserts the service delegates to the right DAO method with
 // the exact args and returns the DAO's (mocked) value. The two methods with
-// service-side argument defaulting (getActiveStudentsApplicationsPaginated,
+// service-side argument defaulting (getStudentsApplicationsPaginated,
 // getActiveStudentsApplicationsDeadlineDistribution, getApplicationProgramsUpdateStatus,
 // getApplicationStatusStats, getApplications) also have a test for the defaults.
 jest.mock('../../dao/application.dao');
@@ -27,41 +27,35 @@ describe('ApplicationService.createApplication (mocked DAO)', () => {
   });
 });
 
-describe('ApplicationService.getActiveStudentsApplicationsPaginated (mocked DAO)', () => {
+describe('ApplicationService.getStudentsApplicationsPaginated (mocked DAO)', () => {
   it('delegates to DAO with studentIds+query and returns its result', () => {
     const studentIds = ['s1', 's2'];
     const query = { page: '1' };
     const daoResult = { applications: [], total: 0 };
-    ApplicationDAO.getActiveStudentsApplicationsPaginated.mockReturnValue(
-      daoResult
-    );
+    ApplicationDAO.getStudentsApplicationsPaginated.mockReturnValue(daoResult);
 
-    const result = ApplicationService.getActiveStudentsApplicationsPaginated({
+    const result = ApplicationService.getStudentsApplicationsPaginated({
       studentIds,
       query
     });
 
     expect(
-      ApplicationDAO.getActiveStudentsApplicationsPaginated
+      ApplicationDAO.getStudentsApplicationsPaginated
     ).toHaveBeenCalledTimes(1);
     expect(
-      ApplicationDAO.getActiveStudentsApplicationsPaginated
+      ApplicationDAO.getStudentsApplicationsPaginated
     ).toHaveBeenCalledWith({ studentIds, query });
     expect(result).toBe(daoResult);
   });
 
   it('defaults studentIds and query to empty when omitted', () => {
     const daoResult = { applications: [], total: 0 };
-    ApplicationDAO.getActiveStudentsApplicationsPaginated.mockReturnValue(
-      daoResult
-    );
+    ApplicationDAO.getStudentsApplicationsPaginated.mockReturnValue(daoResult);
 
-    const result = ApplicationService.getActiveStudentsApplicationsPaginated(
-      {}
-    );
+    const result = ApplicationService.getStudentsApplicationsPaginated({});
 
     expect(
-      ApplicationDAO.getActiveStudentsApplicationsPaginated
+      ApplicationDAO.getStudentsApplicationsPaginated
     ).toHaveBeenCalledWith({ studentIds: [], query: {} });
     expect(result).toBe(daoResult);
   });

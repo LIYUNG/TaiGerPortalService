@@ -98,7 +98,7 @@
       '404':
         $ref: '../components/responses/common.yaml#/NotFound'
 
-/api/applications/all/active/applications/paginated:
+/api/applications/applications/paginated:
   get:
     tags:
       - Applications
@@ -110,7 +110,7 @@
       agent or editor). The application deadline (`deadlineDate`) is derived from
       the student's application_year and the program's
       application_deadline/semester and can be sorted on.
-    operationId: getActiveStudentsApplicationsPaginated
+    operationId: getStudentsApplicationsPaginated
     parameters:
       - in: query
         name: userId

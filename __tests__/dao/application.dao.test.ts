@@ -1,4 +1,4 @@
-// ApplicationDAO unit tests for getActiveStudentsApplicationsPaginated — the
+// ApplicationDAO unit tests for getStudentsApplicationsPaginated — the
 // active-applications read is a thin orchestration over the Application model
 // (an aggregation that returns the page of ids + a total, then a populated
 // hydrate of those ids). We mock the model entirely (NO database). The
@@ -67,9 +67,9 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-describe('ApplicationDAO.getActiveStudentsApplicationsPaginated (mocked models)', () => {
+describe('ApplicationDAO.getStudentsApplicationsPaginated (mocked models)', () => {
   it('returns the empty page without touching the model when studentIds is empty', async () => {
-    const res = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
+    const res = await ApplicationDAO.getStudentsApplicationsPaginated({
       studentIds: [],
       query: { page: 1, limit: 20 }
     });
@@ -95,7 +95,7 @@ describe('ApplicationDAO.getActiveStudentsApplicationsPaginated (mocked models)'
     ];
     Application.find.mockReturnValue(leanChain(docs));
 
-    const res = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
+    const res = await ApplicationDAO.getStudentsApplicationsPaginated({
       studentIds: ['64b000000000000000000001'],
       query: { page: 1, limit: 20, sortBy: 'deadline', sortOrder: 'asc' }
     });
@@ -118,7 +118,7 @@ describe('ApplicationDAO.getActiveStudentsApplicationsPaginated (mocked models)'
     const aggResult = { rows: [], total: [] };
     Application.aggregate.mockReturnValue(aggResultChain([aggResult]));
 
-    const res = await ApplicationDAO.getActiveStudentsApplicationsPaginated({
+    const res = await ApplicationDAO.getStudentsApplicationsPaginated({
       studentIds: ['64b000000000000000000001'],
       query: {}
     });
@@ -133,7 +133,7 @@ describe('ApplicationDAO.getActiveStudentsApplicationsPaginated (mocked models)'
       aggResultChain([{ rows: [], total: [] }])
     );
 
-    await ApplicationDAO.getActiveStudentsApplicationsPaginated({
+    await ApplicationDAO.getStudentsApplicationsPaginated({
       studentIds: ['64b000000000000000000001'],
       query: { country: ['de', 'nl'] }
     });
@@ -150,7 +150,7 @@ describe('ApplicationDAO.getActiveStudentsApplicationsPaginated (mocked models)'
       aggResultChain([{ rows: [], total: [] }])
     );
 
-    await ApplicationDAO.getActiveStudentsApplicationsPaginated({
+    await ApplicationDAO.getStudentsApplicationsPaginated({
       studentIds: ['64b000000000000000000001'],
       query: {
         decided: 'O',

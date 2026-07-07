@@ -84,7 +84,7 @@ paths:
     $ref: './paths/applications.yaml#/~1api~1applications~1application~1{application_id}'
   /api/applications/{applicationId}/refresh:
     $ref: './paths/applications.yaml#/~1api~1applications~1{applicationId}~1refresh'
-  /api/applications/all/active/applications:
+  /api/applications/applications:
     $ref: './paths/applications.yaml#/~1api~1applications~1all~1active~1applications'
   /api/applications/student/{studentId}/{application_id}:
     $ref: './paths/applications.yaml#/~1api~1applications~1student~1{studentId}~1{application_id}'

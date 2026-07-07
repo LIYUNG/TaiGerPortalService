@@ -225,15 +225,15 @@ describe('DELETE /api/applications/application/:applicationId', () => {
   });
 });
 
-describe('GET /api/applications/all/active/applications/paginated', () => {
-  const PAGINATED_URL = '/api/applications/all/active/applications/paginated';
+describe('GET /api/applications/applications/paginated', () => {
+  const PAGINATED_URL = '/api/applications/applications/paginated';
 
   it('passes the active student ids through and returns the paginated result', async () => {
     StudentDAO.getStudents.mockResolvedValue([
       { _id: student._id },
       { _id: student2._id }
     ]);
-    ApplicationDAO.getActiveStudentsApplicationsPaginated.mockResolvedValue({
+    ApplicationDAO.getStudentsApplicationsPaginated.mockResolvedValue({
       applications: [
         { _id: 'a', programId: { program_name: 'Beta Program' } },
         { _id: 'b', programId: { program_name: 'Gamma Program' } }
@@ -252,7 +252,7 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
     expect(resp.body.data.total).toBe(3);
     expect(resp.body.data.applications).toHaveLength(2);
     expect(
-      ApplicationDAO.getActiveStudentsApplicationsPaginated
+      ApplicationDAO.getStudentsApplicationsPaginated
     ).toHaveBeenCalledWith(
       expect.objectContaining({
         studentIds: [student._id.toString(), student2._id.toString()]
@@ -262,7 +262,7 @@ describe('GET /api/applications/all/active/applications/paginated', () => {
 
   it('scopes to a supervising TaiGer user (userId query)', async () => {
     StudentDAO.getStudents.mockResolvedValue([{ _id: student._id }]);
-    ApplicationDAO.getActiveStudentsApplicationsPaginated.mockResolvedValue({
+    ApplicationDAO.getStudentsApplicationsPaginated.mockResolvedValue({
       applications: [],
       total: 3,
       page: 1,

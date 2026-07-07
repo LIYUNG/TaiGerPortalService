@@ -5,6 +5,7 @@ import { asyncHandler } from '../middlewares/error-handler';
 import { ErrorResponse } from '../common/errors';
 import StudentService from '../services/students';
 import DocumentThreadService from '../services/documentthreads';
+import ProgramService from '../services/programs';
 import PermissionService from '../services/permissions';
 import cvDraftService from '../services/ai-assist/cv';
 import {
@@ -19,6 +20,10 @@ import { CVDraft } from '../services/ai-assist/cv/types';
 import { validateCVDraft } from '../services/ai-assist/cv/validate';
 import { getS3Object, putS3Object } from '../aws/s3';
 import { AWS_S3_BUCKET_NAME } from '../config';
+import {
+  buildThreadFileName,
+  nextThreadFileVersion
+} from '../utils/threadFileName';
 
 const { createCVDraft } = cvDraftService;
 
@@ -145,7 +150,15 @@ const generateCvDraft = asyncHandler(async (req: Request, res: Response) => {
   const parseFailed = Boolean(result.meta.parseError);
   // Snapshot the outgoing (previous) draft into history before overwriting it.
   const history = parseFailed ? [] : pushDraftHistory(existingCvDraft);
-  const payloadWithHistory = { ...payload, history };
+  const payloadWithHistory = {
+    ...payload,
+    history,
+    // Carry the "last attached to student" fingerprint across regenerates so the
+    // duplicate-attach guard still fires if a regenerate reproduces identical
+    // content. (updateCvDraft preserves it via its `...existing` spread.)
+    lastAttachedHash: existingCvDraft?.lastAttachedHash,
+    lastAttachedAt: existingCvDraft?.lastAttachedAt
+  };
 
   if (documentsthreadId && !parseFailed) {
     // Persist the generated draft on the thread so a page refresh restores it.
@@ -351,6 +364,21 @@ const attachCvDraftToThread = asyncHandler(
     // "Create .docx" step and the CV_DRAFT_STALE / CV_DRAFT_NO_RENDER error class;
     // the editor just attaches and the file is produced on demand.
     const hash = draftHash(draft);
+
+    // Duplicate-attach guard: block re-attaching content the student already
+    // received. `lastAttachedHash` fingerprints the draft that was last attached
+    // to this thread; if the submitted draft matches it, nothing changed since —
+    // even a fresh regenerate that reproduced identical content — so we 409 and
+    // ask the editor to edit/update before sharing again. (The hash is carried
+    // across generate/edit, so it survives a regenerate.)
+    if (thread.cv_draft?.lastAttachedHash === hash) {
+      throw new ErrorResponse(
+        409,
+        'This draft is identical to the one already attached to this thread. Edit or update the CV before attaching it again.',
+        'CV_DRAFT_DUPLICATE'
+      );
+    }
+
     const templateVersion = await getCvTemplateVersion();
     let rendered = thread.cv_draft?.rendered as Loose | undefined;
     const renderCurrent = Boolean(
@@ -441,22 +469,27 @@ const attachCvDraftToThread = asyncHandler(
       );
     }
 
-    // Student-visible file name: version-distinct (readable timestamp) and free of
-    // any "AI" wording. Sanitise the working-copy base so legacy "_AI_..." names
-    // don't leak through.
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const d = new Date();
-    const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(
-      d.getDate()
-    )}_${pad(d.getHours())}${pad(d.getMinutes())}`;
-    const cleanBase =
-      String(finalRendered.name || 'CV')
-        .replace(/\.docx$/i, '')
-        .replace(/_?AI[_-]?CV[_-]?draft/gi, '')
-        .replace(/_?AI[_-]?first[_-]?draft/gi, '')
-        .replace(/_?CV$/i, '')
-        .replace(/_+$/g, '') || 'CV';
-    const attachName = `${cleanBase}_CV_${stamp}.docx`;
+    // Student-visible file name: reuse the SAME helper as manual thread uploads
+    // (buildThreadFileName / nextThreadFileVersion) so AI drafts version
+    // alongside manual uploads in one continuous sequence, with no duplicated
+    // naming logic. getThreadDocById is unpopulated, so fetch the student/program
+    // for the name here.
+    const sidForName = String(thread.student_id?._id ?? thread.student_id ?? '');
+    const studentForName = sidForName
+      ? ((await StudentService.getStudentByIdLean(sidForName)) as Loose | null)
+      : null;
+    const programForName = thread.program_id
+      ? ((await ProgramService.getProgramByIdLean(
+          thread.program_id
+        )) as Loose | null)
+      : null;
+    const attachName = buildThreadFileName({
+      student: studentForName,
+      program: programForName,
+      fileType: thread.file_type,
+      version: nextThreadFileVersion(thread),
+      ext: '.docx'
+    });
 
     const noteBlocks = JSON.stringify({
       blocks: [{ type: 'paragraph', data: { text: String(message || '') } }]
@@ -467,6 +500,16 @@ const attachCvDraftToThread = asyncHandler(
       createdAt: new Date(),
       file: [{ name: attachName, path: attachKey }]
     });
+    // Remember what we just attached so the next attach of identical content is
+    // blocked by the duplicate guard above.
+    thread.cv_draft = {
+      ...(thread.cv_draft || {}),
+      lastAttachedHash: hash,
+      lastAttachedAt: new Date()
+    };
+    if (typeof thread.markModified === 'function') {
+      thread.markModified('cv_draft');
+    }
     thread.updatedAt = new Date();
     await thread.save();
 
@@ -608,44 +651,6 @@ const downloadCvDraft = asyncHandler(async (req: Request, res: Response) => {
   return res.send(buffer);
 });
 
-// GET /api/ai-assist/students/:studentId/cv-photo
-// Streams the student's passport photo (profile doc "Passport_Photo") for the CV
-// Details preview, or 404 when none is uploaded.
-const getCvPassportPhoto = asyncHandler(async (req: Request, res: Response) => {
-  const studentId = String(req.params.studentId);
-  const student = (await StudentService.getStudentByIdLean(
-    studentId
-  )) as Loose | null;
-  if (!student) {
-    throw new ErrorResponse(404, 'Student not found');
-  }
-  const photoPath = (student.profile || []).find(
-    (p: Loose) => p?.name === 'Passport_Photo' && p?.path
-  )?.path;
-  if (!photoPath) {
-    throw new ErrorResponse(404, 'No passport photo');
-  }
-  const bytes = await getS3Object(AWS_S3_BUCKET_NAME, photoPath);
-  if (!bytes) {
-    throw new ErrorResponse(404, 'No passport photo');
-  }
-  const buffer = Buffer.from(bytes as Uint8Array);
-  const b0 = buffer[0];
-  const type =
-    b0 === 0x89
-      ? 'image/png'
-      : b0 === 0xff
-        ? 'image/jpeg'
-        : b0 === 0x47
-          ? 'image/gif'
-          : b0 === 0x42
-            ? 'image/bmp'
-            : 'application/octet-stream';
-  res.setHeader('Content-Type', type);
-  res.setHeader('Cache-Control', 'private, max-age=30');
-  return res.end(buffer);
-});
-
 // POST /api/ai-assist/students/:studentId/cv-draft/validate
 // Body: { draft: CVDraft, fileType?, degree? }
 // Re-runs the deterministic checklist over an EDITOR-EDITED draft (no LLM, no
@@ -777,7 +782,6 @@ export = {
   getMyAiQuota,
   renderCvDraft,
   attachCvDraftToThread,
-  getCvPassportPhoto,
   getSavedCvDraft,
   downloadCvDraft
 };

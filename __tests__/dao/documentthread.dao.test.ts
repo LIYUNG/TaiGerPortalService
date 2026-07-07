@@ -454,6 +454,7 @@ describe('DocumentthreadDAO.countActiveThreads (mocked models)', () => {
   const zero = {
     all: 0,
     closed: 0,
+    withdraw: 0,
     in_progress: 0,
     no_input: 0,
     no_writer: 0,
@@ -680,7 +681,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
     );
   });
 
-  it('appends an in_progress category match (_hasMessages: true)', async () => {
+  it('appends an in_progress category match (_hasMessages: true, excludes withdraw)', async () => {
     const pipeline = await runAndGetPipeline({
       query: { category: 'in_progress' }
     });
@@ -689,12 +690,13 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
         (s) =>
           s.$match &&
           s.$match._isFinal === false &&
-          s.$match._hasMessages === true
+          s.$match._hasMessages === true &&
+          s.$match._isWithdraw === false
       )
     ).toBe(true);
   });
 
-  it('appends a no_input category match (_hasMessages: false)', async () => {
+  it('appends a no_input category match (_hasMessages: false, excludes withdraw)', async () => {
     const pipeline = await runAndGetPipeline({
       query: { category: 'no_input' }
     });
@@ -703,7 +705,22 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
         (s) =>
           s.$match &&
           s.$match._isFinal === false &&
-          s.$match._hasMessages === false
+          s.$match._hasMessages === false &&
+          s.$match._isWithdraw === false
+      )
+    ).toBe(true);
+  });
+
+  it('appends a withdraw category match (_isWithdraw: true)', async () => {
+    const pipeline = await runAndGetPipeline({
+      query: { category: 'withdraw' }
+    });
+    expect(
+      pipeline.some(
+        (s) =>
+          s.$match &&
+          s.$match._isFinal === false &&
+          s.$match._isWithdraw === true
       )
     ).toBe(true);
   });

@@ -4,7 +4,7 @@ import { Role } from '@taiger-common/core';
 import { GeneralGETRequestRateLimiter } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
 import {
-  getAdmissions,
+  getAdmissionsProgramCounts,
   getAdmissionsOverview,
   getAdmissionsYear,
   getAdmissionLetter
@@ -18,13 +18,13 @@ const router = Router();
 router.use(protect);
 
 router
-  .route('/')
+  .route('/program-counts')
   .get(
     filter_archiv_user,
     GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
-    getAdmissions
+    getAdmissionsProgramCounts
   );
 
 router

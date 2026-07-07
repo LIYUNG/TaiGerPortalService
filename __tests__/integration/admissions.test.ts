@@ -111,36 +111,22 @@ beforeEach(() => {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('GET /api/admissions', () => {
-  it('returns the admitted applications and the program-counts result', async () => {
-    const applications = [
-      {
-        _id: 'app-1',
-        admission: 'O',
-        studentId: { _id: studentId, firstname: student.firstname }
-      }
-    ];
+describe('GET /api/admissions/program-counts', () => {
+  // Returns only the per-program application counts; the paginated applications
+  // list is served by GET /api/applications/applications/paginated.
+  it('returns the program-counts result', async () => {
     const programCounts = [{ programId: 'p1', count: 3 }];
 
-    ApplicationDAO.getApplicationsWithStudentDetails.mockResolvedValue(
-      applications
-    );
     ApplicationDAO.getProgramApplicationCounts.mockResolvedValue(programCounts);
 
     const resp = await requestWithSupertest
-      .get('/api/admissions?admission=O')
+      .get('/api/admissions/program-counts')
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
-    expect(Array.isArray(resp.body.data)).toBe(true);
     expect(Array.isArray(resp.body.result)).toBe(true);
-    expect(resp.body.data).toHaveLength(1);
-    expect(resp.body.data[0].studentId._id.toString()).toBe(studentId);
-    // The admission=O query param flows into the filter the builder produces.
-    expect(
-      ApplicationDAO.getApplicationsWithStudentDetails
-    ).toHaveBeenCalledWith(expect.objectContaining({ admission: 'O' }));
+    expect(resp.body.result).toEqual(programCounts);
     expect(ApplicationDAO.getProgramApplicationCounts).toHaveBeenCalled();
   });
 });

@@ -7,10 +7,20 @@ import tools from './tools';
 const { searchAccessibleStudents, requireAccessibleStudent } = tools;
 
 // Mongoose lean student documents (union of FlattenMaps shapes) are probed
-// structurally here, so the param is left untyped.
+// structurally here, so only the handful of fields actually read are typed.
+interface ResolvedStudentDoc {
+  _id?: { toString?: () => string } | string | null;
+  id?: string;
+  firstname?: string | null;
+  lastname?: string | null;
+  firstname_chinese?: string | null;
+  lastname_chinese?: string | null;
+  email?: string | null;
+  applying_program_count?: number;
+}
+
 const formatStudentName = (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  student: any = {},
+  student: ResolvedStudentDoc = {},
   fallbackDisplayName: string | null = null
 ) =>
   [student.firstname, student.lastname].filter(Boolean).join(' ') ||
@@ -19,8 +29,7 @@ const formatStudentName = (
   undefined;
 
 const normalizeResolvedStudent = (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  student: any,
+  student: ResolvedStudentDoc,
   fallbackDisplayName: string | null = null
 ) => ({
   id: student._id?.toString?.() || student.id,

@@ -124,20 +124,21 @@ const stream: LlmProvider['stream'] = async (
   const blocks = message?.content || [];
 
   const text = blocks
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((block: any) => block.type === 'text')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((block: any) => block.text)
+    .filter(
+      (block): block is Anthropic.Messages.TextBlock => block.type === 'text'
+    )
+    .map((block) => block.text)
     .join('');
 
   const toolCalls = blocks
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((block: any) => block.type === 'tool_use')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((block: any) => ({
+    .filter(
+      (block): block is Anthropic.Messages.ToolUseBlock =>
+        block.type === 'tool_use'
+    )
+    .map((block) => ({
       id: block.id,
       name: block.name,
-      input: block.input || {}
+      input: (block.input || {}) as Record<string, unknown>
     }));
 
   return {

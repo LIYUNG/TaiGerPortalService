@@ -76,29 +76,29 @@ const EditorTasksReminderEmail = asyncHandler(async (recipient, payload) => {
   const subject = `TaiGer Editor Reminder: ${recipient.firstname} ${recipient.lastname}`;
   let student_i = '';
   let first = true;
-  // `payload` is untyped (see asyncHandler's contextual-`any` design, shared
-  // by every handler in this file), so ordinarily `student` would need no
-  // annotation either — but a callback passed to `.forEach()` always needs
-  // one under `noImplicitAny`. It can't be `IStudent`: the constants.ts
-  // helpers below actually expect the richer locally-populated shape
-  // (`PopulatedStudent`, an unexported local type) that a raw `IStudent`
-  // doesn't satisfy (e.g. `generaldocs_threads` as always-populated refs).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  payload.students.forEach((student: any) => {
-    if (is_cv_ml_rl_task_response_needed(student, payload.editor)) {
-      const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
-        student,
-        payload.editor
-      );
-      const studentBlock = `
+  // `payload` is untyped (asyncHandler's contextual-`any` design, shared by
+  // every handler in this file), but a callback passed to `.forEach()` still
+  // needs an explicit param under `noImplicitAny`. It can't be `IStudent`: the
+  // constants.ts helpers below expect the richer locally-populated shape
+  // (`PopulatedStudent`, an unexported local type). Derive that exact type from
+  // the helper's own parameter so no `any` is needed.
+  payload.students.forEach(
+    (student: Parameters<typeof is_cv_ml_rl_task_response_needed>[0]) => {
+      if (is_cv_ml_rl_task_response_needed(student, payload.editor)) {
+        const unread_cv_ml_rl_thread = cv_ml_rl_unfinished_summary(
+          student,
+          payload.editor
+        );
+        const studentBlock = `
       <p><b>${student.firstname} ${student.lastname}</b>,</p>
       
       ${unread_cv_ml_rl_thread}
     `;
-      student_i += first ? studentBlock : `${studentBlock}`;
-      first = false;
+        student_i += first ? studentBlock : `${studentBlock}`;
+        first = false;
+      }
     }
-  });
+  );
 
   const message = `\
 <p>Hi ${recipient.firstname} ${recipient.lastname},</p>

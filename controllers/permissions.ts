@@ -25,14 +25,11 @@ const updateUserPermission = asyncHandler(async (req, res) => {
   }
   const permission_user = (permissions as any).user_id;
   // Email inform user, the updated status
-  updatePermissionNotificationEmail(
-    {
-      firstname: permission_user.firstname,
-      lastname: permission_user.lastname,
-      address: permission_user.email
-    },
-    {}
-  );
+  await updatePermissionNotificationEmail({
+    firstname: permission_user.firstname,
+    lastname: permission_user.lastname,
+    address: permission_user.email
+  });
 });
 
 export = {

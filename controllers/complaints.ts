@@ -1,6 +1,7 @@
 import path from 'path';
 import { is_TaiGer_Student } from '@taiger-common/core';
-import { IUser } from '@taiger-common/model';
+import { IComplaintMessage, IUser } from '@taiger-common/model';
+import type { Types } from 'mongoose';
 
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
@@ -23,6 +24,14 @@ const {
   complaintResolvedRequesterReminderEmail,
   newCustomerCenterTicketMessageEmail
 } = EmailComplaints;
+
+// Messages stored on a Complaint doc are Mongoose subdocuments: each carries an
+// `_id` (not declared on IComplaintMessage) and a persisted `user_id`. Narrow to
+// this shape for the ownership/identity checks below.
+type ComplaintMessageDoc = IComplaintMessage & {
+  _id: Types.ObjectId;
+  user_id: NonNullable<IComplaintMessage['user_id']>;
+};
 
 const getManagers = async () => PermissionService.getManagers();
 
@@ -322,7 +331,7 @@ const updateAMessageInComplaint = asyncHandler(async (req, res) => {
     throw new ErrorResponse(423, 'Ticket is closed.');
   }
   const msg = ticket.messages.find(
-    (message: any) => message._id?.toString() === messageId
+    (message: ComplaintMessageDoc) => message._id?.toString() === messageId
   );
 
   if (!msg) {
@@ -357,7 +366,7 @@ const deleteAMessageInComplaint = asyncHandler(async (req, res) => {
     throw new ErrorResponse(423, 'Ticket is closed.');
   }
   const msg = ticket.messages.find(
-    (message: any) => message._id.toString() === messageId
+    (message: ComplaintMessageDoc) => message._id.toString() === messageId
   );
 
   if (!msg) {

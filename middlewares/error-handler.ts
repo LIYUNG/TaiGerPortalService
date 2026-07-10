@@ -1,13 +1,45 @@
 import type {
   ErrorRequestHandler,
   NextFunction,
-  Request,
+  RequestHandler,
   Response
 } from 'express';
 
 import { isInPipeline } from '../config';
 import { ErrorResponse } from '../common/errors';
 import logger from '../services/logger';
+import type { AuthedRequest } from '../types/express';
+
+// Standard error envelope every endpoint may emit (see `errorHandler` below and
+// the ad-hoc `res.status(4xx).send({ success: false, message })` guards in
+// controllers). Allowed alongside an endpoint's typed success body so the typed
+// route wrapper does not reject error responses.
+export interface ApiErrorBody {
+  success: false;
+  message?: string;
+  code?: string;
+}
+
+// Typed wrapper for Express *route* handlers (as opposed to `asyncHandler`,
+// which intentionally stays generic to also wrap non-(req,res,next) helpers).
+// `asyncRoute<ResBody>(handler)` gives the handler an `AuthedRequest` (so
+// `req.user`/`req.query`/`req.params` are typed, with `user` present) and a
+// `Response<ResBody | ApiErrorBody>`, so `res.json`/`res.send` are checked
+// against the endpoint's api response type from `@taiger-common/model` (with the
+// shared error envelope permitted). Rejections are forwarded to `next`, same as
+// `asyncHandler`.
+export const asyncRoute =
+  <ResBody = unknown>(
+    handler: (
+      req: AuthedRequest,
+      res: Response<ResBody | ApiErrorBody>,
+      next: NextFunction
+    ) => Promise<unknown> | unknown
+  ): RequestHandler =>
+  (req, res, next) =>
+    Promise.resolve(handler(req as AuthedRequest, res as Response, next)).catch(
+      next
+    );
 
 // `asyncHandler` wraps an async function and forwards rejections to `next`.
 // It is also (intentionally) used to wrap non-(req, res, next) helpers — e.g.

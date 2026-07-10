@@ -413,7 +413,6 @@ export const updatePersonalData = asyncHandler(async (req, res) => {
   }
 });
 
-
 // --- CV profile (reusable structured fields consumed by the CV draft) ---
 // These live on the student User document so they are reusable across all CV/
 // ML/RL documents and can be edited from either the CV thread or the student
@@ -426,8 +425,18 @@ const CV_PROFILE_KEYS = [
   'interests'
 ] as const;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const pickCvProfile = (u: Record<string, any>) => ({
+// The CV-profile fields are reusable structured blobs stored on the student User
+// document; they are not declared on IUser, so model them with a minimal precise
+// source shape (the exact inner structure is owned by the CV draft consumers).
+interface CvProfileSource {
+  personal_information?: Record<string, unknown>;
+  professional_experience?: unknown[];
+  awards?: unknown[];
+  skills?: Record<string, unknown>;
+  interests?: Record<string, unknown>;
+}
+
+const pickCvProfile = (u: CvProfileSource) => ({
   personal_information: u.personal_information ?? {},
   professional_experience: u.professional_experience ?? [],
   awards: u.awards ?? [],
@@ -439,20 +448,16 @@ export const getCvProfile = asyncHandler(async (req, res) => {
   const studentId = String(req.params.studentId);
   const student = (await UserService.getUserById(
     studentId
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  )) as unknown as Record<string, any> | null;
+  )) as unknown as CvProfileSource | null;
   if (!student) {
     throw new ErrorResponse(404, 'Student not found');
   }
-  return res
-    .status(200)
-    .send({ success: true, data: pickCvProfile(student) });
+  return res.status(200).send({ success: true, data: pickCvProfile(student) });
 });
 
 export const updateCvProfile = asyncHandler(async (req, res) => {
   const studentId = String(req.params.studentId);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const body = (req.body || {}) as Record<string, any>;
+  const body = (req.body || {}) as CvProfileSource;
   const update: Record<string, unknown> = {};
   CV_PROFILE_KEYS.forEach((k) => {
     if (body[k] !== undefined) {
@@ -470,7 +475,6 @@ export const updateCvProfile = asyncHandler(async (req, res) => {
   }
   return res.status(200).send({
     success: true,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: pickCvProfile(updated as unknown as Record<string, any>)
+    data: pickCvProfile(updated as unknown as CvProfileSource)
   });
 });

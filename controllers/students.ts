@@ -6,9 +6,9 @@ import {
   is_TaiGer_Admin
 } from '@taiger-common/core';
 import mongoose from 'mongoose';
-import { NextFunction, Request, Response } from 'express';
+import { Request } from 'express';
 
-import { asyncHandler } from '../middlewares/error-handler';
+import { asyncRoute } from '../middlewares/error-handler';
 import {
   add_portals_registered_status,
   userChangesHelperFunction
@@ -40,14 +40,19 @@ import type {
   IEditor,
   IProgram,
   IStudent,
-  IUser
+  IUser,
+  GetStudentsResponse,
+  GetActiveStudentsResponse,
+  GetStudentResponse,
+  UpdateStudentAgentsResponse,
+  UpdateStudentEditorsResponse,
+  UpdateStudentAttributesResponse
 } from '@taiger-common/model';
 
 // Several handlers attach the student's applications onto the (lean) student doc
 // before responding; mirror that shape for typed reads/writes.
 type StudentWithApplications = IStudent & {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  applications?: any[];
+  applications?: ApplicationWithProgram[];
 };
 
 // ApplicationService.getApplicationsByStudentId lean-populates `programId` to a
@@ -117,115 +122,124 @@ const informAgentManagerNewStudentEmail =
 // here as a 2-arg (req, user) lookup. TS-only cast, no runtime change. See FLAGS.
 const getPermission = getPermissionRaw as unknown as (
   req: unknown,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  user: any
+  user: AuthUser
 ) => Promise<{ canAssignAgents?: boolean; canAssignEditors?: boolean } | null>;
 
-const getStudentAndDocLinks = asyncHandler(
-  async (req: Request, res: Response) => {
-    const user = req.user as AuthUser;
-    const studentId = String(req.params.studentId);
-    const applicationsPromise =
-      ApplicationService.getApplicationsByStudentId(studentId);
+// NOTE: left untyped — the runtime payload carries `base_docs_link`,
+// `survey_link` and `audit` fields that the api response type
+// `GetStudentDocLinksResponse` does not declare.
+const getStudentAndDocLinks = asyncRoute(async (req, res) => {
+  const user = req.user as AuthUser;
+  const studentId = String(req.params.studentId);
+  const applicationsPromise =
+    ApplicationService.getApplicationsByStudentId(studentId);
 
-    const studentPromise =
-      StudentService.getStudentByIdWithDocThreads(studentId);
+  const studentPromise = StudentService.getStudentByIdWithDocThreads(studentId);
 
-    const base_docs_linkPromise =
-      BasedocumentationslinkService.findByCategory('base-documents');
-    const survey_linkPromise =
-      BasedocumentationslinkService.findByCategory('survey');
-    const auditPromise = getAuditLogs(
-      {
-        targetUserId: studentId
-      },
-      {
-        limit: 1000,
-        // skip: 0 is behaviour-identical to the previous (undefined -> no skip).
-        skip: 0,
-        sort: { createdAt: -1 }
-      }
-    );
-    const [student, applications, base_docs_link, survey_link, audit] =
-      await Promise.all([
-        studentPromise,
-        applicationsPromise,
-        base_docs_linkPromise,
-        survey_linkPromise,
-        auditPromise
-      ]);
-    if (!student) {
-      return res
-        .status(404)
-        .send({ success: false, message: 'Student not found' });
+  const base_docs_linkPromise =
+    BasedocumentationslinkService.findByCategory('base-documents');
+  const survey_linkPromise =
+    BasedocumentationslinkService.findByCategory('survey');
+  const auditPromise = getAuditLogs(
+    {
+      targetUserId: studentId
+    },
+    {
+      limit: 1000,
+      // skip: 0 is behaviour-identical to the previous (undefined -> no skip).
+      skip: 0,
+      sort: { createdAt: -1 }
     }
+  );
+  const [student, applications, base_docs_link, survey_link, audit] =
+    await Promise.all([
+      studentPromise,
+      applicationsPromise,
+      base_docs_linkPromise,
+      survey_linkPromise,
+      auditPromise
+    ]);
+  if (!student) {
+    return res
+      .status(404)
+      .send({ success: false, message: 'Student not found' });
+  }
 
-    // Ensure isLocked field exists (default to false if undefined for existing applications)
-    // Existing applications should be unlocked to avoid disrupting running workflows
-    // Lock mechanism only applies to newly created applications
-    const applicationsWithDefaults = applications.map((app) => {
-      if (app.isLocked === undefined) {
-        app.isLocked = false; // Existing applications default to unlocked
-      }
-      return app;
-    }) as unknown as ApplicationWithProgram[];
+  // Ensure isLocked field exists (default to false if undefined for existing applications)
+  // Existing applications should be unlocked to avoid disrupting running workflows
+  // Lock mechanism only applies to newly created applications
+  const applicationsWithDefaults = applications.map((app) => {
+    if (app.isLocked === undefined) {
+      app.isLocked = false; // Existing applications default to unlocked
+    }
+    return app;
+  }) as unknown as ApplicationWithProgram[];
 
-    // TODO: remove agent notfication for new documents upload
-    (student as unknown as StudentWithApplications).applications =
-      add_portals_registered_status(applicationsWithDefaults);
+  // TODO: remove agent notfication for new documents upload
+  (student as unknown as StudentWithApplications).applications =
+    add_portals_registered_status(applicationsWithDefaults);
 
-    res.status(200).send({
-      success: true,
-      data: student,
-      base_docs_link,
-      survey_link,
-      audit
-    });
-    if (is_TaiGer_Agent(user)) {
-      await UserService.updateUser(user._id.toString(), {
-        $pull: {
-          'agent_notification.isRead_new_base_docs_uploaded': {
-            student_id: studentId
-          }
+  res.status(200).send({
+    success: true,
+    data: student,
+    base_docs_link,
+    survey_link,
+    audit
+  });
+  if (is_TaiGer_Agent(user)) {
+    await UserService.updateUser(user._id.toString(), {
+      $pull: {
+        'agent_notification.isRead_new_base_docs_uploaded': {
+          student_id: studentId
         }
-      });
-    }
-  }
-);
-
-const updateDocumentationHelperLink = asyncHandler(
-  async (req: Request, res: Response) => {
-    const { link, key, category } = req.body;
-    // if not in database, then create one
-    // otherwise: update the existing one.
-    await BasedocumentationslinkService.upsertByCategoryKey(category, key, {
-      link,
-      updatedAt: new Date()
+      }
     });
-
-    const updated_helper_link =
-      await BasedocumentationslinkService.findByCategory(category);
-    res.status(200).send({ success: true, helper_link: updated_helper_link });
   }
-);
-
-const getActiveStudents = asyncHandler(async (req: Request, res: Response) => {
-  const { editors, agents, archiv } = req.query;
-  const { filter } = new UserQueryBuilder()
-    .withEditors(
-      typeof editors === 'string' ? new mongoose.Types.ObjectId(editors) : null
-    )
-    .withAgents(
-      typeof agents === 'string' ? new mongoose.Types.ObjectId(agents) : null
-    )
-    .withArchiv(archiv)
-    .build();
-
-  const students = await StudentService.getStudentsWithApplications(filter);
-  res.status(200).send({ success: true, data: students });
 });
 
-const getStudentsByIds = asyncHandler(async (req: Request, res: Response) => {
+// NOTE: left untyped — the runtime payload returns a `helper_link` field that
+// the api response type `UpdateDocumentationHelperLinkResponse` (success/message
+// only) does not declare.
+const updateDocumentationHelperLink = asyncRoute(async (req, res) => {
+  const { link, key, category } = req.body;
+  // if not in database, then create one
+  // otherwise: update the existing one.
+  await BasedocumentationslinkService.upsertByCategoryKey(category, key, {
+    link,
+    updatedAt: new Date()
+  });
+
+  const updated_helper_link =
+    await BasedocumentationslinkService.findByCategory(category);
+  res.status(200).send({ success: true, helper_link: updated_helper_link });
+});
+
+const getActiveStudents = asyncRoute<GetActiveStudentsResponse>(
+  async (req, res) => {
+    const { editors, agents, archiv } = req.query;
+    const { filter } = new UserQueryBuilder()
+      .withEditors(
+        typeof editors === 'string'
+          ? new mongoose.Types.ObjectId(editors)
+          : null
+      )
+      .withAgents(
+        typeof agents === 'string' ? new mongoose.Types.ObjectId(agents) : null
+      )
+      .withArchiv(archiv)
+      .build();
+
+    const students = await StudentService.getStudentsWithApplications(filter);
+    res.status(200).send({
+      success: true,
+      data: students as unknown as GetActiveStudentsResponse['data']
+    });
+  }
+);
+
+// NOTE: left untyped — the runtime payload carries an `invalidIds` field (and a
+// non-data `message`) that no `@taiger-common/model` students response declares.
+const getStudentsByIds = asyncRoute(async (req, res) => {
   const { ids } = req.query;
   if (!ids || typeof ids !== 'string' || ids.trim() === '') {
     return res
@@ -299,7 +313,7 @@ const getStudentsByIds = asyncHandler(async (req: Request, res: Response) => {
   res.status(200).send(responsePayload);
 });
 
-const getStudentsV3 = asyncHandler(async (req: Request, res: Response) => {
+const getStudentsV3 = asyncRoute<GetStudentsResponse>(async (req, res) => {
   const { editors, agents, archiv } = req.query;
   const { filter } = new UserQueryBuilder()
     .withEditors(editors)
@@ -309,28 +323,31 @@ const getStudentsV3 = asyncHandler(async (req: Request, res: Response) => {
 
   const students = await StudentService.fetchStudents(filter);
 
-  res.status(200).send({ success: true, data: students });
+  res.status(200).send({
+    success: true,
+    data: students as unknown as GetStudentsResponse['data']
+  });
 });
 
-const getStudentsV3Paginated = asyncHandler(
-  async (req: Request, res: Response) => {
-    const { editors, agents, archiv } = req.query;
-    const { filter } = new UserQueryBuilder()
-      .withEditors(editors)
-      .withAgents(agents)
-      .withArchiv(archiv)
-      .build();
+// NOTE: left untyped — returns a paginated envelope (`data` is a page object,
+// not the `IStudentResponseDef[]` the students response types declare).
+const getStudentsV3Paginated = asyncRoute(async (req, res) => {
+  const { editors, agents, archiv } = req.query;
+  const { filter } = new UserQueryBuilder()
+    .withEditors(editors)
+    .withAgents(agents)
+    .withArchiv(archiv)
+    .build();
 
-    const result = await StudentService.getStudentsPaginated({
-      filter,
-      query: req.query
-    });
+  const result = await StudentService.getStudentsPaginated({
+    filter,
+    query: req.query
+  });
 
-    res.status(200).send({ success: true, data: result });
-  }
-);
+  res.status(200).send({ success: true, data: result });
+});
 
-const getStudent = asyncHandler(async (req: Request, res: Response) => {
+const getStudent = asyncRoute<GetStudentResponse>(async (req, res) => {
   const studentId = String(req.params.studentId);
 
   const student = await StudentService.getStudentById(studentId);
@@ -341,167 +358,167 @@ const getStudent = asyncHandler(async (req: Request, res: Response) => {
       .json({ success: false, message: 'Student not found.' });
   }
 
-  res.status(200).send({ success: true, data: student });
+  res.status(200).send({
+    success: true,
+    data: student as unknown as GetStudentResponse['data']
+  });
 });
 
-const getStudentsAndDocLinks = asyncHandler(
-  async (req: Request, res: Response) => {
-    const user = req.user as AuthUser;
-    const { editors, agents, archiv } = req.query;
-    const { filter } = new UserQueryBuilder()
-      .withEditors(editors)
-      .withAgents(agents)
-      .withArchiv(archiv)
-      .build();
+// NOTE: left untyped — the runtime payload carries a `base_docs_link` field the
+// api response type `GetStudentsAndDocLinksResponse` does not declare.
+const getStudentsAndDocLinks = asyncRoute(async (req, res) => {
+  const user = req.user as AuthUser;
+  const { editors, agents, archiv } = req.query;
+  const { filter } = new UserQueryBuilder()
+    .withEditors(editors)
+    .withAgents(agents)
+    .withArchiv(archiv)
+    .build();
 
-    if (
-      is_TaiGer_Admin(user) ||
-      is_TaiGer_Agent(user) ||
-      is_TaiGer_Editor(user)
-    ) {
-      const students = await StudentService.fetchSimpleStudents(filter);
-      res
-        .status(200)
-        .send({ success: true, data: students, base_docs_link: {} });
-    } else if (is_TaiGer_Student(user)) {
-      const obj = user.notification!; // create object (always set for a real user doc)
-      obj['isRead_base_documents_rejected'] = true; // set value
-      const student = await StudentService.updateStudentById(
-        user._id.toString(),
-        {
-          notification: obj
-        }
-      );
+  if (
+    is_TaiGer_Admin(user) ||
+    is_TaiGer_Agent(user) ||
+    is_TaiGer_Editor(user)
+  ) {
+    const students = await StudentService.fetchSimpleStudents(filter);
+    res.status(200).send({ success: true, data: students, base_docs_link: {} });
+  } else if (is_TaiGer_Student(user)) {
+    const obj = user.notification!; // create object (always set for a real user doc)
+    obj['isRead_base_documents_rejected'] = true; // set value
+    const student = await StudentService.updateStudentById(
+      user._id.toString(),
+      {
+        notification: obj
+      }
+    );
 
-      const base_docs_link = await BasedocumentationslinkService.findByCategory(
-        'base-documents'
-      );
-      res.status(200).send({ success: true, data: [student], base_docs_link });
-    } else {
-      // Guest
-      res.status(200).send({ success: true, data: [user] });
-    }
+    const base_docs_link = await BasedocumentationslinkService.findByCategory(
+      'base-documents'
+    );
+    res.status(200).send({ success: true, data: [student], base_docs_link });
+  } else {
+    // Guest
+    res.status(200).send({ success: true, data: [user] });
   }
-);
+});
 
 // () TODO email : agent better notification! (only added or removed should be informed.)
 // (O) email : inform student close service
 // (O) email : inform editor that student is archived.
-const updateStudentsArchivStatus = asyncHandler(
-  async (req: Request, res: Response) => {
-    const user = req.user as AuthUser;
-    const {
-      body: { isArchived, shouldInform }
-    } = req;
-    const studentId = String(req.params.studentId);
+// NOTE: left untyped — most branches respond with `data` as a student ARRAY,
+// but the api response type `UpdateArchivStudentsResponse` declares `data` as a
+// single `IStudentResponseDef`. Runtime shape preserved as-is.
+const updateStudentsArchivStatus = asyncRoute(async (req, res) => {
+  const user = req.user as AuthUser;
+  const {
+    body: { isArchived, shouldInform }
+  } = req;
+  const studentId = String(req.params.studentId);
 
-    // TODO: data validation for isArchived and studentId
-    const student = (await StudentService.updateStudentById(studentId, {
-      archiv: isArchived
-    })) as unknown as IStudent | null;
+  // TODO: data validation for isArchived and studentId
+  const student = (await StudentService.updateStudentById(studentId, {
+    archiv: isArchived
+  })) as unknown as IStudent | null;
 
-    if (!student) {
-      logger.error('updateStudentsArchivStatus: Invalid student id');
-      return res
-        .status(404)
-        .send({ success: false, message: 'Invalid student id' });
-    }
+  if (!student) {
+    logger.error('updateStudentsArchivStatus: Invalid student id');
+    return res
+      .status(404)
+      .send({ success: false, message: 'Invalid student id' });
+  }
 
-    if (isArchived) {
-      // return dashboard students
-      if (user.role === Role.Admin) {
+  if (isArchived) {
+    // return dashboard students
+    if (user.role === Role.Admin) {
+      const students = await StudentService.fetchStudents({
+        $or: [{ archiv: { $exists: false } }, { archiv: false }]
+      });
+
+      res.status(200).send({ success: true, data: students });
+    } else if (is_TaiGer_Agent(user)) {
+      const permissions = await getPermission(req, user);
+      if (permissions && permissions.canAssignAgents) {
         const students = await StudentService.fetchStudents({
           $or: [{ archiv: { $exists: false } }, { archiv: false }]
-        });
-
-        res.status(200).send({ success: true, data: students });
-      } else if (is_TaiGer_Agent(user)) {
-        const permissions = await getPermission(req, user);
-        if (permissions && permissions.canAssignAgents) {
-          const students = await StudentService.fetchStudents({
-            $or: [{ archiv: { $exists: false } }, { archiv: false }]
-          });
-
-          res.status(200).send({ success: true, data: students });
-        } else {
-          const students = await StudentService.fetchStudents({
-            agents: user._id,
-            $or: [{ archiv: { $exists: false } }, { archiv: false }]
-          });
-          res.status(200).send({ success: true, data: students });
-        }
-      } else if (user.role === Role.Editor) {
-        const students = await StudentService.fetchStudents({
-          editors: user._id,
-          $or: [{ archiv: { $exists: false } }, { archiv: false }]
-        });
-        res.status(200).send({ success: true, data: students });
-      }
-      // (O): send editor email.
-      const editors = (student.editors ?? []) as IEditor[];
-      for (let i = 0; i < editors.length; i += 1) {
-        informEditorArchivedStudentEmail(
-          {
-            firstname: editors[i].firstname,
-            lastname: editors[i].lastname,
-            address: editors[i].email
-          },
-          {
-            std_firstname: student.firstname,
-            std_lastname: student.lastname
-          }
-        );
-      }
-      if (shouldInform) {
-        logger.info(
-          `Inform ${student.firstname} ${student.lastname} to archive`
-        );
-        informStudentArchivedStudentEmail(
-          {
-            firstname: student.firstname,
-            lastname: student.lastname,
-            address: student.email
-          },
-          { student }
-        );
-      }
-    } else {
-      if (is_TaiGer_Admin(user)) {
-        const query = { archiv: true };
-        const students = await StudentService.getStudents({
-          filter: query,
-          options: {}
-        });
-
-        res.status(200).send({ success: true, data: students });
-      } else if (is_TaiGer_Agent(user)) {
-        const query = { agents: user._id, archiv: true };
-        const students = await StudentService.getStudents({
-          filter: query,
-          options: {}
-        });
-
-        res.status(200).send({ success: true, data: students });
-      } else if (is_TaiGer_Editor(user)) {
-        const query = { editors: user._id, archiv: true };
-        const students = await StudentService.getStudents({
-          filter: query,
-          options: {}
         });
 
         res.status(200).send({ success: true, data: students });
       } else {
-        // Guest
-        res.status(200).send({ success: true, data: [] });
+        const students = await StudentService.fetchStudents({
+          agents: user._id,
+          $or: [{ archiv: { $exists: false } }, { archiv: false }]
+        });
+        res.status(200).send({ success: true, data: students });
       }
+    } else if (user.role === Role.Editor) {
+      const students = await StudentService.fetchStudents({
+        editors: user._id,
+        $or: [{ archiv: { $exists: false } }, { archiv: false }]
+      });
+      res.status(200).send({ success: true, data: students });
+    }
+    // (O): send editor email.
+    const editors = (student.editors ?? []) as IEditor[];
+    for (let i = 0; i < editors.length; i += 1) {
+      informEditorArchivedStudentEmail(
+        {
+          firstname: editors[i].firstname,
+          lastname: editors[i].lastname,
+          address: editors[i].email
+        },
+        {
+          std_firstname: student.firstname,
+          std_lastname: student.lastname
+        }
+      );
+    }
+    if (shouldInform) {
+      logger.info(`Inform ${student.firstname} ${student.lastname} to archive`);
+      informStudentArchivedStudentEmail(
+        {
+          firstname: student.firstname,
+          lastname: student.lastname,
+          address: student.email
+        },
+        { student }
+      );
+    }
+  } else {
+    if (is_TaiGer_Admin(user)) {
+      const query = { archiv: true };
+      const students = await StudentService.getStudents({
+        filter: query,
+        options: {}
+      });
+
+      res.status(200).send({ success: true, data: students });
+    } else if (is_TaiGer_Agent(user)) {
+      const query = { agents: user._id, archiv: true };
+      const students = await StudentService.getStudents({
+        filter: query,
+        options: {}
+      });
+
+      res.status(200).send({ success: true, data: students });
+    } else if (is_TaiGer_Editor(user)) {
+      const query = { editors: user._id, archiv: true };
+      const students = await StudentService.getStudents({
+        filter: query,
+        options: {}
+      });
+
+      res.status(200).send({ success: true, data: students });
+    } else {
+      // Guest
+      res.status(200).send({ success: true, data: [] });
     }
   }
-);
+});
 
 // (O) email : agent better notification! (only added should be informed.)
 // () TODO email : student better notification ()
-const assignAgentToStudent = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
+const assignAgentToStudent = asyncRoute<UpdateStudentAgentsResponse>(
+  async (req, res, next) => {
     const user = req.user as AuthUser;
     const { body: agentsId } = req; // agentsId is json (or agentsId array with boolean)
     const studentId = String(req.params.studentId);
@@ -549,7 +566,10 @@ const assignAgentToStudent = asyncHandler(
         studentId
       )) as unknown as (IStudent & { _id: { toString(): string } }) | null;
 
-      res.status(200).json({ success: true, data: studentUpdated });
+      res.status(200).json({
+        success: true,
+        data: studentUpdated as unknown as UpdateStudentAgentsResponse['data']
+      });
 
       // Response already sent; skip the email side-effects if the student vanished.
       if (!studentUpdated) {
@@ -645,8 +665,8 @@ const assignAgentToStudent = asyncHandler(
   }
 );
 
-const assignEditorToStudent = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
+const assignEditorToStudent = asyncRoute<UpdateStudentEditorsResponse>(
+  async (req, res, next) => {
     const user = req.user as AuthUser;
     const { body: editorsId } = req;
     const studentId = String(req.params.studentId);
@@ -695,7 +715,10 @@ const assignEditorToStudent = asyncHandler(
         | (IStudent & { _id: { toString(): string }; agents?: IAgent[] })
         | null;
 
-      res.status(200).json({ success: true, data: studentUpdated });
+      res.status(200).json({
+        success: true,
+        data: studentUpdated as unknown as UpdateStudentEditorsResponse['data']
+      });
 
       // Response already sent; skip the email side-effects if the student vanished.
       if (!studentUpdated) {
@@ -784,8 +807,8 @@ const assignEditorToStudent = asyncHandler(
   }
 );
 
-const assignAttributesToStudent = asyncHandler(
-  async (req: Request, res: Response) => {
+const assignAttributesToStudent = asyncRoute<UpdateStudentAttributesResponse>(
+  async (req, res) => {
     const { body: attributesId } = req;
     const studentId = String(req.params.studentId);
 
@@ -795,7 +818,10 @@ const assignAttributesToStudent = asyncHandler(
 
     const student_upated = await StudentService.getStudentById(studentId);
 
-    res.status(200).send({ success: true, data: student_upated });
+    res.status(200).send({
+      success: true,
+      data: student_upated as unknown as UpdateStudentAttributesResponse['data']
+    });
   }
 );
 

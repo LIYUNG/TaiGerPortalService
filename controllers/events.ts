@@ -4,10 +4,21 @@ import {
   is_TaiGer_Editor
 } from '@taiger-common/core';
 import { Types } from 'mongoose';
-import type { IEvent, IUser } from '@taiger-common/model';
+import type {
+  IEvent,
+  IUser,
+  GetEventsResponse,
+  GetBookedEventsResponse,
+  GetActiveEventsNumberResponse,
+  GetEventResponse,
+  PostEventResponse,
+  ConfirmEventResponse,
+  UpdateEventResponse,
+  DeleteEventResponse
+} from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
-import { asyncHandler } from '../middlewares/error-handler';
+import { asyncRoute } from '../middlewares/error-handler';
 import {
   MeetingInvitationEmail,
   MeetingConfirmationReminderEmail,
@@ -21,6 +32,10 @@ import EventQueryBuilder from '../builders/EventQueryBuilder';
 import { scheduleInviteTA } from '../utils/meeting-assistant.service';
 import EventService from '../services/events';
 import UserService from '../services/users';
+import type { AuthenticatedUser } from '../types/express';
+
+// The lean event list shape returned by EventService.findEvents.
+type EventList = Awaited<ReturnType<typeof EventService.findEvents>>;
 
 const AGENT_OH_SELECT =
   'firstname lastname email selfIntroduction officehours timezone pictureUrl';
@@ -42,7 +57,7 @@ type PopulatedEvent = Omit<IEvent, 'requester_id' | 'receiver_id'> & {
 const handleTAScheduling = async (
   taigerRep: PopulatedUser | undefined,
   student: PopulatedUser | undefined,
-  user: any,
+  user: AuthenticatedUser,
   updatedEvent: IEvent,
   eventId: string
 ) => {
@@ -71,12 +86,12 @@ const handleTAScheduling = async (
   }
 };
 
-const MeetingAdjustReminder = (
+const MeetingAdjustReminder = async (
   receiver: PopulatedUser,
-  user: any,
+  user: AuthenticatedUser,
   meeting_event: PopulatedEvent
 ) => {
-  MeetingAdjustReminderEmail(
+  await MeetingAdjustReminderEmail(
     {
       id: receiver._id.toString(),
       firstname: receiver.firstname,
@@ -95,12 +110,12 @@ const MeetingAdjustReminder = (
   );
 };
 
-const MeetingCancelledReminder = (
-  user: any,
+const MeetingCancelledReminder = async (
+  user: AuthenticatedUser,
   meeting_event: PopulatedEvent,
   reason: string | undefined
 ) => {
-  MeetingCancelledReminderEmail(
+  await MeetingCancelledReminderEmail(
     is_TaiGer_Student(user)
       ? {
           id: meeting_event.receiver_id[0]._id.toString(),
@@ -131,12 +146,12 @@ const MeetingCancelledReminder = (
   );
 };
 
-const meetingInvitation = (
+const meetingInvitation = async (
   receiver: PopulatedUser,
-  user: any,
+  user: AuthenticatedUser,
   event: PopulatedEvent
 ) => {
-  MeetingInvitationEmail(
+  await MeetingInvitationEmail(
     {
       id: receiver._id.toString(),
       firstname: receiver.firstname,
@@ -157,12 +172,12 @@ const meetingInvitation = (
   );
 };
 
-const meetingConfirmationReminder = (
+const meetingConfirmationReminder = async (
   receiver: PopulatedUser,
-  user: any,
+  user: AuthenticatedUser,
   start_time: Date | undefined
 ) => {
-  MeetingConfirmationReminderEmail(
+  await MeetingConfirmationReminderEmail(
     {
       id: receiver._id.toString(),
       firstname: receiver.firstname,
@@ -179,47 +194,58 @@ const meetingConfirmationReminder = (
   );
 };
 
-const getBookedEvents = asyncHandler(async (req, res, _next) => {
-  const { user } = req;
-  const { startTime, endTime } = req.query;
-  const { filter: startTimeEventQuery } = new EventQueryBuilder()
-    .withStartTimeStart(startTime)
-    .withStartTimeEnd(endTime)
-    .build();
+const getBookedEvents = asyncRoute<GetBookedEventsResponse>(
+  async (req, res, _next) => {
+    const { user } = req;
+    const { startTime, endTime } = req.query as {
+      startTime?: string;
+      endTime?: string;
+    };
+    const { filter: startTimeEventQuery } = new EventQueryBuilder()
+      .withStartTimeStart(startTime)
+      .withStartTimeEnd(endTime)
+      .build();
 
-  // Only available for students
-  if (!is_TaiGer_Student(user)) {
-    return res.status(403).send({
-      success: false,
-      message: 'Booked events are only available for students'
+    // Only available for students
+    if (!is_TaiGer_Student(user)) {
+      return res.status(403).send({
+        success: false,
+        message: 'Booked events are only available for students'
+      });
+    }
+
+    const agentsIds = user.agents;
+
+    // Fetch booked events for student's agents
+    const bookedEvents = await EventService.findEvents(
+      {
+        receiver_id: { $in: agentsIds },
+        requester_id: { $ne: user._id },
+        ...startTimeEventQuery
+      },
+      {
+        populate: { path: 'receiver_id', select: 'firstname lastname email' },
+        select: 'start'
+      }
+    );
+
+    res.status(200).send({
+      success: true,
+      data: bookedEvents as unknown as GetBookedEventsResponse['data']
     });
   }
+);
 
-  const agentsIds = user.agents;
-
-  // Fetch booked events for student's agents
-  const bookedEvents = await EventService.findEvents(
-    {
-      receiver_id: { $in: agentsIds },
-      requester_id: { $ne: user._id },
-      ...startTimeEventQuery
-    },
-    {
-      populate: { path: 'receiver_id', select: 'firstname lastname email' },
-      select: 'start'
-    }
-  );
-
-  res.status(200).send({
-    success: true,
-    data: bookedEvents
-  });
-});
-
-const getEvents = asyncHandler(async (req, res, _next) => {
+const getEvents = asyncRoute<GetEventsResponse>(async (req, res, _next) => {
   const { user } = req;
   const { startTime, endTime, requester_id, receiver_id, rangeField } =
-    req.query;
+    req.query as {
+      startTime?: string;
+      endTime?: string;
+      requester_id?: string;
+      receiver_id?: string;
+      rangeField?: string;
+    };
 
   // The [startTime, endTime] window can match either the event `start` or `end`.
   // Calendars must match on `start` (a required field) — matching on `end`
@@ -237,14 +263,9 @@ const getEvents = asyncHandler(async (req, res, _next) => {
   }
   const { filter: eventQuery } = builder.build();
 
-  // Common response structure
-  const response: {
-    success: boolean;
-    agents: unknown[];
-    editors: unknown[];
-    data: unknown[];
-    hasEvents: boolean;
-  } = {
+  // Common response structure (typed to the api contract; the populated
+  // Mongoose docs are bridged to the zod-inferred shapes at assignment below).
+  const response: GetEventsResponse = {
     success: true,
     agents: [],
     editors: [],
@@ -262,8 +283,8 @@ const getEvents = asyncHandler(async (req, res, _next) => {
     UserService.findEditors({ _id: { $in: editorsIds } }, AGENT_OH_SELECT)
   ]);
 
-  response.agents = agents;
-  response.editors = editors;
+  response.agents = agents as unknown as GetEventsResponse['agents'];
+  response.editors = editors as unknown as GetEventsResponse['editors'];
   const events = await EventService.findEvents(eventQuery, {
     populate: {
       path: 'receiver_id requester_id',
@@ -271,7 +292,7 @@ const getEvents = asyncHandler(async (req, res, _next) => {
     }
   });
 
-  response.data = events;
+  response.data = events as unknown as GetEventsResponse['data'];
   response.hasEvents = events.length > 0;
 
   res.status(200).send(response);
@@ -285,7 +306,7 @@ const getEvents = asyncHandler(async (req, res, _next) => {
 // sibling/student office-hours pages still depend on its current behaviour);
 // scoping it is a deferred follow-up tied to migrating those pages.
 const buildEventScopeFilter = (
-  user: any,
+  user: AuthenticatedUser,
   {
     receiver_id,
     requester_id
@@ -307,7 +328,7 @@ const buildEventScopeFilter = (
 // Server-side paginated events, role-scoped. Defaults to the "Past" window
 // (end < now) for the office-hours list tab; `before`/`after` (ISO) override the
 // window, page/limit/sortOrder drive pagination.
-const getEventsPaginated = asyncHandler(async (req, res) => {
+const getEventsPaginated = asyncRoute(async (req, res) => {
   const { user } = req;
   const { receiver_id, requester_id, before, after } = req.query;
 
@@ -331,29 +352,31 @@ const getEventsPaginated = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: result });
 });
 
-const getActiveEventsNumber = asyncHandler(async (req, res) => {
-  const { user } = req;
-  const { filter: eventQuery } = new EventQueryBuilder()
-    .withOrs([{ requester_id: user._id }, { receiver_id: user._id }])
-    .withConfirmedReceiver(true)
-    .withConfirmedRequester(true)
-    .withStartTimeStart(new Date())
-    .build();
-  const futureEvents = await EventService.findEvents(eventQuery);
-  res.status(200).send({ success: true, data: futureEvents.length });
-});
+const getActiveEventsNumber = asyncRoute<GetActiveEventsNumberResponse>(
+  async (req, res) => {
+    const { user } = req;
+    const { filter: eventQuery } = new EventQueryBuilder()
+      .withOrs([{ requester_id: user._id }, { receiver_id: user._id }])
+      .withConfirmedReceiver(true)
+      .withConfirmedRequester(true)
+      .withStartTimeStart(new Date())
+      .build();
+    const futureEvents = await EventService.findEvents(eventQuery);
+    res.status(200).send({ success: true, data: futureEvents.length });
+  }
+);
 
-const showEvent = asyncHandler(async (req, res) => {
-  const { event_id } = req.params;
+const showEvent = asyncRoute<GetEventResponse>(async (req, res) => {
+  const { event_id } = req.params as { event_id: string };
   const event = await EventService.getEventById(event_id);
 
   res.status(200).json(event);
 });
 
-const postEvent = asyncHandler(async (req, res) => {
+const postEvent = asyncRoute<PostEventResponse>(async (req, res) => {
   const { user } = req;
   const newEvent = req.body;
-  let events: any;
+  let events!: EventList;
 
   if (is_TaiGer_Student(user)) {
     let write_NewEvent;
@@ -435,8 +458,8 @@ const postEvent = asyncHandler(async (req, res) => {
     );
     res.status(201).send({
       success: true,
-      agents,
-      data: events,
+      agents: agents as unknown as PostEventResponse['agents'],
+      data: events as unknown as PostEventResponse['data'],
       hasEvents: events.length !== 0
     });
 
@@ -446,8 +469,8 @@ const postEvent = asyncHandler(async (req, res) => {
       'firstname lastname email'
     )) as unknown as PopulatedEvent;
 
-    updatedEvent.receiver_id.forEach((receiver: PopulatedUser) => {
-      meetingConfirmationReminder(receiver, user, updatedEvent.start);
+    updatedEvent.receiver_id.forEach(async (receiver: PopulatedUser) => {
+      await meetingConfirmationReminder(receiver, user, updatedEvent.start);
     });
   } else {
     try {
@@ -503,17 +526,23 @@ const postEvent = asyncHandler(async (req, res) => {
       );
       res.status(201).send({
         success: true,
-        agents,
-        data: events,
+        agents: agents as unknown as PostEventResponse['agents'],
+        data: events as unknown as PostEventResponse['data'],
         hasEvents: events.length !== 0
       });
       const updatedEvent = (await EventService.getEventByIdPopulated(
         write_NewEvent._id,
         'firstname lastname email pictureUrl'
       )) as unknown as PopulatedEvent;
-      updatedEvent.requester_id.forEach((requester: PopulatedUser) => {
-        meetingConfirmationReminder(requester, user, updatedEvent.start);
-      });
+      await Promise.all(
+        updatedEvent.requester_id.map(async (requester: PopulatedUser) => {
+          await meetingConfirmationReminder(
+            requester,
+            user,
+            updatedEvent.start
+          );
+        })
+      );
     } catch (err) {
       logger.error(`postEvent: ${(err as Error).message}`);
       throw new ErrorResponse(500, (err as Error).message);
@@ -521,8 +550,8 @@ const postEvent = asyncHandler(async (req, res) => {
   }
 });
 
-const confirmEvent = asyncHandler(async (req, res) => {
-  const { event_id } = req.params;
+const confirmEvent = asyncRoute<ConfirmEventResponse>(async (req, res) => {
+  const { event_id } = req.params as { event_id: string };
   const { user } = req;
   const updated_event = req.body;
   const { addMeetingAssistant = true } = updated_event;
@@ -571,24 +600,32 @@ const confirmEvent = asyncHandler(async (req, res) => {
       'firstname lastname email pictureUrl'
     )) as unknown as PopulatedEvent | null;
     if (event) {
-      res.status(200).send({ success: true, data: event });
+      res.status(200).send({
+        success: true,
+        data: event as unknown as ConfirmEventResponse['data']
+      });
     }
     if (!event) {
-      res.status(404).json({ error: 'event is not found' });
+      // NOTE: non-standard error envelope (`error` vs the standard `message`);
+      // preserved as-is to avoid changing the response contract. Cast bridges it
+      // to the endpoint's api response type.
+      res.status(404).json({
+        error: 'event is not found'
+      } as unknown as ConfirmEventResponse);
     }
     // TODO Sent email to requester
     if (is_TaiGer_Student(user)) {
       student = user;
       taigerRep = event!.receiver_id[0];
-      event!.receiver_id.forEach((receiver: PopulatedUser) => {
-        meetingInvitation(receiver, user, event!);
+      event!.receiver_id.forEach(async (receiver: PopulatedUser) => {
+        await meetingInvitation(receiver, user, event!);
       });
     }
     if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       student = event!.requester_id[0];
       taigerRep = user;
-      event!.requester_id.forEach((requester: PopulatedUser) => {
-        meetingInvitation(requester, user, event!);
+      event!.requester_id.forEach(async (requester: PopulatedUser) => {
+        await meetingInvitation(requester, user, event!);
       });
     }
   } catch (err) {
@@ -600,12 +637,12 @@ const confirmEvent = asyncHandler(async (req, res) => {
     `[${event_id}] Confirm event called with addMeetingAssistant: ${addMeetingAssistant}`
   );
   if (addMeetingAssistant) {
-    handleTAScheduling(taigerRep, student, user, updated_event, event_id);
+    await handleTAScheduling(taigerRep, student, user, updated_event, event_id);
   }
 });
 
-const updateEvent = asyncHandler(async (req, res) => {
-  const { event_id } = req.params;
+const updateEvent = asyncRoute<UpdateEventResponse>(async (req, res) => {
+  const { event_id } = req.params as { event_id: string };
   const { user } = req;
   const updated_event = req.body;
   const { addMeetingAssistant = true } = updated_event;
@@ -631,25 +668,33 @@ const updateEvent = asyncHandler(async (req, res) => {
       'firstname lastname email'
     )) as unknown as PopulatedEvent | null;
     if (event) {
-      res.status(200).send({ success: true, data: event });
+      res.status(200).send({
+        success: true,
+        data: event as unknown as UpdateEventResponse['data']
+      });
     }
     if (!event) {
-      res.status(404).json({ error: 'event is not found' });
+      // NOTE: non-standard error envelope (`error` vs the standard `message`);
+      // preserved as-is to avoid changing the response contract. Cast bridges it
+      // to the endpoint's api response type.
+      res.status(404).json({
+        error: 'event is not found'
+      } as unknown as UpdateEventResponse);
     }
     // Sent email to receiver
     // sync with google calendar.
     if (is_TaiGer_Student(user)) {
       student = user;
       taigerRep = event!.receiver_id[0];
-      event!.receiver_id.forEach((receiver: PopulatedUser) => {
-        MeetingAdjustReminder(receiver, user, event!);
+      event!.receiver_id.forEach(async (receiver: PopulatedUser) => {
+        await MeetingAdjustReminder(receiver, user, event!);
       });
     }
     if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       student = event!.requester_id[0];
       taigerRep = user;
-      event!.requester_id.forEach((requester: PopulatedUser) => {
-        MeetingAdjustReminder(requester, user, event!);
+      event!.requester_id.forEach(async (requester: PopulatedUser) => {
+        await MeetingAdjustReminder(requester, user, event!);
       });
     }
   } catch (err) {
@@ -661,12 +706,12 @@ const updateEvent = asyncHandler(async (req, res) => {
     `[${event_id}] Update event called with addMeetingAssistant: ${addMeetingAssistant}`
   );
   if (addMeetingAssistant) {
-    handleTAScheduling(taigerRep, student, user, updated_event, event_id);
+    await handleTAScheduling(taigerRep, student, user, updated_event, event_id);
   }
 });
 
-const deleteEvent = asyncHandler(async (req, res) => {
-  const { event_id } = req.params;
+const deleteEvent = asyncRoute<DeleteEventResponse>(async (req, res) => {
+  const { event_id } = req.params as { event_id: string };
   const { user } = req;
   // Reject (pending) / cancel (confirmed) carry a free-text comment so the other
   // party learns why; the frontend requires it.
@@ -695,11 +740,13 @@ const deleteEvent = asyncHandler(async (req, res) => {
       );
       res.status(200).send({
         success: true,
-        agents,
-        data: events.length === 0 ? [] : events,
+        agents: agents as unknown as DeleteEventResponse['agents'],
+        data: (events.length === 0
+          ? []
+          : events) as unknown as DeleteEventResponse['data'],
         hasEvents: events.length !== 0
       });
-      MeetingCancelledReminder(user, toBeDeletedEvent, reason);
+      await MeetingCancelledReminder(user, toBeDeletedEvent, reason);
     } else if (is_TaiGer_Agent(user) || is_TaiGer_Editor(user)) {
       events = await EventService.findEvents(
         {
@@ -721,11 +768,13 @@ const deleteEvent = asyncHandler(async (req, res) => {
       );
       res.status(200).send({
         success: true,
-        agents,
-        data: events.length === 0 ? [] : events,
+        agents: agents as unknown as DeleteEventResponse['agents'],
+        data: (events.length === 0
+          ? []
+          : events) as unknown as DeleteEventResponse['data'],
         hasEvents: events.length !== 0
       });
-      MeetingCancelledReminder(user, toBeDeletedEvent, reason);
+      await MeetingCancelledReminder(user, toBeDeletedEvent, reason);
     } else {
       res.status(200).send({ success: true, hasEvents: false });
     }

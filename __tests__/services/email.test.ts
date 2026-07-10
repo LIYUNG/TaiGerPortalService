@@ -75,7 +75,7 @@ describe('email service - sendEmail-based templates', () => {
   });
 
   it('updatePermissionNotificationEmail', async () => {
-    await email.updatePermissionNotificationEmail(recipient, {});
+    await email.updatePermissionNotificationEmail(recipient);
     expectSent('user permissions');
   });
 
@@ -119,7 +119,7 @@ describe('email service - sendEmail-based templates', () => {
   });
 
   it('sendAccountActivationConfirmationEmail', async () => {
-    await email.sendAccountActivationConfirmationEmail(recipient, {});
+    await email.sendAccountActivationConfirmationEmail(recipient);
     expectSent('activation confirmation');
   });
 

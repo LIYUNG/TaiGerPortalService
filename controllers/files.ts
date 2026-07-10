@@ -1,7 +1,15 @@
 import path from 'path';
-import { Types } from 'mongoose';
+import { Types, HydratedDocument } from 'mongoose';
 import { is_TaiGer_Student } from '@taiger-common/core';
-import { DocumentStatusType, IUser } from '@taiger-common/model';
+import {
+  DocumentStatusType,
+  IUser,
+  IStudent,
+  IAgent,
+  IEditor,
+  IApplicationAdmissionLetter,
+  IAgentNotificationItem
+} from '@taiger-common/model';
 import { Request, Response, NextFunction } from 'express';
 
 import { asyncHandler } from '../middlewares/error-handler';
@@ -40,6 +48,36 @@ type AuthUser = IUser & { _id: Types.ObjectId };
 // models its extra fields (e.g. `key`) on a separate `Express.MulterS3.File`
 // interface rather than merging them into `Express.Multer.File`.
 type UploadedFile = Express.MulterS3.File;
+
+// updateStudentApplicationResultV2 works on a Student document whose
+// `applications` array is not part of the shared IStudent interface, and whose
+// `programId` is populated at runtime with both the raw `_id` and the Mongoose
+// `id` virtual. Model just the fields this handler reads.
+interface PopulatedProgramRef {
+  _id: Types.ObjectId;
+  id: string;
+}
+interface PopulatedResultApplication {
+  programId?: PopulatedProgramRef;
+  admission?: string;
+  admission_letter?: IApplicationAdmissionLetter;
+}
+interface PopulatedResultStudent {
+  _id: Types.ObjectId;
+  firstname?: string;
+  lastname?: string;
+  agents: IAgent[];
+  editors: IEditor[];
+  applications: PopulatedResultApplication[];
+}
+// The freshly-updated student returned by updateStudentByFilter keeps
+// `applications.programId` as the raw ObjectId (no population).
+interface RawResultApplication {
+  programId: Types.ObjectId | string;
+}
+interface UpdatedResultStudent {
+  applications: RawResultApplication[];
+}
 
 const getTemplates = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -203,9 +241,8 @@ const saveProfileFilePath = asyncHandler(
         }
 
         for (let i = 0; i < student.agents.length; i += 1) {
-          // agents are populated user docs at runtime (typed loosely here).
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const agentDoc = student.agents[i] as any;
+          // agents are populated user docs at runtime.
+          const agentDoc = student.agents[i] as unknown as IAgent;
           if (isNotArchiv(agentDoc)) {
             await sendUploadedProfileFilesRemindForAgentEmail(
               {
@@ -282,8 +319,7 @@ const saveProfileFilePath = asyncHandler(
 
         // Reminder for Agent:
         for (let i = 0; i < student.agents.length; i += 1) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const agentDoc = student.agents[i] as any;
+          const agentDoc = student.agents[i] as unknown as IAgent;
           if (isNotArchiv(agentDoc)) {
             await sendUploadedProfileFilesRemindForAgentEmail(
               {
@@ -418,8 +454,7 @@ const saveVPDFilePath = asyncHandler(
     if (is_TaiGer_Student(user)) {
       // Reminder for Agent:
       for (let i = 0; i < student_updated.agents.length; i += 1) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const agentDoc = student_updated.agents[i] as any;
+        const agentDoc = student_updated.agents[i] as unknown as IAgent;
         if (isNotArchiv(agentDoc)) {
           await sendUploadedVPDRemindForAgentEmail(
             {
@@ -648,12 +683,12 @@ const updateStudentApplicationResultV2 = asyncHandler(
       logger.error('updateStudentApplicationResultV2: Invalid student Id');
       throw new ErrorResponse(404, 'Invalid student Id');
     }
-    // Populated doc with dynamic applications/agents/editors access.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const student = studentDoc as any;
+    // Populated doc with applications/agents/editors not modelled on IStudent.
+    const student = studentDoc as unknown as PopulatedResultStudent;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let updatedStudent: any;
+    let updatedStudent:
+      | Awaited<ReturnType<typeof StudentService.updateStudentByFilter>>
+      | undefined;
     if (closed) {
       updatedStudent = await StudentService.updateStudentByFilter(
         { _id: studentId, 'applications.programId': programId },
@@ -680,14 +715,16 @@ const updateStudentApplicationResultV2 = asyncHandler(
         );
       } else if (admission === '-') {
         const app = student.applications.find(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (application: any) =>
+          (application: PopulatedResultApplication) =>
             application.programId?._id.toString() === programId
         );
-        const file_path = app.admission_letter?.admission_file_path;
+        const file_path = app!.admission_letter?.admission_file_path;
         if (file_path && file_path !== '') {
           const fileKey = file_path.replace(/\\/g, '/');
-          logger.info('Trying to delete file', fileKey);
+          logger.info(
+            'Trying to delete file',
+            fileKey as unknown as Record<string, unknown>
+          );
           try {
             await deleteS3Object(AWS_S3_BUCKET_NAME, fileKey);
           } catch (err) {
@@ -722,13 +759,15 @@ const updateStudentApplicationResultV2 = asyncHandler(
         );
       }
     }
-    const udpatedApplication = updatedStudent.applications.find(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (application: any) => application.programId.toString() === programId
+    const udpatedApplication = (
+      updatedStudent as unknown as UpdatedResultStudent
+    ).applications.find(
+      (application: RawResultApplication) =>
+        application.programId.toString() === programId
     );
     const udpatedApplicationForEmail = student.applications.find(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (application: any) => application.programId?.id.toString() === programId
+      (application: PopulatedResultApplication) =>
+        application.programId?.id.toString() === programId
     );
     res.status(200).send({ success: true, data: udpatedApplication });
     if (admission) {
@@ -865,9 +904,13 @@ const updateStudentApplicationResult = asyncHandler(
     }
 
     if (result !== '-') {
-      // agents/editors are populated user docs at runtime (typed loosely here).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const taigerStaff = ([...student.agents, ...student.editors] as any[])
+      // agents/editors are populated user docs at runtime.
+      const taigerStaff = (
+        [...student.agents, ...student.editors] as unknown as ((
+          | IAgent
+          | IEditor
+        ) & { _id: Types.ObjectId })[]
+      )
         .filter((staff) => isNotArchiv(staff))
         .filter((staff) => staff._id !== user._id); // exclude the one who trigger the result update
       for (const staff of taigerStaff) {
@@ -1018,9 +1061,9 @@ const removeNotification = asyncHandler(
       logger.error('removeNotification: user not found');
       throw new ErrorResponse(404, 'User not found');
     }
-    // notification is a fixed-shape object; the key is provided dynamically.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const obj = me.notification as any; // create object
+    // notification is a fixed-shape object of boolean flags; the key is
+    // provided dynamically by the client.
+    const obj = me.notification as unknown as Record<string, boolean>; // create object
     obj[`${notification_key}`] = true; // set value
     await UserService.updateUser(user._id.toString(), { notification: obj });
     res.status(200).send({
@@ -1040,12 +1083,15 @@ const removeAgentNotification = asyncHandler(
       logger.error('removeAgentNotification: agent not found');
       throw new ErrorResponse(404, 'Agent not found');
     }
-    // agent_notification is a fixed-shape object; the key is provided dynamically.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const agentNotification = me.agent_notification as any;
+    // agent_notification is a fixed-shape object; the notification list key is
+    // provided dynamically by the client.
+    const agentNotification = me.agent_notification as unknown as Record<
+      string,
+      IAgentNotificationItem[]
+    >;
     const idx = agentNotification[`${notification_key}`].findIndex(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (student_obj: any) => student_obj.student_id === student_id
+      (student_obj: IAgentNotificationItem) =>
+        student_obj.student_id === student_id
     );
     if (idx === -1) {
       logger.error('removeAgentNotification: student id not existed');
@@ -1069,9 +1115,8 @@ const getMyAcademicBackground = asyncHandler(
       logger.error('getMyAcademicBackground: user not found');
       throw new ErrorResponse(404, 'User not found');
     }
-    // Student doc with academic_background / agents / editors accessed dynamically.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const me = meDoc as any;
+    // The authenticated user is a student here; agents/editors live on IStudent.
+    const me = meDoc as unknown as HydratedDocument<IStudent>;
     if (me.academic_background === undefined) me.academic_background = {};
     await me.save();
     // TODO: mix with base-docuement link??

@@ -4,8 +4,9 @@ import {
   is_TaiGer_Agent,
   is_TaiGer_Editor
 } from '@taiger-common/core';
-import type { IManager, IPermission } from '@taiger-common/model';
+import type { IPermission } from '@taiger-common/model';
 
+import type { AuthenticatedUser } from '../../types/express';
 import { ErrorResponse } from '../../common/errors';
 import { ManagerType } from '../../constants';
 import { getPermission } from '../../utils/queryFunctions';
@@ -14,7 +15,7 @@ const activeStudentFilter = {
   $or: [{ archiv: { $exists: false } }, { archiv: false }]
 };
 
-const getManagerStudentFilter = (user: IManager & Record<string, any>) => {
+const getManagerStudentFilter = (user: AuthenticatedUser) => {
   const filters = [];
 
   if (
@@ -45,9 +46,12 @@ const getManagerStudentFilter = (user: IManager & Record<string, any>) => {
   };
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getAccessibleStudentFilter = async (req: any) => {
-  const { user } = req;
+// Only `req.user` is read here; a minimal structural shape keeps both the real
+// Express Request and the lightweight unit-test request stubs assignable.
+const getAccessibleStudentFilter = async (req: { user?: unknown }) => {
+  // The auth middleware guarantees the hydrated user doc on authenticated
+  // requests, exposed via AuthenticatedUser.
+  const user = req.user as AuthenticatedUser;
 
   if (is_TaiGer_Admin(user)) {
     return activeStudentFilter;

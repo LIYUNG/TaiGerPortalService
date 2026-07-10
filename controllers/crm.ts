@@ -69,7 +69,33 @@ const LEAD_CORE_FIELDS = new Set([
   'salesNote'
 ]);
 
-const formatLeadRecord = (leadRecord: any) => {
+// The tag/note relation rows selected by the lead queries (a subset of the
+// lead_tags / lead_notes columns).
+interface LeadTagRelation {
+  id: string;
+  tag: string;
+  createdBy: string | null;
+  createdAt: Date | null;
+}
+interface LeadNoteRelation {
+  id: string;
+  note: string;
+  createdBy: string | null;
+  createdAt: Date | null;
+}
+// Structural view of the lead record returned by the relational lead queries —
+// the lead columns (indexed) plus the nested relations this formatter reads.
+interface FormattableLeadRecord {
+  meetingTranscripts?: unknown;
+  leadProfile?: Record<string, unknown> | null;
+  leadTags?: LeadTagRelation[] | null;
+  leadNotes?: LeadNoteRelation[] | null;
+  [key: string]: unknown;
+}
+
+const formatLeadRecord = (
+  leadRecord: FormattableLeadRecord | null | undefined
+) => {
   if (!leadRecord) return null;
   const {
     meetingTranscripts: meetings,
@@ -83,13 +109,13 @@ const formatLeadRecord = (leadRecord: any) => {
     updatedAt: _additionalUpdatedAt,
     ...additionalData
   } = additional || {};
-  const tags = (tagRows || []).map((tagRow: any) => ({
+  const tags = (tagRows || []).map((tagRow) => ({
     id: tagRow.id,
     tag: tagRow.tag,
     createdBy: tagRow.createdBy,
     createdAt: tagRow.createdAt
   }));
-  const notes = (noteRows || []).map((noteRow: any) => ({
+  const notes = (noteRows || []).map((noteRow) => ({
     id: noteRow.id,
     note: noteRow.note,
     createdBy: noteRow.createdBy,
@@ -114,8 +140,8 @@ const ensureLeadExists = async (leadId: string) => {
   return result.length > 0;
 };
 
-const normalizeTags = (tags: any) => {
-  const tagList = Array.isArray(tags)
+const normalizeTags = (tags: unknown) => {
+  const tagList: unknown[] = Array.isArray(tags)
     ? tags
     : typeof tags === 'string'
     ? tags.split(',')
@@ -124,8 +150,12 @@ const normalizeTags = (tags: any) => {
   const normalized = tagList
     .map((t) => {
       if (typeof t === 'string') return t;
-      if (t && typeof t === 'object' && typeof t.tag === 'string') {
-        return t.tag;
+      if (
+        t &&
+        typeof t === 'object' &&
+        typeof (t as { tag?: unknown }).tag === 'string'
+      ) {
+        return (t as { tag: string }).tag;
       }
       return null;
     })
@@ -133,7 +163,7 @@ const normalizeTags = (tags: any) => {
     .map((t) => `${t}`.trim())
     .filter((t) => t.length > 0);
 
-  const seen = new Set();
+  const seen = new Set<string>();
   return normalized.filter((tag) => {
     if (seen.has(tag)) return false;
     seen.add(tag);
@@ -141,17 +171,18 @@ const normalizeTags = (tags: any) => {
   });
 };
 
-const normalizeNotes = (notes: any) => {
+const normalizeNotes = (notes: unknown) => {
   if (Array.isArray(notes)) {
-    if (notes.length > 0 && typeof notes[0] === 'object') {
-      return notes
-        .map((n) => `${n?.note ?? ''}`.trim())
+    const list: unknown[] = notes;
+    if (list.length > 0 && typeof list[0] === 'object') {
+      return list
+        .map((n) => `${(n as { note?: string })?.note ?? ''}`.trim())
         .filter((n) => n.length > 0);
     }
 
-    return notes
+    return list
       .filter((n) => n != null)
-      .map((n) => `${n}`.trim())
+      .map((n) => `${n as string}`.trim())
       .filter((n) => n.length > 0);
   }
 
@@ -647,7 +678,7 @@ const updateLead = asyncHandler(async (req, res) => {
     }
   });
 
-  const updated = await postgres.transaction(async (tx: any) => {
+  const updated = await postgres.transaction(async (tx) => {
     let updatedLead = null;
 
     if (Object.keys(leadUpdates).length > 0) {
@@ -1121,7 +1152,7 @@ const getDeals = asyncHandler(async (req, res) => {
   });
 });
 
-const stampDealStatusTimestamps = (deal: any) => {
+const stampDealStatusTimestamps = (deal: Record<string, unknown>) => {
   if (!deal || typeof deal.status !== 'string') return deal;
   const now = new Date();
   const status = deal.status;

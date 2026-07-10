@@ -1,6 +1,9 @@
 import _ from 'lodash';
 import { NextFunction, Request, Response } from 'express';
+import { Types } from 'mongoose';
 import { is_TaiGer_Agent, Role } from '@taiger-common/core';
+import type { IApplication, IPermission, IUser } from '@taiger-common/model';
+import type { AuthenticatedUser } from '../types/express';
 
 import { asyncHandler } from '../middlewares/error-handler';
 import { ErrorResponse } from '../common/errors';
@@ -22,18 +25,92 @@ import UserService from '../services/users';
 import PermissionService from '../services/permissions';
 import ProgramService from '../services/programs';
 
+// A program's student as returned by ProgramsController.getStudentsByProgram
+// (populated studentId spread into a plain object at runtime).
+interface ProgramStudentLean {
+  _id: Types.ObjectId;
+  firstname?: string;
+  lastname?: string;
+  closed?: string;
+}
+
+// Aggregate row from StudentService.getStudentsWithApplications — only the
+// joined applications array is read here.
+interface StudentWithApplications {
+  applications: IApplication[];
+}
+
+// Hydrated agent/editor docs as returned by the user service find() calls.
+type AgentDoc = Awaited<ReturnType<typeof UserService.findAgents>>[number];
+type EditorDoc = Awaited<ReturnType<typeof UserService.findEditors>>[number];
+
+// Dashboard row shapes built for the internal statistics endpoints.
+interface AgentStatData {
+  _id: string;
+  firstname?: string | null;
+  lastname?: string | null;
+  student_num_no_offer: number;
+  student_num_with_offer: number;
+  key: string;
+  color?: string;
+}
+
+interface EditorStatData {
+  _id: string;
+  firstname?: string | null;
+  lastname?: string | null;
+  student_num: number;
+  key: string;
+  color?: string;
+  task_counts?: { active: number; potentials: number };
+}
+
+// Aggregate bucket in an agent's student distribution.
+interface AgentDistBucket {
+  expected_application_date?: string;
+  count: number;
+}
+
+// Editor task row produced by the DAO aggregate (getEditorTaskRows).
+interface EditorTaskRow {
+  editor_id: Types.ObjectId | string;
+  isFinalVersion?: boolean;
+  show?: boolean;
+  isPotentials?: boolean;
+}
+
+// The response-interval endpoint reshapes each application in place across two
+// passes, so its element type is intentionally loose.
+interface IntervalApplicationItem {
+  programId?: unknown;
+  doc_modification_thread?: unknown;
+  threadIntervals?: unknown;
+  [key: string]: unknown;
+}
+
+interface ThreadIntervalGroup {
+  threadId: string;
+  intervalType?: unknown;
+  intervals?: unknown[];
+}
+
+// The lean student doc consumed by getResponseIntervalByStudent, mutated in place.
+interface StudentApplicationsResult {
+  applications?: unknown[];
+  communicationThreadIntervals?: unknown;
+}
+
 const getActivePrograms = async () => TeamService.getActivePrograms();
 
 const getStudentDeltas = async (
   req: Request,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  student: any,
+  student: ProgramStudentLean,
   program: ProgramLike,
   options: Record<string, unknown>
 ) => {
   const deltas = await findStudentDeltaGet(
     req,
-    student._id,
+    student._id as unknown as string,
     program,
     options || {}
   );
@@ -53,13 +130,12 @@ const getApplicationDeltaByProgram = async (
   req: Request,
   programId: string
 ) => {
-  // getStudentsByProgram is an asyncHandler-wrapped helper (see FLAGS); its
-  // awaited value is the student list at runtime but is mistyped by the wrapper.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // getStudentsByProgram returns an untyped set of populated students at
+  // runtime; narrow it to the fields this delta computation reads.
   const students = (await ProgramsController.getStudentsByProgram(
     req,
     programId
-  )) as any[];
+  )) as ProgramStudentLean[];
   const program = await ProgramService.getProgramByIdLean(programId);
   if (!program) {
     return {};
@@ -163,20 +239,18 @@ const getFileTypeCount = async () => {
   return fileTypeCounts;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getAgentData = async (req: Request, agent: any) => {
+const getAgentData = async (req: Request, agent: AgentDoc) => {
   const studentQuery = {
     agents: agent._id,
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
   };
 
-  const agentStudents = await StudentService.getStudentsWithApplications(
+  const agentStudents = (await StudentService.getStudentsWithApplications(
     studentQuery
-  );
+  )) as StudentWithApplications[];
 
   const student_num_with_offer = agentStudents.filter((std) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    std.applications.some((application: any) => application.admission === 'O')
+    std.applications.some((application) => application.admission === 'O')
   ).length;
   const agentData = {
     _id: agent._id.toString(),
@@ -188,12 +262,10 @@ const getAgentData = async (req: Request, agent: any) => {
   return agentData;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getAgentStudentDistData = async (req: Request, agent: any) =>
-  TeamService.getAgentStudentDistData(agent._id);
+const getAgentStudentDistData = async (req: Request, agent: AgentDoc) =>
+  TeamService.getAgentStudentDistData(agent._id as unknown as string);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getEditorData = async (req: Request, editor: any) => {
+const getEditorData = async (req: Request, editor: EditorDoc) => {
   const editorData = {
     _id: editor._id.toString(),
     firstname: editor.firstname,
@@ -210,43 +282,44 @@ const getResponseIntervalByStudent = asyncHandler(
   async (req: Request, res: Response) => {
     const studentId = String(req.params.studentId);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const studentApplications: any =
-      await StudentService.getStudentApplicationsForIntervals(studentId);
+    const studentApplications =
+      (await StudentService.getStudentApplicationsForIntervals(
+        studentId
+      )) as unknown as StudentApplicationsResult | null;
 
     let allDocThreadIds: unknown[] = [];
     if (studentApplications && studentApplications.applications) {
-      studentApplications.applications = studentApplications.applications.map(
-        (app: any) => ({
-          programId: app.programId,
-          doc_modification_thread: app.doc_modification_thread.map(
-            (thread: any) => thread.doc_thread_id
-          )
-        })
-      );
+      studentApplications.applications = (
+        studentApplications.applications as IntervalApplicationItem[]
+      ).map((app) => ({
+        programId: app.programId,
+        doc_modification_thread: (
+          app.doc_modification_thread as { doc_thread_id?: unknown }[]
+        ).map((thread) => thread.doc_thread_id)
+      }));
 
-      allDocThreadIds = studentApplications.applications.reduce(
-        (acc: unknown[], app: any) => {
-          return acc.concat(app.doc_modification_thread);
-        },
-        []
-      );
+      allDocThreadIds = (
+        studentApplications.applications as IntervalApplicationItem[]
+      ).reduce((acc: unknown[], app) => {
+        return acc.concat(app.doc_modification_thread as unknown[]);
+      }, [] as unknown[]);
     }
 
     const responseIntervalRecords = await TeamService.getIntervals({
       $or: [{ student_id: studentId }, { thread_id: { $in: allDocThreadIds } }]
     });
 
+    type IntervalRecord = (typeof responseIntervalRecords)[number];
     const intervalsGroupedByThread = responseIntervalRecords.reduce(
-      (acc: Record<string, any[]>, item: any) => {
-        const key = item.thread_id || item.interval_type;
+      (acc: Record<string, IntervalRecord[]>, item) => {
+        const key = (item.thread_id || item.interval_type) as unknown as string;
         if (!acc[key]) {
           acc[key] = [];
         }
         acc[key].push(item);
         return acc;
       },
-      {} as Record<string, any[]>
+      {} as Record<string, IntervalRecord[]>
     );
 
     if (!studentApplications) {
@@ -257,20 +330,22 @@ const getResponseIntervalByStudent = asyncHandler(
     studentApplications.communicationThreadIntervals =
       intervalsGroupedByThread?.['communication'];
 
-    studentApplications.applications = studentApplications.applications
-      .map((application: any) => {
+    studentApplications.applications = (
+      studentApplications.applications as IntervalApplicationItem[]
+    )
+      .map((application) => {
         const threadIds = application.doc_modification_thread;
         if (!threadIds) {
           return;
         }
-        const intervalsByThreads: any[] = [];
-        threadIds.forEach((threadId: any) => {
+        const intervalsByThreads: ThreadIntervalGroup[] = [];
+        (threadIds as Types.ObjectId[]).forEach((threadId) => {
           const _id = threadId.toString();
           if (intervalsGroupedByThread.hasOwnProperty(_id)) {
             intervalsByThreads.push({
               threadId: _id,
               intervalType: intervalsGroupedByThread[_id][0].interval_type,
-              intervals: intervalsGroupedByThread[_id]?.map((interval: any) => {
+              intervals: intervalsGroupedByThread[_id]?.map((interval) => {
                 delete interval.thread_id;
                 delete interval.interval_type;
                 return interval;
@@ -284,9 +359,9 @@ const getResponseIntervalByStudent = asyncHandler(
         delete application.doc_modification_thread;
         application.threadIntervals = intervalsByThreads;
         const { ['programId']: program, ...rest } = application;
-        return { ...program, ...rest };
+        return { ...(program as Record<string, unknown>), ...rest };
       })
-      ?.filter((application: any) => !!application);
+      ?.filter((application) => !!application);
 
     res.status(200).send({ success: true, data: studentApplications });
   }
@@ -338,10 +413,9 @@ const getArchivStudents = asyncHandler(async (req: Request, res: Response) => {
       archiv: true
     });
     res.status(200).send({ success: true, data: students });
-    // is_TaiGer_Agent narrows on the IUser role discriminant; the lean doc
-    // carries the same shape at runtime.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } else if (is_TaiGer_Agent(user as any)) {
+    // The lean user doc carries the IUser shape at runtime; reconcile the
+    // nominal difference (lean nullable fields) for the role check.
+  } else if (is_TaiGer_Agent(user as unknown as IUser)) {
     const students = await StudentService.findStudentsWithTeamNames({
       agents: TaiGerStaffId,
       archiv: true
@@ -408,13 +482,12 @@ const getTasksOverview = asyncHandler(
 
 const getIsManager = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    // req.user is the ambient auth payload (any); read its id for the lookup.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userId = (req.user as any)?._id;
+    // The passport Express.User shadows the app augmentation on a bare
+    // Request, so read the id through the app-level AuthenticatedUser type.
+    const userId = (req.user as AuthenticatedUser)?._id as unknown as string;
     const permission = (await PermissionService.getPermissionByUserId(
       userId
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    )) as any;
+    )) as unknown as IPermission | null;
 
     const isManager =
       permission?.canAssignAgents || permission?.canAssignEditors;
@@ -424,10 +497,9 @@ const getIsManager = asyncHandler(
 );
 
 // Helper function to get editor task counts
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getEditorTaskCounts = async (req: Request, editors: any[]) => {
+const getEditorTaskCounts = async (req: Request, editors: EditorDoc[]) => {
   // General-doc + decided-application editor task rows (computed in the DAO).
-  const allTasks = await TeamService.getEditorTaskRows();
+  const allTasks = (await TeamService.getEditorTaskRows()) as EditorTaskRow[];
 
   // Group by editor and count
   const editorTaskCounts: Record<
@@ -525,8 +597,7 @@ const getStatisticsOverview = asyncHandler(
         '#FE8A7D'
       ];
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const editors_data: any[] = [];
+      const editors_data: EditorStatData[] = [];
       editors_raw_data.forEach((editor, i) => {
         const editorId = editor._id.toString();
         editors_data.push({
@@ -541,8 +612,7 @@ const getStatisticsOverview = asyncHandler(
         });
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const agents_data: any[] = [];
+      const agents_data: AgentStatData[] = [];
       agents_raw_data.forEach((agent, i) => {
         agents_data.push({
           ...agent,
@@ -592,7 +662,7 @@ const getStatisticsAgents = asyncHandler(
             name: `${agents[idx].firstname}`,
             id: `${agents[idx]._id.toString()}`,
             admission: agentStudentDis.admission.reduce(
-              (acc: Record<string, number>, curr: any) => {
+              (acc: Record<string, number>, curr: AgentDistBucket) => {
                 if (curr.expected_application_date) {
                   acc[curr.expected_application_date] = curr.count;
                 } else {
@@ -611,7 +681,7 @@ const getStatisticsAgents = asyncHandler(
         (agentStudentDis, _idx) => {
           const returnData = {
             noAdmission: agentStudentDis.noAdmission.reduce(
-              (acc: Record<string, number>, curr: any) => {
+              (acc: Record<string, number>, curr: AgentDistBucket) => {
                 if (curr.expected_application_date) {
                   acc[curr.expected_application_date] = curr.count;
                 } else {
@@ -702,8 +772,7 @@ const getStatisticsResponseTime = asyncHandler(async (req, res) => {
       '#FE8A7D'
     ];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const editors_data: any[] = [];
+    const editors_data: EditorStatData[] = [];
     editors_raw_data.forEach((editor, i) => {
       editors_data.push({
         ...editor,
@@ -713,8 +782,7 @@ const getStatisticsResponseTime = asyncHandler(async (req, res) => {
       });
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const agents_data: any[] = [];
+    const agents_data: AgentStatData[] = [];
     agents_raw_data.forEach((agent, i) => {
       agents_data.push({
         ...agent,

@@ -101,7 +101,7 @@ const baseInstructions =
   '- admission: "X" → "rejected"\n' +
   'In general: if it looks like a database field name or a code value, rewrite it as something a non-technical staff member would say.';
 
-const roleGuidance = (role: string) => {
+const roleGuidance = (role?: string) => {
   if (role === Role.Editor) {
     return ' As an editor, your primary concern is document quality and thread progress. Prioritize: which threads are waiting on the team, whether documents meet program requirements, and unresolved review comments.';
   }
@@ -220,7 +220,7 @@ const buildSystemPrompt = ({
   analysisMode = false,
   replyMode = false
 }: {
-  role: string;
+  role?: string;
   languageInstruction: string;
   analysisMode?: boolean;
   replyMode?: boolean;
@@ -333,8 +333,10 @@ const loadConversationContext = async (
     recentMessages: messages
       .slice()
       .reverse()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((message: any) => ({ role: message.role, content: message.content }))
+      .map((message: { role: string; content: string }) => ({
+        role: message.role,
+        content: message.content
+      }))
   };
 };
 
@@ -368,7 +370,14 @@ const collectCandidatesFromValue = (
     return;
   }
 
-  const record = value as Record<string, any>;
+  const record = value as {
+    id?: string;
+    name?: string;
+    displayName?: string;
+    email?: unknown;
+    role?: unknown;
+    program?: { id?: string; name?: string; school?: string } | null;
+  };
 
   // Student shape: { id, name | displayName, email }
   if (
@@ -555,8 +564,7 @@ const runAiAssist = async (
     replyMode: replyDraftMode
   });
   const system = buildSystemPrompt({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    role: (req?.user as any)?.role,
+    role: (req?.user as { role?: string } | undefined)?.role,
     languageInstruction,
     analysisMode: Boolean(assistContext?.analysisMode),
     replyMode: replyDraftMode

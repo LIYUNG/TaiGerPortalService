@@ -22,84 +22,67 @@ const {
 } = teamsController;
 
 const router = Router();
-
+router.use(GeneralGETRequestRateLimiter);
 router.use(protect, permit(Role.Admin, Role.Agent, Role.Editor));
 
-router
-  .route('/')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getTeamMembers);
+router.route('/').get(filter_archiv_user, getTeamMembers);
 
 router
   .route('/statistics/overview')
   .get(
     filter_archiv_user,
-    GeneralGETRequestRateLimiter,
     permission_canAccessStudentDatabase_filter,
     getStatisticsOverview
   );
 
-router
-  .route('/statistics/agents')
-  .get(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permission_canAccessStudentDatabase_filter,
-    getStatisticsAgents
-  );
+router.route('/statistics/agents').get(
+  filter_archiv_user,
 
-router
-  .route('/statistics/kpi')
-  .get(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permission_canAccessStudentDatabase_filter,
-    getStatisticsKPI
-  );
+  permission_canAccessStudentDatabase_filter,
+  getStatisticsAgents
+);
 
-router
-  .route('/statistics/response-time')
-  .get(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permission_canAccessStudentDatabase_filter,
-    getStatisticsResponseTime
-  );
+router.route('/statistics/kpi').get(
+  filter_archiv_user,
 
-router
-  .route('/is-manager')
-  .get(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permit(Role.Agent, Role.Editor),
-    getIsManager
-  );
+  permission_canAccessStudentDatabase_filter,
+  getStatisticsKPI
+);
 
-router
-  .route('/tasks-overview')
-  .get(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
-    getTasksOverview
-  );
+router.route('/statistics/response-time').get(
+  filter_archiv_user,
 
-router
-  .route('/response-interval/:studentId')
-  .get(
-    filter_archiv_user,
-    GeneralGETRequestRateLimiter,
-    permission_canAccessStudentDatabase_filter,
-    getResponseIntervalByStudent
-  );
+  permission_canAccessStudentDatabase_filter,
+  getStatisticsResponseTime
+);
 
-router
-  .route('/')
-  .get(filter_archiv_user, GeneralGETRequestRateLimiter, getTeamMembers);
+router.route('/is-manager').get(
+  filter_archiv_user,
+
+  permit(Role.Agent, Role.Editor),
+  getIsManager
+);
+
+router.route('/tasks-overview').get(
+  filter_archiv_user,
+
+  permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
+  getTasksOverview
+);
+
+router.route('/response-interval/:studentId').get(
+  filter_archiv_user,
+
+  permission_canAccessStudentDatabase_filter,
+  getResponseIntervalByStudent
+);
+
+router.route('/').get(filter_archiv_user, getTeamMembers);
+
 router
   .route('/response-time/:studentId')
   .get(
     filter_archiv_user,
-    GeneralGETRequestRateLimiter,
     permission_canAccessStudentDatabase_filter,
     getResponseTimeByStudent
   );
@@ -108,7 +91,6 @@ router
   .route('/archiv/:TaiGerStaffId')
   .get(
     filter_archiv_user,
-    GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
     getArchivStudents

@@ -12,11 +12,16 @@ import type {
   ICommunicationFile,
   IPermission,
   IStudent,
-  IUser
+  IUser,
+  GetCommunicationUnreadNumberResponse,
+  PostCommunicationResponse,
+  UpdateCommunicationMessageResponse,
+  DeleteCommunicationMessageResponse,
+  IgnoreCommunicationMessageResponse
 } from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
-import { asyncHandler } from '../middlewares/error-handler';
+import { asyncHandler, asyncRoute } from '../middlewares/error-handler';
 import {
   sendAgentNewMessageReminderEmail,
   sendStudentNewMessageReminderEmail
@@ -106,11 +111,9 @@ const isDraftEmpty = (message: unknown) => {
 
 // GET /api/communications/:studentId/draft — the current user's saved draft for
 // this student conversation (null when none).
-export const getCommunicationDraft = asyncHandler(async (req, res) => {
-  const {
-    user,
-    params: { studentId }
-  } = req;
+export const getCommunicationDraft = asyncRoute(async (req, res) => {
+  const { user } = req;
+  const { studentId } = req.params as { studentId: string };
   const draft = await CommunicationDraftService.getDraft(
     user._id.toString(),
     studentId
@@ -120,12 +123,12 @@ export const getCommunicationDraft = asyncHandler(async (req, res) => {
 
 // PUT /api/communications/:studentId/draft — upsert the draft; an empty draft is
 // deleted so it doesn't linger.
-export const upsertCommunicationDraft = asyncHandler(async (req, res) => {
+export const upsertCommunicationDraft = asyncRoute(async (req, res) => {
   const {
     user,
-    params: { studentId },
     body: { message, source, aiModel }
   } = req;
+  const { studentId } = req.params as { studentId: string };
   const userId = user._id.toString();
   // When the client saves an AI-generated reply it marks source: 'ai'; we stamp
   // provenance (model + the untouched AI text) so the send can be audited.
@@ -169,13 +172,13 @@ export const upsertCommunicationDraft = asyncHandler(async (req, res) => {
 // PUT /api/communications/:studentId/draft/ai-suggestion — store (or clear, with
 // an empty suggestion) a generated-but-not-yet-approved AI reply, so it survives
 // a reload and the agent can still approve/dismiss it. Leaves `message` alone.
-export const setCommunicationDraftAiSuggestion = asyncHandler(
+export const setCommunicationDraftAiSuggestion = asyncRoute(
   async (req, res) => {
     const {
       user,
-      params: { studentId },
       body: { suggestion, aiModel }
     } = req;
+    const { studentId } = req.params as { studentId: string };
     const draft = await CommunicationDraftService.setAiPendingSuggestion(
       user._id.toString(),
       studentId,
@@ -188,11 +191,9 @@ export const setCommunicationDraftAiSuggestion = asyncHandler(
 
 // DELETE /api/communications/:studentId/draft — discard the draft: delete its
 // staged attachments from S3 (they were never sent), then remove the document.
-export const deleteCommunicationDraft = asyncHandler(async (req, res) => {
-  const {
-    user,
-    params: { studentId }
-  } = req;
+export const deleteCommunicationDraft = asyncRoute(async (req, res) => {
+  const { user } = req;
+  const { studentId } = req.params as { studentId: string };
   const userId = user._id.toString();
   const existing = await CommunicationDraftService.getDraft(userId, studentId);
   if (existing?.files?.length) {
@@ -208,20 +209,21 @@ export const deleteCommunicationDraft = asyncHandler(async (req, res) => {
 // POST /api/communications/:studentId/draft/files — attach. The files are
 // already in S3 (MessagesChatUpload uploaded them to `<studentId>/chat/<uuid>`).
 // Record friendly-named refs on the draft.
-export const uploadCommunicationDraftFiles = asyncHandler(async (req, res) => {
-  const {
-    user,
-    params: { studentId }
-  } = req;
-  if (!req.files || req.files.length === 0) {
+export const uploadCommunicationDraftFiles = asyncRoute(async (req, res) => {
+  const { user } = req;
+  const { studentId } = req.params as { studentId: string };
+  // multer-S3 populates req.files as an array (single-field upload); narrow the
+  // Multer union to that array for the length/map reads below.
+  const uploadedFiles = req.files as Express.Multer.File[] | undefined;
+  if (!uploadedFiles || uploadedFiles.length === 0) {
     throw new ErrorResponse(400, 'No file uploaded.');
   }
   const student = (await StudentService.getStudentById(
     studentId
   )) as IStudent | null;
   const formattedDate = formatChatDate(new Date());
-  const multiple = req.files.length > 1;
-  const files = req.files.map(
+  const multiple = uploadedFiles.length > 1;
+  const files = uploadedFiles.map(
     (file: { originalname?: string; key?: string }, i: number) => ({
       name: buildChatAttachmentName(
         student,
@@ -229,7 +231,7 @@ export const uploadCommunicationDraftFiles = asyncHandler(async (req, res) => {
         formattedDate,
         multiple ? `_${i + 1}` : ''
       ),
-      path: file.key
+      path: file.key as string
     })
   );
   const draft = await CommunicationDraftService.addDraftFiles(
@@ -243,12 +245,12 @@ export const uploadCommunicationDraftFiles = asyncHandler(async (req, res) => {
 // DELETE /api/communications/:studentId/draft/files — unattach. Delete the
 // staged S3 object and remove it from the draft. The path must belong to THIS
 // user's draft (no deleting arbitrary keys).
-export const deleteCommunicationDraftFile = asyncHandler(async (req, res) => {
+export const deleteCommunicationDraftFile = asyncRoute(async (req, res) => {
   const {
     user,
-    params: { studentId },
     body: { path: filePath }
   } = req;
+  const { studentId } = req.params as { studentId: string };
   if (!filePath || typeof filePath !== 'string') {
     throw new ErrorResponse(400, 'File path is required.');
   }
@@ -271,8 +273,9 @@ export const deleteCommunicationDraftFile = asyncHandler(async (req, res) => {
 });
 
 // TODO
-export const getSearchUserMessages = asyncHandler(async (req, res) => {
+export const getSearchUserMessages = asyncRoute(async (req, res) => {
   const { user } = req;
+  const { q } = req.query as { q: string };
 
   // Get only the last communication
   const studentsWithCommunications =
@@ -286,7 +289,7 @@ export const getSearchUserMessages = asyncHandler(async (req, res) => {
     (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
   ) {
     const students = await StudentService.searchStudentsByText(
-      { $text: { $search: req.query.q } },
+      { $text: { $search: q } },
       'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
     );
     // Merge the results
@@ -303,7 +306,7 @@ export const getSearchUserMessages = asyncHandler(async (req, res) => {
   } else {
     const students_search = await StudentService.searchStudentsByText(
       {
-        $text: { $search: req.query.q },
+        $text: { $search: q },
         agents: user._id.toString()
       },
       'firstname lastname firstname_chinese lastname_chinese role pictureUrl'
@@ -365,65 +368,66 @@ export const getSearchMessageKeywords = asyncHandler(async (req, res) => {
     .send({ success: true, data: { students: mergedResults, user } });
 });
 
-export const getUnreadNumberMessages = asyncHandler(async (req, res) => {
-  const { user } = req;
-  if (is_TaiGer_Student(user)) {
-    const latestMessage = (await CommunicationService.getLatestByStudentId(
-      user._id.toString()
-    )) as ICommunication | null;
-    const readBy =
-      (latestMessage?.readBy as Array<{ toString(): string }> | undefined)?.map(
-        (id) => id.toString()
-      ) || [];
+export const getUnreadNumberMessages =
+  asyncRoute<GetCommunicationUnreadNumberResponse>(async (req, res) => {
+    const { user } = req;
+    if (is_TaiGer_Student(user)) {
+      const latestMessage = (await CommunicationService.getLatestByStudentId(
+        user._id.toString()
+      )) as ICommunication | null;
+      const readBy =
+        (
+          latestMessage?.readBy as Array<{ toString(): string }> | undefined
+        )?.map((id) => id.toString()) || [];
+
+      return res.status(200).send({
+        success: true,
+        data: readBy?.includes(user._id.toString()) ? 0 : 1
+      });
+    }
+    if (
+      user.role !== Role.Admin &&
+      user.role !== Role.Agent &&
+      user.role !== Role.Editor
+    ) {
+      logger.error(`getUnreadNumberMessages: no ${TENANT_SHORT_NAME} user!`);
+      throw new ErrorResponse(401, `Invalid ${TENANT_SHORT_NAME} user`);
+    }
+    const permissions = (await getPermission(req, user)) as
+      | IPermission
+      | undefined;
+
+    const filter: Record<string, unknown> = {
+      $or: [{ archiv: { $exists: false } }, { archiv: false }]
+    };
+    if (
+      !(
+        is_TaiGer_Admin(user) ||
+        (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
+      )
+    ) {
+      filter.agents = user._id.toString();
+    }
+
+    const students = await StudentService.findStudentsSelect(
+      filter,
+      'firstname lastname role pictureUrl'
+    );
+    const student_ids = students.map((stud) => stud._id);
+    const studentsWithCommunications =
+      await StudentService.getUnreadCommunicationStudents(
+        student_ids as unknown as string[],
+        user._id as unknown as string
+      );
 
     return res.status(200).send({
       success: true,
-      data: readBy?.includes(user._id.toString()) ? 0 : 1
+      data: studentsWithCommunications.length
     });
-  }
-  if (
-    user.role !== Role.Admin &&
-    user.role !== Role.Agent &&
-    user.role !== Role.Editor
-  ) {
-    logger.error(`getUnreadNumberMessages: no ${TENANT_SHORT_NAME} user!`);
-    throw new ErrorResponse(401, `Invalid ${TENANT_SHORT_NAME} user`);
-  }
-  const permissions = (await getPermission(req, user)) as
-    | IPermission
-    | undefined;
-
-  const filter: Record<string, unknown> = {
-    $or: [{ archiv: { $exists: false } }, { archiv: false }]
-  };
-  if (
-    !(
-      is_TaiGer_Admin(user) ||
-      (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
-    )
-  ) {
-    filter.agents = user._id.toString();
-  }
-
-  const students = await StudentService.findStudentsSelect(
-    filter,
-    'firstname lastname role pictureUrl'
-  );
-  const student_ids = students.map((stud) => stud._id);
-  const studentsWithCommunications =
-    await StudentService.getUnreadCommunicationStudents(
-      student_ids as unknown as string[],
-      user._id
-    );
-
-  return res.status(200).send({
-    success: true,
-    data: studentsWithCommunications.length
   });
-});
 
 // TODO: refactor permission to middleware
-export const getMyMessages = asyncHandler(async (req, res) => {
+export const getMyMessages = asyncRoute(async (req, res) => {
   const { user } = req;
 
   // Role is enforced at the route via permit(Admin, Manager, Agent, Editor).
@@ -474,10 +478,11 @@ export const getMyMessages = asyncHandler(async (req, res) => {
   });
 });
 
-export const loadMessages = asyncHandler(async (req, res) => {
-  const {
-    params: { studentId, pageNumber }
-  } = req;
+export const loadMessages = asyncRoute(async (req, res) => {
+  const { studentId, pageNumber } = req.params as {
+    studentId: string;
+    pageNumber: string;
+  };
 
   const student = await StudentService.getStudentByIdSelectPopulated(
     studentId,
@@ -489,7 +494,8 @@ export const loadMessages = asyncHandler(async (req, res) => {
     logger.error('loadMessages: Invalid student id!');
     throw new ErrorResponse(404, 'Student tot found');
   }
-  const skipAmount = (pageNumber - 1) * pageSize;
+  // `pageNumber` is a path param (string); the arithmetic relies on JS coercion.
+  const skipAmount = ((pageNumber as unknown as number) - 1) * pageSize;
   const communication_thread = await CommunicationService.findThreadPopulated(
     studentId,
     {
@@ -510,11 +516,9 @@ export const loadMessages = asyncHandler(async (req, res) => {
   });
 });
 
-export const getMessages = asyncHandler(async (req, res) => {
-  const {
-    user,
-    params: { studentId }
-  } = req;
+export const getMessages = asyncRoute(async (req, res) => {
+  const { user } = req;
+  const { studentId } = req.params as { studentId: string };
 
   const student = await StudentService.getStudentByIdSelectPopulated(
     studentId,
@@ -569,11 +573,9 @@ export const getMessages = asyncHandler(async (req, res) => {
 
 // Search a single student's chat history (this conversation only). Access is
 // already scoped by multitenant_filter + chatMultitenantFilter on the route.
-export const searchThreadMessages = asyncHandler(async (req, res) => {
-  const {
-    params: { studentId },
-    query: { q }
-  } = req;
+export const searchThreadMessages = asyncRoute(async (req, res) => {
+  const { studentId } = req.params as { studentId: string };
+  const { q } = req.query;
 
   const term = typeof q === 'string' ? q.trim() : '';
   // Require at least 2 chars to avoid scanning the whole thread for noise.
@@ -591,10 +593,11 @@ export const searchThreadMessages = asyncHandler(async (req, res) => {
 
 // Messages around a specific message (Instagram-style "jump to message" from a
 // search result). Access scoped by multitenant_filter + chatMultitenantFilter.
-export const getThreadContextMessages = asyncHandler(async (req, res) => {
-  const {
-    params: { studentId, messageId }
-  } = req;
+export const getThreadContextMessages = asyncRoute(async (req, res) => {
+  const { studentId, messageId } = req.params as {
+    studentId: string;
+    messageId: string;
+  };
 
   const context = await CommunicationService.getThreadContext(
     studentId,
@@ -615,11 +618,12 @@ export const getThreadContextMessages = asyncHandler(async (req, res) => {
 
 // A chunk of messages before/after a cursor message — lets the client load
 // older (scroll up) or newer (scroll down) chunks from a jumped-to position.
-export const getAdjacentThreadMessages = asyncHandler(async (req, res) => {
-  const {
-    params: { studentId, messageId },
-    query: { direction }
-  } = req;
+export const getAdjacentThreadMessages = asyncRoute(async (req, res) => {
+  const { studentId, messageId } = req.params as {
+    studentId: string;
+    messageId: string;
+  };
+  const { direction } = req.query;
 
   const dir = direction === 'before' ? 'before' : 'after';
   const { messages, hasMore } = await CommunicationService.getAdjacentMessages(
@@ -633,10 +637,11 @@ export const getAdjacentThreadMessages = asyncHandler(async (req, res) => {
     .send({ success: true, data: messages, hasMore, direction: dir });
 });
 
-export const getChatFile = asyncHandler(async (req, res) => {
-  const {
-    params: { studentId, fileName }
-  } = req;
+export const getChatFile = asyncRoute(async (req, res) => {
+  const { studentId, fileName } = req.params as {
+    studentId: string;
+    fileName: string;
+  };
 
   // `fileName` is the (opaque) storage key segment. The friendly download name
   // is decoupled from storage and passed as `?name=`; fall back to `fileName`
@@ -667,189 +672,200 @@ export const getChatFile = asyncHandler(async (req, res) => {
 });
 
 // (O) notification email works
-export const postMessages = asyncHandler(async (req, res) => {
-  const {
-    user,
-    params: { studentId }
-  } = req;
-  const { message } = req.body;
-  // TODO: check if consecutive post?
-  if (is_TaiGer_Student(user)) {
-    const communication_thread =
-      (await CommunicationService.findThreadPopulated(studentId, {
-        populate: 'student_id user_id',
-        select: 'firstname lastname role pictureUrl',
-        limit: 3
-      })) as unknown as MessageWithUserRef[];
+export const postMessages = asyncRoute<PostCommunicationResponse>(
+  async (req, res) => {
+    const { user } = req;
+    const { studentId } = req.params as { studentId: string };
+    const { message } = req.body;
+    // TODO: check if consecutive post?
+    if (is_TaiGer_Student(user)) {
+      const communication_thread =
+        (await CommunicationService.findThreadPopulated(studentId, {
+          populate: 'student_id user_id',
+          select: 'firstname lastname role pictureUrl',
+          limit: 3
+        })) as unknown as MessageWithUserRef[];
 
-    if (communication_thread.length === 3) {
-      let flag = true;
-      for (let i = 0; i < communication_thread.length; i += 1) {
-        if (communication_thread[i]?.user_id?._id.toString() === studentId) {
-          flag =
-            flag &&
-            communication_thread[i]?.user_id?._id.toString() === studentId;
-        } else {
-          flag = false;
-          break;
+      if (communication_thread.length === 3) {
+        let flag = true;
+        for (let i = 0; i < communication_thread.length; i += 1) {
+          if (communication_thread[i]?.user_id?._id.toString() === studentId) {
+            flag =
+              flag &&
+              communication_thread[i]?.user_id?._id.toString() === studentId;
+          } else {
+            flag = false;
+            break;
+          }
         }
-      }
-      if (flag) {
-        logger.error(`Too much message by ${studentId}`);
-        throw new ErrorResponse(
-          429,
-          '您至多只能發連續三條訊息！請整理好您的問題一次發問，方便 Agent 一次回復。若 Agent 尚未回覆當前留言，請把問題集中於最新一次的留言，該留言右上角鉛筆可以編輯。您的 Agent 會盡速回復您！'
-        );
-      }
-    }
-  }
-  try {
-    JSON.parse(message);
-  } catch (e) {
-    logger.error(`message collapse ${message}`);
-    throw new ErrorResponse(400, 'message collapse');
-  }
-  // Attachments: the S3 key (file.key) is an opaque uuid, so files never
-  // overwrite each other (no duplicate-extension restriction needed). We store
-  // the storage key as `path` and a friendly, human-readable `name` for display
-  // and download. A per-file index keeps display names distinct when several
-  // files are attached at once.
-  const newfile: ICommunicationFile[] = [];
-  if (req.files && req.files.length > 0) {
-    const student = (await StudentService.getStudentById(
-      studentId
-    )) as IStudent | null;
-    const formattedDate = formatChatDate(new Date());
-    const multiple = req.files.length > 1;
-    for (let i = 0; i < req.files.length; i += 1) {
-      const file = req.files[i] as { originalname?: string; key?: string };
-      const ext = path.extname(file.originalname || file.key || '');
-      const suffix = multiple ? `_${i + 1}` : '';
-      newfile.push({
-        name: buildChatAttachmentName(student, ext, formattedDate, suffix),
-        path: file.key as string
-      });
-    }
-  }
-  // Files staged on the draft (upload-on-attach) are moved onto the message.
-  // `newfile` covers any files sent directly with this request (legacy /
-  // upload-on-send); both are merged.
-  const draft = await CommunicationDraftService.getDraft(
-    user._id.toString(),
-    studentId
-  );
-  const draftFiles = draft?.files ?? [];
-  const allFiles = [...newfile, ...draftFiles];
-
-  await CommunicationService.createCommunication({
-    student_id: studentId,
-    user_id: user._id,
-    message,
-    readBy: [new mongoose.Types.ObjectId(user._id)],
-    timeStampReadBy: { [user._id?.toString()]: new Date() },
-    files: allFiles,
-    createdAt: new Date()
-  } as unknown as Partial<ICommunication>);
-
-  // The draft's files now belong to the message — delete the draft DOCUMENT
-  // only (do NOT delete the S3 objects). Best-effort: the message is already
-  // created, so a draft-delete failure must NOT fail the request (which would
-  // make the client think the send failed and re-send, duplicating it). The
-  // daily sweep reclaims any leftover.
-  if (draft) {
-    try {
-      await CommunicationDraftService.deleteDraft(
-        user._id.toString(),
-        studentId
-      );
-    } catch (err) {
-      logger.error('postMessages: failed to delete consumed draft', {
-        studentId,
-        message: (err as Error)?.message
-      });
-    }
-  }
-
-  const communication_latest = await CommunicationService.findThreadPopulated(
-    studentId,
-    {
-      populate: 'student_id user_id readBy',
-      select: 'firstname lastname pictureUrl',
-      limit: 1
-    }
-  );
-  res.status(200).send({ success: true, data: communication_latest });
-
-  const student = (await StudentService.getStudentById(
-    studentId
-  )) as unknown as PopulatedStudent;
-
-  // inform agent/student
-  if (is_TaiGer_Student(user)) {
-    for (let i = 0; i < student.agents.length; i += 1) {
-      // inform active-agent
-      if (isNotArchiv(student)) {
-        if (isNotArchiv(student.agents[i])) {
-          // inform agent
-          sendAgentNewMessageReminderEmail(
-            {
-              firstname: student.agents[i].firstname,
-              lastname: student.agents[i].lastname,
-              address: student.agents[i].email
-            },
-            {
-              student_firstname: student.firstname,
-              student_id: student._id.toString(),
-              student_lastname: student.lastname
-            }
+        if (flag) {
+          logger.error(`Too much message by ${studentId}`);
+          throw new ErrorResponse(
+            429,
+            '您至多只能發連續三條訊息！請整理好您的問題一次發問，方便 Agent 一次回復。若 Agent 尚未回覆當前留言，請把問題集中於最新一次的留言，該留言右上角鉛筆可以編輯。您的 Agent 會盡速回復您！'
           );
         }
       }
     }
-  } else {
-    sendStudentNewMessageReminderEmail(
+    try {
+      JSON.parse(message);
+    } catch (e) {
+      logger.error(`message collapse ${message}`);
+      throw new ErrorResponse(400, 'message collapse');
+    }
+    // Attachments: the S3 key (file.key) is an opaque uuid, so files never
+    // overwrite each other (no duplicate-extension restriction needed). We store
+    // the storage key as `path` and a friendly, human-readable `name` for display
+    // and download. A per-file index keeps display names distinct when several
+    // files are attached at once.
+    const newfile: ICommunicationFile[] = [];
+    // multer-S3 populates req.files as an array (single-field upload).
+    const uploadedFiles = req.files as Express.Multer.File[] | undefined;
+    if (uploadedFiles && uploadedFiles.length > 0) {
+      const student = (await StudentService.getStudentById(
+        studentId
+      )) as IStudent | null;
+      const formattedDate = formatChatDate(new Date());
+      const multiple = uploadedFiles.length > 1;
+      for (let i = 0; i < uploadedFiles.length; i += 1) {
+        const file = uploadedFiles[i] as unknown as {
+          originalname?: string;
+          key?: string;
+        };
+        const ext = path.extname(file.originalname || file.key || '');
+        const suffix = multiple ? `_${i + 1}` : '';
+        newfile.push({
+          name: buildChatAttachmentName(student, ext, formattedDate, suffix),
+          path: file.key as string
+        });
+      }
+    }
+    // Files staged on the draft (upload-on-attach) are moved onto the message.
+    // `newfile` covers any files sent directly with this request (legacy /
+    // upload-on-send); both are merged.
+    const draft = await CommunicationDraftService.getDraft(
+      user._id.toString(),
+      studentId
+    );
+    const draftFiles = draft?.files ?? [];
+    const allFiles = [...newfile, ...draftFiles];
+
+    await CommunicationService.createCommunication({
+      student_id: studentId,
+      user_id: user._id,
+      message,
+      readBy: [new mongoose.Types.ObjectId(user._id)],
+      timeStampReadBy: { [user._id?.toString()]: new Date() },
+      files: allFiles,
+      createdAt: new Date()
+    } as unknown as Partial<ICommunication>);
+
+    // The draft's files now belong to the message — delete the draft DOCUMENT
+    // only (do NOT delete the S3 objects). Best-effort: the message is already
+    // created, so a draft-delete failure must NOT fail the request (which would
+    // make the client think the send failed and re-send, duplicating it). The
+    // daily sweep reclaims any leftover.
+    if (draft) {
+      try {
+        await CommunicationDraftService.deleteDraft(
+          user._id.toString(),
+          studentId
+        );
+      } catch (err) {
+        logger.error('postMessages: failed to delete consumed draft', {
+          studentId,
+          message: (err as Error)?.message
+        });
+      }
+    }
+
+    const communication_latest = await CommunicationService.findThreadPopulated(
+      studentId,
       {
-        firstname: student.firstname,
-        lastname: student.lastname,
-        address: student.email
-      },
-      {
-        taiger_user_firstname: user.firstname,
-        student_id: student._id.toString(),
-        taiger_user_lastname: user.lastname
+        populate: 'student_id user_id readBy',
+        select: 'firstname lastname pictureUrl',
+        limit: 1
       }
     );
-  }
-});
-
-// (-) TODO email : no notification needed
-export const updateAMessageInThread = asyncHandler(async (req, res) => {
-  const {
-    params: { messageId }
-  } = req;
-  const { message } = req.body;
-  try {
-    const thread = await CommunicationService.updateCommunication(messageId, {
-      message
+    res.status(200).send({
+      success: true,
+      // NOTE: the api type declares `data` as a single message, but this endpoint
+      // has always returned the populated latest-thread array; preserved as-is and
+      // bridged to the api type.
+      data: communication_latest as unknown as PostCommunicationResponse['data']
     });
 
-    if (!thread) {
-      logger.error('updateAMessageInThread : Invalid message thread id');
-      throw new ErrorResponse(404, 'Thread not found');
+    const student = (await StudentService.getStudentById(
+      studentId
+    )) as unknown as PopulatedStudent;
+
+    // inform agent/student
+    if (is_TaiGer_Student(user)) {
+      for (let i = 0; i < student.agents.length; i += 1) {
+        // inform active-agent
+        if (isNotArchiv(student)) {
+          if (isNotArchiv(student.agents[i])) {
+            // inform agent
+            sendAgentNewMessageReminderEmail(
+              {
+                firstname: student.agents[i].firstname,
+                lastname: student.agents[i].lastname,
+                address: student.agents[i].email
+              },
+              {
+                student_firstname: student.firstname,
+                student_id: student._id.toString(),
+                student_lastname: student.lastname
+              }
+            );
+          }
+        }
+      }
+    } else {
+      sendStudentNewMessageReminderEmail(
+        {
+          firstname: student.firstname,
+          lastname: student.lastname,
+          address: student.email
+        },
+        {
+          taiger_user_firstname: user.firstname,
+          student_id: student._id.toString(),
+          taiger_user_lastname: user.lastname
+        }
+      );
     }
-    res.status(200).send({ success: true, data: thread });
-  } catch (e) {
-    logger.error(`updateAMessageInThread error for messageId ${messageId}`);
-    throw new ErrorResponse(400, 'message collapse');
   }
-});
+);
 
 // (-) TODO email : no notification needed
-export const deleteAMessageInCommunicationThread = asyncHandler(
-  async (req, res) => {
-    const {
-      params: { messageId }
-    } = req;
+export const updateAMessageInThread =
+  asyncRoute<UpdateCommunicationMessageResponse>(async (req, res) => {
+    const { messageId } = req.params as { messageId: string };
+    const { message } = req.body;
+    try {
+      const thread = await CommunicationService.updateCommunication(messageId, {
+        message
+      });
+
+      if (!thread) {
+        logger.error('updateAMessageInThread : Invalid message thread id');
+        throw new ErrorResponse(404, 'Thread not found');
+      }
+      res.status(200).send({
+        success: true,
+        data: thread as unknown as UpdateCommunicationMessageResponse['data']
+      });
+    } catch (e) {
+      logger.error(`updateAMessageInThread error for messageId ${messageId}`);
+      throw new ErrorResponse(400, 'message collapse');
+    }
+  });
+
+// (-) TODO email : no notification needed
+export const deleteAMessageInCommunicationThread =
+  asyncRoute<DeleteCommunicationMessageResponse>(async (req, res) => {
+    const { messageId } = req.params as { messageId: string };
     const msg = (await CommunicationService.getCommunicationById(
       messageId
     )) as ICommunication | null;
@@ -889,28 +905,30 @@ export const deleteAMessageInCommunicationThread = asyncHandler(
       logger.error(`Delete error for messageId ${messageId}`);
       throw new ErrorResponse(400, 'message collapse');
     }
+  });
+
+export const IgnoreMessage = asyncRoute<IgnoreCommunicationMessageResponse>(
+  async (req, res) => {
+    const { user } = req;
+    const { communication_messageId, ignoreMessageState } = req.params as {
+      communication_messageId: string;
+      ignoreMessageState: string;
+    };
+
+    try {
+      await CommunicationService.updateCommunication(communication_messageId, {
+        ignore_message: ignoreMessageState,
+        ignoredMessageBy: user._id,
+        ignoredMessageUpdatedAt: new Date()
+      });
+    } catch (e) {
+      logger.error(
+        `IgnoreMessage error for messageId ${communication_messageId}, state: ${ignoreMessageState}`
+      );
+      throw new ErrorResponse(400, 'message collapse');
+    }
+
+    logger.info('IgnoreMessage : save succeeds');
+    res.status(200).send({ success: true });
   }
 );
-
-export const IgnoreMessage = asyncHandler(async (req, res) => {
-  const {
-    user,
-    params: { communication_messageId, ignoreMessageState }
-  } = req;
-
-  try {
-    await CommunicationService.updateCommunication(communication_messageId, {
-      ignore_message: ignoreMessageState,
-      ignoredMessageBy: user._id,
-      ignoredMessageUpdatedAt: new Date()
-    });
-  } catch (e) {
-    logger.error(
-      `IgnoreMessage error for messageId ${communication_messageId}, state: ${ignoreMessageState}`
-    );
-    throw new ErrorResponse(400, 'message collapse');
-  }
-
-  logger.info('IgnoreMessage : save succeeds');
-  res.status(200).send({ success: true });
-});

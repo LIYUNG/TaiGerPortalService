@@ -15,30 +15,48 @@ import type {
  * so the raw lean doc is `any` — this mapper is the seam that turns that loose DB
  * shape into a strict CommunicationDraft.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toDomain = (doc: any): CommunicationDraft | null => {
+// Raw lean shape of a persisted draft. The model is untyped (see file header),
+// so this local interface documents the fields the mapper reads off the DB doc.
+interface RawCommunicationDraftDoc {
+  _id: unknown;
+  user_id: unknown;
+  student_id: unknown;
+  message?: string;
+  source?: string;
+  aiModel?: string;
+  aiGeneratedAt?: Date;
+  aiOriginalMessage?: string;
+  aiPendingSuggestion?: string;
+  aiPendingModel?: string;
+  files?: ICommunicationFile[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const toDomain = (doc: unknown): CommunicationDraft | null => {
   if (!doc) {
     return null;
   }
+  const d = doc as RawCommunicationDraftDoc;
   return {
-    id: String(doc._id),
-    user_id: String(doc.user_id),
-    student_id: String(doc.student_id),
-    message: doc.message ?? '',
-    source: doc.source === 'ai' ? 'ai' : 'human',
-    aiModel: doc.aiModel ?? '',
-    aiGeneratedAt: doc.aiGeneratedAt as Date | undefined,
-    aiOriginalMessage: doc.aiOriginalMessage ?? '',
-    aiPendingSuggestion: doc.aiPendingSuggestion ?? '',
-    aiPendingModel: doc.aiPendingModel ?? '',
-    files: Array.isArray(doc.files)
-      ? doc.files.map((file: ICommunicationFile) => ({
+    id: String(d._id),
+    user_id: String(d.user_id),
+    student_id: String(d.student_id),
+    message: d.message ?? '',
+    source: d.source === 'ai' ? 'ai' : 'human',
+    aiModel: d.aiModel ?? '',
+    aiGeneratedAt: d.aiGeneratedAt,
+    aiOriginalMessage: d.aiOriginalMessage ?? '',
+    aiPendingSuggestion: d.aiPendingSuggestion ?? '',
+    aiPendingModel: d.aiPendingModel ?? '',
+    files: Array.isArray(d.files)
+      ? d.files.map((file: ICommunicationFile) => ({
           name: file.name,
           path: file.path
         }))
       : [],
-    createdAt: doc.createdAt as Date,
-    updatedAt: doc.updatedAt as Date
+    createdAt: d.createdAt as Date,
+    updatedAt: d.updatedAt as Date
   };
 };
 

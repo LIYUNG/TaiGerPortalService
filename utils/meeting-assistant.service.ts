@@ -26,7 +26,7 @@ interface FirefliesGraphQLError {
  * @param {string} meetingLink - The meeting join URL (e.g., a Google Meet link).
  * @param {string|Date} meetingTimeFrom - Meeting start time as an ISO 8601 string or Date.
  * @param {string|Date} meetingTimeTo - Meeting end time as an ISO 8601 string or Date.
- * @returns {Promise<any>} Resolves with the upstream service response payload.
+ * @returns {Promise<unknown>} Resolves with the upstream service response payload.
  * @throws {Error} If the request fails, includes the underlying error message or response data.
  */
 export const scheduleInviteTA = async (

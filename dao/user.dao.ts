@@ -317,7 +317,9 @@ const UserDAO = {
     return Student.updateMany(
       { $or: [{ agents: userId }, { editors: userId }] },
       { $pull: { agents: userId, editors: userId } },
-      { multi: true } as any
+      // `multi` is a legacy Mongo option not in the modern option type (updateMany
+      // is always multi); cast to the method's own options param to keep it.
+      { multi: true } as unknown as Parameters<typeof Student.updateMany>[2]
     );
   },
 

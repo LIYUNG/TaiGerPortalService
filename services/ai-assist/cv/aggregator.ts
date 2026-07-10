@@ -6,11 +6,54 @@
 //      context (student + editor editable).
 // Plus any in-the-moment editor instructions. The CV survey is NOT used.
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Loose = Record<string, any>;
+type Loose = Record<string, unknown>;
+
+// The profile subset mapped onto CV fields by extractKnownFacts. String fields
+// are always present (defaulted to '' for unknown), while the loosely-shaped
+// carry-through blocks (personal/experience/awards/skills/interests) stay
+// `unknown` and are read defensively downstream.
+export interface CVKnownFacts {
+  fullName: string;
+  email: string;
+  birthday: string;
+  personal: unknown;
+  education: {
+    university: {
+      name: string;
+      program: string;
+      isGraduated: string;
+      expectedGradDate: string;
+      gpa: string;
+      gpaScale: string;
+      hasExchange: string;
+      hasInternship: string;
+      hasWorking: string;
+    };
+    secondDegree: {
+      university: string;
+      program: string;
+      gpa: string;
+      expectedGradDate: string;
+    };
+    highSchool: {
+      name: string;
+      graduatedYear: string;
+    };
+  };
+  languageTests: {
+    englishCertificate: string;
+    englishScore: string;
+    germanCertificate: string;
+    germanScore: string;
+  };
+  experience: unknown;
+  awards: unknown;
+  skills: unknown;
+  interests: unknown;
+}
 
 export interface CVAggregateInput {
-  knownFacts: Loose;
+  knownFacts: CVKnownFacts;
   additionalInformation: string;
   editorRequirements: string;
   targetProgram: string;
@@ -21,10 +64,10 @@ const s = (v: unknown): string =>
 
 // Pull the profile subset that maps onto CV fields. Empty values stay '' so the
 // model treats them as unknown (it must never invent missing data).
-export const extractKnownFacts = (student: Loose): Loose => {
-  const ab = student?.academic_background || {};
-  const uni = ab.university || {};
-  const lang = ab.language || {};
+export const extractKnownFacts = (student: Loose): CVKnownFacts => {
+  const ab = (student?.academic_background || {}) as Loose;
+  const uni = (ab.university || {}) as Loose;
+  const lang = (ab.language || {}) as Loose;
 
   return {
     fullName: [student.firstname, student.lastname].filter(Boolean).join(' '),

@@ -188,10 +188,9 @@ const storage_vpd_s3 = multerS3({
     cb: S3MetadataCallback
   ) => {
     let { studentId } = req.params as Record<string, string>;
+    // req.user is the authenticated principal; read its id as a fallback.
     // eslint-disable-next-line no-underscore-dangle
-    // req.user is the ambient auth payload (any); read its id as a fallback.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!studentId) studentId = String((req.user as any)._id);
+    if (!studentId) studentId = String((req.user as { _id?: unknown })._id);
 
     // TODO: check studentId exist
     let directory = path.join(studentId);
@@ -227,10 +226,9 @@ const storage_profile_s3 = multerS3({
     cb: S3MetadataCallback
   ) => {
     let { studentId } = req.params as Record<string, string>;
+    // req.user is the authenticated principal; read its id as a fallback.
     // eslint-disable-next-line no-underscore-dangle
-    // req.user is the ambient auth payload (any); read its id as a fallback.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!studentId) studentId = String((req.user as any)._id);
+    if (!studentId) studentId = String((req.user as { _id?: unknown })._id);
 
     // TODO: check studentId exist
     const directory = studentId;

@@ -35,8 +35,7 @@ export const extractPlainText = (editorJson: string | undefined): string => {
       return '';
     }
     return parsed.blocks
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((block: any) => block?.data?.text ?? '')
+      .map((block: { data?: { text?: string } }) => block?.data?.text ?? '')
       .join(' ')
       .replace(/<\/?[^>]+(>|$)|&[^;]+;?/g, ' ')
       .replace(/\s+/g, ' ')

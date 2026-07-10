@@ -24,13 +24,16 @@ const { buildOverview, loadPortfolio, collectUpcomingDeadlines } =
 
 const MAX_DOCUMENT_CHARS = 24000;
 
-// Express request carrying the authenticated `user`; kept loose to match the
-// repo-wide convention (see types/express.d.ts) where `req.user` is `any`.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AiRequest = any;
+// Express request carrying the authenticated `user` (see types/express.d.ts).
+// Handlers forward it to the ./tools access-scoped helpers. Kept minimal/
+// structural (only `user` is read) so unit tests can pass lightweight stubs.
+type AiRequest = { user?: unknown };
 
 // Heterogeneous Mongoose lean document whose runtime shape does not structurally
-// match the strict @taiger-common/model interfaces; read defensively.
+// match the strict @taiger-common/model interfaces; read defensively via
+// property chains, which `Record<string, unknown>` cannot express without
+// pervasive narrowing — hence an intentional `any` value type.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LeanDoc = Record<string, any>;
 
 // Provider-neutral tool arguments parsed from the LLM tool call.
@@ -277,10 +280,10 @@ const readDocument = async (req: AiRequest, args: AiToolArgs = {}) => {
   };
 };
 
-const extractMsgText = (msg: any): string =>
+const extractMsgText = (msg: LeanDoc): string =>
   msg.message || msg.text || msg.content || msg.body || '';
 
-const extractMsgAt = (msg: any): string | null => {
+const extractMsgAt = (msg: LeanDoc): string | null => {
   const d = msg.createdAt ? new Date(msg.createdAt) : null;
   return d && !Number.isNaN(d.getTime()) ? d.toISOString() : null;
 };

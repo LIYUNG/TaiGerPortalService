@@ -25,6 +25,11 @@ interface ActiveThreadsQuery {
   [key: string]: unknown;
 }
 
+// `query` is intentionally `any`: this builder returns the query so callers can
+// `.lean()` it, and the DAO methods below expose that loose result to (still
+// untyped) controllers. Typing it as a concrete mongoose `Query` would propagate
+// a strict `FlattenMaps` lean type into those callers and break them.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const applyPopulates = (query: any, populates: unknown[][] = []) =>
   populates.reduce((populated, args) => populated.populate(...args), query);
 

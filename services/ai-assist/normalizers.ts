@@ -1,8 +1,12 @@
 /* eslint-disable no-use-before-define */
 // Inputs are heterogeneous Mongoose lean documents (populated reference unions
-// and FlattenMaps-wrapped subdocuments) whose runtime shape does not
-// structurally match the strict @taiger-common/model interfaces, so these
-// normalizers accept a loose record and read fields defensively.
+// of FlattenMaps subdocuments, `ObjectId | string | populated` ref fields, and
+// nullable projected columns) whose runtime shape does not structurally match
+// the strict @taiger-common/model interfaces. A precise structural interface
+// cannot span every consumer's lean shape (e.g. `normalizeUser(message.user_id)`
+// where `user_id` is a populated-or-ObjectId union), so these normalizers accept
+// a loose record and read fields defensively — the one deliberate `any` here.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LeanDoc = Record<string, any>;
 
 function normalizeUser(user: LeanDoc | null | undefined) {

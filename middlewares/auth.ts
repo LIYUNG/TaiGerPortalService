@@ -2,6 +2,7 @@ import { IUser } from '@taiger-common/model';
 import { NextFunction, Request, Response } from 'express';
 import passport from 'passport';
 import { ErrorResponse } from '../common/errors';
+import type { AuthenticatedUser } from '../types/express';
 
 // The local strategy's verify callback (middlewares/passport.ts) calls
 // `done(null, 'inactivated')` as a sentinel for a not-yet-activated account,
@@ -23,7 +24,7 @@ export const localAuth = (req: Request, res: Response, next: NextFunction) => {
       if (!user) {
         return next(new ErrorResponse(401, 'The current password is wrong.'));
       }
-      req.user = user;
+      req.user = user as AuthenticatedUser;
       return next();
     }
   )(req, res, next);
@@ -44,7 +45,7 @@ export const protect = (req: Request, res: Response, next: NextFunction) => {
           )
         );
       }
-      req.user = user;
+      req.user = user as AuthenticatedUser;
       return next();
     }
   )(req, res, next);

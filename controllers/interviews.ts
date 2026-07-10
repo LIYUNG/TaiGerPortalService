@@ -6,9 +6,13 @@ import type {
   IPermission,
   IStudent,
   IUser,
-  IEvent
+  IEvent,
+  IProgram,
+  IDocumentthread,
+  IInterviewSurveyResponse
 } from '@taiger-common/model';
 
+import type { AuthenticatedUser } from '../types/express';
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
@@ -38,7 +42,7 @@ import AuditService from '../services/audit';
 
 // A populated user ref (the `_id` is present on the hydrated/lean doc but not on
 // the bare `IUser` model interface).
-type PopulatedUser = IUser & { _id: { toString(): string } };
+type PopulatedUser = IUser & { _id: mongoose.Types.ObjectId };
 
 // An event with its requester/receiver refs populated, narrowed to the fields
 // these handlers read.
@@ -62,11 +66,11 @@ type PopulatedInterview = Omit<
   'student_id' | 'trainer_id' | 'thread_id' | 'program_id' | 'event_id'
 > & {
   _id: { toString(): string };
-  student_id?: any;
-  trainer_id?: any;
-  thread_id?: any;
-  program_id?: any;
-  event_id?: any;
+  student_id: PopulatedUser;
+  trainer_id: PopulatedUser[];
+  thread_id: IDocumentthread & { _id: { toString(): string } };
+  program_id: IProgram;
+  event_id?: IEvent;
 };
 
 const PrecheckInterview = async (req: unknown, interview_id: string) => {
@@ -78,7 +82,7 @@ const PrecheckInterview = async (req: unknown, interview_id: string) => {
 };
 
 const InterviewCancelledReminder = async (
-  user: any,
+  user: AuthenticatedUser,
   receiver: PopulatedUser,
   meeting_event: PopulatedEvent,
   cc: PopulatedUser[]
@@ -107,7 +111,7 @@ const InterviewCancelledReminder = async (
 
 const InterviewTrainingInvitation = async (
   receiver: PopulatedUser,
-  user: any,
+  user: AuthenticatedUser,
   event: PopulatedEvent,
   interview_id: string,
   program: unknown,
@@ -135,13 +139,26 @@ const InterviewTrainingInvitation = async (
   );
 };
 
-const addInterviewStatus = async (interviews: any[]) => {
+// Minimal view of the fields `addInterviewStatus` reads off each (populated)
+// interview. Date-ish fields are typed as `number` because they are compared
+// numerically against `Date.now()` (Mongoose `Date` values coerce at runtime).
+interface InterviewStatusFields {
+  interview_date?: number;
+  event_id?: { start?: number };
+  isClosed?: boolean;
+  student_id?: { _id?: { toString(): string } };
+}
+
+const addInterviewStatus = async <T>(
+  interviews: T[]
+): Promise<Array<T & { status: string }>> => {
   const now = Date.now();
-  const interviewsWithStatus: any[] = [];
-  let openInterviews: any[] = [];
+  const interviewsWithStatus: Array<T & { status: string }> = [];
+  const openInterviews: T[] = [];
 
   for (const interview of interviews) {
-    const { interview_date, event_id, isClosed } = interview;
+    const { interview_date, event_id, isClosed } =
+      interview as InterviewStatusFields;
 
     if (isClosed) {
       interviewsWithStatus.push({ ...interview, status: 'Closed' });
@@ -167,7 +184,9 @@ const addInterviewStatus = async (interviews: any[]) => {
 
   // Gather student IDs from 'Open' interviews
   const openStudentIds = new Set(
-    openInterviews.map((i) => i?.student_id?._id?.toString()).filter(Boolean)
+    openInterviews
+      .map((i) => (i as InterviewStatusFields)?.student_id?._id?.toString())
+      .filter((id): id is string => Boolean(id))
   );
 
   if (openStudentIds.size === 0) return interviewsWithStatus;
@@ -175,15 +194,17 @@ const addInterviewStatus = async (interviews: any[]) => {
     await InterviewService.distinctTrainedStudentIds(Array.from(openStudentIds))
   ).map((id) => id.toString());
 
-  openInterviews = openInterviews.map((interview) => {
-    const studentId = interview?.student_id?._id?.toString();
+  const openInterviewsWithStatus = openInterviews.map((interview) => {
+    const studentId = (
+      interview as InterviewStatusFields
+    )?.student_id?._id?.toString();
     if (studentId && trainedStudentIds.includes(studentId)) {
       return { ...interview, status: 'N/A' };
     }
     return { ...interview, status: 'Open' };
   });
 
-  return [...openInterviews, ...interviewsWithStatus];
+  return [...openInterviewsWithStatus, ...interviewsWithStatus];
 };
 
 // Server-side paginated / sorted / searchable all-interviews list (staff view).
@@ -255,12 +276,18 @@ const getMyInterviewPaginated = asyncHandler(async (req, res) => {
 const getInterviewQuestions = asyncHandler(async (req, res) => {
   const { programId } = req.params;
 
+  // The list is filtered on the (populated) interview's program id, so narrow
+  // `interview_id` to the shape actually read here.
+  type SurveyWithInterview = IInterviewSurveyResponse & {
+    interview_id: { program_id: { toString(): string } };
+  };
   const interviewsSurveys = (await InterviewService.findSurveys({}, [
     ['student_id', 'firstname lastname email pictureUrl']
-  ])) as unknown as any[];
+  ])) as unknown as SurveyWithInterview[];
 
   const questionsArray = interviewsSurveys.filter(
-    (survey: any) => survey.interview_id.program_id.toString() === programId
+    (survey: SurveyWithInterview) =>
+      survey.interview_id.program_id.toString() === programId
   );
 
   res.status(200).send({ success: true, data: questionsArray });
@@ -279,7 +306,7 @@ const getMyInterview = asyncHandler(async (req, res) => {
     ['student_id trainer_id', 'firstname lastname email pictureUrl'],
     ['program_id', 'school program_name degree semester'],
     ['thread_id event_id']
-  ])) as any[];
+  ])) as unknown as PopulatedInterview[];
   if ([Role.Admin, Role.Agent, Role.Editor].includes(user.role)) {
     if ([Role.Agent, Role.Editor].includes(user.role)) {
       const permissions = (await getPermission(req, user)) as
@@ -492,7 +519,9 @@ const addInterviewTrainingDateTime = asyncHandler(async (req, res, next) => {
     )) as unknown as PopulatedInterview;
     // inform agent for confirmed training date
     const student_temp = (await StudentService.getStudentByIdWithAgents(
-      interview_tmep.student_id
+      // `student_id` is unpopulated here (only `program_id` is populated above),
+      // so at runtime this is the raw id accepted by the service.
+      interview_tmep.student_id as unknown as string
     )) as unknown as PopulatedStudent;
 
     const cc = [...newEvent.receiver_id, ...(student_temp.agents ?? [])];
@@ -728,7 +757,8 @@ const updateInterviewSurvey = asyncHandler(async (req, res) => {
     if (notificationUser) {
       await addMessageInThread(
         `Automatic Notification: Hi ${interview.student_id.firstname}, thank you for filling the interview training survey. I wish you having a great result for the application.`,
-        interview?.thread_id,
+        // `thread_id` is unpopulated here, i.e. the raw thread id at runtime.
+        interview?.thread_id as unknown as mongoose.Types.ObjectId,
         notificationUser
       );
     }
@@ -853,7 +883,7 @@ const getAllOpenInterviews = asyncHandler(async (req, res) => {
     ['student_id trainer_id', 'firstname lastname email'],
     ['program_id', 'school program_name degree semester'],
     ['event_id']
-  ])) as any[];
+  ])) as unknown as PopulatedInterview[];
 
   interviews = await addInterviewStatus(interviews);
   res.status(200).send({ success: true, data: interviews });
@@ -865,6 +895,22 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
     return res
       .status(400)
       .send({ success: false, message: 'Program ID is required' });
+  }
+
+  // Shape produced by the aggregation below: student_id/trainer_id are reduced
+  // to name/email projections and the date is projected through for sorting.
+  interface AggregatedInterview {
+    _id: { toString(): string };
+    student_id?: { firstname?: string; lastname?: string; email?: string };
+    trainer_id?: Array<{
+      firstname?: string;
+      lastname?: string;
+      email?: string;
+    }>;
+    interview_date: Date;
+    event_id?: unknown;
+    status?: string;
+    isClosed?: boolean;
   }
 
   try {
@@ -942,10 +988,10 @@ const getInterviewsByProgramId = asyncHandler(async (req, res) => {
           preserveNullAndEmptyArrays: true
         }
       }
-    ])) as any[];
+    ])) as unknown as AggregatedInterview[];
 
     interviews = await addInterviewStatus(interviews);
-    interviews = interviews.sort((a: any, b: any) => {
+    interviews = interviews.sort((a, b) => {
       return (
         new Date(b.interview_date).getTime() -
         new Date(a.interview_date).getTime()
@@ -976,7 +1022,7 @@ const getInterviewsByStudentId = asyncHandler(async (req, res) => {
         ['trainer_id', 'firstname lastname email'],
         ['program_id', 'school program_name degree semester']
       ]
-    )) as any[];
+    )) as unknown as PopulatedInterview[];
 
     interviews = await addInterviewStatus(interviews);
 

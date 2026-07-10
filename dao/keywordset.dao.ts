@@ -11,12 +11,15 @@ import type {
  * keep ALL fields (the result is sent to the frontend unchanged) but normalize
  * `_id` to a string. The only place Mongo shapes are handled.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toDomain = (doc: any): KeywordSet | null => {
+const toDomain = (doc: unknown): KeywordSet | null => {
   if (!doc) {
     return null;
   }
-  const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+  const source = doc as { toObject?: () => Record<string, unknown> };
+  const plain =
+    typeof source.toObject === 'function'
+      ? source.toObject()
+      : (doc as Record<string, unknown>);
   return { ...plain, _id: String(plain._id) } as KeywordSet;
 };
 

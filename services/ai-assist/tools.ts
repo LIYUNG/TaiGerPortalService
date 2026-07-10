@@ -35,14 +35,18 @@ const AI_APPLICATION_PROGRAM_POPULATE = {
   select: 'school program_name degree semester application_deadline country'
 };
 
-// Express request carrying the authenticated `user`; kept loose to match the
-// repo-wide convention (see types/express.d.ts) where `req.user` is `any`.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AiRequest = any;
+// Express request carrying the authenticated `user` (see types/express.d.ts).
+// Handlers only read `req.user` (cast internally to the fields they use), so
+// the contract is kept minimal/structural — this lets the unit tests pass
+// lightweight request stubs and does not depend on the full Express Request.
+type AiRequest = { user?: unknown };
 
 // Heterogeneous Mongoose lean document (populated reference unions /
 // FlattenMaps subdocuments) whose runtime shape does not structurally match the
-// strict @taiger-common/model interfaces; read defensively.
+// strict @taiger-common/model interfaces; read defensively via property chains
+// (e.g. `doc._id?.toString?.()`), which `Record<string, unknown>` cannot express
+// without pervasive narrowing — hence an intentional `any` value type.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LeanDoc = Record<string, any>;
 
 // Provider-neutral tool arguments parsed from the LLM tool call. All fields are
@@ -70,14 +74,16 @@ const escapeRegex = (value: string = '') =>
 const ACCESSIBLE_STUDENT_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors profile applying_program_count';
 
-const normalizeStudentPickerRow = (student: Record<string, any>) => ({
+const normalizeStudentPickerRow = (student: LeanDoc) => ({
   ...normalizeUser(student),
   applyingProgramCount: student.applying_program_count,
   agents: (student.agents || []).map(
-    (agent: unknown) => (agent as any)?.toString?.() || agent
+    (agent: unknown) =>
+      (agent as { toString?: () => string })?.toString?.() || agent
   ),
   editors: (student.editors || []).map(
-    (editor: unknown) => (editor as any)?.toString?.() || editor
+    (editor: unknown) =>
+      (editor as { toString?: () => string })?.toString?.() || editor
   )
 });
 
@@ -258,7 +264,19 @@ const safeDate = (value: unknown) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-type ThreadMessageLike = Record<string, any>;
+// Heterogeneous thread-message subdocument (shape varies by source); every
+// probed field is read defensively, so each is typed as optional `unknown`.
+interface ThreadMessageLike {
+  message?: unknown;
+  text?: unknown;
+  content?: unknown;
+  body?: unknown;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  timestamp?: unknown;
+  user_id?: unknown;
+  userId?: unknown;
+}
 
 const extractThreadMessageText = (message: ThreadMessageLike = {}) =>
   message.message || message.text || message.content || message.body || '';
@@ -332,7 +350,7 @@ const assertLeadAccessForStudent = async (
   studentId: string,
   studentParam?: LeanDoc | null
 ) => {
-  const role = req?.user?.role;
+  const role = (req?.user as { role?: string } | undefined)?.role;
   if (role === Role.Admin || role === Role.Manager) {
     return;
   }
@@ -349,7 +367,9 @@ const assertLeadAccessForStudent = async (
     throw new ErrorResponse(404, 'Student not found');
   }
 
-  const userId = toObjectIdString(req?.user?._id);
+  const userId = toObjectIdString(
+    (req?.user as { _id?: unknown } | undefined)?._id
+  );
   const isAssigned = [...(student.agents || []), ...(student.editors || [])]
     .map((id: unknown) => toObjectIdString(id))
     .includes(userId);
@@ -913,7 +933,7 @@ const getCrmLeadMeetingContext = async (
         email: student.email
       },
       lead,
-      meetings: (meetings || []).map((meeting: Record<string, any>) => ({
+      meetings: (meetings || []).map((meeting) => ({
         ...meeting,
         date:
           typeof meeting.date === 'number'

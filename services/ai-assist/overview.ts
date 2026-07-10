@@ -1,6 +1,8 @@
 import { differenceInDays } from 'date-fns';
-import type { Request } from 'express';
+import type { Types } from 'mongoose';
 import { Role } from '@taiger-common/core';
+
+import type { AuthenticatedUser } from '../../types/express';
 
 // `studentAccess`, `signalLedger` and `normalizers` are exported via `export =`
 // (CommonJS-style), so they must be imported as a default (esModuleInterop)
@@ -43,14 +45,56 @@ const OVERVIEW_APPLICATION_POPULATE = {
 
 // These services return mongoose lean documents with a hand-picked field
 // selection and a populated `programId`, so the exact @taiger-common model
-// interfaces do not apply. Loose structural shapes describe the fields actually
-// read here.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type OverviewStudent = Record<string, any>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type OverviewApplication = Record<string, any>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type OverviewThread = Record<string, any>;
+// interfaces do not apply. The structural shapes below describe just the fields
+// actually read here; reference-ish fields are left `unknown` and coerced via
+// the toIdString/safeDate/isTruthyFlag helpers.
+interface OverviewProgram {
+  school?: string;
+  program_name?: string;
+  name?: string;
+  degree?: string;
+  semester?: string;
+  application_deadline?: string;
+  country?: string;
+}
+interface OverviewStudent {
+  _id?: { toString?: () => string } | string | null;
+  id?: string;
+  firstname?: string | null;
+  lastname?: string | null;
+  firstname_chinese?: string | null;
+  lastname_chinese?: string | null;
+  email?: string | null;
+  role?: string;
+  archiv?: boolean;
+  createdAt?: Date;
+  applying_program_count?: number;
+  editors?: unknown[];
+  attributes?: { name?: string; value?: number }[];
+  profile?: { name?: string; required?: boolean; path?: string }[];
+}
+interface OverviewApplication {
+  _id?: { toString?: () => string } | string | null;
+  id?: string;
+  studentId?: unknown;
+  programId?: OverviewProgram | null;
+  admission?: string;
+  decided?: string;
+  closed?: unknown;
+  finalEnrolment?: unknown;
+  reject_reason?: string;
+  application_year?: string | number;
+  admission_letter?: unknown;
+  uni_assist?: unknown;
+}
+interface OverviewThread {
+  isFinalVersion?: boolean;
+  latest_message_left_by_id?: unknown;
+  student_id?: unknown;
+  lastMsgAt?: unknown;
+  updatedAt?: unknown;
+  file_type?: string;
+}
 
 const toIdString = (value: unknown) => {
   if (!value) return '';
@@ -101,7 +145,7 @@ const deriveStatus = (application: OverviewApplication = {}) => {
 };
 
 const loadPortfolio = async (
-  req: Request,
+  req: { user?: unknown },
   { maxStudents = MAX_PORTFOLIO_STUDENTS }: { maxStudents?: number } = {}
 ) => {
   const filter = await studentAccess.getAccessibleStudentFilter(req);
@@ -111,7 +155,7 @@ const loadPortfolio = async (
     filter,
     OVERVIEW_STUDENT_FIELDS,
     maxStudents
-  )) as OverviewStudent[];
+  )) as unknown as OverviewStudent[];
 
   const studentById = new Map<string, OverviewStudent>();
   students.forEach((student) => {
@@ -141,9 +185,10 @@ const loadPortfolio = async (
       OVERVIEW_APPLICATION_FIELDS,
       OVERVIEW_APPLICATION_POPULATE
     ),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    DocumentThreadService.getThreadsWaitingOnTeam(studentObjectIds as any)
-  ])) as [OverviewApplication[], OverviewThread[]];
+    DocumentThreadService.getThreadsWaitingOnTeam(
+      studentObjectIds as unknown as string[]
+    )
+  ])) as unknown as [OverviewApplication[], OverviewThread[]];
 
   return { students, studentById, studentIds, applications, threads };
 };
@@ -160,6 +205,38 @@ const studentLabel = (student: OverviewStudent) => {
     hasEditors: Array.isArray(student.editors) && student.editors.length > 0
   };
 };
+
+// The compact student descriptor emitted by studentLabel, plus the id-only
+// fallback used when the student doc is not in the portfolio map.
+type StudentLabel = ReturnType<typeof studentLabel>;
+type StudentRef = StudentLabel | { id: string };
+type ProgramRef = { school?: string; name?: string } | null;
+
+interface UpcomingDeadlineItem {
+  student: StudentRef;
+  program: ProgramRef;
+  deadline: string;
+  daysUntil: number;
+  confirmedElsewhere?: boolean;
+}
+interface AdmittedNotConfirmedItem {
+  student: StudentRef;
+  program: ProgramRef;
+}
+interface ThreadWaitingItem {
+  student: StudentRef;
+  fileType?: string;
+  stalledDays: number;
+  confirmedElsewhere?: boolean;
+}
+interface CommunicationGapItem {
+  student: StudentLabel;
+  lastContactDays: number | null;
+}
+interface MissingBaseDocumentsItem {
+  student: StudentLabel;
+  missingDocuments: (string | undefined)[];
+}
 
 const buildFinalizedStudentIds = (
   applications: OverviewApplication[]
@@ -181,8 +258,7 @@ const collectUpcomingDeadlines = (
   finalizedStudentIds: Set<string> = new Set()
 ) => {
   const today = new Date();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const items: any[] = [];
+  const items: UpcomingDeadlineItem[] = [];
 
   (applications || []).forEach((application) => {
     if (deriveStatus(application) !== 'in_progress') return;
@@ -307,8 +383,7 @@ const collectCommunicationGaps = (
     studentById.set(toIdString(s._id || s.id), s);
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const items: any[] = [];
+  const items: CommunicationGapItem[] = [];
   activeStudentIds.forEach((id) => {
     const student = studentById.get(id);
     if (!student) return;
@@ -438,18 +513,15 @@ const collectCommunicationRiskSignals = (
 };
 
 const collectMissingBaseDocuments = (students: OverviewStudent[]) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const items: any[] = [];
+  const items: MissingBaseDocumentsItem[] = [];
   (students || []).forEach((student) => {
     const missing = (student.profile || []).filter(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (document: any) => document.required && !document.path
+      (document) => document.required && !document.path
     );
     if (missing.length) {
       items.push({
         student: studentLabel(student),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        missingDocuments: missing.map((document: any) => document.name)
+        missingDocuments: missing.map((document) => document.name)
       });
     }
   });
@@ -476,10 +548,29 @@ const BUCKET_KEYS = [
 ] as const;
 type BucketKey = (typeof BUCKET_KEYS)[number];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Collected = Record<BucketKey, any[]>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Signal = { bucket: BucketKey; urgency: string } & Record<string, any>;
+interface Collected {
+  upcomingDeadlines: UpcomingDeadlineItem[];
+  threadsWaitingOnTeam: ThreadWaitingItem[];
+  communicationGaps: CommunicationGapItem[];
+  communicationRiskSignals: CommunicationRiskSignalItem[];
+  admittedNotConfirmed: AdmittedNotConfirmedItem[];
+  missingBaseDocuments: MissingBaseDocumentsItem[];
+}
+// A signal always carries its bucket tag + computed urgency; the remaining
+// per-bucket payload fields (daysUntil, program, stalledDays, ...) vary by
+// bucket and are read structurally by the frontend, hence the open record.
+type Signal = { bucket: BucketKey; urgency: string } & Record<string, unknown>;
+// Student-centric accumulator entry: the compact label fields (partial, since
+// an id-only ref may be all that is known) plus the per-student aggregates.
+type StudentEntry = Partial<StudentLabel> & {
+  id?: string;
+  offerCount: number;
+  rejectCount: number;
+  applicationTerms: string[];
+  confirmedElsewhere: boolean;
+  overallUrgency: string;
+  signals: Signal[];
+};
 
 // Pre-group the per-bucket collector output into a student-centric view so the
 // frontend renders directly without a cross-bucket join. Each student carries
@@ -494,11 +585,10 @@ const buildStudentsView = (
   finalizedStudentIds: Set<string>,
   limit: number
 ) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const byId = new Map<string, any>();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ensure = (label: any) => {
-    const id = label?.id;
+  const byId = new Map<string, StudentEntry>();
+  const ensure = (label: StudentRef): StudentEntry => {
+    // add() guarantees a truthy id before delegating here.
+    const id = label.id as string;
     let entry = byId.get(id);
     if (!entry) {
       entry = {
@@ -513,8 +603,7 @@ const buildStudentsView = (
     }
     return entry;
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const add = (label: any, signal: Signal) => {
+  const add = (label: StudentRef, signal: Signal) => {
     if (!label?.id) return;
     const entry = ensure(label);
     entry.signals.push(signal);
@@ -612,7 +701,7 @@ const buildStudentTerms = (
   applications: {
     studentId?: unknown;
     application_year?: string | number;
-    programId?: { semester?: string };
+    programId?: { semester?: string } | null;
   }[]
 ): Record<string, string[]> => {
   const termsById: Record<string, Set<string>> = {};
@@ -632,14 +721,13 @@ const buildStudentTerms = (
 };
 
 const buildOverview = async (
-  req: Request,
+  req: { user?: unknown },
   {
     deadlineWindowDays,
     sampleSize = SAMPLE_SIZE
   }: { deadlineWindowDays?: number; sampleSize?: number } = {}
 ) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role = (req?.user as any)?.role;
+  const role = (req.user as AuthenticatedUser | undefined)?.role;
   const days = deadlineWindowDays || DEFAULT_DEADLINE_WINDOW_DAYS;
   const { students, studentById, applications, threads } = await loadPortfolio(
     req
@@ -653,13 +741,15 @@ const buildOverview = async (
       .map((student) => student._id || student.id)
       .filter(Boolean);
     const rows = await CommunicationService.getLatestMessageAtForStudents(
-      studentObjectIds
+      studentObjectIds as unknown as Types.ObjectId[]
     );
-    (rows || []).forEach((row: any) => {
-      const id = toIdString(row._id ?? row.studentId);
-      const date = safeDate(row.latestAt);
-      if (id && date) latestMessageAtById.set(id, date);
-    });
+    (rows || []).forEach(
+      (row: { _id?: unknown; studentId?: unknown; latestAt?: unknown }) => {
+        const id = toIdString(row._id ?? row.studentId);
+        const date = safeDate(row.latestAt);
+        if (id && date) latestMessageAtById.set(id, date);
+      }
+    );
   } catch {
     // Leave empty; communicationGaps will reflect no contact data.
   }

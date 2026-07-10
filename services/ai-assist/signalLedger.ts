@@ -35,11 +35,13 @@ const MAX_ACTIVE_STUDENTS = 1500;
 const MAX_MESSAGES_PER_SCAN = 40;
 const MSG_TEXT_CAP = 600;
 
-// Express request; kept loose to match the repo-wide ai-assist convention
-// (see tools.ts's AiRequest) — it is only ever forwarded to
-// tools.requireAccessibleStudent, which is itself typed this way.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AiRequest = any;
+// Express request (see types/express.d.ts). It is only ever forwarded to
+// tools.requireAccessibleStudent, which is typed the same way. Kept minimal/
+// structural (only `user` is read) so unit tests can pass lightweight stubs.
+type AiRequest = { user?: unknown };
+
+// Drizzle Postgres handle, as produced by getPostgresDb().
+type PostgresDb = ReturnType<typeof getPostgresDb>;
 
 // Heterogeneous Mongoose lean/hydrated student document (populated reference
 // unions / FlattenMaps subdocuments) whose runtime shape does not
@@ -299,8 +301,7 @@ const classifySignals = async ({
 // Build the compact message list (server-side, with id) — text-bearing only,
 // capped count + length, oldest-first. The LLM gets a projection with a 1-based
 // index instead of the id; the server maps the index back to id + timestamp.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const buildScanMessages = (rawMessages: Record<string, any>[] = []) =>
+const buildScanMessages = (rawMessages: Record<string, unknown>[] = []) =>
   (rawMessages || [])
     .map((raw) => normalizers.normalizeMessage(raw))
     .filter((message) => message.text)
@@ -338,7 +339,7 @@ const withSourceRefs = (
 //   date floor, so a student who has not been contacted in months still gets
 //   scanned over their most recent history instead of coming back empty.
 const scanStudent = async (
-  student: any,
+  student: LeanStudent,
   priorRow: StudentCommunicationSignal | null | undefined
 ) => {
   const studentId = toIdString(student._id || student.id);
@@ -403,7 +404,7 @@ const scanStudent = async (
 };
 
 const loadPriorRow = async (
-  postgres: any,
+  postgres: PostgresDb,
   studentId: string
 ): Promise<StudentCommunicationSignal | null> => {
   const rows = await postgres
@@ -414,7 +415,10 @@ const loadPriorRow = async (
   return rows[0] || null;
 };
 
-const upsertSignalRow = (postgres: any, row: NewStudentCommunicationSignal) =>
+const upsertSignalRow = (
+  postgres: PostgresDb,
+  row: NewStudentCommunicationSignal
+) =>
   postgres
     .insert(studentCommunicationSignals)
     .values(row)
@@ -509,11 +513,17 @@ const scanCommunicationSignals = async () => {
   const latestRows = await CommunicationService.getLatestMessageAtForStudents(
     studentObjectIds
   );
-  (latestRows || []).forEach((rowItem: any) => {
-    const id = toIdString(rowItem._id ?? rowItem.studentId);
-    const at = rowItem.latestAt ? new Date(rowItem.latestAt) : null;
-    if (id && at && !Number.isNaN(at.getTime())) latestById.set(id, at);
-  });
+  (latestRows || []).forEach(
+    (rowItem: {
+      _id?: unknown;
+      studentId?: unknown;
+      latestAt?: Date | string | number | null;
+    }) => {
+      const id = toIdString(rowItem._id ?? rowItem.studentId);
+      const at = rowItem.latestAt ? new Date(rowItem.latestAt) : null;
+      if (id && at && !Number.isNaN(at.getTime())) latestById.set(id, at);
+    }
+  );
 
   // Existing ledger rows for these students.
   const priorRows = await postgres

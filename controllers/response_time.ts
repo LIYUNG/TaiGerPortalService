@@ -4,6 +4,27 @@ import { IResponseTime, IStudent, IUser } from '@taiger-common/model';
 import ResponseTimeService from '../services/responseTimes';
 import { asyncHandler } from '../middlewares/error-handler';
 
+// The response-time report is accumulated into a per-user lookup. Each user entry
+// holds a `UserProfile` plus one bucket per formatted file-type. `AvgResponseTime`
+// starts as an array of samples and is later collapsed to a single average (or
+// null), hence the union.
+interface LookupUserProfile {
+  firstname: unknown;
+  lastname: unknown;
+  role: unknown;
+  agents: unknown;
+  editors: unknown;
+}
+interface LookupFileStats {
+  AvgResponseTime: number[] | number | null;
+  ResponseTimeId: [unknown, unknown][];
+}
+interface LookupEntry {
+  UserProfile: LookupUserProfile;
+  [fileType: string]: LookupFileStats | LookupUserProfile;
+}
+type LookupTable = Record<string, LookupEntry>;
+
 // Plain (non-Express) helpers. The previously-passed filter object was ignored
 // at runtime (the DAO hard-codes its own filter), so dropping it is
 // behaviour-preserving. See FLAGS in the migration report.
@@ -82,8 +103,7 @@ const GetFormattedFileType = (fileType: string) => {
 };
 
 const GernerateLookupTable = (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  Lookup: Record<string, any>,
+  Lookup: LookupTable,
   user: IStudent,
   task: IResponseTime
 ) => {
@@ -102,28 +122,28 @@ const GernerateLookupTable = (
         Lookup[userId]['UserProfile'].editors = user.editors;
       }
     }
-    Lookup[userId][FormattedFileType].AvgResponseTime.push(task.intervalAvg);
+    const fileStats = Lookup[userId][FormattedFileType] as LookupFileStats;
+    (fileStats.AvgResponseTime as number[]).push(task.intervalAvg);
     const ThreadIdOrStudentId = task.thread_id || task.student_id;
-    Lookup[userId][FormattedFileType].ResponseTimeId.push([
-      ThreadIdOrStudentId,
-      task.intervalAvg
-    ]);
+    fileStats.ResponseTimeId.push([ThreadIdOrStudentId, task.intervalAvg]);
   }
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const CalculateAvgReponseTimeinLookup = (Lookup: Record<string, any>) => {
+const CalculateAvgReponseTimeinLookup = (Lookup: LookupTable) => {
   //calculate the average response time
   for (const user in Lookup) {
     for (const attribute in Lookup[user]) {
       if (attribute !== 'UserProfile') {
-        const entry = Lookup[user][attribute];
+        const entry = Lookup[user][attribute] as LookupFileStats;
         if (entry.ResponseTimeId.length > 0) {
           const averageResponseTime =
-            entry.AvgResponseTime / entry.ResponseTimeId.length;
-          Lookup[user][attribute].AvgResponseTime = averageResponseTime;
+            // AvgResponseTime still holds the sample array at this point (the
+            // original code divides the array itself — behaviour preserved).
+            (entry.AvgResponseTime as unknown as number) /
+            entry.ResponseTimeId.length;
+          entry.AvgResponseTime = averageResponseTime;
         } else {
-          Lookup[user][attribute].AvgResponseTime = null;
+          entry.AvgResponseTime = null;
         }
       }
     }
@@ -131,8 +151,7 @@ const CalculateAvgReponseTimeinLookup = (Lookup: Record<string, any>) => {
 };
 
 const GenerateResponseTimeByTaigerUser = asyncHandler(async () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const Lookup: Record<string, any> = {};
+  const Lookup: LookupTable = {};
 
   const ResponseTimeForCommunication =
     (await GetResponseTimeForCommunication()) as unknown as IResponseTime[];
@@ -171,8 +190,7 @@ const GenerateResponseTimeByTaigerUser = asyncHandler(async () => {
 
 // TODO: deprecated
 const GenerateResponseTimeByStudent = asyncHandler(async () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const Lookup: Record<string, any> = {};
+  const Lookup: LookupTable = {};
 
   const ResponseTimeForCommunication =
     (await GetResponseTimeForCommunication()) as unknown as IResponseTime[];

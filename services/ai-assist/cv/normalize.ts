@@ -12,8 +12,7 @@ import {
   emptyCVDraft
 } from './types';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Loose = Record<string, any>;
+type Loose = Record<string, unknown>;
 
 const str = (v: unknown): string => {
   if (v === null || v === undefined) {
@@ -62,7 +61,9 @@ const education = (raw: Loose): CVEducation => ({
   minor: str(raw.minor),
   gpa: str(raw.gpa),
   gsat: str(raw.gsat),
-  courses: Array.isArray(raw.courses) ? strList(raw.courses).join(', ') : str(raw.courses),
+  courses: Array.isArray(raw.courses)
+    ? strList(raw.courses).join(', ')
+    : str(raw.courses),
   specialActivities: Array.isArray(raw.specialActivities)
     ? strList(raw.specialActivities).join(', ')
     : str(raw.specialActivities)
@@ -100,12 +101,16 @@ const stripFence = (text: string): string => {
   return (fenced ? fenced[1] : text).trim();
 };
 
-export const parseCVDraftJson = (text: string): Loose => {
+// The parsed value is untyped model JSON, read structurally by normalizeCVDraft
+// (and unit tests) without narrowing, so its field values stay `any` here.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const parseCVDraftJson = (text: string): Record<string, any> => {
   const cleaned = stripFence(text || '');
   // Fall back to the first {...} block if there is leading/trailing prose.
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
-  const slice = start >= 0 && end > start ? cleaned.slice(start, end + 1) : cleaned;
+  const slice =
+    start >= 0 && end > start ? cleaned.slice(start, end + 1) : cleaned;
   return JSON.parse(slice);
 };
 

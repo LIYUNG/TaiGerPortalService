@@ -18,10 +18,16 @@ import logger from '../logger';
 
 const { htmlContent } = EmailTemplate;
 
+export interface Recipient {
+  firstname: string;
+  lastname: string;
+  address: string;
+}
+
 // SES API v2 transport (nodemailer 9+). v2 `SendEmail` (raw content) allows ~40
 // MB messages vs v1 `SendRawEmail`'s 10 MB cap — required for forwarding
 // document bundles. All emails go through this transport in production.
-const transporter = isProd()
+export const transporter = isProd()
   ? createTransport({
       SES: { sesClient: sesv2Client, SendEmailCommand }
     })
@@ -37,9 +43,9 @@ const transporter = isProd()
       }
     });
 
-const sendEmail = isTest()
+export const sendEmail = isTest()
   ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (_to: any, _subject: string, _message: string) => {}
+    (_to: Recipient, _subject: string, _message: string) => {}
   : async (
       // `to` is a recipient as accepted by nodemailer: an email string, a list
       // of them, or a user-like object ({ firstname, lastname, address/email }).
@@ -71,17 +77,13 @@ const sendEmail = isTest()
 // arrays of already-validated email strings; `attachments` are nodemailer
 // `{ filename, content: Buffer }` entries. The no-reply mailbox is always
 // bcc'd to keep an audit copy (mirrors `sendEmail`).
-const sendEmailWithAttachments = isTest()
+export const sendEmailWithAttachments = isTest()
   ? async (_args: {
-      // `to`/`cc`/`bcc` are recipients as accepted by nodemailer (already-
-      // validated email strings or arrays of them). Kept loose to match
-      // nodemailer's recipient typing and the resolver's possibly-empty entries.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      to: any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      cc?: any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      bcc?: any;
+      // `to`/`cc`/`bcc` are the caller-resolved, already-validated recipient
+      // email strings (see forwardStudentDocuments -> resolveStaffEmails).
+      to: string[];
+      cc?: string[];
+      bcc?: string[];
       subject: string;
       message: string;
       attachments: { filename: string; content: Buffer }[];
@@ -94,15 +96,11 @@ const sendEmailWithAttachments = isTest()
       message,
       attachments
     }: {
-      // `to`/`cc`/`bcc` are recipients as accepted by nodemailer (already-
-      // validated email strings or arrays of them). Kept loose to match
-      // nodemailer's recipient typing and the resolver's possibly-empty entries.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      to: any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      cc?: any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      bcc?: any;
+      // `to`/`cc`/`bcc` are the caller-resolved, already-validated recipient
+      // email strings (see forwardStudentDocuments -> resolveStaffEmails).
+      to: string[];
+      cc?: string[];
+      bcc?: string[];
       subject: string;
       message: string;
       attachments: { filename: string; content: Buffer }[];
@@ -119,5 +117,3 @@ const sendEmailWithAttachments = isTest()
 
       return limiter.schedule(() => transporter.sendMail(mail));
     };
-
-export = { transporter, sendEmail, sendEmailWithAttachments };

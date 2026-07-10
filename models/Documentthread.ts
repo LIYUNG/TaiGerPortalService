@@ -1,5 +1,5 @@
 import { documentThreadsSchema } from '@taiger-common/model';
-import { model } from 'mongoose';
+import { model, SchemaDefinition } from 'mongoose';
 
 // Thread-scoped free-text context for the CV draft (student + editor editable,
 // persisted, but generation stays internal-only). Added via schema.add() to
@@ -11,8 +11,7 @@ documentThreadsSchema.add({
   // Persisted AI CV draft (CVDraftResult: draft + validation + meta) so it
   // survives a page refresh until the editor renders/discards it.
   cv_draft: { type: Object }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-} as any);
+} as SchemaDefinition);
 
 documentThreadsSchema.index(
   { student_id: 1, application_id: 1, file_type: 1 },

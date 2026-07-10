@@ -2,6 +2,13 @@ import mongoose, { FilterQuery, UpdateQuery } from 'mongoose';
 import { IInterview } from '@taiger-common/model';
 import { Interview } from '../models';
 
+// `query` is intentionally `any`: these builders return the query so the caller
+// can `.lean()` it, and the DAO methods below deliberately expose that loose
+// result to (still-untyped) controllers. Typing it as a concrete mongoose
+// `Query` would propagate a strict `FlattenMaps` lean type into those callers
+// and break them — so the loose builder seam stays `any` until the controllers
+// are typed.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const withPopulate = (query: any) =>
   query
     .populate('trainer_id', 'firstname lastname email pictureUrl')
@@ -9,7 +16,8 @@ const withPopulate = (query: any) =>
     .lean();
 
 // Apply a list of populate argument tuples (e.g. [['program_id', 'school']]).
-const applyPopulates = (query: any, populates: any[] = []) =>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const applyPopulates = (query: any, populates: unknown[][] = []) =>
   populates.reduce((populated, args) => populated.populate(...args), query);
 
 // ── Server-side pagination helpers ───────────────────────────────────────────
@@ -248,6 +256,15 @@ const PAGINATED_POPULATES = [
   ['event_id']
 ];
 
+// Slim projected row returned by the paginated aggregation's `rows` facet.
+interface PaginatedInterviewAggRow {
+  _id: mongoose.Types.ObjectId;
+  status: string;
+  isDuplicate: boolean;
+  surveySubmitted: boolean;
+  agents?: unknown[];
+}
+
 /**
  * InterviewDAO — data access for the Interview model (central default-connection
  * model). Plain params, no req.
@@ -270,17 +287,20 @@ const InterviewDAO = {
     return Interview.findById(id);
   },
 
-  async findInterviews(filter: FilterQuery<IInterview>, populates: any[] = []) {
+  async findInterviews(
+    filter: FilterQuery<IInterview>,
+    populates: unknown[][] = []
+  ) {
     return applyPopulates(Interview.find(filter), populates).lean();
   },
 
-  async findInterviewByIdPopulated(id: string, populates: any[] = []) {
+  async findInterviewByIdPopulated(id: string, populates: unknown[][] = []) {
     return applyPopulates(Interview.findById(id), populates).lean();
   },
 
   async findOneInterview(
     filter: FilterQuery<IInterview>,
-    populates: any[] = []
+    populates: unknown[][] = []
   ) {
     return applyPopulates(Interview.findOne(filter), populates).lean();
   },
@@ -301,7 +321,7 @@ const InterviewDAO = {
   async updateInterviewByIdPopulated(
     id: string,
     payload: UpdateQuery<IInterview>,
-    populates: any[] = []
+    populates: unknown[][] = []
   ) {
     return applyPopulates(
       Interview.findByIdAndUpdate(id, payload, { new: true }),
@@ -312,7 +332,7 @@ const InterviewDAO = {
   async upsertInterviewPopulated(
     filter: FilterQuery<IInterview>,
     payload: UpdateQuery<IInterview>,
-    populates: any[] = []
+    populates: unknown[][] = []
   ) {
     return applyPopulates(
       Interview.findOneAndUpdate(filter, payload, { upsert: true }),
@@ -597,9 +617,10 @@ const InterviewDAO = {
       return { interviews: [], total, page, limit };
     }
 
-    const ids = rows.map((row: any) => row._id);
+    const typedRows = rows as PaginatedInterviewAggRow[];
+    const ids = typedRows.map((row) => row._id);
     const computedById = new Map<string, Record<string, unknown>>(
-      rows.map((row: any): [string, Record<string, unknown>] => [
+      typedRows.map((row): [string, Record<string, unknown>] => [
         row._id.toString(),
         {
           status: row.status,
@@ -610,26 +631,25 @@ const InterviewDAO = {
       ])
     );
 
-    const docs = await applyPopulates(
+    const docs = (await applyPopulates(
       Interview.find({ _id: { $in: ids } }),
       PAGINATED_POPULATES
-    ).lean();
+    ).lean()) as Array<
+      Record<string, unknown> & { _id: mongoose.Types.ObjectId }
+    >;
 
     // Re-attach the computed columns and restore the aggregation sort order
     // ($in does not preserve it).
     const orderMap = new Map<string, number>(
-      ids.map((id: any, index: number): [string, number] => [
-        id.toString(),
-        index
-      ])
+      ids.map((id, index): [string, number] => [id.toString(), index])
     );
     const interviews = docs
-      .map((doc: any) => ({
+      .map((doc) => ({
         ...doc,
         ...(computedById.get(doc._id.toString()) ?? {})
       }))
       .sort(
-        (a: any, b: any) =>
+        (a, b) =>
           orderMap.get(a._id.toString())! - orderMap.get(b._id.toString())!
       );
 

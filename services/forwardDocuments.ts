@@ -62,7 +62,9 @@ const resolveStaffEmails = async (ids: string[], label: string) => {
   if (nonStaff) {
     throw new ErrorResponse(403, `${label} recipients must be TaiGer staff.`);
   }
-  return users.map((user) => user.email);
+  // `email` is optional on IUser, but every resolved user here is a validated
+  // staff member (existence + role checked above) whose email is always set.
+  return users.map((user) => user.email as string);
 };
 
 // Build a nodemailer attachment from a stored document's bytes. S3 keys may

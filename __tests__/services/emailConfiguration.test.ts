@@ -26,10 +26,11 @@ jest.mock('../../services/logger', () => ({
   info: jest.fn()
 }));
 
-import EmailConfiguration from '../../services/email/configuration';
+import {
+  sendEmail,
+  sendEmailWithAttachments
+} from '../../services/email/configuration';
 import { taigerNotReplyGmail } from '../../constants/email';
-
-const { sendEmail, sendEmailWithAttachments } = EmailConfiguration;
 
 beforeEach(() => {
   jest.clearAllMocks();

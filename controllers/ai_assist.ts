@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { asc, desc, eq, and, isNotNull } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type * as postgresSchema from '../drizzle/schema/schema';
+import type { AuthenticatedUser } from '../types/express';
 import { ErrorResponse } from '../common/errors';
 // These modules use `export =` (CommonJS), so named ESM imports trigger TS2497.
 // Import the default export and destructure the members instead.
@@ -44,11 +47,21 @@ const MAX_RECENT_UNIQUE_STUDENTS = 25;
 const STUDENT_PICKER_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count';
 
-// req.user is attached by auth middleware as a Mongoose user doc. The ambient
-// Express.User type (from @types/passport) is an empty interface, so access the
-// runtime fields through `any` (behavior unchanged).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const currentUserId = (req: Request) => (req.user as any)?._id?.toString();
+// Drizzle handle types: the app db (with schema) and the transaction object
+// passed to `db.transaction(cb)`. Helpers that run inside or outside a
+// transaction accept either via the union.
+type PostgresDatabase = NodePgDatabase<typeof postgresSchema>;
+type PostgresTransaction = Parameters<
+  Parameters<PostgresDatabase['transaction']>[0]
+>[0];
+type PostgresExecutor = PostgresDatabase | PostgresTransaction;
+
+// req.user is the authenticated Mongoose user doc attached by the auth
+// middleware. When `req` is annotated as the bare express `Request`, the
+// ambient passport `Express.User` shadows the app augmentation, so read the
+// runtime fields through the app-level AuthenticatedUser type.
+const currentUserId = (req: Request): string =>
+  (req.user as AuthenticatedUser)._id.toString();
 
 // Local structural shapes for the loosely-typed payloads threaded through the
 // title/auto-title helpers. They intentionally mirror only the fields these
@@ -130,22 +143,36 @@ const SKILL_TITLE_LABELS = Object.freeze({
 
 const lower = (value: unknown) => String(value || '').toLowerCase();
 
-// Error shapes from OpenAI / thrown values are genuinely untyped here.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const extractOpenAiErrorMetadata = (error: any) => ({
-  status:
-    Number(error?.status) ||
-    Number(error?.statusCode) ||
-    Number(error?.error?.status) ||
-    null,
-  code: lower(
-    error?.code || error?.type || error?.error?.code || error?.error?.type
-  ),
-  message: error?.error?.message || error?.message || ''
-});
+// Loosely-typed shape of the error objects thrown by OpenAI / the SDK. Every
+// field is optional because thrown values are not guaranteed to conform.
+interface OpenAiErrorLike {
+  status?: number | string;
+  statusCode?: number | string;
+  code?: string;
+  type?: string;
+  message?: string;
+  error?: {
+    status?: number | string;
+    code?: string;
+    type?: string;
+    message?: string;
+  };
+}
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapAiAssistExecutionError = (error: any) => {
+const extractOpenAiErrorMetadata = (error: unknown) => {
+  const err = (error ?? {}) as OpenAiErrorLike;
+  return {
+    status:
+      Number(err.status) ||
+      Number(err.statusCode) ||
+      Number(err.error?.status) ||
+      null,
+    code: lower(err.code || err.type || err.error?.code || err.error?.type),
+    message: err.error?.message || err.message || ''
+  };
+};
+
+const mapAiAssistExecutionError = (error: unknown) => {
   if (error instanceof ErrorResponse) {
     return null;
   }
@@ -289,7 +316,9 @@ const buildRuleBasedTitle = ({
   return plainMessage || DEFAULT_TITLE;
 };
 
-const shouldAllowAutoTitleUpdate = (conversation: ConversationShape = {}) => {
+const shouldAllowAutoTitleUpdate = (
+  conversation: ConversationShape = {}
+): boolean => {
   if (conversation.titleUpdatedByUser === true) {
     return false;
   }
@@ -377,9 +406,8 @@ const writeSse = (res: Response, event: string, payload: unknown) => {
 };
 
 const requireActiveConversationOwner = async (
-  // Drizzle db/transaction handle — generic type omitted (passed a db or a tx).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  postgres: any,
+  // Drizzle db or transaction handle (either may be passed).
+  postgres: PostgresExecutor,
   conversationId: string,
   userId: string
 ) => {
@@ -403,8 +431,7 @@ const requireActiveConversationOwner = async (
 };
 
 const updateOwnedActiveConversation = async (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  postgres: any,
+  postgres: PostgresExecutor,
   conversationId: string,
   userId: string,
   values: ConversationUpdateValues
@@ -546,10 +573,11 @@ const queueAiTitleRefinement = ({
 };
 
 const insertConversationRecord = async (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  db: any,
+  db: PostgresExecutor,
   req: Request,
-  extraValues: Record<string, unknown> = {}
+  extraValues: Partial<
+    typeof postgresSchema.aiAssistConversations.$inferInsert
+  > = {}
 ) => {
   const providedTitle =
     typeof req.body?.title === 'string' ? req.body.title.trim() : '';
@@ -559,8 +587,7 @@ const insertConversationRecord = async (
     .insert(aiAssistConversations)
     .values({
       ownerUserId: currentUserId(req),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ownerRole: (req.user as any).role,
+      ownerRole: (req.user as AuthenticatedUser).role as string,
       title: hasManualTitle ? providedTitle : DEFAULT_TITLE,
       titleAutoGenerated: !hasManualTitle,
       titleUpdatedByUser: hasManualTitle,
@@ -571,10 +598,11 @@ const insertConversationRecord = async (
 };
 
 const createConversationRecord = async (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  postgres: any,
+  postgres: PostgresExecutor,
   req: Request,
-  extraValues: Record<string, unknown> = {}
+  extraValues: Partial<
+    typeof postgresSchema.aiAssistConversations.$inferInsert
+  > = {}
 ) => {
   const ownerUserId = currentUserId(req);
 
@@ -684,8 +712,7 @@ const listRecentStudents = asyncHandler(async (req, res) => {
 
   const studentsById = new Map(
     students.map((student) => [
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      student._id?.toString?.() || (student as any).id,
+      student._id?.toString?.() || (student as { id?: string }).id,
       student
     ])
   );
@@ -978,8 +1005,7 @@ const sendMessage = asyncHandler(async (req, res) => {
   const postgres = getPostgresDb();
   let result;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    result = await postgres.transaction(async (tx: any) => {
+    result = await postgres.transaction(async (tx) => {
       const conversation = await requireActiveConversationOwner(
         tx,
         conversationId,
@@ -1169,8 +1195,7 @@ const sendFirstMessage = asyncHandler(async (req, res) => {
   const postgres = getPostgresDb();
   let result;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    result = await postgres.transaction(async (tx: any) => {
+    result = await postgres.transaction(async (tx) => {
       const [conversation] = await createConversationRecord(
         tx,
         req,
@@ -1258,13 +1283,17 @@ const generateReplyDraft = asyncHandler(async (req, res) => {
       studentId,
       5
     );
-    const latestStudentMessage = (recent || []).find(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (entry: any) => entry?.user_id?.role === Role.Student
-    );
+    const latestStudentMessage = (recent || []).find((entry) => {
+      const author = entry?.user_id;
+      return (
+        !!author &&
+        typeof author === 'object' &&
+        'role' in author &&
+        author.role === Role.Student
+      );
+    });
     sensitive = detectSensitivity(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      extractPlainText((latestStudentMessage as any)?.message)
+      extractPlainText(latestStudentMessage?.message)
     ).sensitive;
   } catch (sensitivityError) {
     logger.warn(
@@ -1328,8 +1357,7 @@ const generateReplyDraft = asyncHandler(async (req, res) => {
     // legacy chat assistant). Best-effort: a quota bookkeeping failure must not
     // fail an already-streamed reply.
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await PermissionService.decrementTaigerAiQuota((req.user as any)._id);
+      await PermissionService.decrementTaigerAiQuota(currentUserId(req));
     } catch (quotaError) {
       logger.warn(
         `[AI Assist] reply-draft quota decrement skipped: ${

@@ -3,8 +3,19 @@ import crypto from 'crypto';
 import generator from 'generate-password';
 import { Role, is_TaiGer_Admin } from '@taiger-common/core';
 import mongoose from 'mongoose';
+import type {
+  GetUsersCountResponse,
+  AddUserResponse,
+  GetUsersResponse,
+  GetUsersPaginatedResponse,
+  GetUserResponse,
+  UpdateUserResponse,
+  UpdateArchivUserResponse,
+  DeleteUserResponse,
+  GetUsersOverviewResponse
+} from '@taiger-common/model';
 import { ErrorResponse } from '../common/errors';
-import { asyncHandler } from '../middlewares/error-handler';
+import { asyncRoute } from '../middlewares/error-handler';
 import {
   updateNotificationEmail,
   sendInvitationEmail
@@ -21,6 +32,20 @@ import { emptyS3Directory } from '../utils/modelHelper/versionControl';
 import UserService from '../services/users';
 import TokenService from '../services/tokens';
 import UserQueryBuilder from '../builders/UserQueryBuilder';
+import type { AuthedRequest } from '../types/express';
+
+// `req.audit` is attached at runtime for the downstream `auditLog` middleware
+// (routes/users.ts POST /). It is not part of the shared Express.Request
+// augmentation, so narrow it locally where this handler writes it.
+type RequestWithAudit = AuthedRequest & {
+  audit?: {
+    performedBy: unknown;
+    targetUserId: unknown;
+    action: string;
+    field: string;
+    changes: { before: unknown; after: unknown };
+  };
+};
 
 const generateRandomToken = () => crypto.randomBytes(32).toString('hex');
 const hashToken = (token: string) =>
@@ -54,12 +79,12 @@ const hashToken = (token: string) =>
 //   }
 // });
 
-const getUsersCount = asyncHandler(async (req, res) => {
+const getUsersCount = asyncRoute<GetUsersCountResponse>(async (req, res) => {
   const countData = await UserService.getUserRoleCounts();
   res.status(200).send({ success: true, data: countData });
 });
 
-const addUser = asyncHandler(async (req, res, next) => {
+const addUser = asyncRoute<AddUserResponse>(async (req, res, next) => {
   await fieldsValidation(
     checkUserFirstname,
     checkUserLastname,
@@ -115,14 +140,18 @@ const addUser = asyncHandler(async (req, res, next) => {
 
   const users = await UserService.getUsers({});
   // TODO: to be improved, only return the new user. Need to check dependency in frontend
-  res.status(201).send({ success: true, data: users, newUser: newUser._id });
+  res.status(201).send({
+    success: true,
+    data: users as unknown as AddUserResponse['data'],
+    newUser: newUser._id as unknown as AddUserResponse['newUser']
+  });
 
   await sendInvitationEmail(
     { firstname, lastname, address: email },
     { token: activationToken, password }
   );
 
-  req.audit = {
+  (req as RequestWithAudit).audit = {
     performedBy: user._id,
     targetUserId: newUser._id, // Change this if you have a different target user ID
     action: 'create', // Action performed
@@ -144,72 +173,87 @@ const addUser = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const getUsers = asyncHandler(async (req, res) => {
-  const {
-    agents,
-    editors,
-    archiv,
-    role,
-    page,
-    limit,
-    search,
-    sortBy,
-    sortOrder
-  } = req.query;
-
-  const builder = new UserQueryBuilder()
-    .withEditors(editors ? new mongoose.Types.ObjectId(editors) : null)
-    .withAgents(agents ? new mongoose.Types.ObjectId(agents) : null)
-    .withArchiv(archiv)
-    .withRole(role);
-
-  const { filter } = builder.build();
-  const isPaginated = page !== undefined || limit !== undefined;
-
-  if (isPaginated) {
-    const paginationQuery = UserService.parseUsersPaginationQuery({
+const getUsers = asyncRoute<GetUsersResponse | GetUsersPaginatedResponse>(
+  async (req, res) => {
+    const {
+      agents,
+      editors,
+      archiv,
+      role,
       page,
       limit,
       search,
       sortBy,
       sortOrder
-    });
+    } = req.query as {
+      agents?: string;
+      editors?: string;
+      archiv?: string;
+      role?: string;
+      page?: string;
+      limit?: string;
+      search?: string;
+      sortBy?: string;
+      sortOrder?: string;
+    };
 
-    const {
-      users,
-      total,
-      page: currentPage,
-      limit: pageSize
-    } = await UserService.getUsersPaginated({
-      filter,
-      ...paginationQuery
-    } as Parameters<typeof UserService.getUsersPaginated>[0]);
+    const builder = new UserQueryBuilder()
+      .withEditors(editors ? new mongoose.Types.ObjectId(editors) : null)
+      .withAgents(agents ? new mongoose.Types.ObjectId(agents) : null)
+      .withArchiv(archiv)
+      .withRole(role);
 
-    return res.status(200).send({
+    const { filter } = builder.build();
+    const isPaginated = page !== undefined || limit !== undefined;
+
+    if (isPaginated) {
+      const paginationQuery = UserService.parseUsersPaginationQuery({
+        page,
+        limit,
+        search,
+        sortBy,
+        sortOrder
+      });
+
+      const {
+        users,
+        total,
+        page: currentPage,
+        limit: pageSize
+      } = await UserService.getUsersPaginated({
+        filter,
+        ...paginationQuery
+      } as Parameters<typeof UserService.getUsersPaginated>[0]);
+
+      return res.status(200).send({
+        success: true,
+        data: users as unknown as GetUsersPaginatedResponse['data'],
+        total,
+        page: currentPage,
+        limit: pageSize
+      });
+    }
+
+    const users = await UserService.getUsers(filter);
+    res.status(200).send({
       success: true,
-      data: users,
-      total,
-      page: currentPage,
-      limit: pageSize
+      data: users as unknown as GetUsersResponse['data']
     });
   }
+);
 
-  const users = await UserService.getUsers(filter);
-  res.status(200).send({ success: true, data: users });
-});
-
-const getUser = asyncHandler(async (req, res) => {
-  const { user_id } = req.params;
+const getUser = asyncRoute<GetUserResponse>(async (req, res) => {
+  const { user_id } = req.params as { user_id: string };
   const user = await UserService.getUserById(user_id);
 
-  res.status(200).send({ success: true, data: user });
+  res
+    .status(200)
+    .send({ success: true, data: user as unknown as GetUserResponse['data'] });
 });
 
 // (O) TODO email notify user
-const updateUser = asyncHandler(async (req, res) => {
-  const {
-    params: { user_id }
-  } = req;
+const updateUser = asyncRoute<UpdateUserResponse>(async (req, res) => {
+  const { user_id } = req.params as { user_id: string };
   const fields = _.pick(req.body, ['email', 'role']);
   // TODO: check if email in use already and if role is valid
   if (is_TaiGer_Admin(fields)) {
@@ -237,7 +281,10 @@ const updateUser = asyncHandler(async (req, res) => {
     new: true
   });
   const updated_user = await UserService.getUserById(user_id);
-  res.status(200).send({ success: true, data: new_user });
+  res.status(200).send({
+    success: true,
+    data: new_user as unknown as UpdateUserResponse['data']
+  });
 
   if (!updated_user) {
     return;
@@ -254,22 +301,26 @@ const updateUser = asyncHandler(async (req, res) => {
   );
 });
 
-const updateUserArchivStatus = asyncHandler(async (req, res) => {
-  const {
-    params: { user_id },
-    body: { isArchived }
-  } = req;
+const updateUserArchivStatus = asyncRoute<UpdateArchivUserResponse>(
+  async (req, res) => {
+    const { user_id } = req.params as { user_id: string };
+    const { isArchived } = req.body;
 
-  // TODO: data validation for isArchived and user_id
-  const _updated_user = await UserService.updateUserArchiv(user_id, isArchived);
-  const users = await UserService.getUsers({});
-  res.status(200).send({ success: true, data: users });
-});
+    // TODO: data validation for isArchived and user_id
+    const _updated_user = await UserService.updateUserArchiv(
+      user_id,
+      isArchived
+    );
+    const users = await UserService.getUsers({});
+    res.status(200).send({
+      success: true,
+      data: users as unknown as UpdateArchivUserResponse['data']
+    });
+  }
+);
 
-const deleteUser = asyncHandler(async (req, res) => {
-  const {
-    params: { user_id }
-  } = req;
+const deleteUser = asyncRoute<DeleteUserResponse>(async (req, res) => {
+  const { user_id } = req.params as { user_id: string };
   const user_deleting = await UserService.getUserById(user_id);
 
   if (!user_deleting) {
@@ -329,30 +380,35 @@ const deleteUser = asyncHandler(async (req, res) => {
  * @access Protected - Admin, Manager, Agent, Editor
  * @returns {Object} Overview object with aggregated user/student statistics
  */
-const getUsersOverview = asyncHandler(async (req, res) => {
-  // Run multiple aggregations in parallel for better performance
-  const {
-    byTargetDegree,
-    byApplicationSemester,
-    byTargetField,
-    byProgramLanguage,
-    byUniversityProgram
-  } = await UserService.getUsersOverview();
+const getUsersOverview = asyncRoute<GetUsersOverviewResponse>(
+  async (req, res) => {
+    // Run multiple aggregations in parallel for better performance
+    const {
+      byTargetDegree,
+      byApplicationSemester,
+      byTargetField,
+      byProgramLanguage,
+      byUniversityProgram
+    } = await UserService.getUsersOverview();
 
-  const overview = {
-    byTargetDegree: byTargetDegree.filter((item) => item.degree),
-    byApplicationSemester: byApplicationSemester.filter(
-      (item) => item.semester
-    ),
-    byTargetField: byTargetField.filter((item) => item.field),
-    byProgramLanguage: byProgramLanguage.filter((item) => item.language),
-    byUniversity: byUniversityProgram.filter((item) => item.university),
-    generatedAt: new Date()
-  };
+    const overview = {
+      byTargetDegree: byTargetDegree.filter((item) => item.degree),
+      byApplicationSemester: byApplicationSemester.filter(
+        (item) => item.semester
+      ),
+      byTargetField: byTargetField.filter((item) => item.field),
+      byProgramLanguage: byProgramLanguage.filter((item) => item.language),
+      byUniversity: byUniversityProgram.filter((item) => item.university),
+      generatedAt: new Date()
+    };
 
-  logger.info('Users overview generated successfully');
-  return res.send({ success: true, data: overview });
-});
+    logger.info('Users overview generated successfully');
+    return res.send({
+      success: true,
+      data: overview as unknown as GetUsersOverviewResponse['data']
+    });
+  }
+);
 
 export = {
   // UserS3GarbageCollector,

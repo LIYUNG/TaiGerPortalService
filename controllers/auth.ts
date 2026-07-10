@@ -31,6 +31,7 @@ import TokenService from '../services/tokens';
 import { fetchUserFromIdToken } from '../utils/helper';
 import type { Request, Response } from 'express';
 import type { SignOptions } from 'jsonwebtoken';
+import type { AuthenticatedUser } from '../types/express';
 
 // Only the user's id is read here; accept any persisted user shape (DB docs,
 // req.user, IUser) without over-constraining to a single model interface.
@@ -72,8 +73,7 @@ const sendPasswordResetEmail = sendPasswordResetEmailRaw as unknown as (
 ) => Promise<unknown>;
 const sendAccountActivationConfirmationEmail =
   sendAccountActivationConfirmationEmailRaw as unknown as (
-    recipient: EmailRecipient,
-    msg: Record<string, unknown>
+    recipient: EmailRecipient
   ) => Promise<unknown>;
 
 const signup = asyncHandler(async (req, res) => {
@@ -121,9 +121,9 @@ const signup = asyncHandler(async (req, res) => {
 });
 
 const login = (req: Request, res: Response) => {
-  // req.user is attached by the auth middleware; kept loose (see types/express.d.ts).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const user = req.user as any;
+  // req.user is attached by the auth middleware; @types/passport widens the
+  // Express.Request['user'] augmentation, so re-assert the app principal here.
+  const user = req.user as AuthenticatedUser;
   const token = generateAuthToken(user, req.tenantId as string, JWT_EXPIRE);
   res
     .cookie('x-auth', token, { httpOnly: true, sameSite: 'none', secure: true })
@@ -139,9 +139,9 @@ const logout = (_req: Request, res: Response) => {
 };
 
 const verify = (req: Request, res: Response) => {
-  // req.user is attached by the auth middleware; kept loose (see types/express.d.ts).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const user = req.user as any;
+  // req.user is attached by the auth middleware; @types/passport widens the
+  // Express.Request['user'] augmentation, so re-assert the app principal here.
+  const user = req.user as AuthenticatedUser;
   const token = generateAuthToken(user, req.tenantId as string, JWT_EXPIRE);
   user.attributes = [];
   res
@@ -190,14 +190,11 @@ const activateAccount = asyncHandler(async (req, res) => {
     .json({ success: true });
 
   if (user_updated) {
-    await sendAccountActivationConfirmationEmail(
-      {
-        firstname: user_updated.firstname,
-        lastname: user_updated.lastname,
-        address: user_updated.email
-      },
-      {}
-    );
+    await sendAccountActivationConfirmationEmail({
+      firstname: user_updated.firstname,
+      lastname: user_updated.lastname,
+      address: user_updated.email
+    });
   }
 });
 

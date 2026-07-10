@@ -5,16 +5,21 @@ import type { CreateTokenInput, ITokenDAO, Token } from './token.dao.types';
  * Map a Mongo doc to the persistence-agnostic Token (`_id` -> `id`). The only
  * place Mongo shapes are allowed; everything above sees a plain Token.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toDomain = (doc: any): Token | null => {
+const toDomain = (doc: unknown): Token | null => {
   if (!doc) {
     return null;
   }
+  const d = doc as {
+    _id: unknown;
+    userId: unknown;
+    value: string;
+    createdAt?: Date;
+  };
   return {
-    id: String(doc._id),
-    userId: String(doc.userId),
-    value: doc.value,
-    createdAt: doc.createdAt as Date | undefined
+    id: String(d._id),
+    userId: String(d.userId),
+    value: d.value,
+    createdAt: d.createdAt
   };
 };
 

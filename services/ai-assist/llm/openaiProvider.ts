@@ -62,33 +62,37 @@ const toResponsesTools = (tools: LlmTool[] = []) =>
   }));
 
 // The OpenAI Responses SDK return shape is broad and varies by response kind;
-// these helpers probe it structurally, so the param is left untyped.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getResponseText = (response: any) => {
+// these helpers probe it structurally against the concrete Response type.
+const getResponseText = (response: OpenAI.Responses.Response | undefined) => {
   if (response?.output_text) {
     return response.output_text;
   }
 
   const message = (response?.output || []).find(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (item: any) => item.type === 'message'
+    (item): item is OpenAI.Responses.ResponseOutputMessage =>
+      item.type === 'message'
   );
-  return (
-    (message?.content || [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((part: any) => part.text || part.content || '')
-      .filter(Boolean)
-      .join('\n')
-  );
+  // The runtime content parts are looser than the SDK union (e.g. a bare
+  // `{ content }` with no `type`), so probe both `text` and `content`.
+  const parts = (message?.content || []) as Array<{
+    text?: string;
+    content?: string;
+  }>;
+  return parts
+    .map((part) => part.text || part.content || '')
+    .filter(Boolean)
+    .join('\n');
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getToolCalls = (response: any) =>
+const getToolCalls = (
+  response: OpenAI.Responses.Response | undefined
+): StreamResult['toolCalls'] =>
   (response?.output || [])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((item: any) => item.type === 'function_call')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((item: any) => {
+    .filter(
+      (item): item is OpenAI.Responses.ResponseFunctionToolCall =>
+        item.type === 'function_call'
+    )
+    .map((item) => {
       let input: Record<string, unknown> = {};
       try {
         input = item.arguments ? JSON.parse(item.arguments) : {};

@@ -96,10 +96,11 @@ describe('updateUserPermission', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.send).toHaveBeenCalledWith({ success: true, data: saved });
     // Email built from the populated user_id of the upserted permission.
-    expect(updatePermissionNotificationEmail).toHaveBeenCalledWith(
-      { firstname: 'A', lastname: 'B', address: 'a@b.c' },
-      {}
-    );
+    expect(updatePermissionNotificationEmail).toHaveBeenCalledWith({
+      firstname: 'A',
+      lastname: 'B',
+      address: 'a@b.c'
+    });
   });
 
   it('forwards a service error to next() and does not send the email', async () => {

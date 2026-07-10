@@ -9,7 +9,11 @@ import {
   is_TaiGer_Student,
   isProgramDecided
 } from '@taiger-common/core';
-import type { IUser } from '@taiger-common/model';
+import type {
+  IUser,
+  IUserNotification,
+  IDocumentthread
+} from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
@@ -97,6 +101,31 @@ interface PopulatedProgramRef {
   application_year?: string;
 }
 
+// A thread-reference sub-entry as stored on a student's `generaldocs_threads`
+// array or an application's `doc_modification_thread` array. `doc_thread_id` is
+// polymorphic across reads (a raw ObjectId on some service methods, a populated
+// thread with `_id`/`file_type` on others), so it is described permissively.
+// `save` mirrors the Mongoose subdocument method available on live (non-lean)
+// reads.
+interface PopulatedThreadRef {
+  _id: mongoose.Types.ObjectId | string;
+  file_type?: string;
+  isFinalVersion?: boolean;
+  messages?: PopulatedThreadMessage[];
+}
+
+interface ThreadRefEntry {
+  doc_thread_id: PopulatedThreadRef;
+  latest_message_left_by_id?: string;
+  isFinalVersion?: boolean;
+  updatedAt?: Date;
+  createdAt?: Date;
+  // Mongoose subdocument save; present on live (non-lean) reads. Declared
+  // non-optional so the pre-existing `t?.save()` call type-checks without
+  // altering its runtime semantics.
+  save: () => Promise<unknown>;
+}
+
 interface PopulatedStudent {
   _id: mongoose.Types.ObjectId | string;
   firstname?: string;
@@ -105,14 +134,9 @@ interface PopulatedStudent {
   archiv?: boolean;
   agents: PopulatedUserRef[];
   editors: PopulatedUserRef[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  notification: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  generaldocs_threads: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  applications?: any[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
+  notification: IUserNotification;
+  generaldocs_threads: mongoose.Types.DocumentArray<ThreadRefEntry>;
+  save: () => Promise<unknown>;
 }
 
 interface PopulatedThreadMessageFile {
@@ -129,15 +153,23 @@ interface PopulatedThreadMessage {
   file?: PopulatedThreadMessageFile[];
 }
 
+// A populated application reference as consumed by `getMessages`
+// (`.application_year`). See `PopulatedThread.application_id` for the
+// string-vs-object polymorphism.
+interface PopulatedApplicationRef {
+  _id?: mongoose.Types.ObjectId | string;
+  application_year?: string;
+}
+
 interface PopulatedThread {
   _id: mongoose.Types.ObjectId | string;
   student_id: PopulatedStudent;
   program_id?: PopulatedProgramRef;
-  // `application_id` is polymorphic: it is the raw ObjectId on some reads and a
-  // populated application (with `application_year`) on others, depending on the
-  // service method. Typed loosely to mirror that runtime reality.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  application_id?: any;
+  // `application_id` is polymorphic: it is the raw ObjectId (string) on some
+  // reads and a populated application (with `application_year`) on others,
+  // depending on the service method. Typed as the union to mirror that runtime
+  // reality; call sites narrow with a cast.
+  application_id?: string | PopulatedApplicationRef;
   outsourced_user_id: PopulatedUserRef[];
   flag_by_user_id?: (mongoose.Types.ObjectId | string)[];
   file_type: string;
@@ -145,8 +177,7 @@ interface PopulatedThread {
   isOriginAuthorDeclarationConfirmedByStudent?: boolean;
   messages: PopulatedThreadMessage[];
   updatedAt?: Date;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  save?: () => Promise<any>;
+  save?: () => Promise<unknown>;
 }
 
 interface SurveyInputDoc {
@@ -159,9 +190,9 @@ interface SurveyInputDoc {
 // Notification email payload. Several handlers build a base payload then
 // conditionally attach `school`/`program_name`/`program`/`interview_id`/
 // `message`. Typed permissively so those later assignments stay valid without
-// changing the runtime objects.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EmailPayload = Record<string, any>;
+// changing the runtime objects. Structurally compatible with the email
+// services' `Record<string, unknown>` message-payload parameter.
+type EmailPayload = Record<string, unknown>;
 
 const getActiveThreads = asyncHandler(async (req, res) => {
   const {
@@ -412,8 +443,7 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
     // should add the existing one thread to student generaldocs
     const thread_in_student_generaldoc_existed =
       student.generaldocs_threads.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ({ doc_thread_id }: any) =>
+        ({ doc_thread_id }) =>
           doc_thread_id._id.toString() === doc_thread_existed._id.toString()
       );
     // if thread existed but not in student application thread, then add it.
@@ -436,8 +466,7 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
     file_type: document_category,
     program_id: null,
     updatedAt: new Date()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  } as unknown as Partial<IDocumentthread>);
 
   const temp = student.generaldocs_threads.create({
     doc_thread_id: new_doc_thread,
@@ -764,7 +793,7 @@ const getMessages = asyncHandler(async (req, res) => {
     deadline = CVDeadline_Calculator(applications);
   } else {
     const application = await ApplicationService.getApplicationById(
-      document_thread.application_id
+      document_thread.application_id as string
     );
     deadline = application_deadline_V2_calculator(application);
   }
@@ -779,7 +808,9 @@ const getMessages = asyncHandler(async (req, res) => {
       studentId: { $ne: document_thread.student_id._id.toString() },
       programId: document_thread.program_id?._id.toString(),
       decided: 'O',
-      application_year: document_thread.application_id.application_year
+      application_year: (
+        document_thread.application_id as PopulatedApplicationRef
+      ).application_year
     });
   }
 
@@ -903,9 +934,10 @@ const postMessages = asyncHandler(async (req, res) => {
       ({ programId }) =>
         programId._id.toString() === document_thread2.program_id._id.toString()
     );
-    const doc_thread = application.doc_modification_thread.find(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ({ doc_thread_id }: any) =>
+    const doc_thread = (
+      application.doc_modification_thread as unknown as ThreadRefEntry[]
+    ).find(
+      ({ doc_thread_id }) =>
         doc_thread_id.toString() === document_thread2._id.toString()
     );
     if (doc_thread) {
@@ -918,8 +950,7 @@ const postMessages = asyncHandler(async (req, res) => {
     }
   } else {
     const general_thread = student.generaldocs_threads.find(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ({ doc_thread_id }: any) =>
+      ({ doc_thread_id }) =>
         doc_thread_id.toString() === document_thread2._id.toString()
     );
     if (general_thread) {
@@ -1565,9 +1596,10 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
       throw new ErrorResponse(404, 'Application not found');
     }
 
-    const application_thread = student_application.doc_modification_thread.find(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (thread: any) => thread.doc_thread_id._id.toString() === messagesThreadId
+    const application_thread = (
+      student_application.doc_modification_thread as unknown as ThreadRefEntry[]
+    ).find(
+      (thread) => thread.doc_thread_id._id.toString() === messagesThreadId
     );
     if (!application_thread) {
       logger.error('SetStatusMessagesThread: application thread not found');
@@ -1951,20 +1983,17 @@ const deleteAMessageInThread = asyncHandler(async (req, res) => {
   );
 
   const application = applications.find((app) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    app.doc_modification_thread.some(
-      (thr: any) => thr.doc_thread_id.toString() === messagesThreadId
+    (app.doc_modification_thread as unknown as ThreadRefEntry[]).some(
+      (thr) => thr.doc_thread_id.toString() === messagesThreadId
     )
   );
 
-  const t = !application
+  const t: ThreadRefEntry | undefined = !application
     ? student?.generaldocs_threads.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (tt: any) => tt.doc_thread_id.toString() === messagesThreadId
+        (tt) => tt.doc_thread_id.toString() === messagesThreadId
       )
-    : application.doc_modification_thread.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (tt: any) => tt.doc_thread_id.toString() === messagesThreadId
+    : (application.doc_modification_thread as unknown as ThreadRefEntry[]).find(
+        (tt) => tt.doc_thread_id.toString() === messagesThreadId
       );
   if (t) {
     if (updated_thread && updated_thread.messages.length > 0) {
@@ -2137,13 +2166,38 @@ const IgnoreMessageInDocumentThread = asyncHandler(async (req, res) => {
   res.status(200).send({ success: true, data: thread });
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getActiveThreadsByStudent = (student: any) => [
+// Aggregated student shape consumed by `getMyStudentMetrics` (raw
+// `Student.aggregate(...)` output). Only the fields these metrics read are
+// described. `updatedAt` is treated as present (the aggregate always projects
+// it) so it can be fed to `new Date(...)` when sorting.
+interface MetricsThreadRef {
+  doc_thread_id?: {
+    _id?: mongoose.Types.ObjectId | string;
+    isFinalVersion?: boolean;
+    messages?: {
+      user_id?: { _id?: mongoose.Types.ObjectId | string };
+    }[];
+  };
+  isFinalVersion?: boolean;
+  updatedAt: Date;
+}
+
+interface StudentThreadsAggregate {
+  applications: {
+    decided?: string;
+    closed?: string;
+    admission?: string;
+    doc_modification_thread: MetricsThreadRef[];
+  }[];
+  generaldocs_threads?: MetricsThreadRef[];
+}
+
+const getActiveThreadsByStudent = (
+  student: StudentThreadsAggregate
+): MetricsThreadRef[] => [
   ...(student.applications
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((app: any) => isProgramDecided(app))
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .flatMap((app: any) => app.doc_modification_thread) || []),
+    .filter((app) => isProgramDecided(app))
+    .flatMap((app) => app.doc_modification_thread) || []),
   ...(student.generaldocs_threads || [])
 ];
 
@@ -2169,13 +2223,11 @@ const getMyStudentMetrics = asyncHandler(async (req, res) => {
     const threads = getActiveThreadsByStudent(student);
 
     student.threads = threads
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ?.sort(
-        (a: any, b: any) =>
+        (a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       )
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ?.map((thread: any) => thread?.doc_thread_id?._id);
+      ?.map((thread) => thread?.doc_thread_id?._id);
     student.threadCount = threads.length;
     student.completeThreadCount = threads.filter(
       (thread) => thread.doc_thread_id?.isFinalVersion

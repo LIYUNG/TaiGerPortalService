@@ -105,8 +105,7 @@ export interface CVDraftResult {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type LooseDoc = Record<string, any>;
+type LooseDoc = Record<string, unknown>;
 
 export interface CreateCVDraftParams {
   student: LooseDoc;

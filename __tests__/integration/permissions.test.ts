@@ -142,13 +142,10 @@ describe('POST /api/permissions/:user_id', () => {
     expect(post.body.data.canAssignAgents).toBe(true);
     expect(post.body.data.canModifyProgramList).toBe(true);
     // Notification email is fired after the response is sent.
-    expect(updatePermissionNotificationEmail).toHaveBeenCalledWith(
-      {
-        firstname: agent.firstname,
-        lastname: agent.lastname,
-        address: agent.email
-      },
-      {}
-    );
+    expect(updatePermissionNotificationEmail).toHaveBeenCalledWith({
+      firstname: agent.firstname,
+      lastname: agent.lastname,
+      address: agent.email
+    });
   });
 });

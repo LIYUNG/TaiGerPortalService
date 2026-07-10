@@ -281,7 +281,10 @@ const StudentDAO = {
     ];
 
     const [aggResult] = await Student.aggregate(pipeline).allowDiskUse(true);
-    const ids = (aggResult?.rows ?? []).map((row: any) => row._id);
+    const aggRows = (aggResult?.rows ?? []) as Array<{
+      _id: mongoose.Types.ObjectId;
+    }>;
+    const ids = aggRows.map((row) => row._id);
     const total = aggResult?.total?.[0]?.count ?? 0;
 
     if (ids.length === 0) {
@@ -296,13 +299,10 @@ const StudentDAO = {
 
     // $in does not preserve the aggregation's sort order — restore it.
     const orderMap = new Map<string, number>(
-      ids.map((id: any, index: number): [string, number] => [
-        id.toString(),
-        index
-      ])
+      ids.map((id, index): [string, number] => [id.toString(), index])
     );
     docs.sort(
-      (a: any, b: any) =>
+      (a, b) =>
         (orderMap.get(a._id.toString()) ?? 0) -
         (orderMap.get(b._id.toString()) ?? 0)
     );

@@ -1,7 +1,7 @@
 import { TAIGER_SIGNATURE } from '../constants';
 import { TENANT_PORTAL_LINK } from '../constants/common';
 
-const htmlContent = (message: string) => `
+export const htmlContent = (message: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -115,5 +115,3 @@ const htmlContent = (message: string) => `
 </body>
 </html>
 `;
-
-export = { htmlContent };

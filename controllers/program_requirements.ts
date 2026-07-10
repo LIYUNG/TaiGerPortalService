@@ -4,6 +4,18 @@ import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
 import ProgramRequirementService from '../services/programRequirements';
 
+// Shape of a program-category entry as it arrives in the request body. Unlike the
+// persisted IProgramrequirementProgramCategory (where keywordSets are ObjectIds),
+// the client sends populated keyword-set objects that carry an `_id`.
+interface KeywordSetInput {
+  _id: unknown;
+}
+interface ProgramCategoryInput {
+  keywordSets?: KeywordSetInput[];
+  maxScore?: string | number;
+  [key: string]: unknown;
+}
+
 const getDistinctProgramsAndKeywordSets = async (
   req: Request,
   res: Response
@@ -48,10 +60,10 @@ const createProgramRequirement = asyncHandler(async (req, res) => {
   const fields = req.body;
   const program = fields?.program;
   const program_categories = fields?.program_categories.map(
-    (program_category: any) => ({
+    (program_category: ProgramCategoryInput) => ({
       ...program_category,
       keywordSets: program_category.keywordSets?.map(
-        (keywordSet: any) => keywordSet._id
+        (keywordSet: KeywordSetInput) => keywordSet._id
       )
     })
   );
@@ -101,9 +113,14 @@ const updateProgramRequirement = asyncHandler(async (req, res) => {
   fields.updatedAt = new Date();
   delete fields.program;
   if (fields?.program_categories) {
-    fields.coursesScore = fields?.program_categories
-      ?.map((program_category: any) => program_category.maxScore)
-      ?.reduce((sum: number, current: any) => sum + parseFloat(current), 0);
+    fields.coursesScore = (
+      fields?.program_categories as ProgramCategoryInput[] | undefined
+    )
+      ?.map((program_category) => program_category.maxScore)
+      ?.reduce(
+        (sum: number, current) => sum + parseFloat(current as string),
+        0
+      );
   }
 
   const updatedProgramRequirement =

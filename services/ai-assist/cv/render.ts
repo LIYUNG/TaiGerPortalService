@@ -12,6 +12,7 @@ import { TemplateHandler, MimeType } from 'easy-template-x';
 import type { TemplateData } from 'easy-template-x';
 
 import { CVDraft } from './types';
+import type { Template } from '../../../dao/template.dao.types';
 import TemplateService from '../../templates';
 import { getS3Object, headS3ObjectETag } from '../../../aws/s3';
 import { AWS_S3_PUBLIC_BUCKET_NAME } from '../../../config';
@@ -39,8 +40,7 @@ const templateFileKey = (templatePath: string): string => {
 // update always re-renders even when the draft JSON is unchanged.
 const templateVersionToken = async (
   fileKey: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  template: any
+  template: Template
 ): Promise<string> => {
   const etag = await headS3ObjectETag(AWS_S3_PUBLIC_BUCKET_NAME, fileKey);
   return etag || String(template?.updatedAt || '') || fileKey;

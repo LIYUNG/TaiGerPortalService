@@ -5,7 +5,7 @@ class UserQueryBuilder extends BaseQueryBuilder {
     super();
   }
 
-  withArchiv(archiv) {
+  withArchiv(archiv: unknown) {
     if (archiv === true || archiv === 'true') {
       this.query.archiv = true;
     } else if (archiv === false || archiv === 'false') {
@@ -14,7 +14,7 @@ class UserQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withEditors(editors) {
+  withEditors(editors: unknown) {
     if (editors === 'none') {
       // Match students with no editor assigned (empty/missing array). Using
       // `editors.0` keeps this a single field condition so it does not collide
@@ -27,7 +27,7 @@ class UserQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withAgents(agents) {
+  withAgents(agents: unknown) {
     if (agents === 'none') {
       // Match students with no agent assigned (empty/missing array). See
       // withEditors for why `agents.0` is used instead of an $or.
@@ -38,7 +38,7 @@ class UserQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withNeedEditor(needEditor) {
+  withNeedEditor(needEditor: unknown) {
     if (needEditor || needEditor === 'true') {
       this.query.needEditor = needEditor;
     } else if (needEditor === false || needEditor === 'false') {
@@ -47,7 +47,7 @@ class UserQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withRole(role) {
+  withRole(role: unknown) {
     if (role) {
       this.query.role = Array.isArray(role) ? { $in: role } : role;
     }
@@ -55,8 +55,9 @@ class UserQueryBuilder extends BaseQueryBuilder {
   }
 
   withoutLimit() {
-    delete this.options.limit;
-    delete this.options.page;
+    // See ApplicationQueryBuilder.withoutLimit for why the cast is needed.
+    delete (this.options as { limit?: number; page?: number }).limit;
+    delete (this.options as { limit?: number; page?: number }).page;
     return this;
   }
 

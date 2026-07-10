@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { Role } from '@taiger-common/core';
 
 import {
@@ -43,7 +43,7 @@ const router = Router();
 // multer-S3 errors (file filter, size, or an S3 upload failure) can otherwise
 // escape as an uncaught exception. Run the upload, then forward any error as a
 // clean response so the client sees a real message instead of a dead request.
-const safeChatUpload = (req, res, next) => {
+const safeChatUpload = (req: Request, res: Response, next: NextFunction) => {
   MessagesChatUpload(req, res, (err) => {
     if (err) {
       logger.error('chat draft upload failed', {

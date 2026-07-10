@@ -9,14 +9,16 @@ import {
 } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
 
-import {
+import ticketsController from '../controllers/tickets';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+
+const {
   getTickets,
   getTicketsOverview,
   createTicket,
   updateTicket,
   deleteTicket
-} from '../controllers/tickets';
-import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+} = ticketsController;
 
 const router = Router();
 

@@ -23,7 +23,18 @@ import {
   MessagesImageThreadUpload
 } from '../middlewares/file-upload';
 
+import documentsModificationController from '../controllers/documents_modification';
+import cvDraftController from '../controllers/cv_draft';
 import {
+  docThreadMultitenant_filter,
+  surveyMultitenantFilter
+} from '../middlewares/documentThreadMultitenantFilter';
+import { editorIdsBodyFilter } from '../middlewares/editorIdsBodyFilter';
+import { AssignOutsourcerFilter } from '../middlewares/AssignOutsourcerFilter';
+import { auditLog } from '../utils/log/auditLog';
+import { validateStudentId } from '../common/validation';
+
+const {
   getActiveThreads,
   getActiveThreadsPaginated,
   getActiveThreadsCounts,
@@ -52,16 +63,7 @@ import {
   getThreadsByStudent,
   getMyStudentsThreads,
   forwardStudentDocuments
-} from '../controllers/documents_modification';
-import cvDraftController from '../controllers/cv_draft';
-import {
-  docThreadMultitenant_filter,
-  surveyMultitenantFilter
-} from '../middlewares/documentThreadMultitenantFilter';
-import { editorIdsBodyFilter } from '../middlewares/editorIdsBodyFilter';
-import { AssignOutsourcerFilter } from '../middlewares/AssignOutsourcerFilter';
-import { auditLog } from '../utils/log/auditLog';
-import { validateStudentId } from '../common/validation';
+} = documentsModificationController;
 
 const router = Router();
 

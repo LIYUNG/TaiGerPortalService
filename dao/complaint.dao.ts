@@ -2,7 +2,7 @@ import { FilterQuery, UpdateQuery } from 'mongoose';
 import { IComplaint } from '@taiger-common/model';
 import { Complaint } from '../models';
 
-const REQUESTER_POPULATE = [
+const REQUESTER_POPULATE: [string, string] = [
   'requester_id',
   'firstname lastname email pictureUrl'
 ];

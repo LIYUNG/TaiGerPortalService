@@ -16,6 +16,22 @@ import CommunicationService from '../services/communications';
 
 const student_name = 'PreCustomer';
 
+// `getByStudentIdForExport` returns lean communications with `student_id
+// user_id` populated to these fields (see
+// dao/communication.dao.ts:getByStudentIdForExport).
+type ExportMessage = {
+  message?: string;
+  createdAt: Date;
+  // Always populated by the DAO's `.populate('student_id user_id', ...)`.
+  user_id: {
+    firstname?: string;
+    lastname?: string;
+    firstname_chinese?: string;
+    lastname_chinese?: string;
+    role?: string;
+  };
+};
+
 const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, _next) => {
   const {
     params: { language },
@@ -32,7 +48,11 @@ const WidgetProcessTranscriptV2 = asyncHandler(async (req, res, _next) => {
   try {
     // TODO: replacing requirement_ids with data from frontend.
     // TODO: also verify the id.
-    const response = await callApiGateway(Credentials, apiGatewayUrl, 'POST', {
+    // NOTE: `Credentials` can genuinely be undefined if STS doesn't return
+    // them (see FLAGGED BUG in the task report); `callApiGateway` requires a
+    // non-optional `Credentials`, so this asserts the existing (unguarded)
+    // assumption rather than changing behavior.
+    const response = await callApiGateway(Credentials!, apiGatewayUrl, 'POST', {
       courses: stringified_courses,
       student_id: studentId,
       student_name,
@@ -92,7 +112,9 @@ const WidgetExportMessagePDF = asyncHandler(async (req, res, _next) => {
   } = req;
   const doc = new jsPDF('p', 'pt', 'a4', true);
   const communication_thread =
-    await CommunicationService.getByStudentIdForExport(studentId);
+    (await CommunicationService.getByStudentIdForExport(
+      studentId
+    )) as unknown as ExportMessage[];
 
   let currentY = 40; // Initial y position, leaving space for headers
   const lineHeight = 14; // Line height for spacing between lines

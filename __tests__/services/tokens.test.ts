@@ -4,8 +4,14 @@
 // DAO's result.
 jest.mock('../../dao/token.dao');
 
-import TokenDAO from '../../dao/token.dao';
+import TokenDAOModule from '../../dao/token.dao';
 import TokenService from '../../services/tokens';
+
+// Auto-mocked DAO exposes jest.fn()s at runtime, but TS still sees the real
+// signatures. Re-type it as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()` calls type-check.
+type MockedDAO = Record<string, jest.Mock>;
+const TokenDAO = TokenDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();

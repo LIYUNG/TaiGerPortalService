@@ -2,17 +2,7 @@ import { Router } from 'express';
 import { Role } from '@taiger-common/core';
 
 import { protect, permit } from '../middlewares/auth';
-import {
-  getEvents,
-  getEventsPaginated,
-  getBookedEvents,
-  showEvent,
-  updateEvent,
-  postEvent,
-  deleteEvent,
-  confirmEvent,
-  getActiveEventsNumber
-} from '../controllers/events';
+import eventsController from '../controllers/events';
 
 import {
   GeneralGETRequestRateLimiter,
@@ -24,8 +14,22 @@ import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import { event_multitenant_filter } from '../middlewares/event-filter';
 import { validateStudentId } from '../common/validation';
 // const handleError = require('../utils/eventErrors');
+
+const {
+  getEvents,
+  getEventsPaginated,
+  getBookedEvents,
+  showEvent,
+  updateEvent,
+  postEvent,
+  deleteEvent,
+  confirmEvent,
+  getActiveEventsNumber
+} = eventsController;
+
 const router = Router();
 
+router.use(GeneralGETRequestRateLimiter);
 router.use(protect);
 
 router

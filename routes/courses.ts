@@ -12,14 +12,16 @@ import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import { multitenant_filter } from '../middlewares/multitenant-filter';
 import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
 import { protect, permit, prohibit } from '../middlewares/auth';
-import {
+import courseController from '../controllers/course';
+import { validateStudentId } from '../common/validation';
+
+const {
   getMycourses,
   putMycourses,
   processTranscript_api_gatway,
   downloadJson,
   deleteMyCourse
-} from '../controllers/course';
-import { validateStudentId } from '../common/validation';
+} = courseController;
 
 const router = Router();
 

@@ -7,10 +7,9 @@ import {
 } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
-import {
-  updateUserPermission,
-  getUserPermission
-} from '../controllers/permissions';
+import permissionsController from '../controllers/permissions';
+
+const { updateUserPermission, getUserPermission } = permissionsController;
 
 const router = Router();
 

@@ -21,7 +21,7 @@ const MAX_LIMIT = 100;
 // Map the field names the frontend table sends -> the field/path the
 // aggregation pipeline can sort on. Joined fields live under `prog`/`student`,
 // the computed deadline lives under `deadlineDate`.
-const SORT_FIELD_MAP = {
+const SORT_FIELD_MAP: Record<string, string> = {
   program_name: 'prog.program_name',
   school: 'prog.school',
   semester: 'prog.semester',
@@ -60,12 +60,12 @@ const APPLICATION_EXACT_FILTERS = [
 
 // $in (multi-select) filters that live on the joined program. Comma-separated
 // in the query string, mirroring the programs list endpoint.
-const PROGRAM_ARRAY_FILTERS = {
+const PROGRAM_ARRAY_FILTERS: Record<string, string> = {
   country: 'prog.country'
 };
 
 // Regex (contains, case-insensitive) free-text filters on the joined program.
-const PROGRAM_TEXT_FILTERS = {
+const PROGRAM_TEXT_FILTERS: Record<string, string> = {
   semester: 'prog.semester'
 };
 
@@ -107,16 +107,18 @@ const parseArrayParam = (value: unknown) => {
 
 const parseActiveApplicationsQuery = (query: ActiveApplicationsQuery = {}) => {
   const { page, limit, search, sortBy, sortOrder } = query;
-  const parsedPage = parseInt(page, 10);
-  const parsedLimit = parseInt(limit, 10);
+  const parsedPage = typeof page === 'number' ? page : parseInt(page ?? '', 10);
+  const parsedLimit =
+    typeof limit === 'number' ? limit : parseInt(limit ?? '', 10);
   const safePage = parsedPage > 0 ? parsedPage : DEFAULT_PAGE;
   const safeLimit =
     parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT;
 
-  const sortPath = SORT_FIELD_MAP[sortBy] || 'deadlineDate';
-  const sortDir = String(sortOrder || 'asc').toLowerCase() === 'desc' ? -1 : 1;
+  const sortPath = (sortBy && SORT_FIELD_MAP[sortBy]) || 'deadlineDate';
+  const sortDir: 1 | -1 =
+    String(sortOrder || 'asc').toLowerCase() === 'desc' ? -1 : 1;
 
-  const filters = {};
+  const filters: Record<string, string | string[]> = {};
   APPLICATION_EXACT_FILTERS.forEach((field) => {
     if (query[field] !== undefined && query[field] !== '') {
       filters[field] = String(query[field]).trim();
@@ -152,7 +154,7 @@ const parseActiveApplicationsQuery = (query: ActiveApplicationsQuery = {}) => {
     search: typeof search === 'string' ? search.trim() : '',
     filters,
     // Stable secondary sort on _id so pagination is deterministic.
-    sort: { [sortPath]: sortDir, _id: 1 }
+    sort: { [sortPath]: sortDir, _id: 1 } as Record<string, 1 | -1>
   };
 };
 
@@ -162,7 +164,7 @@ const parseActiveApplicationsQuery = (query: ActiveApplicationsQuery = {}) => {
 // mirroring application_deadline_V2_calculator on the frontend. These stages
 // materialise a real Date (`deadlineDate`, null for rolling/no-data) so it can
 // be sorted and range-filtered at the DB.
-const DEADLINE_DATE_STAGES = [
+const DEADLINE_DATE_STAGES: PipelineStage.AddFields[] = [
   {
     $addFields: {
       _appYearInt: {
@@ -286,7 +288,9 @@ const DEADLINE_DATE_STAGES = [
 
 // Shared population chain so the paginated and non-paginated endpoints return
 // the exact same document shape (consumed by programs_refactor_v2 on the FE).
-const populateActiveApplications = (query: any) =>
+const populateActiveApplications = (
+  query: ReturnType<typeof Application.find>
+) =>
   query
     .populate({
       path: 'studentId',
@@ -349,7 +353,7 @@ class ApplicationMongoDAO {
 
     // Application-level exact filters can be applied before the lookups (cheap,
     // shrinks the working set as early as possible).
-    const preMatch = { studentId: { $in: objectIds } };
+    const preMatch: Record<string, unknown> = { studentId: { $in: objectIds } };
     APPLICATION_EXACT_FILTERS.forEach((field) => {
       if (filters[field] !== undefined) {
         preMatch[field] = filters[field];
@@ -359,7 +363,7 @@ class ApplicationMongoDAO {
     // Filters / search that touch joined program/student fields run after the
     // lookups. Collected as $and conditions so multiple $or-groups (student name
     // + global search) don't clobber each other.
-    const andConditions = [];
+    const andConditions: Record<string, unknown>[] = [];
     Object.values(PROGRAM_ARRAY_FILTERS).forEach((path) => {
       if (Array.isArray(filters[path]) && filters[path].length > 0) {
         andConditions.push({ [path]: { $in: filters[path] } });
@@ -397,9 +401,10 @@ class ApplicationMongoDAO {
         }))
       });
     }
-    const postMatch = andConditions.length > 0 ? { $and: andConditions } : {};
+    const postMatch: Record<string, unknown> =
+      andConditions.length > 0 ? { $and: andConditions } : {};
 
-    const pipeline = [
+    const pipeline: PipelineStage[] = [
       { $match: preMatch },
       {
         $lookup: {
@@ -498,19 +503,15 @@ class ApplicationMongoDAO {
     ).lean();
 
     // $in does not preserve the aggregation's sort order — restore it.
-    const orderMap = new Map(
+    const orderMap = new Map<string, number>(
       ids.map((id: mongoose.Types.ObjectId, index: number) => [
         id.toString(),
         index
       ])
     );
     docs.sort(
-      (
-        a: { _id: mongoose.Types.ObjectId },
-        b: { _id: mongoose.Types.ObjectId }
-      ) =>
-        (orderMap.get(a._id.toString()) ?? 0) -
-        (orderMap.get(b._id.toString()) ?? 0)
+      (a, b) =>
+        (orderMap.get(String(a._id)) ?? 0) - (orderMap.get(String(b._id)) ?? 0)
     );
 
     return { applications: docs, total, page, limit };
@@ -547,7 +548,7 @@ class ApplicationMongoDAO {
     // earlier than one year from now (rolling deadlines are kept separately).
     const cutoff = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
 
-    const pipeline = [
+    const pipeline: PipelineStage[] = [
       { $match: { studentId: { $in: objectIds }, closed: '-' } },
       {
         $lookup: {
@@ -645,7 +646,7 @@ class ApplicationMongoDAO {
     const objectIds = studentIds.map(
       (id) => new mongoose.Types.ObjectId(id.toString())
     );
-    const match = {
+    const match: FilterQuery<IApplication> = {
       studentId: { $in: objectIds },
       programId: { $ne: null }
     };
@@ -653,7 +654,7 @@ class ApplicationMongoDAO {
       match.decided = decided;
     }
 
-    const pipeline = [
+    const pipeline: PipelineStage[] = [
       { $match: match },
       { $group: { _id: '$programId' } },
       {
@@ -962,7 +963,7 @@ class ApplicationMongoDAO {
 
     // Only delete threads when all empty
     const threadIds = threads.map(
-      (thread) => new mongoose.Types.ObjectId(thread._id.toString())
+      (thread) => new mongoose.Types.ObjectId(String(thread._id))
     );
     logger.info('Trying to delete empty threads');
     await Documentthread.deleteMany({

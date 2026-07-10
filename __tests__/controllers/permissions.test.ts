@@ -13,14 +13,26 @@ jest.mock('../../services/email', () => ({
   updatePermissionNotificationEmail: jest.fn()
 }));
 
-import PermissionService from '../../services/permissions';
+import PermissionServiceModule from '../../services/permissions';
 import { updatePermissionNotificationEmail } from '../../services/email';
-import {
-  getUserPermission,
-  updateUserPermission
-} from '../../controllers/permissions';
+import PermissionsControllerModule from '../../controllers/permissions';
 import { mockReq, mockRes } from '../helpers/httpMocks';
 import { agent } from '../mock/user';
+
+// Auto-mocked module exposes jest.fn()s at runtime, but TS still sees the
+// real signatures. Re-type as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()/.mockRejectedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const PermissionService = PermissionServiceModule as unknown as MockedModule;
+
+// The controller handlers are asyncHandler-wrapped: asyncHandler's exposed
+// type mirrors the wrapped fn's OWN param count (2 for a plain (req, res)
+// handler), while the runtime wrapper always forwards a 3rd `next` used
+// internally for `.catch(next)`. Re-type the whole module so tests can call
+// each handler with (req, res, next) uniformly without under/over-arg errors.
+type Handler = (...args: unknown[]) => unknown;
+const { getUserPermission, updateUserPermission } =
+  PermissionsControllerModule as unknown as Record<string, Handler>;
 
 const userId = agent._id.toString();
 

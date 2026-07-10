@@ -1,4 +1,6 @@
 import { openAIClient, OpenAiModel } from '../../openai';
+import type OpenAI from 'openai';
+import type { ResponseCreateAndStreamParams } from 'openai/lib/responses/ResponseStream';
 import type {
   LlmProvider,
   StreamParams,
@@ -126,10 +128,15 @@ const stream: LlmProvider['stream'] = async (
     ...(tools && tools.length ? { tools: toResponsesTools(tools) } : {})
   };
 
-  let response;
+  // `response` is declared with the concrete non-streaming Response shape:
+  // finalResponse() resolves a ParsedResponse (which extends Response), and
+  // the create() call below is cast to its non-streaming overload.
+  let response: OpenAI.Responses.Response | undefined;
 
   if (typeof openAIClient.responses?.stream === 'function') {
-    const responseStream = openAIClient.responses.stream(requestPayload);
+    const responseStream = openAIClient.responses.stream(
+      requestPayload as unknown as ResponseCreateAndStreamParams
+    );
     for await (const event of responseStream) {
       if (
         event?.type === 'response.output_text.delta' &&
@@ -141,7 +148,9 @@ const stream: LlmProvider['stream'] = async (
     }
     response = await responseStream.finalResponse();
   } else {
-    response = await openAIClient.responses.create(requestPayload);
+    response = await openAIClient.responses.create(
+      requestPayload as unknown as OpenAI.Responses.ResponseCreateParamsNonStreaming
+    );
     await safeEmitToken(onToken, getResponseText(response));
   }
 

@@ -17,36 +17,21 @@ import type { Request, Response, NextFunction } from 'express';
 // partial (non-Mongoose) return shapes.
 const asMock = (fn: unknown) => fn as jest.Mock;
 
-jest.mock('../../middlewares/tenantMiddleware', () => ({
-  ...jest.requireActual('../../middlewares/tenantMiddleware'),
-  checkTenantDBMiddleware: jest.fn(
-    (req: Request, res: Response, next: NextFunction) => {
-      req.tenantId = 'test';
-      next();
-    }
-  )
-}));
-jest.mock('../../middlewares/decryptCookieMiddleware', () => ({
-  ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-  decryptCookieMiddleware: jest.fn(
-    (req: Request, res: Response, next: NextFunction) => next()
-  )
-}));
-jest.mock('../../middlewares/auth', () => ({
-  ...jest.requireActual('../../middlewares/auth'),
-  protect: jest.fn((req: Request, res: Response, next: NextFunction) => next()),
-  permit: jest.fn(
-    (...roles: string[]) =>
-      (req: Request, res: Response, next: NextFunction) =>
-        next()
-  )
-}));
-jest.mock('../../middlewares/limit_archiv_user', () => ({
-  ...jest.requireActual('../../middlewares/limit_archiv_user'),
-  filter_archiv_user: jest.fn(
-    (req: Request, res: Response, next: NextFunction) => next()
-  )
-}));
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/auth', () =>
+  require('../helpers/middlewareMocks').authMock()
+);
+jest.mock('../../middlewares/limit_archiv_user', () =>
+  require('../helpers/middlewareMocks').limitArchivUserMock()
+);
 // createTicket fires an email to the student's agents after responding; stub it
 // so the test never reaches the mail transport.
 jest.mock('../../services/email', () => ({

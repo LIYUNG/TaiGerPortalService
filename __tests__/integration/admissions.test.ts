@@ -11,77 +11,30 @@
 
 // ── Mock declarations (must be at top, before any require()) ─────────────────
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/auth', () =>
+  require('../helpers/middlewareMocks').authMock()
+);
+jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () =>
+  require('../helpers/middlewareMocks').innerTaigerMultitenantFilterMock()
+);
+jest.mock('../../middlewares/permission-filter', () =>
+  require('../helpers/middlewareMocks').permissionFilterMock()
+);
+jest.mock('../../middlewares/multitenant-filter', () =>
+  require('../helpers/middlewareMocks').multitenantFilterMock()
+);
+jest.mock('../../middlewares/limit_archiv_user', () =>
+  require('../helpers/middlewareMocks').limitArchivUserMock()
+);
 
 // getAdmissionLetter streams a file from S3 — mock the S3 accessor so no AWS
 // client is exercised.

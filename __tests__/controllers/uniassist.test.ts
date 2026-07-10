@@ -11,11 +11,28 @@
 jest.mock('../../services/students');
 jest.mock('../../services/applications');
 
-import StudentService from '../../services/students';
-import ApplicationService from '../../services/applications';
-import { getStudentUniAssist } from '../../controllers/uniassist';
+import StudentServiceModule from '../../services/students';
+import ApplicationServiceModule from '../../services/applications';
+import UniassistController from '../../controllers/uniassist';
 import { mockReq, mockRes } from '../helpers/httpMocks';
 import { admin, student } from '../mock/user';
+
+// Auto-mocked module methods expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()/.mockRejectedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const ApplicationService = ApplicationServiceModule as unknown as MockedModule;
+
+// The controller module uses `export =`, so its members are destructured off
+// the default-imported object; the handler itself is an asyncHandler-wrapped
+// (req, res) function, but tests call it with an extra `next` arg for the
+// forward-to-next() case, so re-type it as a variadic handler.
+type ControllerHandler = (...args: unknown[]) => Promise<unknown>;
+const { getStudentUniAssist } = UniassistController as unknown as Record<
+  string,
+  ControllerHandler
+>;
 
 const studentId = student._id.toString();
 

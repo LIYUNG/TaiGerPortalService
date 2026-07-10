@@ -55,12 +55,21 @@ import { sweepStaleCommunicationDrafts } from './utils/communicationDraftCleanup
 // the last line of defence.
 // Error message/stack are non-enumerable, so `{ error }` serialises to `{}`.
 // Pull them out explicitly so the log is actually useful.
-const describeError = (err) => ({
-  name: err?.name,
-  message: err?.message,
-  code: err?.code ?? err?.Code,
-  stack: err?.stack
-});
+const describeError = (err: unknown) => {
+  const e = (err ?? {}) as {
+    name?: string;
+    message?: string;
+    code?: string;
+    Code?: string;
+    stack?: string;
+  };
+  return {
+    name: e.name,
+    message: e.message,
+    code: e.code ?? e.Code,
+    stack: e.stack
+  };
+};
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled promise rejection', {
     reason: describeError(reason)
@@ -81,7 +90,9 @@ const launch = async () => {
     await mongoose.connect(mongoDb(TENANT_ID));
     logger.info('MongoDB default connection established');
   } catch (err) {
-    logger.error(`MongoDB default connection failed: ${err.message}`);
+    logger.error(
+      `MongoDB default connection failed: ${(err as Error).message}`
+    );
     return;
   }
 

@@ -71,22 +71,47 @@ jest.mock('../../services/email', () => ({
 }));
 
 const { ObjectId } = require('mongoose').Types;
-import DocumentThreadService from '../../services/documentthreads';
-import StudentService from '../../services/students';
-import UserService from '../../services/users';
-import ApplicationService from '../../services/applications';
-import AuditService from '../../services/audit';
-import SurveyInputService from '../../services/surveyInputs';
-import {
+import type { Request, Response, NextFunction } from 'express';
+import DocumentThreadServiceModule from '../../services/documentthreads';
+import StudentServiceModule from '../../services/students';
+import UserServiceModule from '../../services/users';
+import ApplicationServiceModule from '../../services/applications';
+import AuditServiceModule from '../../services/audit';
+import SurveyInputServiceModule from '../../services/surveyInputs';
+import DocumentsModificationControllerModule from '../../controllers/documents_modification';
+import { admin, agent, student } from '../mock/user';
+// helpers/httpMocks is a plain CommonJS file (no import/export statements), so
+// TS sees it as a script, not a module (TS2306) — require() sidesteps that.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+
+// Auto-mocked service modules expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type each as a bag of jest.Mock methods so the
+// per-test mock-configuration calls (mockResolvedValue/mockRejectedValue/...)
+// type-check while still allowing partial (non-Mongoose) return shapes.
+type MockedService = Record<string, jest.Mock>;
+const DocumentThreadService =
+  DocumentThreadServiceModule as unknown as MockedService;
+const StudentService = StudentServiceModule as unknown as MockedService;
+const UserService = UserServiceModule as unknown as MockedService;
+const ApplicationService = ApplicationServiceModule as unknown as MockedService;
+const AuditService = AuditServiceModule as unknown as MockedService;
+const SurveyInputService = SurveyInputServiceModule as unknown as MockedService;
+
+// controllers/documents_modification uses `export =`; cast to a uniform
+// (req, res, next) signature and destructure (named-import destructuring
+// against `export =` errors TS2497).
+const {
   getSurveyInputs,
   getMessages,
   putThreadFavorite,
   deleteAMessageInThread,
   handleDeleteGeneralThread,
   handleDeleteProgramThread
-} from '../../controllers/documents_modification';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, agent, student } from '../mock/user';
+} = DocumentsModificationControllerModule as unknown as Record<
+  string,
+  (req: Request, res: Response, next: NextFunction) => Promise<void>
+>;
 
 const studentId = student._id.toString();
 const adminId = admin._id.toString();

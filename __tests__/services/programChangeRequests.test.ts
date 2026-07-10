@@ -3,8 +3,15 @@
 // is touched.
 jest.mock('../../dao/programChangeRequest.dao');
 
-import ProgramChangeRequestDAO from '../../dao/programChangeRequest.dao';
+import ProgramChangeRequestDAOModule from '../../dao/programChangeRequest.dao';
 import ProgramChangeRequestService from '../../services/programChangeRequests';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()` calls type-check while still allowing
+// partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const ProgramChangeRequestDAO =
+  ProgramChangeRequestDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();

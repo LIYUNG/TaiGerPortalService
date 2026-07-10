@@ -51,16 +51,16 @@ app.use(cookieParser());
 app.get('/health', async (req, res) => {
   logger.info('healthy check');
   // Optional: read ECS task metadata (if awsvpc mode)
-  let ecsMetadata = {};
+  let ecsMetadata: { TaskARN?: string } = {};
   const metadataUri = process.env.ECS_CONTAINER_METADATA_URI_V4;
   logger.info('metadataUri', { metadataUri });
   try {
     if (metadataUri) {
       const metadata = await fetch(`${metadataUri}/task`);
-      ecsMetadata = await metadata.json();
+      ecsMetadata = (await metadata.json()) as { TaskARN?: string };
     }
   } catch (err) {
-    logger.warn('ECS metadata unavailable', { error: err.message });
+    logger.warn('ECS metadata unavailable', { error: (err as Error).message });
   }
   res.status(200).json({
     status: 'healthy',

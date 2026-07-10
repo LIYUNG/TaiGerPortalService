@@ -1,7 +1,66 @@
+import type { Types } from 'mongoose';
+import type { IProgram } from '@taiger-common/model';
 import { RLs_CONSTANT } from '../../constants';
 import { asyncHandler } from '../../middlewares/error-handler';
 
-const FILETYPES = {
+type ProgramId = Types.ObjectId | string;
+
+// The subset of IProgram's `*_required` flags that FILETYPES maps to a
+// document-thread file type. Typed as a key union (rather than indexing
+// IProgram with a bare `string`) so `program[fileType]` stays type-checked.
+type ProgramRequirementKey = keyof Pick<
+  IProgram,
+  | 'rl_required'
+  | 'ml_required'
+  | 'sop_required'
+  | 'phs_required'
+  | 'essay_required'
+  | 'portfolio_required'
+  | 'curriculum_analysis_required'
+  | 'scholarship_form_required'
+  | 'supplementary_form_required'
+>;
+
+// `program` here flows in from a mix of lean() query results and hook-built
+// plain objects (see versionControl.ts's handleProgramChanges/enableVersionControl),
+// so only `_id` is guaranteed to be present; every requirement field is
+// already optional on IProgram itself.
+export type ProgramLike = Partial<IProgram> & { _id: ProgramId };
+
+// Document-thread records here are lean()/service results that this module
+// mutates in place (messages -> messageSize) before handing them to
+// findRLDelta. `_id` is always present (Mongo includes it by default even
+// though the select() projection below doesn't name it explicitly).
+export interface DeltaThread {
+  _id: ProgramId;
+  file_type: string;
+  isFinalVersion?: boolean;
+  messages?: unknown[];
+  messageSize?: number;
+}
+
+export interface DeltaAddItem {
+  studentId: string;
+  programId: ProgramId;
+  fileType: string;
+}
+
+export interface DeltaRemoveItem {
+  studentId: string;
+  programId: ProgramId;
+  fileThread: DeltaThread;
+}
+
+export interface Delta {
+  add: DeltaAddItem[];
+  remove: DeltaRemoveItem[];
+}
+
+export interface DeltaOptions {
+  skipCompleted?: boolean;
+}
+
+const FILETYPES: Record<ProgramRequirementKey, string> = {
   rl_required: 'RL',
   ml_required: 'ML',
   sop_required: 'SOP',
@@ -13,29 +72,32 @@ const FILETYPES = {
   supplementary_form_required: 'Supplementary_Form'
 };
 
-const checkIsRLspecific = (program) => {
+const checkIsRLspecific = (program: ProgramLike) => {
   const isRLSpecific = program?.is_rl_specific;
   const NoRLSpecificFlag = isRLSpecific === undefined || isRLSpecific === null;
   return isRLSpecific || (NoRLSpecificFlag && program?.rl_requirements);
 };
 
 const findRLDelta = asyncHandler(
-  async (program, studentId, threads, options) => {
+  async (
+    program: ProgramLike,
+    studentId: string,
+    threads: DeltaThread[],
+    options?: DeltaOptions
+  ): Promise<Delta> => {
     const { skipCompleted } = options || {};
-    const delta = {
+    const delta: Delta = {
       add: [],
       remove: []
     };
 
-    const nrRLneeded = parseInt(program.rl_required);
+    const nrRLneeded = parseInt(program.rl_required ?? '', 10);
     const nrSpecRLNeeded = !checkIsRLspecific(program) ? 0 : nrRLneeded;
 
     const existingRL = threads.filter((thread) =>
       thread?.file_type?.startsWith('RL_')
     );
-    existingRL
-      .sort((a, b) => a?.file_type?.localeCompare(b?.file_type))
-      .reverse();
+    existingRL.sort((a, b) => a.file_type.localeCompare(b.file_type)).reverse();
     const nrSpecificRL = existingRL.length;
 
     // find missing RL
@@ -58,9 +120,11 @@ const findRLDelta = asyncHandler(
     if (nrSpecRLNeeded < nrSpecificRL) {
       const extraRL = nrSpecificRL - nrSpecRLNeeded;
       for (let i = 0; i < extraRL && i < existingRL.length; i += 1) {
+        // Guaranteed to be found: existingRL[i] was itself filtered out of
+        // `threads`, so its file_type always has a match.
         const fileThread = threads.find(
           (thread) => thread.file_type === existingRL[i]?.file_type
-        );
+        ) as DeltaThread;
         if (skipCompleted && fileThread.isFinalVersion) {
           continue;
         }
@@ -77,10 +141,15 @@ const findRLDelta = asyncHandler(
 );
 
 export const findStudentDeltaGet = asyncHandler(
-  async (req, studentId, program, options) => {
+  async (
+    req: unknown,
+    studentId: string,
+    program: ProgramLike,
+    options?: DeltaOptions
+  ): Promise<Delta> => {
     const { skipCompleted } = options || {};
 
-    const delta = {
+    const delta: Delta = {
       add: [],
       remove: []
     };
@@ -89,20 +158,21 @@ export const findStudentDeltaGet = asyncHandler(
     // versionControl -> programChange -> documentthreads -> versionControl.
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
     const DocumentThreadService = require('../../services/documentthreads');
-    const studentProgramThreads = await DocumentThreadService.findThreads(
-      {
-        student_id: studentId,
-        program_id: program._id
-      },
-      'file_type messages isFinalVersion'
-    );
+    const studentProgramThreads: DeltaThread[] =
+      await DocumentThreadService.findThreads(
+        {
+          student_id: studentId,
+          program_id: program._id
+        },
+        'file_type messages isFinalVersion'
+      );
 
     studentProgramThreads.map((thread) => {
-      thread.messageSize = thread.messages.length;
+      thread.messageSize = thread.messages!.length;
       delete thread.messages;
     });
 
-    for (const fileType of Object.keys(FILETYPES)) {
+    for (const fileType of Object.keys(FILETYPES) as ProgramRequirementKey[]) {
       if (FILETYPES[fileType] === 'RL') {
         continue;
       }
@@ -140,19 +210,27 @@ export const findStudentDeltaGet = asyncHandler(
   }
 );
 
+// `options` is intentionally optional: asyncHandler's generic preserves this
+// handler's exact parameter list (see middlewares/error-handler.ts), and
+// several call sites (e.g. versionControl.ts's handleStudentDelta) invoke
+// this with only 2 args, relying on the `options || {}` default below.
 export const findStudentDelta = asyncHandler(
-  async (studentId, program, options) => {
+  async (
+    studentId: string,
+    program: ProgramLike,
+    options?: DeltaOptions
+  ): Promise<Delta> => {
     const { skipCompleted } = options || {};
 
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy/circular require
     const { Documentthread } = require('../../models');
 
-    const delta = {
+    const delta: Delta = {
       add: [],
       remove: []
     };
 
-    const studentProgramThreads = await Documentthread.find({
+    const studentProgramThreads: DeltaThread[] = await Documentthread.find({
       student_id: studentId,
       program_id: program._id
     })
@@ -160,11 +238,11 @@ export const findStudentDelta = asyncHandler(
       .lean();
 
     studentProgramThreads.map((thread) => {
-      thread.messageSize = thread.messages.length;
+      thread.messageSize = thread.messages!.length;
       delete thread.messages;
     });
 
-    for (const fileType of Object.keys(FILETYPES)) {
+    for (const fileType of Object.keys(FILETYPES) as ProgramRequirementKey[]) {
       if (FILETYPES[fileType] === 'RL') {
         continue;
       }

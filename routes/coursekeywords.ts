@@ -8,12 +8,10 @@ import {
 } from '../middlewares/rate_limiter';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import { protect, permit } from '../middlewares/auth';
-import {
-  createKeywordSet,
-  updateKeywordSet,
-  deleteKeywordSet,
-  getKeywordSets
-} from '../controllers/coursekeywords';
+import coursekeywordsController from '../controllers/coursekeywords';
+
+const { createKeywordSet, updateKeywordSet, deleteKeywordSet, getKeywordSets } =
+  coursekeywordsController;
 
 const router = Router();
 

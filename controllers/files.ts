@@ -1,6 +1,7 @@
 import path from 'path';
+import { Types } from 'mongoose';
 import { is_TaiGer_Student } from '@taiger-common/core';
-import { DocumentStatusType } from '@taiger-common/model';
+import { DocumentStatusType, IUser } from '@taiger-common/model';
 import { Request, Response, NextFunction } from 'express';
 
 import { asyncHandler } from '../middlewares/error-handler';
@@ -27,6 +28,19 @@ import StudentService from '../services/students';
 import UserService from '../services/users';
 import BasedocumentationslinkService from '../services/basedocumentationslinks';
 
+// req.user is attached by the auth middleware as a Mongoose user/student/agent
+// doc, but the ambient Express.User type (from @types/passport, pulled in via
+// middlewares/passport.ts) is an empty interface, which collides with our own
+// `user?: any` augmentation (types/express.d.ts) and widens req.user to `{}`.
+// Model the real runtime shape here instead: the domain IUser fields plus the
+// Mongoose-assigned `_id` (not part of IUser itself).
+type AuthUser = IUser & { _id: Types.ObjectId };
+
+// req.file is populated by the multer-s3 storage engine, but @types/multer-s3
+// models its extra fields (e.g. `key`) on a separate `Express.MulterS3.File`
+// interface rather than merging them into `Express.Multer.File`.
+type UploadedFile = Express.MulterS3.File;
+
 const getTemplates = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const templates = await TemplateService.getTemplates();
@@ -39,13 +53,13 @@ const getTemplates = asyncHandler(
 // (O) email admin delete template
 const deleteTemplate = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { user } = req;
-    const { category_name } = req.params;
+    const user = req.user as AuthUser;
+    const category_name = String(req.params.category_name);
 
     const template = await TemplateService.getTemplateByCategory(category_name);
 
-    let document_split = template.path.replace(/\\/g, '/');
-    document_split = document_split.split('/');
+    const document_path = template!.path.replace(/\\/g, '/');
+    const document_split = document_path.split('/');
     const [directory, fileName] = document_split;
     const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
     logger.info('Trying to delete file', { fileKey });
@@ -77,33 +91,34 @@ const deleteTemplate = asyncHandler(
 );
 
 // (O) email admin uploaded template successfully
-const uploadTemplate = asyncHandler(async (req, res, next) => {
-  const { category_name } = req.params;
+const uploadTemplate = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const category_name = String(req.params.category_name);
+    const file = req.file as UploadedFile;
 
-  const updated_templates = await TemplateService.upsertTemplate(
-    category_name,
-    {
-      name: req.file.key,
+    const updated_templates = await TemplateService.upsertTemplate(
       category_name,
-      path: req.file.key,
-      updatedAt: new Date()
-    }
-  );
-  res.status(201).send({ success: true, data: updated_templates });
-  next();
-});
+      {
+        name: file.key,
+        category_name,
+        path: file.key,
+        updatedAt: new Date()
+      }
+    );
+    res.status(201).send({ success: true, data: updated_templates });
+    next();
+  }
+);
 
 const downloadTemplateFile = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const {
-      params: { category_name }
-    } = req;
+    const category_name = String(req.params.category_name);
 
     const template = await TemplateService.getTemplateByCategory(category_name);
     // AWS S3
     // download the file via aws s3 here
-    let document_split = template.path.replace(/\\/g, '/');
-    document_split = document_split.split('/');
+    const document_path = template!.path.replace(/\\/g, '/');
+    const document_split = document_path.split('/');
     const [directory, fileName] = document_split;
     const fileKey = path.join(directory, fileName).replace(/\\/g, '/');
     logger.info('Trying to download template file', { fileKey });
@@ -134,10 +149,9 @@ const downloadTemplateFile = asyncHandler(
 // (O) email : agent notification
 const saveProfileFilePath = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const {
-      user,
-      params: { studentId, category }
-    } = req;
+    const user = req.user as AuthUser;
+    const studentId = String(req.params.studentId);
+    const category = String(req.params.category);
     // retrieve studentId differently depend on if student or Admin/Agent uploading the file
     const student = await StudentService.getStudentDocByIdPopulated(studentId, [
       ['agents editors', 'firstname lastname email archiv']
@@ -152,7 +166,7 @@ const saveProfileFilePath = asyncHandler(
       document.status = DocumentStatusType.Uploaded;
       document.required = true;
       document.updatedAt = new Date();
-      document.path = req.file.key;
+      document.path = (req.file as UploadedFile).key;
       student.profile.push(document);
       await student.save();
       res.status(201).send({ success: true, data: document });
@@ -209,7 +223,7 @@ const saveProfileFilePath = asyncHandler(
             );
           }
         }
-      } else if (isNotArchiv(student)) {
+      } else if (isNotArchiv(student as unknown as IUser)) {
         await sendAgentUploadedProfileFilesForStudentEmail(
           {
             firstname: student.firstname,
@@ -228,7 +242,7 @@ const saveProfileFilePath = asyncHandler(
       document.status = DocumentStatusType.Uploaded;
       document.required = true;
       document.updatedAt = new Date();
-      document.path = req.file.key;
+      document.path = (req.file as UploadedFile).key;
       await student.save();
 
       // retrieve studentId differently depend on if student or Admin/Agent uploading the file
@@ -287,7 +301,7 @@ const saveProfileFilePath = asyncHandler(
             );
           }
         }
-      } else if (isNotArchiv(student)) {
+      } else if (isNotArchiv(student as unknown as IUser)) {
         await sendAgentUploadedProfileFilesForStudentEmail(
           {
             firstname: student.firstname,
@@ -308,10 +322,8 @@ const saveProfileFilePath = asyncHandler(
 
 const updateVPDPayment = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const {
-      params: { applicationId },
-      body: { isPaid }
-    } = req;
+    const applicationId = String(req.params.applicationId);
+    const { isPaid } = req.body;
 
     const app = await ApplicationService.getApplicationById(applicationId);
     if (!app) {
@@ -331,9 +343,7 @@ const updateVPDPayment = asyncHandler(
 
 const updateVPDFileNecessity = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const {
-      params: { applicationId }
-    } = req;
+    const applicationId = String(req.params.applicationId);
 
     const app = await ApplicationService.getApplicationById(applicationId);
 
@@ -366,10 +376,11 @@ const updateVPDFileNecessity = asyncHandler(
 // (O) email : agent notification
 const saveVPDFilePath = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const {
-      user,
-      params: { studentId, applicationId, fileType }
-    } = req;
+    const user = req.user as AuthUser;
+    const studentId = String(req.params.studentId);
+    const applicationId = String(req.params.applicationId);
+    const fileType = String(req.params.fileType);
+    const file = req.file as UploadedFile;
 
     const app = await ApplicationService.getApplicationDocByIdWithProgram(
       applicationId
@@ -382,12 +393,12 @@ const saveVPDFilePath = asyncHandler(
     if (fileType === 'VPD') {
       app.uni_assist.status = DocumentStatusType.Uploaded;
       app.uni_assist.updatedAt = new Date();
-      app.uni_assist.vpd_file_path = req.file.key;
+      app.uni_assist.vpd_file_path = file.key;
     }
     if (fileType === 'VPDConfirmation') {
       // app.uni_assist.status = DocumentStatusType.Uploaded;
       app.uni_assist.updatedAt = new Date();
-      app.uni_assist.vpd_paid_confirmation_file_path = req.file.key;
+      app.uni_assist.vpd_paid_confirmation_file_path = file.key;
     }
 
     await app.save();
@@ -421,13 +432,13 @@ const saveVPDFilePath = asyncHandler(
               student_lastname: student_updated.lastname,
               student_id: student_updated._id.toString(),
               fileType,
-              uploaded_documentname: req.file.key.replace(/_/g, ' '),
+              uploaded_documentname: file.key.replace(/_/g, ' '),
               uploaded_updatedAt: app.uni_assist.updatedAt
             }
           );
         }
       }
-    } else if (isNotArchiv(student_updated)) {
+    } else if (isNotArchiv(student_updated as unknown as IUser)) {
       await sendAgentUploadedVPDForStudentEmail(
         {
           firstname: student_updated.firstname,
@@ -438,7 +449,7 @@ const saveVPDFilePath = asyncHandler(
           agent_firstname: user.firstname,
           agent_lastname: user.lastname,
           fileType,
-          uploaded_documentname: req.file.key.replace(/_/g, ' '),
+          uploaded_documentname: file.key.replace(/_/g, ' '),
           uploaded_updatedAt: app.uni_assist.updatedAt
         }
       );
@@ -448,9 +459,8 @@ const saveVPDFilePath = asyncHandler(
 
 const downloadVPDFile = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const {
-      params: { applicationId, fileType }
-    } = req;
+    const { fileType } = req.params;
+    const applicationId = String(req.params.applicationId);
 
     // AWS S3
     // download the file via aws s3 here
@@ -505,9 +515,8 @@ const downloadVPDFile = asyncHandler(
 
 const downloadProfileFileURL = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const {
-      params: { studentId, file_key }
-    } = req;
+    const studentId = String(req.params.studentId);
+    const file_key = String(req.params.file_key);
 
     // AWS S3
     // download the file via aws s3 here
@@ -546,7 +555,8 @@ const downloadProfileFileURL = asyncHandler(
 // (O) email : student notification
 const updateProfileDocumentStatus = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const { studentId, category } = req.params;
+    const studentId = String(req.params.studentId);
+    const category = String(req.params.category);
     const { status, feedback } = req.body;
 
     if (!Object.values(DocumentStatusType).includes(status)) {
@@ -593,7 +603,7 @@ const updateProfileDocumentStatus = asyncHandler(
         await student.save();
         res.status(201).send({ success: true, data: document });
         // Reminder for Student:
-        if (isNotArchiv(student)) {
+        if (isNotArchiv(student as unknown as IUser)) {
           if (
             status !== DocumentStatusType.NotNeeded &&
             status !== DocumentStatusType.Missing
@@ -622,8 +632,9 @@ const updateProfileDocumentStatus = asyncHandler(
 // TODO: not used yet.
 const updateStudentApplicationResultV2 = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const { studentId, programId } = req.params;
-    const { user } = req;
+    const studentId = String(req.params.studentId);
+    const programId = String(req.params.programId);
+    const user = req.user as AuthUser;
     const { admission, closed } = req.body;
 
     const studentDoc = await StudentService.getStudentDocByIdPopulated(
@@ -655,7 +666,7 @@ const updateStudentApplicationResultV2 = asyncHandler(
       if (req.file) {
         const admission_letter_temp = {
           status: DocumentStatusType.Uploaded,
-          admission_file_path: req.file.key,
+          admission_file_path: (req.file as UploadedFile).key,
           comments: '',
           updatedAt: new Date()
         };
@@ -770,14 +781,16 @@ const updateStudentApplicationResultV2 = asyncHandler(
 
 const updateStudentApplicationResult = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { studentId, applicationId, result } = req.params;
-    const { user } = req;
+    const studentId = String(req.params.studentId);
+    const applicationId = String(req.params.applicationId);
+    const { result } = req.params;
+    const user = req.user as AuthUser;
 
     let _updatedStudent;
     if (req.file) {
       const admission_letter_temp = {
         status: DocumentStatusType.Uploaded,
-        admission_file_path: req.file.key,
+        admission_file_path: (req.file as UploadedFile).key,
         comments: '',
         updatedAt: new Date()
       };
@@ -889,7 +902,8 @@ const updateStudentApplicationResult = asyncHandler(
 
 const deleteProfileFile = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const { studentId, category } = req.params;
+    const studentId = String(req.params.studentId);
+    const category = String(req.params.category);
 
     const student = await StudentService.getStudentDocById(studentId);
 
@@ -932,7 +946,8 @@ const deleteProfileFile = asyncHandler(
 
 const deleteVPDFile = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const { applicationId, fileType } = req.params;
+    const { fileType } = req.params;
+    const applicationId = String(req.params.applicationId);
 
     const app = await ApplicationService.getApplicationDocByIdWithProgram(
       applicationId
@@ -995,7 +1010,7 @@ const deleteVPDFile = asyncHandler(
 
 const removeNotification = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { user } = req;
+    const user = req.user as AuthUser;
     const { notification_key } = req.body;
     // eslint-disable-next-line no-underscore-dangle
     const me = await UserService.getUserDocById(user._id.toString());
@@ -1017,7 +1032,7 @@ const removeNotification = asyncHandler(
 
 const removeAgentNotification = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { user } = req;
+    const user = req.user as AuthUser;
     const { notification_key, student_id } = req.body;
     // eslint-disable-next-line no-underscore-dangle
     const me = await UserService.getAgentDocById(user._id.toString());
@@ -1047,9 +1062,9 @@ const removeAgentNotification = asyncHandler(
 
 const getMyAcademicBackground = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { user: student } = req;
+    const student = req.user as AuthUser;
     const { _id } = student;
-    const meDoc = await UserService.getUserDocById(_id);
+    const meDoc = await UserService.getUserDocById(_id.toString());
     if (!meDoc) {
       logger.error('getMyAcademicBackground: user not found');
       throw new ErrorResponse(404, 'User not found');

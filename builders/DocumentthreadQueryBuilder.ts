@@ -5,7 +5,7 @@ class DocumentthreadQueryBuilder extends BaseQueryBuilder {
     super();
   }
 
-  withIsFinalVersion(isFinalVersion) {
+  withIsFinalVersion(isFinalVersion: unknown) {
     if (isFinalVersion === true || isFinalVersion === 'true') {
       this.query.isFinalVersion = true;
     } else if (isFinalVersion === false || isFinalVersion === 'false') {
@@ -14,7 +14,7 @@ class DocumentthreadQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withHasOutsourcedUserId(hasOutsourcedUserId) {
+  withHasOutsourcedUserId(hasOutsourcedUserId: unknown) {
     if (hasOutsourcedUserId === true || hasOutsourcedUserId === 'true') {
       this.query.outsourced_user_id = { $exists: true, $not: { $size: 0 } };
     } else if (
@@ -26,7 +26,7 @@ class DocumentthreadQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withHasMessages(hasMessages) {
+  withHasMessages(hasMessages: unknown) {
     if (hasMessages === true || hasMessages === 'true') {
       this.query.messages = { $exists: true, $not: { $size: 0 } };
     } else if (hasMessages === false || hasMessages === 'false') {
@@ -35,14 +35,14 @@ class DocumentthreadQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withOutsourcedUserId(outsourcedUserId) {
+  withOutsourcedUserId(outsourcedUserId: unknown) {
     if (outsourcedUserId) {
       this.query.outsourced_user_id = outsourcedUserId;
     }
     return this;
   }
 
-  withFileType(fileType) {
+  withFileType(fileType: unknown) {
     if (fileType) {
       this.query.file_type = fileType;
     }
@@ -50,8 +50,9 @@ class DocumentthreadQueryBuilder extends BaseQueryBuilder {
   }
 
   withoutLimit() {
-    delete this.options.limit;
-    delete this.options.page;
+    // See ApplicationQueryBuilder.withoutLimit for why the cast is needed.
+    delete (this.options as { limit?: number; page?: number }).limit;
+    delete (this.options as { limit?: number; page?: number }).page;
     return this;
   }
 

@@ -221,7 +221,7 @@ const postMessageInTicket = asyncHandler(async (req, res) => {
 
   if (is_TaiGer_Student(user)) {
     // TODO: Inform Manager
-    if (isNotArchiv(student)) {
+    if (isNotArchiv(student as unknown as IUser)) {
       const permissions = await getManagers();
       const users = permissions.map((p) => p.user_id);
       for (let i = 0; i < users.length; i += 1) {

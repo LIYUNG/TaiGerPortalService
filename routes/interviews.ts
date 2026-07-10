@@ -2,7 +2,22 @@ import { Router } from 'express';
 import { Role } from '@taiger-common/core';
 
 import { protect, permit } from '../middlewares/auth';
+import interviewsController from '../controllers/interviews';
+import { multitenant_filter } from '../middlewares/multitenant-filter';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import {
+  InterviewPUTRateLimiter,
+  InterviewGETRateLimiter
+} from '../middlewares/rate_limiter';
+import {
+  interviewMultitenantFilter,
+  interviewMultitenantReadOnlyFilter
+} from '../middlewares/interviewMultitenantFilter';
+import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
+import { auditLog } from '../utils/log/auditLog';
+import { validateStudentId } from '../common/validation';
+
+const {
   getAllInterviewsPaginated,
   getMyInterviewPaginated,
   getInterview,
@@ -17,20 +32,7 @@ import {
   getAllOpenInterviews,
   getInterviewsByProgramId,
   getInterviewsByStudentId
-} from '../controllers/interviews';
-import { multitenant_filter } from '../middlewares/multitenant-filter';
-import { filter_archiv_user } from '../middlewares/limit_archiv_user';
-import {
-  InterviewPUTRateLimiter,
-  InterviewGETRateLimiter
-} from '../middlewares/rate_limiter';
-import {
-  interviewMultitenantFilter,
-  interviewMultitenantReadOnlyFilter
-} from '../middlewares/interviewMultitenantFilter';
-import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
-import { auditLog } from '../utils/log/auditLog';
-import { validateStudentId } from '../common/validation';
+} = interviewsController;
 
 const router = Router();
 

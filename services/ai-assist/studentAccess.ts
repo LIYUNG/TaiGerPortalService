@@ -4,7 +4,7 @@ import {
   is_TaiGer_Agent,
   is_TaiGer_Editor
 } from '@taiger-common/core';
-import type { IManager } from '@taiger-common/model';
+import type { IManager, IPermission } from '@taiger-common/model';
 
 import { ErrorResponse } from '../../common/errors';
 import { ManagerType } from '../../constants';
@@ -52,7 +52,12 @@ const getAccessibleStudentFilter = async (req: any) => {
   if (is_TaiGer_Admin(user)) {
     return activeStudentFilter;
   }
-  const permission = await getPermission(req, user);
+  // `getPermission` is cache-backed (ten_minutes_cache.get<T>) and its
+  // untyped call site resolves the cached value to `{}`; the real shape is
+  // the Permission document.
+  const permission = (await getPermission(req, user)) as
+    | IPermission
+    | undefined;
   if (permission?.canAccessAllChat) {
     return activeStudentFilter;
   }

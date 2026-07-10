@@ -1,4 +1,5 @@
 import axios from 'axios';
+import mongoose from 'mongoose';
 import {
   SLACK_BOT_TOKEN,
   SLACK_TAIGER_WIN_CHANNEL_ID,
@@ -15,10 +16,60 @@ import {
 
 import logger from '../services/logger';
 
+interface PostToSlackArgs {
+  channel: string;
+  text: string;
+  blocks?: unknown[];
+  options?: Record<string, unknown>;
+}
+
+// A populated agent/editor ref (student.agents/editors are populated with
+// firstname/lastname/slackId/archiv by the callers — see
+// controllers/files.ts and controllers/applications.ts). The `student` param
+// below crosses a module boundary as a Mongoose lean/hydrated doc whose exact
+// static shape (and whether agents/editors carry populated docs vs raw
+// ObjectId refs) varies by caller, so it's accepted as `unknown` and narrowed
+// to this shape once at the top of each function, mirroring the same
+// populated-at-runtime-but-not-in-the-static-type reality already handled via
+// an `any[]` cast in controllers/files.ts.
+interface PopulatedContributorRef {
+  _id?: mongoose.Types.ObjectId | string;
+  firstname?: string;
+  lastname?: string;
+  slackId?: string;
+  archiv?: boolean;
+}
+
+interface PopulatedSlackStudent {
+  _id: mongoose.Types.ObjectId | string;
+  firstname?: string;
+  lastname?: string;
+  agents?: PopulatedContributorRef[];
+  editors?: PopulatedContributorRef[];
+}
+
+interface PopulatedProgramRef {
+  _id: mongoose.Types.ObjectId | string;
+  school?: string;
+  program_name?: string;
+  degree?: string;
+}
+
+// `application` similarly crosses a module boundary; only `programId`
+// (populated by the callers via `.populate('programId')`) is read here.
+interface PopulatedSlackApplication {
+  programId: PopulatedProgramRef;
+}
+
 /**
  * Internal sender for Slack chat.postMessage
  */
-async function postToSlack({ channel, text, blocks, options = {} }) {
+async function postToSlack({
+  channel,
+  text,
+  blocks,
+  options = {}
+}: PostToSlackArgs) {
   if (!SLACK_BOT_TOKEN) {
     throw new Error('Missing Slack bot token. Set SLACK_BOT_TOKEN.');
   }
@@ -42,8 +93,13 @@ async function postToSlack({ channel, text, blocks, options = {} }) {
 
     return data;
   } catch (error) {
+    const errorResponse = (
+      error as { response?: { data?: { error?: string } } }
+    )?.response;
     const errorMessage =
-      error?.response?.data?.error || error?.message || 'Unknown error';
+      errorResponse?.data?.error ||
+      (error as Error)?.message ||
+      'Unknown error';
     throw new Error(`Slack API error: ${errorMessage}`);
   }
 }
@@ -51,7 +107,12 @@ async function postToSlack({ channel, text, blocks, options = {} }) {
 /**
  * General purpose sender.
  */
-export async function sendSlackMessage(text, channel, blocks, options = {}) {
+export async function sendSlackMessage(
+  text: string,
+  channel: string,
+  blocks?: unknown[],
+  options: Record<string, unknown> = {}
+) {
   if (!text || typeof text !== 'string') {
     throw new Error('Message text is required.');
   }
@@ -71,7 +132,12 @@ export async function sendSlackMessage(text, channel, blocks, options = {}) {
   return postToSlack({ channel, text, blocks, options });
 }
 
-export async function sendSlackMessageToWinChannel(student, application) {
+export async function sendSlackMessageToWinChannel(
+  studentInput: unknown,
+  applicationInput: unknown
+) {
+  const student = studentInput as PopulatedSlackStudent;
+  const application = applicationInput as PopulatedSlackApplication;
   const agents = student.agents || [];
   const editors = student.editors || [];
   const contributors = [...agents, ...editors]
@@ -87,8 +153,8 @@ export async function sendSlackMessageToWinChannel(student, application) {
       return `${firstName} ${lastName}`.trim() || 'a TaiGer contributor';
     });
 
-  const studentLink = BASE_DOCUMENT_FOR_AGENT_URL(student._id);
-  const programLink = PROGRAM_URL(application.programId._id);
+  const studentLink = BASE_DOCUMENT_FOR_AGENT_URL(student._id.toString());
+  const programLink = PROGRAM_URL(application.programId._id.toString());
   const studentName = `${student.firstname} ${student.lastname}`;
   const programLabel = `${application.programId.school} - ${application.programId.program_name} (${application.programId.degree})`;
   const specialThanks =
@@ -146,7 +212,9 @@ export async function sendSlackMessageToWinChannel(student, application) {
     );
   } catch (error) {
     logger.error(
-      `Failed to send Slack admission message: ${error.message || error}`
+      `Failed to send Slack admission message: ${
+        (error as Error)?.message || error
+      }`
     );
   }
 }
@@ -155,7 +223,11 @@ export async function sendSlackMessageToWinChannel(student, application) {
  * Posts a copy of a staff DM notification to the notifications log channel,
  * so agent/editor managers can audit what was sent and to whom.
  */
-async function logStaffNotificationToManagers(editor, message, note) {
+async function logStaffNotificationToManagers(
+  editor: PopulatedContributorRef,
+  message: string,
+  note: string | undefined
+) {
   if (!SLACK_NOTIFICATIONS_LOG_CHANNEL_ID) {
     return;
   }
@@ -185,7 +257,9 @@ async function logStaffNotificationToManagers(editor, message, note) {
     );
   } catch (error) {
     logger.error(
-      `Failed to log Slack notification to managers: ${error.message || error}`
+      `Failed to log Slack notification to managers: ${
+        (error as Error)?.message || error
+      }`
     );
   }
 }
@@ -195,21 +269,23 @@ async function logStaffNotificationToManagers(editor, message, note) {
  * withdrawn or re-activated, so they know whether it still needs work.
  */
 export async function sendApplicationWithdrawNotificationToEditors(
-  student,
-  application,
-  isWithdrawn
+  studentInput: unknown,
+  applicationInput: unknown,
+  isWithdrawn: boolean
 ) {
+  const student = studentInput as PopulatedSlackStudent;
+  const application = applicationInput as PopulatedSlackApplication;
   const editors = (student.editors || []).filter(
-    (editor) =>
-      !editor.archiv && typeof editor?.slackId === 'string' && editor.slackId
+    (editor): editor is PopulatedContributorRef & { slackId: string } =>
+      !editor.archiv && typeof editor?.slackId === 'string' && !!editor.slackId
   );
 
   if (editors.length === 0) {
     return;
   }
 
-  const studentLink = STUDENT_APPLICATION_STUDENT_URL(student._id);
-  const programLink = PROGRAM_URL(application.programId._id);
+  const studentLink = STUDENT_APPLICATION_STUDENT_URL(student._id.toString());
+  const programLink = PROGRAM_URL(application.programId._id.toString());
   const studentName = `${student.firstname} ${student.lastname}`;
   const programLabel = `${application.programId.school} - ${application.programId.program_name} (${application.programId.degree})`;
 
@@ -252,7 +328,7 @@ export async function sendApplicationWithdrawNotificationToEditors(
         logger.error(
           `Failed to send Slack application withdraw notification to editor ${
             editor._id
-          }: ${error.message || error}`
+          }: ${(error as Error)?.message || error}`
         );
       }
     }

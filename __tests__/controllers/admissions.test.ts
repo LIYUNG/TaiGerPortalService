@@ -13,17 +13,35 @@ jest.mock('../../services/applications');
 jest.mock('../../services/students');
 jest.mock('../../aws/s3');
 
-import ApplicationService from '../../services/applications';
-import StudentService from '../../services/students';
+import ApplicationServiceModule from '../../services/applications';
+import StudentServiceModule from '../../services/students';
 import { getS3Object } from '../../aws/s3';
-import {
+import AdmissionsController from '../../controllers/admissions';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { student } from '../mock/user';
+
+// Auto-mocked module methods expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()/.mockRejectedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const ApplicationService = ApplicationServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+// getS3Object is a named auto-mocked function (not a full module object);
+// cast it to jest.Mock for the per-test `.mockResolvedValue()` calls.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The controller module uses `export =`, so its members are destructured off
+// the default-imported object; the handlers themselves are asyncHandler-wrapped
+// (req, res[, next]) functions, but tests call all of them with an extra
+// `next` arg for the forward-to-next() cases, so re-type each as a variadic
+// handler.
+type ControllerHandler = (...args: unknown[]) => Promise<unknown>;
+const {
   getAdmissionsOverview,
   getAdmissionsProgramCounts,
   getAdmissionLetter,
   getAdmissionsYear
-} from '../../controllers/admissions';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { student } from '../mock/user';
+} = AdmissionsController as unknown as Record<string, ControllerHandler>;
 
 const studentId = student._id.toString();
 
@@ -131,7 +149,7 @@ describe('getAdmissionsYear', () => {
 describe('getAdmissionLetter', () => {
   it('streams the S3 object as an attachment with the right key', async () => {
     const buffer = Buffer.from('pdf bytes');
-    getS3Object.mockResolvedValue(buffer);
+    asMock(getS3Object).mockResolvedValue(buffer);
     const fileName = 'offer_letter.pdf';
     const req = mockReq({ params: { studentId, fileName } });
     const res = mockRes();
@@ -154,7 +172,7 @@ describe('getAdmissionLetter', () => {
 
   it('forwards an S3 error to next()', async () => {
     const err = new Error('s3 down');
-    getS3Object.mockRejectedValue(err);
+    asMock(getS3Object).mockRejectedValue(err);
     const res = mockRes();
     res.attachment = jest.fn(() => res);
     res.setHeader = jest.fn(() => res);

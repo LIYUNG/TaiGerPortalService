@@ -1,7 +1,7 @@
 import path from 'path';
 import { Request, Response } from 'express';
 import { is_TaiGer_Student } from '@taiger-common/core';
-import { IAgent, ICourse, IStudent } from '@taiger-common/model';
+import { IAgent, ICourse, IStudent, IUser } from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
@@ -25,7 +25,10 @@ type PopulatedCourse = Omit<ICourse, 'student_id'> & {
 };
 
 const getMycourses = asyncHandler(async (req: Request, res: Response) => {
-  const { studentId } = req.params;
+  // `req.params` values are typed `string | string[]` (Express 5 supports
+  // wildcard route segments); this route's `:studentId` is always a single
+  // segment.
+  const studentId = req.params.studentId as string;
   const student = await StudentService.getStudentByIdLean(studentId);
   if (!student) {
     logger.info('getMycourses: no student found');
@@ -59,8 +62,8 @@ const getMycourses = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const putMycourses = asyncHandler(async (req: Request, res: Response) => {
-  const { user } = req;
-  const { studentId } = req.params;
+  const user = req.user as IUser;
+  const studentId = req.params.studentId as string;
   const fields = req.body;
   fields.updatedAt = new Date();
 
@@ -121,15 +124,20 @@ const putMycourses = asyncHandler(async (req: Request, res: Response) => {
 const processTranscript_api_gatway = asyncHandler(
   async (req: Request, res: Response) => {
     const {
-      params: { studentId, language },
+      params: { language },
       body: { requirementIds, factor }
     } = req;
+    const studentId = req.params.studentId as string;
 
     try {
       const credentialsResult = await getTemporaryCredentials(
         roleToAssumeForCourseAnalyzerAPIG
       );
-      const Credentials = credentialsResult?.Credentials;
+      // NOTE: `Credentials` can genuinely be undefined if STS doesn't return
+      // them (see FLAGGED BUG in the task report); `callApiGateway` requires a
+      // non-optional `Credentials`, so this asserts the existing (unguarded)
+      // assumption rather than changing behavior.
+      const Credentials = credentialsResult?.Credentials!;
 
       const courses = (await CourseService.getCourse({
         student_id: studentId

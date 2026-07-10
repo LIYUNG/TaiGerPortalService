@@ -5,7 +5,7 @@ import { programModule } from './Program';
 const { ObjectId } = Types;
 
 const programKeys = Object.keys(programModule);
-const programAIModule = {};
+const programAIModule: Record<string, unknown> = {};
 programKeys.forEach((key, _i) => {
   programAIModule[key] = {
     Result: {

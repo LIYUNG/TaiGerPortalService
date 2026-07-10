@@ -11,48 +11,21 @@
 import request from 'supertest';
 import type { Request, Response, NextFunction } from 'express';
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () =>
+  require('../helpers/middlewareMocks').innerTaigerMultitenantFilterMock()
+);
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    localAuth: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
-  };
+  const mw = require('../helpers/middlewareMocks');
+  return mw.authMock({ localAuth: mw.passthroughFn() });
 });
 
 // putMycourses notifies agents by email after the upsert; stub the senders so no

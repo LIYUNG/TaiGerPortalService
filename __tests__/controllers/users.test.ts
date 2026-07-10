@@ -25,9 +25,28 @@ jest.mock('../../utils/modelHelper/versionControl', () => ({
 }));
 
 import { Role } from '@taiger-common/core';
-import UserService from '../../services/users';
-import TokenService from '../../services/tokens';
-import {
+import type { Request, Response, NextFunction } from 'express';
+import UserServiceModule from '../../services/users';
+import TokenServiceModule from '../../services/tokens';
+import UsersControllerModule from '../../controllers/users';
+import { admin } from '../mock/user';
+// helpers/httpMocks is a plain CommonJS file (no import/export statements), so
+// TS sees it as a script, not a module (TS2306) — require() sidesteps that.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+
+// Auto-mocked service modules expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type each as a bag of jest.Mock methods so the
+// per-test mock-configuration calls (mockResolvedValue/mockRejectedValue/...)
+// type-check while still allowing partial (non-Mongoose) return shapes.
+type MockedService = Record<string, jest.Mock>;
+const UserService = UserServiceModule as unknown as MockedService;
+const TokenService = TokenServiceModule as unknown as MockedService;
+
+// controllers/users uses `export =`; cast to a uniform (req, res, next)
+// signature and destructure (named-import destructuring against `export =`
+// errors TS2497).
+const {
   getUsersCount,
   addUser,
   getUsers,
@@ -36,9 +55,10 @@ import {
   updateUser,
   deleteUser,
   getUsersOverview
-} from '../../controllers/users';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin } from '../mock/user';
+} = UsersControllerModule as unknown as Record<
+  string,
+  (req: Request, res: Response, next: NextFunction) => Promise<void>
+>;
 
 beforeEach(() => {
   jest.clearAllMocks();

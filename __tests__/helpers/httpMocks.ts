@@ -7,8 +7,8 @@
 // are covered by the integration tests (__tests__/integration) and the
 // middleware suites (__tests__/middlewares).
 
-const mockRes = () => {
-  const res = {};
+export const mockRes = () => {
+  const res: Record<string, jest.Mock> = {};
   res.status = jest.fn(() => res);
   res.send = jest.fn(() => res);
   res.json = jest.fn(() => res);
@@ -20,12 +20,10 @@ const mockRes = () => {
   return res;
 };
 
-const mockReq = (overrides = {}) => ({
+export const mockReq = (overrides: Record<string, unknown> = {}) => ({
   params: {},
   query: {},
   body: {},
   headers: {},
   ...overrides
 });
-
-module.exports = { mockRes, mockReq };

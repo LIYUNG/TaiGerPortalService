@@ -1,4 +1,5 @@
 import { is_TaiGer_Editor, is_TaiGer_Agent } from '@taiger-common/core';
+import type { IPermission, IStudent } from '@taiger-common/model';
 
 import { ten_minutes_cache } from '../cache/node-cache';
 import { ErrorResponse } from '../common/errors';
@@ -13,9 +14,10 @@ export const chatMultitenantFilter = asyncHandler(async (req, res, next) => {
     params: { studentId }
   } = req;
   if (is_TaiGer_Editor(user) || is_TaiGer_Agent(user)) {
-    let cachedStudent = ten_minutes_cache.get(
-      `/chatMultitenantFilter/students/${studentId}`
-    );
+    let cachedStudent: IStudent | null | undefined =
+      ten_minutes_cache.get<IStudent | null>(
+        `/chatMultitenantFilter/students/${studentId}`
+      );
     if (cachedStudent === undefined) {
       const student = await StudentService.getStudentByIdSelect(
         studentId,
@@ -27,18 +29,20 @@ export const chatMultitenantFilter = asyncHandler(async (req, res, next) => {
         student
       );
       if (success) {
-        cachedStudent = student;
+        cachedStudent = student as IStudent | null;
         logger.info('students agents editos cache set successfully');
       }
     }
 
-    const cachedPermission = await getPermission(req, user);
+    const cachedPermission = (await getPermission(req, user)) as
+      | IPermission
+      | undefined;
 
     if (
-      !cachedStudent.agents?.some(
+      !cachedStudent?.agents?.some(
         (agent_id) => agent_id.toString() === user._id.toString()
       ) &&
-      !cachedStudent.editors?.some(
+      !cachedStudent?.editors?.some(
         (editor_id) => editor_id.toString() === user._id.toString()
       ) &&
       !cachedPermission?.canAccessAllChat

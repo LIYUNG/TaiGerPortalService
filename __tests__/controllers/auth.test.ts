@@ -27,24 +27,64 @@ jest.mock('../../utils/helper', () => ({
   fetchUserFromIdToken: jest.fn()
 }));
 
+import type { Request, Response, NextFunction } from 'express';
+
 import axios from 'axios';
-import UserService from '../../services/users';
-import TokenService from '../../services/tokens';
+import UserServiceModule from '../../services/users';
+import TokenServiceModule from '../../services/tokens';
 import * as EmailService from '../../services/email';
 import { fetchUserFromIdToken } from '../../utils/helper';
-import {
-  signup,
+// controllers/auth uses `export = {...}` (a plain object, not a
+// class/function instance); a NAMED `import { signup } from ...` against that
+// trips TS2497 (esModuleInterop only covers default-import interop).
+// Default-import the whole object (as routes/auth.ts does) and destructure
+// off of it instead — same runtime access, no interop error.
+import authController from '../../controllers/auth';
+const {
+  signup: signupRaw,
   login,
   logout,
   verify,
-  activateAccount,
-  resendActivation,
-  forgotPassword,
-  resetPassword,
+  activateAccount: activateAccountRaw,
+  resendActivation: resendActivationRaw,
+  forgotPassword: forgotPasswordRaw,
+  resetPassword: resetPasswordRaw,
   thirdAuth
-} from '../../controllers/auth';
-import { mockReq, mockRes } from '../helpers/httpMocks';
+} = authController;
+// `helpers/httpMocks` is a plain CommonJS module (no ES import/export syntax),
+// so `import { mockReq, mockRes } from ...` trips "is not a module" under
+// esModuleInterop; require() sidesteps that (allowed in *.test.ts by eslintrc).
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 import { admin } from '../mock/user';
+
+// Auto-mocked module methods expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type each service as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockRejectedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const UserService = UserServiceModule as unknown as MockedModule;
+const TokenService = TokenServiceModule as unknown as MockedModule;
+
+// `asMock` casts a single named auto-mocked function binding to jest.Mock.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// signup/forgotPassword/resetPassword/resendActivation/activateAccount are
+// asyncHandler-wrapped `(req, res)` (2-arg, no `next`) functions.
+// asyncHandler's runtime closure always accepts `(req, res, next)` and
+// forwards rejections to `next` — its TS type only exposes the wrapped
+// handler's own parameter list (see middlewares/error-handler.ts). Cast back
+// to the real 3-arg call shape so tests can pass `next`; TS-only, no runtime
+// change. (login/logout/verify are plain sync 2-arg functions — no cast
+// needed; thirdAuth is already asyncHandler-wrapped with a 3rd `next` param.)
+type ControllerHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<void>;
+const signup = signupRaw as unknown as ControllerHandler;
+const activateAccount = activateAccountRaw as unknown as ControllerHandler;
+const resendActivation = resendActivationRaw as unknown as ControllerHandler;
+const forgotPassword = forgotPasswordRaw as unknown as ControllerHandler;
+const resetPassword = resetPasswordRaw as unknown as ControllerHandler;
 
 const fakeUser = {
   _id: admin._id,
@@ -418,8 +458,10 @@ describe('activateAccount', () => {
 
 describe('thirdAuth (Google OAuth)', () => {
   it('exchanges the code, signs a cookie and responds 200 with the user', async () => {
-    axios.post.mockResolvedValue({ data: { id_token: 'google-id-token' } });
-    fetchUserFromIdToken.mockResolvedValue({
+    asMock(axios.post).mockResolvedValue({
+      data: { id_token: 'google-id-token' }
+    });
+    asMock(fetchUserFromIdToken).mockResolvedValue({
       email: fakeUser.email,
       name: 'Ann Smith',
       picture: 'http://pic'
@@ -449,8 +491,10 @@ describe('thirdAuth (Google OAuth)', () => {
   });
 
   it('forwards a 400 ErrorResponse to next() when no local user matches the Google email', async () => {
-    axios.post.mockResolvedValue({ data: { id_token: 'google-id-token' } });
-    fetchUserFromIdToken.mockResolvedValue({
+    asMock(axios.post).mockResolvedValue({
+      data: { id_token: 'google-id-token' }
+    });
+    asMock(fetchUserFromIdToken).mockResolvedValue({
       email: 'ghost@example.com',
       name: 'Ghost',
       picture: 'http://pic'
@@ -470,8 +514,8 @@ describe('thirdAuth (Google OAuth)', () => {
   });
 
   it('forwards a 400 ErrorResponse to next() when the Google token is invalid', async () => {
-    axios.post.mockResolvedValue({ data: { id_token: 'bad' } });
-    fetchUserFromIdToken.mockResolvedValue(null);
+    asMock(axios.post).mockResolvedValue({ data: { id_token: 'bad' } });
+    asMock(fetchUserFromIdToken).mockResolvedValue(null);
     const next = jest.fn();
 
     await thirdAuth(

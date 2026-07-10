@@ -1,22 +1,30 @@
 import { ErrorResponse } from '../../common/errors';
 import { Role } from '@taiger-common/core';
+import type { ICommunication } from '@taiger-common/model';
 import { and, desc, eq, not } from 'drizzle-orm';
+import type { FilterQuery } from 'mongoose';
 import { getPostgresDb } from '../../database';
 import { leads } from '../../drizzle/schema/leads';
 import { meetingTranscripts } from '../../drizzle/schema/meetingTranscripts';
-import { getAccessibleStudentFilter } from './studentAccess';
-import {
-  normalizeApplication,
-  normalizeMessage,
-  normalizeProfileDocument,
-  normalizeUser
-} from './normalizers';
+import studentAccess from './studentAccess';
+import normalizers from './normalizers';
 import StudentService from '../students';
 import ApplicationService from '../applications';
 import CommunicationService from '../communications';
 import ComplaintService from '../complaints';
 import DocumentThreadService from '../documentthreads';
 import ProgramService from '../programs';
+
+// `studentAccess` and `normalizers` are CommonJS (`export =`) modules; under
+// isolatedModules they must be imported as a default and destructured here
+// rather than via a named import.
+const { getAccessibleStudentFilter } = studentAccess;
+const {
+  normalizeApplication,
+  normalizeMessage,
+  normalizeProfileDocument,
+  normalizeUser
+} = normalizers;
 
 const AI_STUDENT_PICKER_FIELDS =
   'firstname lastname firstname_chinese lastname_chinese email role archiv agents editors applying_program_count';
@@ -369,6 +377,13 @@ const requireAccessibleStudent = async (
   return students[0];
 };
 
+// The lean student document's inferred type does not carry a virtual `id`
+// (mongoose lean() only exposes `_id`); several call sites below defensively
+// fall back to a possible `.id` anyway. Read that fallback via LeanDoc rather
+// than widening the whole document's type (which would erase the otherwise
+// well-typed known fields like `.profile`, `.firstname`, etc).
+const studentIdFallback = (student: LeanDoc) => student.id;
+
 const searchAccessibleStudents = async (
   req: AiRequest,
   args: AiToolArgs = {}
@@ -555,7 +570,7 @@ const getLatestCommunications = async (
     }
   }
 
-  const query = {
+  const query: FilterQuery<ICommunication> = {
     student_id: args.studentId
   };
   if (sinceDate) {
@@ -632,7 +647,7 @@ const getApplicationContext = async (req: AiRequest, args: AiToolArgs = {}) => {
   return {
     data: {
       student: {
-        id: student._id?.toString?.() || student.id,
+        id: student._id?.toString?.() || studentIdFallback(student),
         displayName:
           [student.firstname, student.lastname].filter(Boolean).join(' ') ||
           undefined,
@@ -660,7 +675,7 @@ const getRecentCommunicationContext = async (
   return {
     data: {
       student: {
-        id: student._id?.toString?.() || student.id,
+        id: student._id?.toString?.() || studentIdFallback(student),
         displayName:
           [student.firstname, student.lastname].filter(Boolean).join(' ') ||
           undefined,
@@ -685,7 +700,7 @@ const getAllCommunicationContext = async (
   return {
     data: {
       student: {
-        id: student._id?.toString?.() || student.id,
+        id: student._id?.toString?.() || studentIdFallback(student),
         displayName:
           [student.firstname, student.lastname].filter(Boolean).join(' ') ||
           undefined,
@@ -707,7 +722,7 @@ const getDocumentContext = async (req: AiRequest, args: AiToolArgs = {}) => {
   return {
     data: {
       student: {
-        id: student._id?.toString?.() || student.id,
+        id: student._id?.toString?.() || studentIdFallback(student),
         displayName:
           [student.firstname, student.lastname].filter(Boolean).join(' ') ||
           undefined,
@@ -732,7 +747,7 @@ const getSupportTicketContext = async (
   return {
     data: {
       student: {
-        id: student._id?.toString?.() || student.id,
+        id: student._id?.toString?.() || studentIdFallback(student),
         displayName:
           [student.firstname, student.lastname].filter(Boolean).join(' ') ||
           undefined,
@@ -748,7 +763,7 @@ const getDocumentThreadContext = async (
   args: AiToolArgs = {}
 ) => {
   const student = await requireAccessibleStudent(req, args.studentId);
-  const studentId = toObjectIdString(student._id || student.id);
+  const studentId = toObjectIdString(student._id || studentIdFallback(student));
 
   const [threads, applications] = await Promise.all([
     DocumentThreadService.findThreadsSelectSorted(
@@ -834,7 +849,7 @@ const getCrmLeadMeetingContext = async (
   args: AiToolArgs = {}
 ) => {
   const student = await requireAccessibleStudent(req, args.studentId);
-  const studentId = toObjectIdString(student._id || student.id);
+  const studentId = toObjectIdString(student._id || studentIdFallback(student));
   await assertLeadAccessForStudent(req, studentId, student);
 
   const postgres = getPostgresDb();
@@ -911,7 +926,10 @@ const getCrmLeadMeetingContext = async (
 
 const getProgramBrief = async (req: AiRequest, args: AiToolArgs = {}) => {
   const program = await ProgramService.getProgramByIdSelect(
-    args.programId,
+    // Tool args are validated as required by the JSON tool schema at the LLM
+    // layer even though the shared AiToolArgs interface types this field as
+    // optional (see getProgram in aiTools.ts for the same convention).
+    args.programId as string,
     'school program_name degree semester application_deadline country'
   );
 

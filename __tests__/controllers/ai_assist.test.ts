@@ -55,73 +55,156 @@ jest.mock('../../services/logger', () => ({
   info: jest.fn()
 }));
 
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { getPostgresDb } from '../../database';
-import orchestrator from '../../services/ai-assist/orchestrator';
-import {
-  requireAccessibleStudent,
-  searchAccessibleStudents
-} from '../../services/ai-assist/tools';
-import { getAccessibleStudentFilter } from '../../services/ai-assist/studentAccess';
-import StudentService from '../../services/students';
+import type { Request, Response, NextFunction } from 'express';
+
+// httpMocks.ts is CommonJS (module.exports = {...}) with no import/export
+// syntax at all, so TS treats it as a non-module (TS2306) for ESM `import`
+// syntax. require() resolves to the exact same runtime module while sidestepping
+// that; the destructured helpers are typed `any`, matching their untyped
+// test-double shape.
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+
+import { getPostgresDb as getPostgresDbImport } from '../../database';
+// tools.ts and studentAccess.ts use `export =` (CommonJS), so named ESM
+// imports trigger TS2497. Import the default export and destructure the
+// members instead (mirrors controllers/ai_assist.ts's own workaround).
+import toolsModule from '../../services/ai-assist/tools';
+import studentAccessModule from '../../services/ai-assist/studentAccess';
+import orchestratorModule from '../../services/ai-assist/orchestrator';
+import StudentServiceModule from '../../services/students';
 import { openAIClient } from '../../services/openai';
 import logger from '../../services/logger';
 import PermissionService from '../../services/permissions';
-import CommunicationService from '../../services/communications';
-import controller from '../../controllers/ai_assist';
+import CommunicationServiceModule from '../../services/communications';
+import controllerModule from '../../controllers/ai_assist';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a single binding to jest.Mock so per-test
+// `.mockResolvedValue()/.mockRejectedValue()/.mockImplementation()` calls
+// type-check; `MockedModule` does the same for whole modules accessed as
+// `Module.method(...)`.
+const asMock = (fn: unknown) => fn as jest.Mock;
+type MockedModule = Record<string, jest.Mock>;
+
+const requireAccessibleStudent = asMock(toolsModule.requireAccessibleStudent);
+const searchAccessibleStudents = asMock(toolsModule.searchAccessibleStudents);
+const getAccessibleStudentFilter = asMock(
+  studentAccessModule.getAccessibleStudentFilter
+);
+const orchestrator = orchestratorModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const CommunicationService =
+  CommunicationServiceModule as unknown as MockedModule;
+const getPostgresDb = getPostgresDbImport as unknown as jest.Mock;
+
+// The real controller handlers are asyncHandler-wrapped `(req, res) => ...`
+// closures, so TS narrows their exported type to 2 params; the wrapper itself
+// always accepts/forwards (req, res, next) at runtime (it `.catch(next)`s a
+// rejection), so tests legitimately pass a next() to observe error
+// forwarding. Recast to that real 3-arg runtime shape.
+type ControllerHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<unknown>;
+const controller = controllerModule as unknown as Record<
+  string,
+  ControllerHandler
+>;
 
 const USER = { _id: { toString: () => 'user_1' }, role: 'Agent' };
+
+// Chainable Drizzle double's mutable backing state, plus its jest.Mock method
+// surface and the `_set*` test-control helpers. Typed loosely (unknown /
+// unknown[][]) since these are plain test-fixture payloads, not real
+// Drizzle/schema rows.
+type MockDbState = {
+  selectResult: unknown[];
+  returningResult: unknown[];
+  selectQueue: unknown[][] | null;
+};
+
+interface MockDbBuilder {
+  select: jest.Mock;
+  from: jest.Mock;
+  where: jest.Mock;
+  orderBy: jest.Mock;
+  limit: jest.Mock;
+  offset: jest.Mock;
+  insert: jest.Mock;
+  values: jest.Mock;
+  update: jest.Mock;
+  set: jest.Mock;
+  returning: jest.Mock;
+  then: (
+    resolve: (value: unknown) => unknown,
+    reject: (reason?: unknown) => unknown
+  ) => Promise<unknown>;
+}
+
+interface MockDb extends MockDbBuilder {
+  transaction: jest.Mock;
+  _setSelect: (v: unknown[]) => MockDb;
+  _setSelectQueue: (v: unknown[][]) => MockDb;
+  _setReturning: (v: unknown[]) => MockDb;
+}
 
 // Chainable Drizzle double. Awaiting any select chain resolves to
 // `state.selectResult`; insert/update .returning() resolves to
 // `state.returningResult`. transaction(cb) runs cb with the same double.
-const makeDb = () => {
+const makeDb = (): MockDb => {
   // selectQueue lets a handler that issues several selects (e.g.
   // getConversation: owner row, then messages, then trace) get a distinct
   // result per await. When the queue is exhausted it falls back to
   // selectResult.
-  const state = { selectResult: [], returningResult: [], selectQueue: null };
-  const builder = {};
-  const resolveSelect = () => {
+  const state: MockDbState = {
+    selectResult: [],
+    returningResult: [],
+    selectQueue: null
+  };
+  const builder = {} as MockDbBuilder;
+  const resolveSelect = (): unknown[] => {
     if (Array.isArray(state.selectQueue) && state.selectQueue.length) {
-      return state.selectQueue.shift();
+      return state.selectQueue.shift() as unknown[];
     }
     return state.selectResult;
   };
   builder.then = (resolve, reject) =>
     Promise.resolve(resolveSelect()).then(resolve, reject);
 
-  [
-    'select',
-    'from',
-    'where',
-    'orderBy',
-    'limit',
-    'offset',
-    'insert',
-    'values',
-    'update',
-    'set'
-  ].forEach((m) => {
+  (
+    [
+      'select',
+      'from',
+      'where',
+      'orderBy',
+      'limit',
+      'offset',
+      'insert',
+      'values',
+      'update',
+      'set'
+    ] as const
+  ).forEach((m) => {
     builder[m] = jest.fn().mockReturnValue(builder);
   });
   builder.returning = jest
     .fn()
     .mockImplementation(() => Promise.resolve(state.returningResult));
 
-  const db = {
+  const db: MockDb = {
     ...builder,
     then: builder.then,
-    transaction: jest.fn(async (cb) => cb(db)),
-    _setSelect: (v) => {
+    transaction: jest.fn(async (cb: (db: MockDb) => unknown) => cb(db)),
+    _setSelect: (v: unknown[]) => {
       state.selectResult = v;
       return db;
     },
-    _setSelectQueue: (v) => {
+    _setSelectQueue: (v: unknown[][]) => {
       state.selectQueue = v;
       return db;
     },
-    _setReturning: (v) => {
+    _setReturning: (v: unknown[]) => {
       state.returningResult = v;
       return db;
     }
@@ -129,7 +212,7 @@ const makeDb = () => {
   return db;
 };
 
-let db;
+let db: MockDb;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -614,7 +697,7 @@ describe('sendMessage - streaming', () => {
       'Content-Type',
       'text/event-stream'
     );
-    const written = res.write.mock.calls.map((c) => c[0]).join('');
+    const written = res.write.mock.calls.map((c: unknown[]) => c[0]).join('');
     expect(written).toContain('event: final');
     expect(written).toContain('event: done');
     expect(res.end).toHaveBeenCalled();
@@ -637,7 +720,7 @@ describe('sendMessage - streaming', () => {
 
     await controller.sendMessage(req, res, jest.fn());
 
-    const written = res.write.mock.calls.map((c) => c[0]).join('');
+    const written = res.write.mock.calls.map((c: unknown[]) => c[0]).join('');
     expect(written).toContain('event: error');
     expect(res.end).toHaveBeenCalled();
   });
@@ -657,7 +740,7 @@ describe('sendMessage - streaming', () => {
 
     await controller.sendMessage(req, res, jest.fn());
 
-    const written = res.write.mock.calls.map((c) => c[0]).join('');
+    const written = res.write.mock.calls.map((c: unknown[]) => c[0]).join('');
     expect(written).toContain('weird');
   });
 });
@@ -746,7 +829,7 @@ describe('sendFirstMessage', () => {
 
     await controller.sendFirstMessage(req, res, jest.fn());
 
-    const written = res.write.mock.calls.map((c) => c[0]).join('');
+    const written = res.write.mock.calls.map((c: unknown[]) => c[0]).join('');
     expect(written).toContain('event: progress');
     expect(written).toContain('event: token');
     expect(written).toContain('event: final');
@@ -770,7 +853,7 @@ describe('sendFirstMessage', () => {
 
     await controller.sendFirstMessage(req, res, jest.fn());
 
-    const written = res.write.mock.calls.map((c) => c[0]).join('');
+    const written = res.write.mock.calls.map((c: unknown[]) => c[0]).join('');
     expect(written).toContain('event: error');
     expect(logger.warn).toHaveBeenCalled();
     expect(res.end).toHaveBeenCalled();
@@ -791,7 +874,7 @@ describe('sendFirstMessage', () => {
 
     await controller.sendFirstMessage(req, res, jest.fn());
 
-    const written = res.write.mock.calls.map((c) => c[0]).join('');
+    const written = res.write.mock.calls.map((c: unknown[]) => c[0]).join('');
     expect(written).toContain('disk full');
   });
 });
@@ -800,7 +883,11 @@ describe('sendFirstMessage', () => {
 // Auto-title generation branches (driven through sendMessage)
 // ---------------------------------------------------------------------------
 describe('auto-title generation', () => {
-  const runSend = async (conversationRow, assistantResult, body) => {
+  const runSend = async (
+    conversationRow: Record<string, unknown>,
+    assistantResult: Record<string, unknown>,
+    body: Record<string, unknown> = {}
+  ) => {
     db._setSelectQueue([[conversationRow]]); // requireActiveConversationOwner
     db._setReturning([{ id: 'conv_1' }]);
     orchestrator.runAiAssist.mockResolvedValue(assistantResult);
@@ -917,7 +1004,7 @@ describe('queueAiTitleRefinement (background refinement)', () => {
       activeStudent: { id: 's1', displayName: 'Ada' },
       assistantMessage: { linkHints: {} }
     });
-    openAIClient.responses.create.mockResolvedValue({
+    asMock(openAIClient.responses.create).mockResolvedValue({
       output_text: 'Refined Ada title'
     });
     const refineDb = makeDb();
@@ -933,7 +1020,10 @@ describe('queueAiTitleRefinement (background refinement)', () => {
     await controller.sendMessage(req, mockRes(), jest.fn());
 
     // flush the setTimeout(0) refinement task
-    await jest.runOnlyPendingTimersAsync();
+    // @types/jest (v27) predates this jest v30 API; cast to call it.
+    await (
+      jest as unknown as { runOnlyPendingTimersAsync: () => Promise<void> }
+    ).runOnlyPendingTimersAsync();
 
     expect(openAIClient.responses.create).toHaveBeenCalled();
     expect(refineDb.set).toHaveBeenCalledWith(
@@ -953,7 +1043,9 @@ describe('queueAiTitleRefinement (background refinement)', () => {
       assistantMessage: { linkHints: {} }
     });
     // refined title equals the rule-based seed ("Ada") -> no update
-    openAIClient.responses.create.mockResolvedValue({ output_text: 'Ada' });
+    asMock(openAIClient.responses.create).mockResolvedValue({
+      output_text: 'Ada'
+    });
     const refineDb = makeDb();
     getPostgresDb.mockReturnValueOnce(db).mockReturnValue(refineDb);
 
@@ -966,7 +1058,10 @@ describe('queueAiTitleRefinement (background refinement)', () => {
       mockRes(),
       jest.fn()
     );
-    await jest.runOnlyPendingTimersAsync();
+    // @types/jest (v27) predates this jest v30 API; cast to call it.
+    await (
+      jest as unknown as { runOnlyPendingTimersAsync: () => Promise<void> }
+    ).runOnlyPendingTimersAsync();
 
     expect(refineDb.set).not.toHaveBeenCalled();
   });
@@ -982,7 +1077,9 @@ describe('queueAiTitleRefinement (background refinement)', () => {
       activeStudent: { id: 's1', displayName: 'Ada' },
       assistantMessage: { linkHints: {} }
     });
-    openAIClient.responses.create.mockRejectedValue(new Error('llm down'));
+    asMock(openAIClient.responses.create).mockRejectedValue(
+      new Error('llm down')
+    );
 
     const req = mockReq({
       user: USER,
@@ -990,7 +1087,10 @@ describe('queueAiTitleRefinement (background refinement)', () => {
       body: { message: 'summarize Ada' }
     });
     await controller.sendMessage(req, mockRes(), jest.fn());
-    await jest.runOnlyPendingTimersAsync();
+    // @types/jest (v27) predates this jest v30 API; cast to call it.
+    await (
+      jest as unknown as { runOnlyPendingTimersAsync: () => Promise<void> }
+    ).runOnlyPendingTimersAsync();
 
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('title refinement skipped')
@@ -1101,7 +1201,12 @@ describe('generateReplyDraft', () => {
       {
         user_id: { role: 'Student' },
         message: JSON.stringify({
-          blocks: [{ type: 'paragraph', data: { text: 'I am so angry, I want a refund' } }]
+          blocks: [
+            {
+              type: 'paragraph',
+              data: { text: 'I am so angry, I want a refund' }
+            }
+          ]
         })
       }
     ]);

@@ -4,10 +4,9 @@ import { Role } from '@taiger-common/core';
 import { GeneralGETSearchRequestRateLimiter } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
 
-import {
-  getQueryResults,
-  getQueryStudentsResults
-} from '../controllers/search';
+import searchController from '../controllers/search';
+
+const { getQueryResults, getQueryStudentsResults } = searchController;
 
 const router = Router();
 

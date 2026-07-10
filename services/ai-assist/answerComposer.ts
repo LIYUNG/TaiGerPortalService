@@ -239,11 +239,15 @@ const extractAnswerLinkHints = async ({
         }
       ]
     });
+    // The OpenAI Responses SDK output item union only carries `.content` on
+    // message-type items; probed structurally like getResponseText() above.
     const rawText =
       response.output_text ||
       (response.output || [])
-        .flatMap((item) => item.content || [])
-        .map((item) => item.text || '')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .flatMap((item: any) => item.content || [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((item: any) => item.text || '')
         .join('\n');
     const parsed = safeParseJson(rawText) || extractFirstJsonObject(rawText);
 

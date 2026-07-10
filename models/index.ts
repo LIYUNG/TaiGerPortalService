@@ -10,7 +10,7 @@
 // enableVersionControl plugins, which resolve their sibling models from the
 // firing model's own connection — so Program reads AND writes run safely on the
 // default-connection model here.
-import mongoose from 'mongoose';
+import mongoose, { type Schema } from 'mongoose';
 
 // Already compiled on the default connection.
 import * as userModels from './User'; // User, Student, Agent, Editor, Admin, ...
@@ -50,7 +50,7 @@ import { versionControlSchema } from './VersionControl';
 
 // Idempotent compile: reuse an already-registered model (avoids
 // OverwriteModelError when this module is required more than once).
-const compile = (name, schema) =>
+const compile = (name: string, schema: Schema) =>
   mongoose.models[name] || mongoose.model(name, schema);
 
 // User + discriminators (already compiled in ./User).

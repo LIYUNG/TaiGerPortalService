@@ -4,8 +4,14 @@
 // DAO's result unchanged.
 jest.mock('../../dao/interval.dao');
 
-import IntervalDAO from '../../dao/interval.dao';
+import IntervalDAOModule from '../../dao/interval.dao';
 import IntervalService from '../../services/intervals';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()` calls type-check while still allowing
+// partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const IntervalDAO = IntervalDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();

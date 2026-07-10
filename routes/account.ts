@@ -17,17 +17,7 @@ import {
   admissionUpload
 } from '../middlewares/file-upload';
 
-import {
-  getTemplates,
-  deleteTemplate,
-  uploadTemplate,
-  downloadTemplateFile,
-  removeNotification,
-  removeAgentNotification,
-  getMyAcademicBackground,
-  updateStudentApplicationResult,
-  updateStudentApplicationResultV2
-} from '../controllers/files';
+import filesController from '../controllers/files';
 import {
   updateAcademicBackground,
   updateLanguageSkill,
@@ -40,6 +30,18 @@ import {
 } from '../controllers/account';
 
 import { validateStudentId } from '../common/validation';
+
+const {
+  getTemplates,
+  deleteTemplate,
+  uploadTemplate,
+  downloadTemplateFile,
+  removeNotification,
+  removeAgentNotification,
+  getMyAcademicBackground,
+  updateStudentApplicationResult,
+  updateStudentApplicationResultV2
+} = filesController;
 
 const router = Router();
 

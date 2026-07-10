@@ -4,6 +4,7 @@ import {
   is_TaiGer_Student,
   is_TaiGer_Guest
 } from '@taiger-common/core';
+import type { IPermission } from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
 import { getPermission } from '../utils/queryFunctions';
@@ -17,7 +18,9 @@ export const interviewMultitenantFilter = asyncHandler(
       params: { interview_id }
     } = req;
     if (is_TaiGer_Editor(user) || is_TaiGer_Agent(user)) {
-      const permissions = await getPermission(req, user);
+      const permissions = (await getPermission(req, user)) as
+        | IPermission
+        | undefined;
 
       const interview = await InterviewService.findInterviewByIdPopulated(
         interview_id,

@@ -4,9 +4,12 @@ import { Role } from '@taiger-common/core';
 import { getMessagesRateLimiter } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
 
-import { getApplicationConflicts } from '../controllers/student_applications';
+import studentApplicationsController from '../controllers/student_applications';
 
-import { getApplicationDeltas } from '../controllers/teams';
+import teamsController from '../controllers/teams';
+
+const { getApplicationConflicts } = studentApplicationsController;
+const { getApplicationDeltas } = teamsController;
 
 const router = Router();
 

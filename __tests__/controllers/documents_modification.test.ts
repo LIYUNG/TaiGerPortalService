@@ -76,18 +76,56 @@ jest.mock('../../cache/node-cache', () => ({
 }));
 
 const { ObjectId } = require('mongoose').Types;
-import DocumentThreadService from '../../services/documentthreads';
-import StudentService from '../../services/students';
-import SurveyInputService from '../../services/surveyInputs';
-import UserService from '../../services/users';
-import ApplicationService from '../../services/applications';
-import PermissionService from '../../services/permissions';
-import InterviewService from '../../services/interviews';
-import AuditService from '../../services/audit';
-import ForwardDocumentsService from '../../services/forwardDocuments';
+import DocumentThreadServiceModule from '../../services/documentthreads';
+import StudentServiceModule from '../../services/students';
+import SurveyInputServiceModule from '../../services/surveyInputs';
+import UserServiceModule from '../../services/users';
+import ApplicationServiceModule from '../../services/applications';
+import PermissionServiceModule from '../../services/permissions';
+import InterviewServiceModule from '../../services/interviews';
+import AuditServiceModule from '../../services/audit';
+import ForwardDocumentsServiceModule from '../../services/forwardDocuments';
 import { informOnSurveyUpdate } from '../../utils/informEditor';
 import { userChangesHelperFunction } from '../../utils/utils_function';
-import {
+import DocumentsModificationControllerModule from '../../controllers/documents_modification';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
+
+// Auto-mocked modules (`jest.mock('../../services/X')`) expose jest.fn()s at
+// runtime, but TS still sees the real (now-typed) service signatures. Re-type
+// each as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()/.mockRejectedValue()/.mock` calls type-check while
+// still allowing partial (non-Mongoose) return shapes.
+type MockedModule = Record<string, jest.Mock>;
+const DocumentThreadService =
+  DocumentThreadServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const SurveyInputService = SurveyInputServiceModule as unknown as MockedModule;
+const UserService = UserServiceModule as unknown as MockedModule;
+const ApplicationService = ApplicationServiceModule as unknown as MockedModule;
+const PermissionService = PermissionServiceModule as unknown as MockedModule;
+const InterviewService = InterviewServiceModule as unknown as MockedModule;
+const AuditService = AuditServiceModule as unknown as MockedModule;
+const ForwardDocumentsService =
+  ForwardDocumentsServiceModule as unknown as MockedModule;
+
+// A binding cast to jest.Mock so a NAMED auto-mock import's
+// `.mockResolvedValue()/.mockImplementation()` calls type-check.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// documents_modification.ts uses `export =`, so it can only be imported via a
+// default/namespace binding (named `import { x } from ...` isn't valid for an
+// `export =` module) -- destructure the individual handlers from that default.
+// Each handler is asyncHandler-wrapped; some declare (req, res) and some
+// (req, res, next), but every call site below passes (req, res, next). Cast to
+// a permissive Handler type so the extra/optional `next` argument type-checks
+// without touching the actual (contextually-`any`) req/res/next values at
+// runtime.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Handler = (req: any, res: any, next?: any) => Promise<unknown>;
+const DocumentsModificationController =
+  DocumentsModificationControllerModule as unknown as Record<string, Handler>;
+const {
   getActiveThreads,
   getActiveThreadsPaginated,
   getActiveThreadsCounts,
@@ -117,9 +155,7 @@ import {
   checkDocumentPattern,
   clearEssayWriters,
   forwardStudentDocuments
-} from '../../controllers/documents_modification';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, student } from '../mock/user';
+} = DocumentsModificationController;
 
 const studentId = student._id.toString();
 
@@ -1053,7 +1089,7 @@ describe('assignEssayWritersToEssayTask', () => {
         _id: { toString: () => messagesThreadId },
         outsourced_user_id: []
       });
-    userChangesHelperFunction.mockResolvedValue({
+    asMock(userChangesHelperFunction).mockResolvedValue({
       addedUsers: [],
       removedUsers: [],
       updatedUsers: [],
@@ -2261,7 +2297,13 @@ describe('deleteAMessageInThread (file deletion + program branch)', () => {
         messages: [{ user_id: otherUser, updatedAt: new Date() }]
       });
     DocumentThreadService.updateThreadById.mockResolvedValue({});
-    const appEntry = {
+    // Widened so the controller's post-delete stamp
+    // (appEntry.latest_message_left_by_id = ...) can be read back below.
+    const appEntry: {
+      doc_thread_id: { toString: () => string };
+      save: jest.Mock;
+      latest_message_left_by_id?: string;
+    } = {
       doc_thread_id: { toString: () => messagesThreadId },
       save: jest.fn().mockResolvedValue({})
     };
@@ -2336,7 +2378,7 @@ describe('assignEssayWritersToEssayTask (writers added)', () => {
         _id: { toString: () => messagesThreadId },
         outsourced_user_id: [writer]
       });
-    userChangesHelperFunction.mockResolvedValue({
+    asMock(userChangesHelperFunction).mockResolvedValue({
       addedUsers: [writer],
       removedUsers: [],
       updatedUsers: [writer],
@@ -3613,7 +3655,13 @@ describe('postMessages (more student / agent / interview branches)', () => {
   it('200: an admin posts a general-doc thread that lives in student.generaldocs_threads', async () => {
     const messagesThreadId = new ObjectId().toHexString();
     const docId = new ObjectId();
-    const generalEntry = {
+    // Widened so the controller's stamp
+    // (generalEntry.latest_message_left_by_id = ...) can be read back below.
+    const generalEntry: {
+      doc_thread_id: { toString: () => string };
+      updatedAt: Date;
+      latest_message_left_by_id?: string;
+    } = {
       doc_thread_id: { toString: () => docId.toString() },
       updatedAt: new Date()
     };

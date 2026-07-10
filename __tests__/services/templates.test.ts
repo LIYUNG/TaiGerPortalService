@@ -4,8 +4,14 @@
 // DAO method with the exact args and returns the DAO's result.
 jest.mock('../../dao/template.dao');
 
-import TemplateDAO from '../../dao/template.dao';
+import TemplateDAOModule from '../../dao/template.dao';
 import TemplateService from '../../services/templates';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()` calls type-check while still allowing
+// partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const TemplateDAO = TemplateDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();

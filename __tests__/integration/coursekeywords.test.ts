@@ -22,32 +22,15 @@ import { agent } from '../mock/user';
 // partial (non-Mongoose) return shapes.
 const asMock = (fn: unknown) => fn as jest.Mock;
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
-    req.tenantId = 'test';
-    next();
-  };
-
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
-  };
-});
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/auth', () =>
+  require('../helpers/middlewareMocks').authMock()
+);
 
 // The data boundary: mock the DAOs the keyword-set service delegates to.
 jest.mock('../../dao/keywordset.dao');

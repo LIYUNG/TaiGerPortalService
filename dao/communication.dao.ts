@@ -1,8 +1,14 @@
-import { FilterQuery, UpdateQuery, Types, SortOrder } from 'mongoose';
+import { FilterQuery, UpdateQuery, Types, SortOrder, Model } from 'mongoose';
 import { ICommunication } from '@taiger-common/model';
-import { Communication } from '../models';
+import { Communication as CommunicationModel } from '../models';
 
-const POPULATE = [
+// `Communication` is compiled via the generic `compile()` helper in
+// models/index.ts, which loses the schema's document generic (falls back to
+// `Model<any>`). Re-assert the real document type here so query results
+// (e.g. lean `createdAt`) type-check against `ICommunication`.
+const Communication = CommunicationModel as unknown as Model<ICommunication>;
+
+const POPULATE: [string, string] = [
   'student_id user_id readBy ignoredMessageBy',
   'firstname lastname role pictureUrl'
 ];
@@ -47,11 +53,11 @@ const CommunicationDAO = {
       limit
     }: { sort?: Record<string, SortOrder>; limit?: number } = {}
   ) {
-    return Communication.find(filter)
+    const query = Communication.find(filter)
       .populate('user_id', 'firstname lastname role')
       .sort(sort)
-      .limit(limit)
-      .lean();
+      .limit(limit);
+    return query.lean();
   },
 
   // All communications with student + author lightly populated — for the
@@ -159,9 +165,10 @@ const CommunicationDAO = {
       lean?: boolean;
     } = {}
   ) {
-    let query = Communication.find({ student_id: studentId })
-      .populate(populate, select)
-      .sort({ createdAt: -1 });
+    let query = Communication.find({ student_id: studentId }).sort({
+      createdAt: -1
+    });
+    query = query.populate(populate, select);
     if (skip) {
       query = query.skip(skip);
     }

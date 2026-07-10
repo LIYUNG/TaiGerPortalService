@@ -1,9 +1,10 @@
 import path from 'path';
-import multer from 'multer';
+import multer, { FileFilterCallback } from 'multer';
 import multerS3 from 'multer-s3';
 // Namespace import: `uuid` has no default export, so `import uuid from 'uuid'`
 // resolves to undefined and `uuid.v4()` throws at runtime.
 import * as uuid from 'uuid';
+import { Request } from 'express';
 import { ErrorResponse } from '../common/errors';
 import { AWS_S3_BUCKET_NAME, AWS_S3_PUBLIC_BUCKET_NAME } from '../config';
 import { s3Client } from '../aws';
@@ -34,8 +35,19 @@ const ALLOWED_MIME_PDF_TYPES = ['application/pdf'];
 
 const ALLOWED_MIME_IMAGE_TYPES = ['image/png', 'image/jpg', 'image/jpeg'];
 
-const formatDate = (date) => {
-  const pad = (number) => number.toString().padStart(2, '0');
+// multer-s3's own Options callbacks type their error param as `any`
+// (@types/multer-s3's `key?(req, file, callback: (error: any, key?: string) => void)`
+// etc.) — these aliases mirror that library signature exactly. (`bucket` is
+// left contextually-typed below since multer-s3 declares it as a plain arrow
+// property, which TS checks with strict — rather than method-style bivariant
+// — parameter variance.)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type S3MetadataCallback = (err: any, metadata?: Record<string, string>) => void;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type S3KeyCallback = (err: any, key?: string) => void;
+
+const formatDate = (date: Date): string => {
+  const pad = (number: number): string => number.toString().padStart(2, '0');
 
   const year = date.getFullYear();
   const month = pad(date.getMonth() + 1); // Months are zero-indexed
@@ -47,8 +59,8 @@ const formatDate = (date) => {
   return `${year}-${month}-${day}-${hours}-${minutes}-${seconds}`;
 };
 
-const fileSizeFilter = (req, size, cb) => {
-  const fileSize = parseInt(req.headers['content-length'], 10);
+const fileSizeFilter = (req: Request, size: number, cb: FileFilterCallback) => {
+  const fileSize = parseInt(req.headers['content-length'] as string, 10);
   if (fileSize > size) {
     return cb(
       new ErrorResponse(
@@ -61,7 +73,11 @@ const fileSizeFilter = (req, size, cb) => {
   }
 };
 
-const threadFileFilter = (req, file, cb) => {
+const threadFileFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  cb: FileFilterCallback
+) => {
   if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     return cb(
       new ErrorResponse(
@@ -74,7 +90,11 @@ const threadFileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-const docFileFilter = (req, file, cb) => {
+const docFileFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  cb: FileFilterCallback
+) => {
   if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     return cb(
       new ErrorResponse(
@@ -88,8 +108,12 @@ const docFileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-const filterProfile = (req, file, cb) => {
-  const { category } = req.params;
+const filterProfile = (
+  req: Request,
+  file: Express.Multer.File,
+  cb: FileFilterCallback
+) => {
+  const { category } = req.params as Record<string, string>;
   if (category === 'Passport_Photo') {
     if (!ALLOWED_MIME_IMAGE_TYPES.includes(file.mimetype)) {
       return cb(
@@ -105,7 +129,11 @@ const filterProfile = (req, file, cb) => {
   cb(null, true);
 };
 
-const fileImageFilter = (req, file, cb) => {
+const fileImageFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  cb: FileFilterCallback
+) => {
   if (!ALLOWED_MIME_IMAGE_TYPES.includes(file.mimetype)) {
     return cb(
       new ErrorResponse(415, 'Only .png, .jpg and .jpeg format are allowed')
@@ -123,12 +151,16 @@ const template_storage_s3 = multerS3({
   bucket: (req, file, cb) => {
     cb(null, AWS_S3_PUBLIC_BUCKET_NAME);
   },
-  metadata: (req, file, cb) => {
+  metadata: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: S3MetadataCallback
+  ) => {
     const directory = 'taiger_template';
     cb(null, { fieldName: file.fieldname, path: directory });
   },
-  key: (req, file, cb) => {
-    const { category_name } = req.params;
+  key: (req: Request, file: Express.Multer.File, cb: S3KeyCallback) => {
+    const { category_name } = req.params as Record<string, string>;
     let temp_name = `${category_name}_TaiGer_Template${path.extname(
       file.originalname
     )}`;
@@ -150,18 +182,24 @@ const storage_vpd_s3 = multerS3({
   bucket: (req, file, cb) => {
     cb(null, AWS_S3_BUCKET_NAME);
   },
-  metadata: (req, file, cb) => {
-    let { studentId } = req.params;
+  metadata: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: S3MetadataCallback
+  ) => {
+    let { studentId } = req.params as Record<string, string>;
     // eslint-disable-next-line no-underscore-dangle
-    if (!studentId) studentId = String(req.user._id);
+    // req.user is the ambient auth payload (any); read its id as a fallback.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!studentId) studentId = String((req.user as any)._id);
 
     // TODO: check studentId exist
     let directory = path.join(studentId);
     directory = directory.replace(/\\/g, '/');
     cb(null, { fieldName: file.fieldname, path: directory });
   },
-  key: (req, file, cb) => {
-    const { applicationId, fileType } = req.params;
+  key: (req: Request, file: Express.Multer.File, cb: S3KeyCallback) => {
+    const { applicationId, fileType } = req.params as Record<string, string>;
 
     ApplicationService.getApplicationByIdWithStudentProgram(applicationId).then(
       (application) => {
@@ -183,18 +221,24 @@ const storage_profile_s3 = multerS3({
   bucket: (req, file, cb) => {
     cb(null, AWS_S3_BUCKET_NAME);
   },
-  metadata: (req, file, cb) => {
-    let { studentId } = req.params;
+  metadata: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: S3MetadataCallback
+  ) => {
+    let { studentId } = req.params as Record<string, string>;
     // eslint-disable-next-line no-underscore-dangle
-    if (!studentId) studentId = String(req.user._id);
+    // req.user is the ambient auth payload (any); read its id as a fallback.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!studentId) studentId = String((req.user as any)._id);
 
     // TODO: check studentId exist
     const directory = studentId;
     cb(null, { fieldName: file.fieldname, path: directory });
   },
-  key: async (req, file, cb) => {
+  key: async (req: Request, file: Express.Multer.File, cb: S3KeyCallback) => {
     try {
-      const { studentId } = req.params;
+      const { studentId } = req.params as Record<string, string>;
       if (!studentId) return cb(new Error('Missing studentId'));
 
       const student = await StudentService.getStudentById(studentId);
@@ -219,11 +263,15 @@ const doc_image_s3 = multerS3({
   bucket: (req, file, cb) => {
     cb(null, AWS_S3_PUBLIC_BUCKET_NAME);
   },
-  metadata: (req, file, cb) => {
+  metadata: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: S3MetadataCallback
+  ) => {
     const directory = 'Documentations';
     cb(null, { fieldName: file.fieldname, path: directory });
   },
-  key: (req, file, cb) => {
+  key: (req: Request, file: Express.Multer.File, cb: S3KeyCallback) => {
     const id = uuid.v4();
     const fileName = id + path.extname(file.originalname);
     cb(null, `Documentations/${fileName}`);
@@ -235,10 +283,14 @@ const doc_docs_s3 = multerS3({
   bucket: (req, file, cb) => {
     cb(null, AWS_S3_PUBLIC_BUCKET_NAME);
   },
-  metadata: (req, file, cb) => {
+  metadata: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: S3MetadataCallback
+  ) => {
     cb(null, { fieldName: file.fieldname, path: '' });
   },
-  key: (req, file, cb) => {
+  key: (req: Request, file: Express.Multer.File, cb: S3KeyCallback) => {
     const fileName = file.originalname;
     cb(null, `Documentations/${fileName}`);
   }
@@ -249,14 +301,21 @@ const admission_letter_s3 = multerS3({
   bucket: (req, file, cb) => {
     cb(null, AWS_S3_BUCKET_NAME);
   },
-  metadata: (req, file, cb) => {
-    const { studentId } = req.params;
+  metadata: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: S3MetadataCallback
+  ) => {
+    const { studentId } = req.params as Record<string, string>;
     let directory = path.join(studentId, 'admission');
     directory = directory.replace(/\\/g, '/'); // g>> replace all!
     cb(null, { fieldName: file.fieldname, path: directory });
   },
-  key: (req, file, cb) => {
-    const { studentId, programId, result } = req.params;
+  key: (req: Request, file: Express.Multer.File, cb: S3KeyCallback) => {
+    const { studentId, programId, result } = req.params as Record<
+      string,
+      string
+    >;
     const admission_status = result === 'O' ? 'Admission' : 'Rejection';
 
     StudentService.getStudentByIdLean(studentId).then((student) => {
@@ -333,15 +392,19 @@ const storage_messagesticket_file_s3 = multerS3({
   bucket: (req, file, cb) => {
     cb(null, AWS_S3_BUCKET_NAME);
   },
-  metadata: (req, file, cb) => {
-    const { ticketId, studentId } = req.params;
+  metadata: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: S3MetadataCallback
+  ) => {
+    const { ticketId, studentId } = req.params as Record<string, string>;
     // TODO: check studentId and ticketId exist
     let directory = path.join(studentId, ticketId);
     directory = directory.replace(/\\/g, '/'); // g>> replace all!
     cb(null, { fieldName: file.fieldname, path: directory });
   },
-  key: (req, file, cb) => {
-    const { studentId, ticketId } = req.params;
+  key: (req: Request, file: Express.Multer.File, cb: S3KeyCallback) => {
+    const { studentId, ticketId } = req.params as Record<string, string>;
     ComplaintService.getComplaintDocByIdWithRequester(ticketId).then(
       (ticket) => {
         if (!ticket) {
@@ -365,15 +428,25 @@ const storage_messagesthread_file_s3 = multerS3({
   bucket: (req, file, cb) => {
     cb(null, AWS_S3_BUCKET_NAME);
   },
-  metadata: (req, file, cb) => {
-    const { messagesThreadId, studentId } = req.params;
+  metadata: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: S3MetadataCallback
+  ) => {
+    const { messagesThreadId, studentId } = req.params as Record<
+      string,
+      string
+    >;
     // TODO: check studentId and messagesThreadId exist
     let directory = path.join(studentId, messagesThreadId);
     directory = directory.replace(/\\/g, '/'); // g>> replace all!
     cb(null, { fieldName: file.fieldname, path: directory });
   },
-  key: (req, file, cb) => {
-    const { studentId, messagesThreadId } = req.params;
+  key: (req: Request, file: Express.Multer.File, cb: S3KeyCallback) => {
+    const { studentId, messagesThreadId } = req.params as Record<
+      string,
+      string
+    >;
     DocumentThreadService.getThreadDocByIdPopulated(messagesThreadId, [
       ['student_id']
     ]).then((thread) => {
@@ -409,15 +482,19 @@ const storage_messagesChat_file_s3 = multerS3({
   bucket: (req, file, cb) => {
     cb(null, AWS_S3_BUCKET_NAME);
   },
-  metadata: (req, file, cb) => {
-    const { studentId } = req.params;
+  metadata: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: S3MetadataCallback
+  ) => {
+    const { studentId } = req.params as Record<string, string>;
     // TODO: check studentId  exist
     let directory = path.join(studentId, 'chat');
     directory = directory.replace(/\\/g, '/'); // g>> replace all!
     cb(null, { fieldName: file.fieldname, path: directory });
   },
-  key: (req, file, cb) => {
-    const { studentId } = req.params;
+  key: (req: Request, file: Express.Multer.File, cb: S3KeyCallback) => {
+    const { studentId } = req.params as Record<string, string>;
     // Opaque, unique storage key — guarantees no two attachments ever collide
     // or overwrite each other. The human-friendly display/download name is set
     // separately on the message record (controllers/communications.postMessages).
@@ -432,14 +509,24 @@ const storage_messagesthread_image_s3 = multerS3({
   bucket: (req, file, cb) => {
     cb(null, AWS_S3_BUCKET_NAME);
   },
-  metadata: (req, file, cb) => {
-    const { messagesThreadId, studentId } = req.params;
+  metadata: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: S3MetadataCallback
+  ) => {
+    const { messagesThreadId, studentId } = req.params as Record<
+      string,
+      string
+    >;
     let directory = path.join(studentId, messagesThreadId);
     directory = directory.replace(/\\/g, '/'); // g>> replace all!
     cb(null, { fieldName: file.fieldname, path: directory });
   },
-  key: (req, file, cb) => {
-    const { messagesThreadId, studentId } = req.params;
+  key: (req: Request, file: Express.Multer.File, cb: S3KeyCallback) => {
+    const { messagesThreadId, studentId } = req.params as Record<
+      string,
+      string
+    >;
     const id = uuid.v4();
     const fileName = id + path.extname(file.originalname);
     cb(null, `${studentId}/${messagesThreadId}/img/${fileName}`);

@@ -177,7 +177,7 @@ describe('deleteS3Object', () => {
     expect(cmd).toBeInstanceOf(DeleteObjectCommand);
     expect(cmd.input).toEqual({ Bucket: 'bucket', Key: 'obj/key' });
     expect(waitUntilObjectNotExists).toHaveBeenCalledWith(
-      { client: expect.anything() },
+      { client: expect.anything(), maxWaitTime: expect.any(Number) },
       { Bucket: 'bucket', Key: 'obj/key' }
     );
     expect(logger.info).toHaveBeenCalledTimes(1);

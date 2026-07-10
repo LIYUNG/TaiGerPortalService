@@ -18,60 +18,30 @@ import type { Request, Response, NextFunction } from 'express';
 // partial (non-Mongoose) return shapes.
 const asMock = (fn: unknown) => fn as jest.Mock;
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
-    req.tenantId = 'test';
-    next();
-  };
-
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+// This file also stubs `prohibit`, which authMock() doesn't cover by default.
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough),
-    prohibit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
-  };
+  const mw = require('../helpers/middlewareMocks');
+  return mw.authMock({ prohibit: jest.fn(() => mw.passthrough) });
 });
-
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
-
+jest.mock('../../middlewares/limit_archiv_user', () =>
+  require('../helpers/middlewareMocks').limitArchivUserMock()
+);
+// This file stubs `permission_canModifyDocs_filter`, which
+// permissionFilterMock() doesn't cover by default.
 jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canModifyDocs_filter: jest.fn().mockImplementation(passthrough)
-  };
+  const mw = require('../helpers/middlewareMocks');
+  return mw.permissionFilterMock({
+    permission_canModifyDocs_filter: mw.passthroughFn()
+  });
 });
 
 jest.mock('../../middlewares/file-upload', () => {

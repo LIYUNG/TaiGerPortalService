@@ -9,42 +9,24 @@
 // construction itself is covered by the DAO unit tests. Fully deterministic — no
 // engine flake.
 
-jest.mock('../../middlewares/tenantMiddleware', () => ({
-  ...jest.requireActual('../../middlewares/tenantMiddleware'),
-  checkTenantDBMiddleware: jest.fn(
-    (req: Request, res: Response, next: NextFunction) => {
-      req.tenantId = 'test';
-      next();
-    }
-  )
-}));
-jest.mock('../../middlewares/decryptCookieMiddleware', () => ({
-  ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-  decryptCookieMiddleware: jest.fn(
-    (req: Request, res: Response, next: NextFunction) => next()
-  )
-}));
-jest.mock('../../middlewares/auth', () => ({
-  ...jest.requireActual('../../middlewares/auth'),
-  protect: jest.fn((req: Request, res: Response, next: NextFunction) => next()),
-  permit: jest.fn(
-    (...roles: string[]) =>
-      (req: Request, res: Response, next: NextFunction) =>
-        next()
-  )
-}));
-jest.mock('../../middlewares/limit_archiv_user', () => ({
-  ...jest.requireActual('../../middlewares/limit_archiv_user'),
-  filter_archiv_user: jest.fn(
-    (req: Request, res: Response, next: NextFunction) => next()
-  )
-}));
-jest.mock('../../middlewares/permission-filter', () => ({
-  ...jest.requireActual('../../middlewares/permission-filter'),
-  permission_canAccessStudentDatabase_filter: jest.fn(
-    (req: Request, res: Response, next: NextFunction) => next()
-  )
-}));
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/auth', () =>
+  require('../helpers/middlewareMocks').authMock()
+);
+jest.mock('../../middlewares/limit_archiv_user', () =>
+  require('../helpers/middlewareMocks').limitArchivUserMock()
+);
+jest.mock('../../middlewares/permission-filter', () =>
+  require('../helpers/middlewareMocks').permissionFilterMock()
+);
 
 // The data boundary: mock the DAOs the team dashboard services delegate to.
 jest.mock('../../dao/team.dao');

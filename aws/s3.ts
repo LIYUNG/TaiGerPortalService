@@ -9,11 +9,21 @@ import {
   waitUntilObjectNotExists,
   DeleteObjectsCommand,
   PutObjectCommand,
-  ListObjectsCommand
+  ListObjectsCommand,
+  type PutObjectCommandInput,
+  type ObjectIdentifier
 } from '@aws-sdk/client-s3';
 
 import logger from '../services/logger';
 import { AWS_KEY_CONFIG } from './constants';
+
+// Minimal shape of the `$metadata` an AWS SDK error carries, used as a fallback
+// 404 check for errors not caught by the `instanceof` guards.
+type WithHttpMetadata = { $metadata?: { httpStatusCode?: number } };
+
+// The AWS waiters require a maxWaitTime (seconds). 30s matches the SDK default
+// polling window and is plenty for a single-object delete to become consistent.
+const OBJECT_NOT_EXISTS_MAX_WAIT_SECONDS = 30;
 
 // `followRegionRedirects` lets a single client transparently read buckets that
 // live in a different region than AWS_REGION (e.g. the public template bucket).
@@ -23,7 +33,17 @@ export const s3Client = new S3Client({
   followRegionRedirects: true
 });
 
-export const putS3Object = async ({ bucketName, key, Body, ContentType }) => {
+export const putS3Object = async ({
+  bucketName,
+  key,
+  Body,
+  ContentType
+}: {
+  bucketName: string;
+  key: string;
+  Body: PutObjectCommandInput['Body'];
+  ContentType?: string;
+}) => {
   const client = new S3Client({});
   const command = new PutObjectCommand({
     Bucket: bucketName,
@@ -53,7 +73,7 @@ or the multipart upload API (5TB max).`
     }
   }
 };
-export const getS3Object = async (bucketName, objectKey) => {
+export const getS3Object = async (bucketName: string, objectKey: string) => {
   try {
     const response = await s3Client.send(
       new GetObjectCommand({
@@ -61,6 +81,11 @@ export const getS3Object = async (bucketName, objectKey) => {
         Key: objectKey
       })
     );
+    if (!response.Body) {
+      throw new Error(
+        `S3 GetObject returned an empty body for "${objectKey}" in "${bucketName}".`
+      );
+    }
     const str = await response.Body.transformToByteArray();
     return str;
   } catch (caught) {
@@ -82,7 +107,10 @@ export const getS3Object = async (bucketName, objectKey) => {
 // it is far cheaper than GetObject for validating that a file is present and
 // reading its size. Returns the object size in bytes if it exists, or null if
 // it is absent.
-export const headS3ObjectSize = async (bucketName, objectKey) => {
+export const headS3ObjectSize = async (
+  bucketName: string,
+  objectKey: string
+) => {
   try {
     const response = await s3Client.send(
       new HeadObjectCommand({
@@ -97,7 +125,7 @@ export const headS3ObjectSize = async (bucketName, objectKey) => {
     if (
       caught instanceof NotFound ||
       caught instanceof NoSuchKey ||
-      caught?.$metadata?.httpStatusCode === 404
+      (caught as WithHttpMetadata)?.$metadata?.httpStatusCode === 404
     ) {
       return null;
     }
@@ -114,7 +142,10 @@ export const headS3ObjectSize = async (bucketName, objectKey) => {
 // Cheap version token for an object: its S3 ETag (a content fingerprint that
 // changes whenever the object is overwritten). Returns null if absent or on a
 // non-fatal S3 error, so callers can fall back to another version signal.
-export const headS3ObjectETag = async (bucketName, objectKey) => {
+export const headS3ObjectETag = async (
+  bucketName: string,
+  objectKey: string
+) => {
   try {
     const response = await s3Client.send(
       new HeadObjectCommand({
@@ -127,7 +158,7 @@ export const headS3ObjectETag = async (bucketName, objectKey) => {
     if (
       caught instanceof NotFound ||
       caught instanceof NoSuchKey ||
-      caught?.$metadata?.httpStatusCode === 404
+      (caught as WithHttpMetadata)?.$metadata?.httpStatusCode === 404
     ) {
       return null;
     }
@@ -141,7 +172,7 @@ export const headS3ObjectETag = async (bucketName, objectKey) => {
   }
 };
 
-export const deleteS3Object = async (bucketName, objectKey) => {
+export const deleteS3Object = async (bucketName: string, objectKey: string) => {
   try {
     await s3Client.send(
       new DeleteObjectCommand({
@@ -150,7 +181,7 @@ export const deleteS3Object = async (bucketName, objectKey) => {
       })
     );
     await waitUntilObjectNotExists(
-      { client: s3Client },
+      { client: s3Client, maxWaitTime: OBJECT_NOT_EXISTS_MAX_WAIT_SECONDS },
       { Bucket: bucketName, Key: objectKey }
     );
     // A successful delete, or a delete for a non-existent object, both return
@@ -177,7 +208,13 @@ export const deleteS3Object = async (bucketName, objectKey) => {
 };
 
 // objectKeys = [{Key: 'abc/hey.pdf},{Key:'abc/key.pdf'}]
-export const deleteS3Objects = async ({ bucketName, objectKeys }) => {
+export const deleteS3Objects = async ({
+  bucketName,
+  objectKeys
+}: {
+  bucketName: string;
+  objectKeys: ObjectIdentifier[];
+}) => {
   try {
     const { Deleted } = await s3Client.send(
       new DeleteObjectsCommand({
@@ -190,16 +227,18 @@ export const deleteS3Objects = async ({ bucketName, objectKeys }) => {
     await Promise.all(
       objectKeys.map((objectKey) =>
         waitUntilObjectNotExists(
-          { client: s3Client },
+          { client: s3Client, maxWaitTime: OBJECT_NOT_EXISTS_MAX_WAIT_SECONDS },
           { Bucket: bucketName, Key: objectKey.Key }
         )
       )
     );
 
     logger.info(
-      `Successfully deleted ${Deleted.length} objects from S3 bucket. Deleted objects:`
+      `Successfully deleted ${
+        Deleted?.length ?? 0
+      } objects from S3 bucket. Deleted objects:`
     );
-    logger.info(Deleted.map((d) => ` • ${d.Key}`).join('\n'));
+    logger.info((Deleted ?? []).map((d) => ` • ${d.Key}`).join('\n'));
   } catch (caught) {
     if (
       caught instanceof S3ServiceException &&
@@ -218,7 +257,13 @@ export const deleteS3Objects = async ({ bucketName, objectKeys }) => {
   }
 };
 
-export const listS3ObjectsV2 = async ({ bucketName, Prefix }) => {
+export const listS3ObjectsV2 = async ({
+  bucketName,
+  Prefix
+}: {
+  bucketName: string;
+  Prefix: string;
+}) => {
   try {
     const command = new ListObjectsCommand({
       Bucket: bucketName,
@@ -245,7 +290,11 @@ export const listS3ObjectsV2 = async ({ bucketName, Prefix }) => {
   }
 };
 
-export async function uploadJsonToS3(responseJson, bucketName, fileName) {
+export async function uploadJsonToS3(
+  responseJson: unknown,
+  bucketName: string,
+  fileName: string
+) {
   try {
     // Prepare the file content
     const jsonData = JSON.stringify(responseJson);

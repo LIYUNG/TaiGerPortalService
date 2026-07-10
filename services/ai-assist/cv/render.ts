@@ -9,6 +9,7 @@
 
 import path from 'path';
 import { TemplateHandler, MimeType } from 'easy-template-x';
+import type { TemplateData } from 'easy-template-x';
 
 import { CVDraft } from './types';
 import TemplateService from '../../templates';
@@ -92,7 +93,12 @@ const detectImageFormat = (buf: Buffer): MimeType | null => {
   if (buf.length < 4) {
     return null;
   }
-  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+  if (
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  ) {
     return MimeType.Png;
   }
   if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
@@ -171,6 +177,13 @@ export const renderCVDraftDocx = async (
 ): Promise<RenderCVDraftResult> => {
   const { buffer: content, version } = await loadTemplateContent();
   const { data, photoEmbedded } = toTemplateData(draft, photo);
-  const buffer = await templateHandler.process(content, data);
+  // `data` is built as a plain Record for internal flexibility (CVDraft's
+  // optional/typed fields don't structurally match easy-template-x's
+  // recursive TemplateData union); the runtime shape is the tag map the
+  // library expects.
+  const buffer = await templateHandler.process(
+    content,
+    data as unknown as TemplateData
+  );
   return { buffer, photoEmbedded, templateVersion: version };
 };

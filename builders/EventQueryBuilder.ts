@@ -6,7 +6,7 @@ class EventQueryBuilder extends BaseQueryBuilder {
     this.query = {};
   }
 
-  withStartTimeStart(startTime) {
+  withStartTimeStart(startTime: string | number | Date | undefined) {
     if (startTime) {
       this.query.start = {
         ...this.query.start,
@@ -16,7 +16,7 @@ class EventQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withStartTimeEnd(endTime) {
+  withStartTimeEnd(endTime: string | number | Date | undefined) {
     if (endTime) {
       this.query.start = {
         ...this.query.start,
@@ -26,7 +26,7 @@ class EventQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withEndTimeStart(startTime) {
+  withEndTimeStart(startTime: string | number | Date | undefined) {
     if (startTime) {
       this.query.end = {
         ...this.query.end,
@@ -36,7 +36,7 @@ class EventQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withEndTimeEnd(endTime) {
+  withEndTimeEnd(endTime: string | number | Date | undefined) {
     if (endTime) {
       this.query.end = {
         ...this.query.end,
@@ -46,14 +46,14 @@ class EventQueryBuilder extends BaseQueryBuilder {
     return this;
   }
 
-  withReceiverId(receiverId) {
+  withReceiverId(receiverId: unknown) {
     if (receiverId) {
       this.query.receiver_id = receiverId;
     }
     return this;
   }
 
-  withRequesterId(requesterId) {
+  withRequesterId(requesterId: unknown) {
     if (requesterId) {
       this.query.requester_id = requesterId;
     }

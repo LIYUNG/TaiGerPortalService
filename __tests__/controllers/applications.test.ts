@@ -16,12 +16,29 @@ jest.mock('../../services/programs');
 jest.mock('../../services/documentthreads');
 jest.mock('../../services/email');
 
-import ApplicationService from '../../services/applications';
-import StudentService from '../../services/students';
-import ProgramService from '../../services/programs';
-import DocumentThreadService from '../../services/documentthreads';
+import type { Request, Response, NextFunction } from 'express';
+import ApplicationServiceModule from '../../services/applications';
+import StudentServiceModule from '../../services/students';
+import ProgramServiceModule from '../../services/programs';
+import DocumentThreadServiceModule from '../../services/documentthreads';
 import * as EmailService from '../../services/email';
-import {
+import * as applicationsControllerModule from '../../controllers/applications';
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+import { agent, admin, student } from '../mock/user';
+
+// controllers/applications handlers are wrapped in asyncHandler, whose
+// exposed type mirrors each wrapped function's own (req, res) parameter list.
+// Tests call the handlers directly as (req, res, next), so re-type the module
+// as a bag of full 3-arg handlers (see __tests__/controllers/crm.test.ts for
+// the same pattern).
+type Handler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<unknown>;
+const applicationsController =
+  applicationsControllerModule as unknown as Record<string, Handler>;
+const {
   getApplications,
   deleteApplication,
   getStudentsApplicationsPaginated,
@@ -33,9 +50,24 @@ import {
   updateApplication,
   createApplicationV2,
   refreshApplication
-} from '../../controllers/applications';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { agent, admin, student } from '../mock/user';
+} = applicationsController;
+
+// The services above are auto-mocked (jest.mock('../../services/X')), which
+// exposes jest.fn()s at runtime, but TS still sees each service's real
+// signatures. Re-type each as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()/.mockRejectedValue()` calls type-check while still
+// allowing partial (non-Mongoose) return shapes.
+type MockedModule = Record<string, jest.Mock>;
+const ApplicationService = ApplicationServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const ProgramService = ProgramServiceModule as unknown as MockedModule;
+const DocumentThreadService =
+  DocumentThreadServiceModule as unknown as MockedModule;
+
+// `EmailService` is a namespace import of real, individually-typed named
+// exports; `asMock` casts a single binding to jest.Mock so its
+// `.mockResolvedValue()` calls type-check.
+const asMock = (fn: unknown) => fn as jest.Mock;
 
 // 24-hex ObjectId strings (createApplicationV2 wraps program ids in
 // new mongoose.Types.ObjectId(...), which requires a valid hex string).
@@ -291,12 +323,13 @@ describe('createApplicationV2', () => {
   // A fresh application doc whose embedded doc_modification_thread subdoc array
   // supports .create()/.push() and which is awaitably saveable.
   const makeApplicationDoc = (id = 'app-new') => {
-    const arr = [];
-    arr.create = (obj) => ({ ...obj });
+    const arr = Object.assign([] as Record<string, unknown>[], {
+      create: (obj: Record<string, unknown>) => ({ ...obj })
+    });
     return {
       _id: id,
       doc_modification_thread: arr,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
   };
 
@@ -309,7 +342,7 @@ describe('createApplicationV2', () => {
     generaldocs_threads: [],
     application_preference: { expected_application_date: '2025 WS' },
     notification: {},
-    save: jest.fn().mockResolvedValue(),
+    save: jest.fn().mockResolvedValue(undefined),
     ...overrides
   });
 
@@ -396,7 +429,9 @@ describe('createApplicationV2', () => {
     );
     const fullApps = [{ _id: 'app-new' }];
     ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue(fullApps);
-    EmailService.createApplicationToStudentEmail.mockResolvedValue();
+    asMock(EmailService.createApplicationToStudentEmail).mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
 
     await createApplicationV2(
@@ -442,10 +477,12 @@ describe('createApplicationV2', () => {
     // new mongoose.Types.ObjectId(newThread._id).
     DocumentThreadService.newThread.mockReturnValue({
       _id: 'cccccccccccccccccccccccc',
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     });
     ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue([]);
-    EmailService.createApplicationToStudentEmail.mockResolvedValue();
+    asMock(EmailService.createApplicationToStudentEmail).mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
 
     await createApplicationV2(
@@ -485,10 +522,12 @@ describe('createApplicationV2', () => {
     );
     DocumentThreadService.newThread.mockReturnValue({
       _id: 'thread-rl',
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     });
     ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue([]);
-    EmailService.createApplicationToStudentEmail.mockResolvedValue();
+    asMock(EmailService.createApplicationToStudentEmail).mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
 
     await createApplicationV2(
@@ -619,7 +658,9 @@ describe('createApplicationV2', () => {
       { _id: { toString: () => programIdA }, country: 'de' }
     ]);
     ApplicationService.findByStudentIdPopulatedFull.mockResolvedValue([]);
-    EmailService.createApplicationToStudentEmail.mockResolvedValue();
+    asMock(EmailService.createApplicationToStudentEmail).mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
 
     await createApplicationV2(

@@ -1,4 +1,4 @@
-import ical from 'ical-generator';
+import ical, { ICalCalendarMethod, ICalEventStatus } from 'ical-generator';
 import queryString from 'query-string';
 import { DocumentStatusType, IUser } from '@taiger-common/model';
 
@@ -39,10 +39,18 @@ import {
 } from '../constants';
 
 import { ORIGIN } from '../config';
-import { htmlContent } from './emailTemplate';
-import { transporter, sendEmail } from './email/configuration';
-import { senderName, taigerNotReplyGmail, appDomain } from '../constants/email';
+// `emailTemplate.ts` and `email/configuration.ts` use `export =`; import via
+// `require` interop since a named `import { x }` against an `export =`
+// module is rejected under this project's module settings (TS2497).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see comment above
+import EmailTemplate = require('./emailTemplate');
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see comment above
+import EmailConfiguration = require('./email/configuration');
+import { senderName, taigerNotReplyGmail } from '../constants/email';
 import { asyncHandler } from '../middlewares/error-handler';
+
+const { htmlContent } = EmailTemplate;
+const { transporter, sendEmail } = EmailConfiguration;
 
 // Email-template payloads are heterogeneous, per-template data bags (program
 // details, student/application lists, timestamps, ...) rather than a single
@@ -93,9 +101,11 @@ const sendEventEmail = (
   );
 
   const event = ical({
-    domain: appDomain,
+    // `domain` is not a recognized `ical-generator` calendar option (not in
+    // `ICalCalendarData`, never read by the library at runtime) — dropped as
+    // dead configuration rather than cast around.
     prodId: '//TaiGer Portal//taigerconsultancy-portal.com//EN',
-    method: 'request', // publish (manually add) or request : receiver can choose yes or no. (but not good. info not sync with portal.)
+    method: ICalCalendarMethod.REQUEST, // publish (manually add) or request : receiver can choose yes or no. (but not good. info not sync with portal.)
     events: [
       {
         start: new Date(meeting_event.start), // Start date of the event
@@ -104,7 +114,9 @@ const sendEventEmail = (
         sequence: isUpdatingEvent ? 1 : 0, // Set the SEQUENCE to 1
         id: meeting_event._id.toString(), // Set a custom UID here
         description: meeting_event.description,
-        status: toDelete ? 'CANCELLED' : 'CONFIRMED', // for delete event
+        status: toDelete
+          ? ICalEventStatus.CANCELLED
+          : ICalEventStatus.CONFIRMED, // for delete event
         location: meeting_event.meetingLink,
         organizer: {
           name: 'TaiGer Portal',

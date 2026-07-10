@@ -3,7 +3,7 @@ import { Role } from '@taiger-common/core';
 
 import { GeneralGETRequestRateLimiter } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
-import { processProgramListAi, cvmlrlAi } from '../controllers/taigerais';
+import taigeraisController from '../controllers/taigerais';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import {
   permission_canModifyProgramList_filter,
@@ -11,7 +11,10 @@ import {
   permission_TaiGerAIRatelimiter
 } from '../middlewares/permission-filter';
 
+const { processProgramListAi, cvmlrlAi } = taigeraisController;
+
 const router = Router();
+router.use(GeneralGETRequestRateLimiter);
 router.use(protect);
 
 // NOTE: POST /chat/:studentId (the legacy chat assistant) is retired. The chat
@@ -22,7 +25,6 @@ router
   .route('/cvmlrl')
   .post(
     filter_archiv_user,
-    GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canUseTaiGerAI_filter,
     permission_TaiGerAIRatelimiter,
@@ -33,7 +35,6 @@ router
   .route('/program/:programId')
   .get(
     filter_archiv_user,
-    GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canModifyProgramList_filter,
     permission_canUseTaiGerAI_filter,

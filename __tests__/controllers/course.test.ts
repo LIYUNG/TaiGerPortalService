@@ -28,20 +28,54 @@ jest.mock('../../aws/s3', () => ({
   uploadJsonToS3: jest.fn().mockResolvedValue(undefined)
 }));
 
-import CourseService from '../../services/course';
-import StudentService from '../../services/students';
-import { getS3Object, uploadJsonToS3 } from '../../aws/s3';
-import { getTemporaryCredentials, callApiGateway } from '../../aws';
-import { updateCoursesDataAgentEmail } from '../../services/email';
+import CourseServiceModule from '../../services/course';
+import StudentServiceModule from '../../services/students';
 import {
+  getS3Object as getS3ObjectFn,
+  uploadJsonToS3 as uploadJsonToS3Fn
+} from '../../aws/s3';
+import {
+  getTemporaryCredentials,
+  callApiGateway as callApiGatewayFn
+} from '../../aws';
+import { updateCoursesDataAgentEmail } from '../../services/email';
+import CourseControllerModule from '../../controllers/course';
+import { admin, student } from '../mock/user';
+import type { Request, Response, NextFunction } from 'express';
+// helpers/httpMocks' mockReq() returns a partial fixture, not a real Express
+// Request; require() (typed `any`) avoids fighting the Request<...> generic
+// at every call site below (TS-only, no runtime change).
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+
+// Auto-mocked / factory-mocked modules expose jest.fn()s at runtime, but TS
+// still sees the real signatures. Re-type each as a bag of jest.Mock methods
+// so the per-test mock-configuration calls (mockResolvedValue, mockRejectedValue,
+// mockImplementation, etc.) type-check while still allowing partial
+// (non-Mongoose) return shapes.
+type MockedModule = Record<string, jest.Mock>;
+const asMock = (fn: unknown) => fn as jest.Mock;
+const CourseService = CourseServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const getS3Object = asMock(getS3ObjectFn);
+const uploadJsonToS3 = asMock(uploadJsonToS3Fn);
+const callApiGateway = asMock(callApiGatewayFn);
+
+// controllers/course uses `export =`, so the module's real shape is a plain
+// object of handlers (2-arg (req, res), per asyncHandler's arity-preserving
+// signature); cast to a uniform 3-arg (req, res, next) signature to match how
+// every test below calls them and destructure (named-import destructuring
+// against `export =` errors TS2497).
+const {
   getMycourses,
   putMycourses,
   deleteMyCourse,
   downloadJson,
   processTranscript_api_gatway
-} from '../../controllers/course';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, student } from '../mock/user';
+} = CourseControllerModule as unknown as Record<
+  string,
+  (req: Request, res: Response, next: NextFunction) => Promise<void>
+>;
 
 const studentId = student._id.toString();
 

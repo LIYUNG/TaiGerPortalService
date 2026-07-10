@@ -8,9 +8,13 @@ import {
   aiAssistToolCalls
 } from '../../drizzle/schema/schema';
 import aiTools from './aiTools';
-import { getLlmProvider, getConfiguredModel, getModelLabel } from './llm';
+import llm from './llm';
 import { REPLY_RESOURCE_LINKS } from './replyResources';
 import type { Turn } from './llm/types';
+
+// `llm` is a CommonJS (`export =`) module; under isolatedModules it must be
+// imported as a default and destructured here rather than via a named import.
+const { getLlmProvider, getConfiguredModel, getModelLabel } = llm;
 
 // AI Assist orchestrator — a single provider-neutral agentic tool loop.
 // One model turn per round; tools execute between rounds until the model
@@ -227,8 +231,8 @@ const buildSystemPrompt = ({
   const formatInstruction = replyMode
     ? `${REPLY_FORMAT_INSTRUCTION}${REPLY_RESOURCE_LINKS}`
     : analysisMode
-      ? ANALYSIS_FORMAT_INSTRUCTION
-      : '';
+    ? ANALYSIS_FORMAT_INSTRUCTION
+    : '';
   return `${baseInstructions}${roleGuidance(
     role
   )}${languageInstruction}${formatInstruction}`;

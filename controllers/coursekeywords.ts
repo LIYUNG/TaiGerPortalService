@@ -53,7 +53,7 @@ const createKeywordSet = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const updateKeywordSet = asyncHandler(async (req: Request, res: Response) => {
-  const { keywordsSetId } = req.params;
+  const keywordsSetId = req.params.keywordsSetId as string;
   const fields = req.body;
 
   delete fields._id;
@@ -73,7 +73,7 @@ const updateKeywordSet = asyncHandler(async (req: Request, res: Response) => {
 
 // will also remove the keywordId from the programs who has keywordsetid in one of their requirement
 const deleteKeywordSet = asyncHandler(async (req: Request, res: Response) => {
-  const { keywordsSetId } = req.params;
+  const keywordsSetId = req.params.keywordsSetId as string;
   try {
     await KeywordSetService.deleteKeywordSet(keywordsSetId);
   } catch (error) {

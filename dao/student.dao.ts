@@ -1,4 +1,9 @@
-import mongoose, { FilterQuery, UpdateQuery } from 'mongoose';
+import mongoose, {
+  FilterQuery,
+  PipelineStage,
+  SortOrder,
+  UpdateQuery
+} from 'mongoose';
 import { Role } from '@taiger-common/core';
 import { IStudent } from '@taiger-common/model';
 
@@ -10,7 +15,7 @@ const MAX_LIMIT = 100;
 
 // Frontend table column id -> aggregation sort path. Derived fields (nameEn,
 // nameZh, agentNames, editorNames) are materialised in STUDENT_DERIVED_STAGES.
-const STUDENT_SORT_FIELD_MAP = {
+const STUDENT_SORT_FIELD_MAP: Record<string, string> = {
   name_en: 'nameEn',
   name_zh: 'nameZh',
   archiv: 'archiv',
@@ -27,7 +32,7 @@ const STUDENT_SORT_FIELD_MAP = {
 };
 
 // Frontend table column id -> aggregation path for regex (contains) filters.
-const STUDENT_TEXT_FILTERS = {
+const STUDENT_TEXT_FILTERS: Record<string, string> = {
   name_en: 'nameEn',
   name_zh: 'nameZh',
   agentNames: 'agentNames',
@@ -61,11 +66,11 @@ const escapeRegex = (value: unknown) =>
 // Shared population specs reused across the read/update methods so the
 // projected agent/editor fields (and the thread population) stay consistent.
 // Spread into .populate(path, select).
-const TEAM_POPULATE = [
+const TEAM_POPULATE: [string, string] = [
   'agents editors',
   'firstname lastname email archiv pictureUrl'
 ];
-const GENERALDOCS_THREADS_POPULATE = [
+const GENERALDOCS_THREADS_POPULATE: [string, string] = [
   'generaldocs_threads.doc_thread_id',
   '-messages'
 ];
@@ -97,13 +102,13 @@ const parseStudentsQuery = (
   } = {}
 ) => {
   const { page, limit, search, sortBy, sortOrder } = query;
-  const parsedPage = parseInt(page, 10);
-  const parsedLimit = parseInt(limit, 10);
+  const parsedPage = parseInt(page ?? '', 10);
+  const parsedLimit = parseInt(limit ?? '', 10);
   const safePage = parsedPage > 0 ? parsedPage : DEFAULT_PAGE;
   const safeLimit =
     parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT;
 
-  const sortPath = STUDENT_SORT_FIELD_MAP[sortBy] || 'nameEn';
+  const sortPath = (sortBy && STUDENT_SORT_FIELD_MAP[sortBy]) || 'nameEn';
   const sortDir = String(sortOrder || 'asc').toLowerCase() === 'desc' ? -1 : 1;
 
   const filters: Record<string, string> = {};
@@ -127,7 +132,7 @@ const parseStudentsQuery = (
 // Materialise the derived fields the table sorts/filters on: full names and the
 // joined agent/editor first-name strings. Agents/editors are arrays of refs, so
 // they are looked up and reduced to comma-joined name strings.
-const STUDENT_DERIVED_STAGES = [
+const STUDENT_DERIVED_STAGES: PipelineStage[] = [
   {
     $lookup: {
       from: 'users',
@@ -192,9 +197,9 @@ const StudentDAO = {
       .populate(...TEAM_POPULATE)
       .populate(...GENERALDOCS_THREADS_POPULATE)
       .select('-notification')
-      .sort(options.sort)
-      .skip(options.skip)
-      .limit(options.limit)
+      .sort((options.sort ?? {}) as Record<string, SortOrder>)
+      .skip(options.skip ?? 0)
+      .limit(options.limit ?? 0)
       .lean();
   },
 
@@ -234,20 +239,18 @@ const StudentDAO = {
 
     // aggregate() does not auto-apply the discriminator filter, so scope to
     // students explicitly alongside the base filter (archiv/agents/editors).
-    const preMatch = { ...filter, role: Role.Student };
+    const preMatch: Record<string, unknown> = { ...filter, role: Role.Student };
     // aggregate() $match (unlike find()) does NOT cast query values, so the
     // agents/editors ObjectId refs arrive as strings and would never match —
     // cast them explicitly.
     ['agents', 'editors'].forEach((key) => {
-      if (
-        typeof preMatch[key] === 'string' &&
-        mongoose.Types.ObjectId.isValid(preMatch[key])
-      ) {
-        preMatch[key] = new mongoose.Types.ObjectId(preMatch[key]);
+      const value = preMatch[key];
+      if (typeof value === 'string' && mongoose.Types.ObjectId.isValid(value)) {
+        preMatch[key] = new mongoose.Types.ObjectId(value);
       }
     });
 
-    const postMatch = {};
+    const postMatch: Record<string, unknown> = {};
     Object.values(STUDENT_TEXT_FILTERS).forEach((path) => {
       if (typeof filters[path] === 'string') {
         postMatch[path] = { $regex: escapeRegex(filters[path]), $options: 'i' };
@@ -260,7 +263,7 @@ const StudentDAO = {
       }));
     }
 
-    const pipeline = [
+    const pipeline: PipelineStage[] = [
       { $match: preMatch },
       ...STUDENT_DERIVED_STAGES,
       ...(Object.keys(postMatch).length > 0 ? [{ $match: postMatch }] : []),
@@ -271,8 +274,8 @@ const StudentDAO = {
             { $skip: skip },
             { $limit: limit },
             { $project: { _id: 1 } }
-          ],
-          total: [{ $count: 'count' }]
+          ] as PipelineStage.FacetPipelineStage[],
+          total: [{ $count: 'count' }] as PipelineStage.FacetPipelineStage[]
         }
       }
     ];
@@ -292,12 +295,16 @@ const StudentDAO = {
       .lean();
 
     // $in does not preserve the aggregation's sort order — restore it.
-    const orderMap = new Map(
-      ids.map((id: any, index: number) => [id.toString(), index])
+    const orderMap = new Map<string, number>(
+      ids.map((id: any, index: number): [string, number] => [
+        id.toString(),
+        index
+      ])
     );
     docs.sort(
       (a: any, b: any) =>
-        orderMap.get(a._id.toString()) - orderMap.get(b._id.toString())
+        (orderMap.get(a._id.toString()) ?? 0) -
+        (orderMap.get(b._id.toString()) ?? 0)
     );
 
     return { students: docs, total, page, limit };
@@ -308,13 +315,17 @@ const StudentDAO = {
     options = {}
   }: {
     filter?: FilterQuery<IStudent>;
-    options?: { sort?: Record<string, unknown>; skip?: number; limit?: number };
+    options?: {
+      sort?: Record<string, unknown>;
+      skip?: number;
+      limit?: number;
+    };
   }) {
     return User.find(filter)
       .populate(...TEAM_POPULATE)
-      .sort(options.sort)
-      .skip(options.skip)
-      .limit(options.limit)
+      .sort((options.sort ?? {}) as Record<string, SortOrder>)
+      .skip(options.skip ?? 0)
+      .limit(options.limit ?? 0)
       .lean();
   },
 
@@ -339,20 +350,20 @@ const StudentDAO = {
 
   // Generic id lookups with a caller-supplied list of populate argument tuples
   // (e.g. [['agents editors', 'firstname lastname email'], ['applications.programId']]).
-  async getStudentByIdPopulated(id: string, populates: any[] = []) {
+  async getStudentByIdPopulated(id: string, populates: unknown[][] = []) {
     let query = Student.findById(id);
     populates.forEach((args) => {
-      query = query.populate(...args);
+      query = query.populate(...(args as [string, string?]));
     });
     return query.lean();
   },
 
   // Same as above but returns a LIVE document (caller mutates profile/notification
   // and calls .save()).
-  async getStudentDocByIdPopulated(id: string, populates: any[] = []) {
+  async getStudentDocByIdPopulated(id: string, populates: unknown[][] = []) {
     let query = Student.findById(id);
     populates.forEach((args) => {
-      query = query.populate(...args);
+      query = query.populate(...(args as [string, string?]));
     });
     return query;
   },

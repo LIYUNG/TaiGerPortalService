@@ -10,13 +10,23 @@
 
 jest.mock('../../services/search');
 
-import SearchService from '../../services/search';
-import {
-  getQueryResults,
-  getQueryStudentsResults,
-  getQueryPublicResults
-} from '../../controllers/search';
+import SearchServiceModule from '../../services/search';
+import SearchController from '../../controllers/search';
 import { mockReq, mockRes } from '../helpers/httpMocks';
+
+// Auto-mocked module methods expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()/.mockRejectedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const SearchService = SearchServiceModule as unknown as MockedModule;
+
+// The controller module uses `export =`, so its members are destructured off
+// the default-imported object; the handlers themselves are asyncHandler-wrapped
+// (req, res) functions, but tests call them with an extra `next` arg for the
+// forward-to-next() cases, so re-type each as a variadic handler.
+type ControllerHandler = (...args: unknown[]) => Promise<unknown>;
+const { getQueryResults, getQueryStudentsResults, getQueryPublicResults } =
+  SearchController as unknown as Record<string, ControllerHandler>;
 
 beforeEach(() => {
   jest.clearAllMocks();

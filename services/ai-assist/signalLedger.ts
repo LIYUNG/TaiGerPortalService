@@ -8,12 +8,16 @@ import {
   type StudentCommunicationSignal,
   type NewStudentCommunicationSignal
 } from '../../drizzle/schema/schema';
+import type { Response as OpenAIResponse } from 'openai/resources/responses/responses';
 import { openAIClient, OpenAiModel } from '../openai';
 import logger from '../logger';
 import StudentService from '../students';
 import CommunicationService from '../communications';
 import tools from './tools';
-import { normalizeMessage, normalizeUser } from './normalizers';
+// `normalizers` is exported via `export =` (CommonJS-style), so it must be
+// imported as a default (esModuleInterop) rather than destructured as a named
+// ES export.
+import normalizers from './normalizers';
 
 // Incremental "implicit risk" ledger. The portfolio overview's other buckets
 // are status/time based and never read message TEXT, so content risks
@@ -30,6 +34,35 @@ const MAX_STUDENTS_PER_RUN = 150;
 const MAX_ACTIVE_STUDENTS = 1500;
 const MAX_MESSAGES_PER_SCAN = 40;
 const MSG_TEXT_CAP = 600;
+
+// Express request; kept loose to match the repo-wide ai-assist convention
+// (see tools.ts's AiRequest) — it is only ever forwarded to
+// tools.requireAccessibleStudent, which is itself typed this way.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AiRequest = any;
+
+// Heterogeneous Mongoose lean/hydrated student document (populated reference
+// unions / FlattenMaps subdocuments) whose runtime shape does not
+// structurally match the strict @taiger-common/model interfaces; read
+// defensively.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LeanStudent = Record<string, any>;
+
+// One raw signal as returned by the LLM (validated/normalised by mergeSignals
+// before being persisted) — every field is defensively optional since the
+// model output is untrusted external JSON.
+interface RawLlmSignal {
+  type?: string;
+  severity?: string;
+  summaryEn?: string;
+  summaryZh?: string;
+  evidence?: string;
+  msgIndex?: number;
+  resolved?: boolean;
+  suggestedType?: string;
+  sourceMessageId?: string | null;
+  occurredAt?: string | null;
+}
 
 // Fixed risk categories (controlled vocabulary) — drives the i18n display label
 // on the card and lets the portfolio aggregate/filter by category. The specific
@@ -73,12 +106,14 @@ const INSTRUCTIONS =
   'Only report real, evidenced signals — never invent. Keep evidence to one short quote or paraphrase. ' +
   'Classify each signal under one fixed "type" category, AND write a SPECIFIC short description of the actual case (not the generic category) in BOTH English ("summaryEn") and Traditional Chinese ("summaryZh"), max ~12 words / ~20 characters, e.g. type "frustration" with "Frustrated about slow document feedback" / "對文件回覆緩慢感到不滿". ' +
   'Also set "msgIndex" to the "i" of the single message in the NEW messages list that best evidences the signal (omit or use 0 if it comes only from prior context). ' +
-  `Allowed "type" values: ${SIGNAL_TYPES.join(', ')}. Allowed "severity": ${SEVERITIES.join(', ')}. ` +
+  `Allowed "type" values: ${SIGNAL_TYPES.join(
+    ', '
+  )}. Allowed "severity": ${SEVERITIES.join(', ')}. ` +
   'Use "other" ONLY when a real signal fits none of the listed categories; in that case set "suggestedType" to a snake_case category name you would propose for it. Leave "suggestedType" empty for any listed category. ' +
   'Return STRICT JSON only: {"signals":[{"type":"...","severity":"low|medium|high","summaryEn":"...","summaryZh":"...","evidence":"...","msgIndex":0,"resolved":false,"suggestedType":""}]}. ' +
   'If there are no signals, return {"signals":[]}.';
 
-const safeParseJson = (value) => {
+const safeParseJson = (value: unknown): unknown => {
   if (!value || typeof value !== 'string') return null;
   try {
     return JSON.parse(value);
@@ -94,10 +129,10 @@ const safeParseJson = (value) => {
   }
 };
 
-const toIdString = (value) => {
+const toIdString = (value: unknown) => {
   if (!value) return '';
   if (typeof value === 'string') return value;
-  return value.toString?.() || '';
+  return (value as { toString?: () => string }).toString?.() || '';
 };
 
 // Highest unresolved severity across signals. Pure — unit tested.
@@ -118,7 +153,7 @@ const rollupRiskLevel = (signals: StudentSignal[] = []) => {
 // specific bilingual description (shown on hover). Pure — unit tested.
 const mergeSignals = (
   priorSignals: StudentSignal[] = [],
-  llmSignals: any[] = [],
+  llmSignals: RawLlmSignal[] = [],
   now = new Date()
 ): StudentSignal[] => {
   const nowIso = now.toISOString();
@@ -132,10 +167,16 @@ const mergeSignals = (
   // Normalise type/severity before validating — the model may return different
   // case ("Low") or spaced types ("broken promise"); dropping those silently
   // would leave a row with no signals despite real findings.
-  const normType = (value) =>
-    String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
-  const normSeverity = (value) => String(value || '').trim().toLowerCase();
-  const str = (value, cap) =>
+  const normType = (value: unknown) =>
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_');
+  const normSeverity = (value: unknown) =>
+    String(value || '')
+      .trim()
+      .toLowerCase();
+  const str = (value: unknown, cap: number) =>
     typeof value === 'string' ? value.trim().slice(0, cap) : '';
 
   return (Array.isArray(llmSignals) ? llmSignals : [])
@@ -161,7 +202,8 @@ const mergeSignals = (
       return {
         ...signal,
         // Keep the original source/time when this scan did not re-reference it.
-        sourceMessageId: signal.sourceMessageId || prior?.sourceMessageId || null,
+        sourceMessageId:
+          signal.sourceMessageId || prior?.sourceMessageId || null,
         occurredAt: signal.occurredAt || prior?.occurredAt || null,
         suggestedType: signal.suggestedType || prior?.suggestedType || '',
         firstSeenAt: prior?.firstSeenAt || nowIso,
@@ -170,14 +212,38 @@ const mergeSignals = (
     });
 };
 
-const extractOutputText = (response) =>
-  response?.output_text ||
-  (response?.output || [])
-    .flatMap((item) => item.content || [])
-    .map((item) => item.text || '')
-    .join('\n');
+const extractOutputText = (
+  response: OpenAIResponse | null | undefined
+): string => {
+  if (typeof response?.output_text === 'string' && response.output_text) {
+    return response.output_text;
+  }
 
-const classifySignals = async ({ priorSignals, messages }) => {
+  const parts = (response?.output || [])
+    .flatMap((item) => ('content' in item ? item.content : []))
+    .map((part) => {
+      if (typeof part === 'string') {
+        return part;
+      }
+      if (part?.type === 'output_text') {
+        return part.text;
+      }
+      if (typeof part?.text === 'string') {
+        return part.text;
+      }
+      return '';
+    });
+
+  return parts.filter(Boolean).join('\n');
+};
+
+const classifySignals = async ({
+  priorSignals,
+  messages
+}: {
+  priorSignals: StudentSignal[];
+  messages: ReturnType<typeof buildScanMessages>;
+}): Promise<RawLlmSignal[] | null> => {
   const response = await openAIClient.responses.create({
     model: SIGNAL_MODEL,
     instructions: INSTRUCTIONS,
@@ -209,15 +275,18 @@ const classifySignals = async ({ priorSignals, messages }) => {
   });
 
   const rawText = extractOutputText(response);
-  const parsed = safeParseJson(rawText);
+  const parsed = safeParseJson(rawText) as
+    | RawLlmSignal[]
+    | { signals?: RawLlmSignal[] }
+    | null;
   // Accept either {"signals":[...]} or a bare top-level array.
-  const signals = Array.isArray(parsed)
+  const signals: RawLlmSignal[] | null = Array.isArray(parsed)
     ? parsed
-    : Array.isArray(parsed?.signals)
-      ? parsed.signals
-      : parsed == null
-        ? null
-        : [];
+    : Array.isArray((parsed as { signals?: RawLlmSignal[] } | null)?.signals)
+    ? ((parsed as { signals?: RawLlmSignal[] }).signals as RawLlmSignal[])
+    : parsed == null
+    ? null
+    : [];
   logger.info(
     `[AI Assist signal] LLM raw len=${(rawText || '').length} parsedSignals=${
       Array.isArray(signals) ? signals.length : 'null'
@@ -229,23 +298,25 @@ const classifySignals = async ({ priorSignals, messages }) => {
 // Build the compact message list (server-side, with id) — text-bearing only,
 // capped count + length, oldest-first. The LLM gets a projection with a 1-based
 // index instead of the id; the server maps the index back to id + timestamp.
-const buildScanMessages = (rawMessages) =>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const buildScanMessages = (rawMessages: Record<string, any>[] = []) =>
   (rawMessages || [])
-    .map((raw) => normalizeMessage(raw))
+    .map((raw) => normalizers.normalizeMessage(raw))
     .filter((message) => message.text)
     .slice(-MAX_MESSAGES_PER_SCAN)
     .map((message) => ({
       id: message.id || null,
       from: message.author?.role === Role.Student ? 'student' : 'team',
-      at: message.createdAt
-        ? new Date(message.createdAt).toISOString()
-        : null,
+      at: message.createdAt ? new Date(message.createdAt).toISOString() : null,
       text: String(message.text).slice(0, MSG_TEXT_CAP)
     }));
 
 // Resolve each LLM signal's msgIndex (1-based, into the scanned batch) back to
 // the real source message id + timestamp. Out-of-range / missing → null.
-const withSourceRefs = (llmSignals, scanMessages) =>
+const withSourceRefs = (
+  llmSignals: RawLlmSignal[] | null | undefined,
+  scanMessages: ReturnType<typeof buildScanMessages>
+): RawLlmSignal[] =>
   (Array.isArray(llmSignals) ? llmSignals : []).map((signal) => {
     const idx = Number(signal?.msgIndex);
     const src =
@@ -280,7 +351,9 @@ const scanStudent = async (
     limit: MAX_MESSAGES_PER_SCAN
   });
   logger.info(
-    `[AI Assist signal] ${studentId}: ${rawMessages?.length || 0} raw messages (cold=${isColdStart}, latest ${MAX_MESSAGES_PER_SCAN})`
+    `[AI Assist signal] ${studentId}: ${
+      rawMessages?.length || 0
+    } raw messages (cold=${isColdStart}, latest ${MAX_MESSAGES_PER_SCAN})`
   );
   if (!rawMessages?.length) return null;
 
@@ -307,12 +380,15 @@ const scanStudent = async (
     withSourceRefs(llmSignals, messages),
     now
   );
-  const lastMessageAt = messages.reduce((latest, message) => {
+  const lastMessageAt = messages.reduce<Date | null>((latest, message) => {
     const at = message.at ? new Date(message.at) : null;
     return at && (!latest || at > latest) ? at : latest;
   }, null);
 
-  const displayName = normalizeUser(student)?.name || priorRow?.studentDisplayName || null;
+  const displayName =
+    normalizers.normalizeUser(student)?.name ||
+    priorRow?.studentDisplayName ||
+    null;
 
   return {
     studentId,
@@ -362,14 +438,22 @@ const upsertSignalRow = (postgres: any, row: NewStudentCommunicationSignal) =>
 // was nothing new). This is the same per-student unit the bulk cron
 // (scanCommunicationSignals) runs over — kept separate so a cron can be split
 // out later without touching this path.
-const scanStudentSignals = async (req, studentId) => {
-  const student = await tools.requireAccessibleStudent(req, studentId);
+const scanStudentSignals = async (
+  req: AiRequest,
+  studentId: string | undefined
+) => {
+  const student = (await tools.requireAccessibleStudent(
+    req,
+    studentId
+  )) as LeanStudent;
   const postgres = getPostgresDb();
   const id = toIdString(student._id || student.id);
   const prior = await loadPriorRow(postgres, id);
 
   logger.info(
-    `[AI Assist signal] scanStudentSignals start: student=${id} hasPriorRow=${Boolean(prior)}`
+    `[AI Assist signal] scanStudentSignals start: student=${id} hasPriorRow=${Boolean(
+      prior
+    )}`
   );
   const row = await scanStudent(student, prior);
   if (!row) {
@@ -408,11 +492,11 @@ const scanCommunicationSignals = async () => {
   const postgres = getPostgresDb();
   const startedAt = Date.now();
 
-  const students = await StudentService.findStudentsSelect(
+  const students = (await StudentService.findStudentsSelect(
     { role: Role.Student, archiv: { $ne: true } },
     'firstname lastname firstname_chinese lastname_chinese role',
     MAX_ACTIVE_STUDENTS
-  );
+  )) as LeanStudent[];
   if (!students.length) return { scanned: 0, flagged: 0 };
 
   const studentObjectIds = students.map((s) => s._id || s.id).filter(Boolean);
@@ -450,7 +534,9 @@ const scanCommunicationSignals = async () => {
       const lastScannedAt = priorById.get(id)?.lastScannedAt;
       return !lastScannedAt || latestAt > new Date(lastScannedAt);
     })
-    .sort((a, b) => (b.latestAt as Date).getTime() - (a.latestAt as Date).getTime())
+    .sort(
+      (a, b) => (b.latestAt as Date).getTime() - (a.latestAt as Date).getTime()
+    )
     .slice(0, MAX_STUDENTS_PER_RUN);
 
   let scanned = 0;

@@ -36,7 +36,7 @@ export const versionControlSchema = new Schema({
 });
 
 // Mapping to original collection and change request collection
-const collectionMap = {
+const collectionMap: Record<string, string> = {
   Program: 'ProgramChangeRequest'
 };
 versionControlSchema.virtual('changeRequestRef').get(function () {

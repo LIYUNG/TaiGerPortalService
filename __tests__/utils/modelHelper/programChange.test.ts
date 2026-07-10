@@ -20,13 +20,13 @@ const mockLean = jest.fn();
 
 jest.mock('../../../models', () => ({
   Documentthread: {
-    find: (...args) => mockFind(...args)
+    find: (...args: any[]) => mockFind(...args)
   }
 }));
 
 const mockFindThreads = jest.fn();
 jest.mock('../../../services/documentthreads', () => ({
-  findThreads: (...args) => mockFindThreads(...args)
+  findThreads: (...args: any[]) => mockFindThreads(...args)
 }));
 
 import {
@@ -35,7 +35,7 @@ import {
 } from '../../../utils/modelHelper/programChange';
 
 // Helper to build the Documentthread.find().select().lean() chain.
-const mockThreadQuery = (threads) => {
+const mockThreadQuery = (threads: any) => {
   mockLean.mockResolvedValue(threads);
   mockSelect.mockReturnValue({ lean: mockLean });
   mockFind.mockReturnValue({ select: mockSelect });
@@ -110,7 +110,7 @@ describe('findStudentDelta (default-connection models)', () => {
 
     await findStudentDelta(studentId, program);
 
-    expect(threads[0].messageSize).toBe(3);
+    expect((threads[0] as any).messageSize).toBe(3);
     expect(threads[0].messages).toBeUndefined();
   });
 

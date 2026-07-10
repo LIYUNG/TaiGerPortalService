@@ -16,21 +16,23 @@ jest.mock('bcryptjs', () => ({
   compare: jest.fn().mockResolvedValue(true)
 }));
 
-import bcrypt from 'bcryptjs';
+import bcryptReal from 'bcryptjs';
 import { UserSchema } from '../../models/User';
 
-const preHooks = (event) => {
-  const map = UserSchema.s.hooks._pres;
+const bcrypt = bcryptReal as unknown as Record<string, jest.Mock>;
+
+const preHooks = (event: string) => {
+  const map = (UserSchema as any).s.hooks._pres;
   const list = map.get(event) || [];
-  return list.map((h) => h.fn);
+  return list.map((h: any) => h.fn);
 };
 
 // Runs a single pre-hook (which takes a `next` callback) and resolves once
 // next() fires, returning the error next() was called with (if any).
-const runHook = (fn, ctx) =>
+const runHook = (fn: any, ctx: any): Promise<any> =>
   new Promise((resolve, reject) => {
     let settled = false;
-    const next = (err) => {
+    const next = (err: any) => {
       if (settled) return;
       settled = true;
       resolve(err);
@@ -39,7 +41,7 @@ const runHook = (fn, ctx) =>
       const maybe = fn.call(ctx, next);
       // Some hooks return a promise that rejects instead of calling next(err).
       if (maybe && typeof maybe.then === 'function') {
-        maybe.catch((e) => {
+        maybe.catch((e: any) => {
           if (!settled) {
             settled = true;
             reject(e);

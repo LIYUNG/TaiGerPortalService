@@ -13,13 +13,17 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Audit } from '../../models';
+import { Audit as AuditModel } from '../../models';
 import AuditDAO from '../../dao/audit.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Audit = AuditModel as unknown as Record<string, jest.Mock>;
 
 // A query chain that terminates in `.sort()` resolving to `value`. Intermediate
 // builder calls (populate/limit/skip) return the same chain so they compose.
-const sortChain = (value) => {
-  const chain = {
+const sortChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     limit: jest.fn(() => chain),
     skip: jest.fn(() => chain),
@@ -40,7 +44,7 @@ describe('AuditDAO (mocked models)', () => {
 
     const filter = { action: 'CREATE' };
     const options = { limit: 10, skip: 0, sort: { createdAt: -1 } };
-    const result = await AuditDAO.getAuditLogs(filter, options);
+    const result = await AuditDAO.getAuditLogs(filter, options as any);
 
     expect(Audit.find).toHaveBeenCalledWith(filter);
     expect(chain.limit).toHaveBeenCalledWith(10);

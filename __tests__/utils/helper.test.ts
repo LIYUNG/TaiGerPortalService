@@ -14,43 +14,47 @@ jest.mock('@taiger-common/core', () => ({
 }));
 
 import { is_TaiGer_Agent, is_TaiGer_Editor } from '@taiger-common/core';
-import { oauthClient } from '../../google/oauth';
+import oauthModule = require('../../google/oauth');
 import { queryStudent, fetchUserFromIdToken } from '../../utils/helper';
+
+const oauthClient = oauthModule.oauthClient as unknown as {
+  verifyIdToken: jest.Mock;
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
 });
 
 describe('queryStudent', () => {
-  const user = { _id: { toString: () => 'user-1' } };
+  const user: any = { _id: { toString: () => 'user-1' } };
 
   it('adds agents filter for an agent', () => {
-    is_TaiGer_Agent.mockReturnValue(true);
-    is_TaiGer_Editor.mockReturnValue(false);
+    (is_TaiGer_Agent as jest.Mock).mockReturnValue(true);
+    (is_TaiGer_Editor as jest.Mock).mockReturnValue(false);
 
     const result = queryStudent({ active: true }, user);
     expect(result).toEqual({ active: true, agents: 'user-1' });
   });
 
   it('adds editors filter for an editor', () => {
-    is_TaiGer_Agent.mockReturnValue(false);
-    is_TaiGer_Editor.mockReturnValue(true);
+    (is_TaiGer_Agent as jest.Mock).mockReturnValue(false);
+    (is_TaiGer_Editor as jest.Mock).mockReturnValue(true);
 
     const result = queryStudent({ active: true }, user);
     expect(result).toEqual({ active: true, editors: 'user-1' });
   });
 
   it('leaves the query untouched for other roles', () => {
-    is_TaiGer_Agent.mockReturnValue(false);
-    is_TaiGer_Editor.mockReturnValue(false);
+    (is_TaiGer_Agent as jest.Mock).mockReturnValue(false);
+    (is_TaiGer_Editor as jest.Mock).mockReturnValue(false);
 
     const result = queryStudent({ active: true }, user);
     expect(result).toEqual({ active: true });
   });
 
   it('does not mutate the input query object', () => {
-    is_TaiGer_Agent.mockReturnValue(true);
-    is_TaiGer_Editor.mockReturnValue(false);
+    (is_TaiGer_Agent as jest.Mock).mockReturnValue(true);
+    (is_TaiGer_Editor as jest.Mock).mockReturnValue(false);
 
     const input = { active: true };
     queryStudent(input, user);

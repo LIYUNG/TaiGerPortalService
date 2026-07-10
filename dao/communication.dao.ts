@@ -56,7 +56,7 @@ const CommunicationDAO = {
     const query = Communication.find(filter)
       .populate('user_id', 'firstname lastname role')
       .sort(sort)
-      .limit(limit);
+      .limit(limit as number);
     return query.lean();
   },
 
@@ -168,7 +168,7 @@ const CommunicationDAO = {
     let query = Communication.find({ student_id: studentId }).sort({
       createdAt: -1
     });
-    query = query.populate(populate, select);
+    query = query.populate(populate as string, select);
     if (skip) {
       query = query.skip(skip);
     }

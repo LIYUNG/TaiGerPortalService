@@ -11,8 +11,12 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Docspage } from '../../models';
+import { Docspage as DocspageModel } from '../../models';
 import DocspageDAO from '../../dao/docspage.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Docspage = DocspageModel as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -24,7 +28,7 @@ describe('DocspageDAO (mocked models)', () => {
     Docspage.findOneAndUpdate.mockResolvedValue(updated);
 
     const fields = { body: 'text' };
-    const result = await DocspageDAO.upsertByCategory('visa', fields);
+    const result = await DocspageDAO.upsertByCategory('visa', fields as any);
 
     expect(Docspage.findOneAndUpdate).toHaveBeenCalledWith(
       { category: 'visa' },

@@ -12,13 +12,17 @@ jest.mock('../../models', () => ({
   }
 }));
 
-import { surveyInput } from '../../models';
+import { surveyInput as surveyInputModel } from '../../models';
 import SurveyInputDAO from '../../dao/surveyInput.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const surveyInput = surveyInputModel as unknown as Record<string, jest.Mock>;
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (select) return the same chain so they compose.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     select: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value)
   };

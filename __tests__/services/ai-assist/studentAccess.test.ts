@@ -9,7 +9,11 @@ jest.mock('../../../utils/queryFunctions', () => ({
 import { Role } from '@taiger-common/core';
 import { ManagerType } from '../../../constants';
 import { getPermission } from '../../../utils/queryFunctions';
-import { getAccessibleStudentFilter } from '../../../services/ai-assist/studentAccess';
+import studentAccessModule from '../../../services/ai-assist/studentAccess';
+
+const { getAccessibleStudentFilter } = studentAccessModule as unknown as {
+  getAccessibleStudentFilter: (req: any) => Promise<any>;
+};
 
 const ACTIVE = {
   $or: [{ archiv: { $exists: false } }, { archiv: false }]
@@ -17,7 +21,7 @@ const ACTIVE = {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  getPermission.mockResolvedValue({});
+  (getPermission as jest.Mock).mockResolvedValue({});
 });
 
 describe('getAccessibleStudentFilter', () => {
@@ -30,7 +34,7 @@ describe('getAccessibleStudentFilter', () => {
   });
 
   it('returns the active-student filter when permission grants canAccessAllChat', async () => {
-    getPermission.mockResolvedValue({ canAccessAllChat: true });
+    (getPermission as jest.Mock).mockResolvedValue({ canAccessAllChat: true });
     const filter = await getAccessibleStudentFilter({
       user: { role: Role.Agent, _id: 'agent_1' }
     });

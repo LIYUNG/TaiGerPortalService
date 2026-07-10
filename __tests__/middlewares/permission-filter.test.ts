@@ -18,7 +18,7 @@ jest.mock('../../utils/queryFunctions'); // Mock the getPermission module
 jest.mock('../../common/errors'); // Mock the ErrorResponse module
 
 describe('permission_canAssignEditor_filter Middleware', () => {
-  let req, res, next, user, cachedPermission;
+  let req: any, res: any, next: any, user: any, cachedPermission: any;
 
   beforeEach(() => {
     user = { role: Role.Agent }; // Default role
@@ -41,20 +41,20 @@ describe('permission_canAssignEditor_filter Middleware', () => {
 
   it('should call next if user has canAssignEditors permission', async () => {
     cachedPermission.canAssignEditors = true;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canAssignEditor_filter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
   it('should call next with an error if user lacks permission', async () => {
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canAssignEditor_filter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
   });
 
   it('should log a warning if user lacks permission', async () => {
     const loggerSpy = jest.spyOn(logger, 'warn').mockImplementation();
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canAssignEditor_filter(req, res, next);
     expect(loggerSpy).toHaveBeenCalledWith(
       'permissions denied: permission_canAssignEditor_filter'
@@ -64,7 +64,7 @@ describe('permission_canAssignEditor_filter Middleware', () => {
 });
 
 describe('permission_canAssignAgent_filter Middleware', () => {
-  let req, res, next, user, cachedPermission;
+  let req: any, res: any, next: any, user: any, cachedPermission: any;
 
   beforeEach(() => {
     user = { role: Role.Agent }; // Default role
@@ -87,20 +87,20 @@ describe('permission_canAssignAgent_filter Middleware', () => {
 
   it('should call next if user has canAssignAgents permission', async () => {
     cachedPermission.canAssignAgents = true;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canAssignAgent_filter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
   it('should call next with an error if user lacks permission', async () => {
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canAssignAgent_filter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
   });
 
   it('should log a warning if user lacks permission', async () => {
     const loggerSpy = jest.spyOn(logger, 'warn').mockImplementation();
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canAssignAgent_filter(req, res, next);
     expect(loggerSpy).toHaveBeenCalledWith(
       'permissions denied: permission_canAssignAgent_filter'
@@ -110,7 +110,7 @@ describe('permission_canAssignAgent_filter Middleware', () => {
 });
 
 describe('permission_canModifyDocs_filter Middleware', () => {
-  let req, res, next, user, cachedPermission;
+  let req: any, res: any, next: any, user: any, cachedPermission: any;
 
   beforeEach(() => {
     user = { role: Role.Agent }; // Default role
@@ -133,20 +133,20 @@ describe('permission_canModifyDocs_filter Middleware', () => {
 
   it('should call next if user has canModifyDocumentation permission', async () => {
     cachedPermission.canModifyDocumentation = true;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyDocs_filter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
   it('should call next with an error if user lacks permission', async () => {
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyDocs_filter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
   });
 
   it('should log a warning if user lacks permission', async () => {
     const loggerSpy = jest.spyOn(logger, 'warn').mockImplementation();
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyDocs_filter(req, res, next);
     expect(loggerSpy).toHaveBeenCalledWith(
       'permissions denied: permission_canModifyDocs_filter'
@@ -156,7 +156,7 @@ describe('permission_canModifyDocs_filter Middleware', () => {
 });
 
 describe('permission_canAccessStudentDatabase_filter Middleware', () => {
-  let req, res, next, user, cachedPermission;
+  let req: any, res: any, next: any, user: any, cachedPermission: any;
 
   beforeEach(() => {
     user = { role: Role.Agent }; // Default role
@@ -179,20 +179,20 @@ describe('permission_canAccessStudentDatabase_filter Middleware', () => {
 
   it('should call next if user has canAccessStudentDatabase permission', async () => {
     cachedPermission.canAccessStudentDatabase = true;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canAccessStudentDatabase_filter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
   it('should call next with an error if user lacks permission', async () => {
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canAccessStudentDatabase_filter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
   });
 
   it('should log a warning if user lacks permission', async () => {
     const loggerSpy = jest.spyOn(logger, 'warn').mockImplementation();
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canAccessStudentDatabase_filter(req, res, next);
     expect(loggerSpy).toHaveBeenCalledWith(
       'permissions denied: permission_canAccessStudentDatabase_filter'
@@ -202,7 +202,7 @@ describe('permission_canAccessStudentDatabase_filter Middleware', () => {
 });
 
 describe('permission_TaiGerAIRatelimiter Middleware', () => {
-  let req, res, next, user, cachedPermission;
+  let req: any, res: any, next: any, user: any, cachedPermission: any;
 
   beforeEach(() => {
     user = { role: Role.Agent }; // Default role
@@ -218,14 +218,14 @@ describe('permission_TaiGerAIRatelimiter Middleware', () => {
   });
 
   it('should call next if user has enough taigerAiQuota', async () => {
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_TaiGerAIRatelimiter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
   it('should call next with an error if user lacks taigerAiQuota', async () => {
     cachedPermission.taigerAiQuota = 0;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_TaiGerAIRatelimiter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
   });
@@ -233,7 +233,7 @@ describe('permission_TaiGerAIRatelimiter Middleware', () => {
   it('should log a warning if user lacks permission', async () => {
     const loggerSpy = jest.spyOn(logger, 'warn').mockImplementation();
     delete cachedPermission.taigerAiQuota;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_TaiGerAIRatelimiter(req, res, next);
     expect(loggerSpy).toHaveBeenCalledWith(
       'permissions denied: permission_TaiGerAIRatelimiter'
@@ -243,7 +243,7 @@ describe('permission_TaiGerAIRatelimiter Middleware', () => {
 });
 
 describe('permission_canUseTaiGerAI_filter Middleware', () => {
-  let req, res, next, user, cachedPermission;
+  let req: any, res: any, next: any, user: any, cachedPermission: any;
 
   beforeEach(() => {
     user = { role: Role.Agent }; // Default role
@@ -260,20 +260,20 @@ describe('permission_canUseTaiGerAI_filter Middleware', () => {
 
   it('should call next if user has enough canUseTaiGerAI', async () => {
     cachedPermission.canUseTaiGerAI = true;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canUseTaiGerAI_filter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
   it('should call next with an error if user lacks canUseTaiGerAI permission', async () => {
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canUseTaiGerAI_filter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
   });
 
   it('should log a warning if user lacks permission', async () => {
     const loggerSpy = jest.spyOn(logger, 'warn').mockImplementation();
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canUseTaiGerAI_filter(req, res, next);
     expect(loggerSpy).toHaveBeenCalledWith(
       'permissions denied: permission_canUseTaiGerAI_filter'
@@ -283,7 +283,7 @@ describe('permission_canUseTaiGerAI_filter Middleware', () => {
 });
 
 describe('permission_canModifyProgramList_filter Middleware', () => {
-  let req, res, next, user, cachedPermission;
+  let req: any, res: any, next: any, user: any, cachedPermission: any;
 
   beforeEach(() => {
     user = { role: Role.Agent }; // Default role
@@ -300,27 +300,27 @@ describe('permission_canModifyProgramList_filter Middleware', () => {
 
   it('should call next if user is not Agent', async () => {
     user.role = Role.Student;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyProgramList_filter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
   it('should call next if user has enough canModifyProgramList', async () => {
     cachedPermission.canModifyProgramList = true;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyProgramList_filter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
   it('should call next with an error if user lacks canModifyProgramList permission', async () => {
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyProgramList_filter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
   });
 
   it('should log a warning if user lacks permission', async () => {
     const loggerSpy = jest.spyOn(logger, 'warn').mockImplementation();
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyProgramList_filter(req, res, next);
     expect(loggerSpy).toHaveBeenCalledWith(
       'permissions denied: permission_canModifyProgramList_filter'
@@ -330,7 +330,7 @@ describe('permission_canModifyProgramList_filter Middleware', () => {
 });
 
 describe('permission_canModifyTicketList_filter Middleware', () => {
-  let req, res, next, user, cachedPermission;
+  let req: any, res: any, next: any, user: any, cachedPermission: any;
 
   beforeEach(() => {
     user = { role: Role.Agent }; // Default role
@@ -347,27 +347,27 @@ describe('permission_canModifyTicketList_filter Middleware', () => {
 
   it('should call next if user is not Agent', async () => {
     user.role = Role.Student;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyTicketList_filter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
   it('should call next if user has enough canModifyTicketList', async () => {
     cachedPermission.canModifyTicketList = true;
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyTicketList_filter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
   it('should call next with an error if user lacks canModifyTicketList permission', async () => {
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyTicketList_filter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
   });
 
   it('should log a warning if user lacks permission', async () => {
     const loggerSpy = jest.spyOn(logger, 'warn').mockImplementation();
-    getPermission.mockResolvedValue(cachedPermission);
+    (getPermission as jest.Mock).mockResolvedValue(cachedPermission);
     await permission_canModifyTicketList_filter(req, res, next);
     expect(loggerSpy).toHaveBeenCalledWith(
       'permissions denied: permission_canModifyTicketList_filter'

@@ -21,19 +21,19 @@ jest.mock('../../../config', () => ({
 const mockListS3ObjectsV2 = jest.fn();
 const mockDeleteS3Objects = jest.fn();
 jest.mock('../../../aws/s3', () => ({
-  listS3ObjectsV2: (...a) => mockListS3ObjectsV2(...a),
-  deleteS3Objects: (...a) => mockDeleteS3Objects(...a)
+  listS3ObjectsV2: (...a: any[]) => mockListS3ObjectsV2(...a),
+  deleteS3Objects: (...a: any[]) => mockDeleteS3Objects(...a)
 }));
 
 const mockFindStudentDelta = jest.fn();
 jest.mock('../../../utils/modelHelper/programChange', () => ({
-  findStudentDelta: (...a) => mockFindStudentDelta(...a)
+  findStudentDelta: (...a: any[]) => mockFindStudentDelta(...a)
 }));
 
 // Model mocks. Defined inside the factory (jest hoists jest.mock above all
 // non-`mock`-prefixed vars), then grabbed by reference below.
 jest.mock('../../../models', () => {
-  const DocumentthreadCtor = jest.fn(); // constructor
+  const DocumentthreadCtor: any = jest.fn(); // constructor
   DocumentthreadCtor.findOne = jest.fn();
   DocumentthreadCtor.findByIdAndDelete = jest.fn();
   return {
@@ -46,11 +46,23 @@ jest.mock('../../../models', () => {
 
 // eslint-disable-next-line global-require
 import {
-  Student as StudentMock,
-  Application as ApplicationMock,
-  Documentthread as DocumentthreadMock,
-  surveyInput as surveyInputMock
+  Student as StudentMockReal,
+  Application as ApplicationMockReal,
+  Documentthread as DocumentthreadMockReal,
+  surveyInput as surveyInputMockReal
 } from '../../../models';
+
+const StudentMock = StudentMockReal as unknown as Record<string, jest.Mock>;
+const ApplicationMock = ApplicationMockReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const DocumentthreadMock = DocumentthreadMockReal as unknown as jest.Mock &
+  Record<string, jest.Mock>;
+const surveyInputMock = surveyInputMockReal as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 import {
   emptyS3Directory,
@@ -123,13 +135,13 @@ describe('createApplicationThread', () => {
 
   it('creates a thread and saves student, application and thread', async () => {
     DocumentthreadMock.findOne.mockResolvedValue(null);
-    const studentSave = jest.fn().mockResolvedValue();
+    const studentSave = jest.fn().mockResolvedValue(undefined);
     StudentMock.findById.mockResolvedValue({
       notification: { isRead_new_cvmlrl_tasks_created: true },
       save: studentSave
     });
     const newAppRecord = { id: 'rec-1' };
-    const appSave = jest.fn().mockResolvedValue();
+    const appSave = jest.fn().mockResolvedValue(undefined);
     const app = {
       _id: 'app-1',
       programId: { _id: programId },
@@ -143,8 +155,8 @@ describe('createApplicationThread', () => {
       populate: jest.fn().mockResolvedValue([app])
     });
     // Constructor returns an object with a save fn
-    const threadSave = jest.fn().mockResolvedValue();
-    DocumentthreadMock.mockImplementation((data) => ({
+    const threadSave = jest.fn().mockResolvedValue(undefined);
+    DocumentthreadMock.mockImplementation((data: any) => ({
       ...data,
       save: threadSave
     }));
@@ -190,7 +202,7 @@ describe('createApplicationThreadV2', () => {
     DocumentthreadMock.findOne.mockResolvedValue(null);
     StudentMock.findById.mockResolvedValue({
       notification: {},
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     });
     const newAppRecord = { id: 'rec-2' };
     const app = {
@@ -200,14 +212,14 @@ describe('createApplicationThreadV2', () => {
         create: jest.fn().mockReturnValue(newAppRecord),
         push: jest.fn()
       },
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     ApplicationMock.find.mockReturnValue({
       populate: jest.fn().mockResolvedValue([app])
     });
-    DocumentthreadMock.mockImplementation((data) => ({
+    DocumentthreadMock.mockImplementation((data: any) => ({
       ...data,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     }));
 
     const result = await createApplicationThreadV2(
@@ -247,7 +259,7 @@ describe('deleteApplicationThread', () => {
 describe('handleProgramChanges plugin', () => {
   // capture registered hooks
   const buildSchema = () => {
-    const hooks = { pre: null, post: null };
+    const hooks: { pre: any; post: any } = { pre: null, post: null };
     const schema = {
       pre: jest.fn((events, fn) => {
         hooks.pre = fn;
@@ -256,7 +268,7 @@ describe('handleProgramChanges plugin', () => {
         hooks.post = fn;
       })
     };
-    handleProgramChanges(schema);
+    handleProgramChanges(schema as any);
     return hooks;
   };
 
@@ -265,7 +277,7 @@ describe('handleProgramChanges plugin', () => {
       pre: jest.fn(),
       post: jest.fn()
     };
-    handleProgramChanges(schema);
+    handleProgramChanges(schema as any);
     expect(schema.pre).toHaveBeenCalled();
     expect(schema.post).toHaveBeenCalled();
   });
@@ -282,7 +294,7 @@ describe('handleProgramChanges plugin', () => {
       }
     };
     await hooks.pre.call(ctx);
-    expect(ctx._originals).toBe(originals);
+    expect((ctx as any)._originals).toBe(originals);
   });
 
   it('pre hook logs and swallows errors', async () => {
@@ -393,7 +405,7 @@ describe('handleProgramChanges plugin', () => {
     DocumentthreadMock.findOne.mockResolvedValue(null);
     StudentMock.findById.mockResolvedValue({
       notification: {},
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     });
     const addApp = {
       _id: 'app-1',
@@ -402,7 +414,7 @@ describe('handleProgramChanges plugin', () => {
         create: jest.fn().mockReturnValue({ id: 'rec' }),
         push: jest.fn()
       },
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     ApplicationMock.find.mockReturnValueOnce({
       select: jest.fn().mockReturnValue({
@@ -420,9 +432,9 @@ describe('handleProgramChanges plugin', () => {
           .mockResolvedValue([{ studentId: { toString: () => 's1' } }])
       })
     });
-    DocumentthreadMock.mockImplementation((data) => ({
+    DocumentthreadMock.mockImplementation((data: any) => ({
       ...data,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     }));
 
     // --- deleteApplicationThread (empty delta.remove) collaborators ---
@@ -459,7 +471,7 @@ describe('handleProgramChanges plugin', () => {
 
 describe('enableVersionControl plugin', () => {
   const buildSchema = () => {
-    const hooks = { pre: null, post: null };
+    const hooks: { pre: any; post: any } = { pre: null, post: null };
     const schema = {
       pre: jest.fn((events, fn) => {
         hooks.pre = fn;
@@ -468,13 +480,13 @@ describe('enableVersionControl plugin', () => {
         hooks.post = fn;
       })
     };
-    enableVersionControl(schema);
+    enableVersionControl(schema as any);
     return hooks;
   };
 
   it('registers pre and post hooks', () => {
     const schema = { pre: jest.fn(), post: jest.fn() };
-    enableVersionControl(schema);
+    enableVersionControl(schema as any);
     expect(schema.pre).toHaveBeenCalled();
     expect(schema.post).toHaveBeenCalled();
   });
@@ -491,8 +503,8 @@ describe('enableVersionControl plugin', () => {
       getUpdate: () => ({ changeRequestId: 'cr-1' })
     };
     await hooks.pre.call(ctx);
-    expect(ctx._oldVersion).toBe(old);
-    expect(ctx._changeRequestId).toBe('cr-1');
+    expect((ctx as any)._oldVersion).toBe(old);
+    expect((ctx as any)._changeRequestId).toBe('cr-1');
   });
 
   it('pre hook swallows errors', async () => {

@@ -13,12 +13,22 @@ jest.mock('@taiger-common/core', () => ({
 jest.mock('../../models', () => ({}));
 jest.mock('../../services/documentthreads');
 
-import { is_TaiGer_Agent, is_TaiGer_Editor } from '@taiger-common/core';
-import DocumentThreadService from '../../services/documentthreads';
+import {
+  is_TaiGer_Agent as is_TaiGer_Agent_real,
+  is_TaiGer_Editor as is_TaiGer_Editor_real
+} from '@taiger-common/core';
+import DocumentThreadServiceReal from '../../services/documentthreads';
 import { ErrorResponse } from '../../common/errors';
 import { editorIdsBodyFilter } from '../../middlewares/editorIdsBodyFilter';
 
-const makeReq = (user, body, messagesThreadId = 'thread-1') => ({
+const is_TaiGer_Agent = is_TaiGer_Agent_real as unknown as jest.Mock;
+const is_TaiGer_Editor = is_TaiGer_Editor_real as unknown as jest.Mock;
+const DocumentThreadService = DocumentThreadServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+
+const makeReq = (user: any, body: any, messagesThreadId = 'thread-1'): any => ({
   user,
   body,
   params: { messagesThreadId }
@@ -34,7 +44,7 @@ describe('editorIdsBodyFilter', () => {
     is_TaiGer_Editor.mockReturnValue(false);
     const next = jest.fn();
 
-    await editorIdsBodyFilter(makeReq({ _id: 'u1' }, {}), {}, next);
+    await editorIdsBodyFilter(makeReq({ _id: 'u1' }, {}), {} as any, next);
 
     expect(next).toHaveBeenCalledWith();
     expect(
@@ -51,7 +61,7 @@ describe('editorIdsBodyFilter', () => {
     });
     const next = jest.fn();
 
-    await editorIdsBodyFilter(makeReq({ _id: 'u1' }, {}), {}, next);
+    await editorIdsBodyFilter(makeReq({ _id: 'u1' }, {}), {} as any, next);
 
     expect(next).toHaveBeenCalledWith();
   });
@@ -68,7 +78,11 @@ describe('editorIdsBodyFilter', () => {
     const next = jest.fn();
 
     // body keys do not include 'e1'
-    await editorIdsBodyFilter(makeReq({ _id: 'u1' }, { e2: true }), {}, next);
+    await editorIdsBodyFilter(
+      makeReq({ _id: 'u1' }, { e2: true }),
+      {} as any,
+      next
+    );
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(next.mock.calls[0][0]).toBeInstanceOf(ErrorResponse);
@@ -86,7 +100,11 @@ describe('editorIdsBodyFilter', () => {
     });
     const next = jest.fn();
 
-    await editorIdsBodyFilter(makeReq({ _id: 'u1' }, { e1: true }), {}, next);
+    await editorIdsBodyFilter(
+      makeReq({ _id: 'u1' }, { e1: true }),
+      {} as any,
+      next
+    );
 
     expect(next).toHaveBeenCalledWith();
   });
@@ -100,7 +118,7 @@ describe('editorIdsBodyFilter', () => {
     });
     const next = jest.fn();
 
-    await editorIdsBodyFilter(makeReq({ _id: 'u1' }, {}), {}, next);
+    await editorIdsBodyFilter(makeReq({ _id: 'u1' }, {}), {} as any, next);
 
     expect(next).toHaveBeenCalledWith();
   });

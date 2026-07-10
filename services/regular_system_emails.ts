@@ -301,7 +301,8 @@ const EditorCVMLRLEssayDeadline_Within30Days_DailyReminderEmail = asyncHandler(
     let hasContent = false;
     for (let i = 0; i < payload.students.length; i += 1) {
       const temp_text = cvmlrl_deadline_within30days_escalation_summary(
-        payload.students[i]
+        payload.students[i],
+        payload.students[i].applications
       );
       if (temp_text !== '') {
         cvmlrl_deadline_soon += `${temp_text}`;

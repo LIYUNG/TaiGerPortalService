@@ -12,23 +12,36 @@ jest.mock('../../models', () => ({
 }));
 
 import {
-  Application,
-  User,
-  Student,
-  Interval,
-  ResponseTime,
-  Documentthread
+  Application as ApplicationModel,
+  User as UserModel,
+  Student as StudentModel,
+  Interval as IntervalModel,
+  ResponseTime as ResponseTimeModel,
+  Documentthread as DocumentthreadModel
 } from '../../models';
 import TeamDAO from '../../dao/team.dao';
 
+// The models are auto-mocked above (every method is a jest.fn()); retype
+// them so the mock API (mockReturnValue/…) is visible to the type-checker.
+const Application = ApplicationModel as unknown as Record<string, jest.Mock>;
+const User = UserModel as unknown as Record<string, jest.Mock>;
+const Student = StudentModel as unknown as Record<string, jest.Mock>;
+const Interval = IntervalModel as unknown as Record<string, jest.Mock>;
+const ResponseTime = ResponseTimeModel as unknown as Record<string, jest.Mock>;
+const Documentthread = DocumentthreadModel as unknown as Record<
+  string,
+  jest.Mock
+>;
+
 // A query chain that is both thenable (resolves to `value` for queries not
 // ending in .lean()) and chainable (populate/select/lean compose).
-const queryChain = (value) => {
-  const chain = {
+const queryChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     select: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };

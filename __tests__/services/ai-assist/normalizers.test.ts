@@ -1,9 +1,16 @@
-import {
+import normalizersModule from '../../../services/ai-assist/normalizers';
+
+const {
   normalizeApplication,
   normalizeMessage,
   normalizeProfileDocument,
   normalizeUser
-} from '../../../services/ai-assist/normalizers';
+} = normalizersModule as unknown as {
+  normalizeApplication: (application: any) => any;
+  normalizeMessage: (message: any) => any;
+  normalizeProfileDocument: (doc: any) => any;
+  normalizeUser: (user: any) => any;
+};
 
 describe('ai-assist normalizers', () => {
   describe('normalizeUser', () => {

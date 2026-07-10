@@ -34,11 +34,10 @@ jest.mock('../../../services/ai-assist/signalLedger', () => ({
 
 import aiTools from '../../../services/ai-assist/aiTools';
 import tools from '../../../services/ai-assist/tools';
-import {
-  buildOverview,
-  loadPortfolio,
-  collectUpcomingDeadlines
-} from '../../../services/ai-assist/overview';
+import overviewModule from '../../../services/ai-assist/overview';
+
+const { buildOverview, loadPortfolio, collectUpcomingDeadlines } =
+  overviewModule as unknown as Record<string, jest.Mock>;
 import ProgramService from '../../../services/programs';
 import DocumentThreadService from '../../../services/documentthreads';
 import { getS3Object } from '../../../aws/s3';
@@ -134,7 +133,7 @@ describe('pass-through registry handlers', () => {
     ['get_support_tickets', 'get_support_tickets'],
     ['get_crm_lead', 'get_crm_lead_meeting_context']
   ])('%s delegates to tools.runTool(%s)', async (regName, underlying) => {
-    mockedTools.runTool.mockResolvedValue({ data: 'ok' });
+    (mockedTools.runTool as jest.Mock).mockResolvedValue({ data: 'ok' });
     const args = { studentId: 's1' };
     const result = await registry[regName](REQ, args);
     expect(result).toEqual({ data: 'ok' });
@@ -145,20 +144,23 @@ describe('pass-through registry handlers', () => {
 // ─── getStudentOverview ──────────────────────────────────────────────────────
 describe('get_student_overview', () => {
   it('merges summary, applications, and thread context', async () => {
-    mockedTools.runTool.mockImplementation(async (_req: any, name: string) => {
-      if (name === 'get_student_summary')
-        return { data: { id: 's1', name: 'Ada' } };
-      if (name === 'get_student_applications') return { data: [{ id: 'a1' }] };
-      if (name === 'get_document_thread_context')
-        return {
-          data: {
-            totalThreads: 3,
-            openThreadsCount: 1,
-            threads: [{ id: 't1' }]
-          }
-        };
-      return { data: null };
-    });
+    (mockedTools.runTool as jest.Mock).mockImplementation(
+      async (_req: any, name: string) => {
+        if (name === 'get_student_summary')
+          return { data: { id: 's1', name: 'Ada' } };
+        if (name === 'get_student_applications')
+          return { data: [{ id: 'a1' }] };
+        if (name === 'get_document_thread_context')
+          return {
+            data: {
+              totalThreads: 3,
+              openThreadsCount: 1,
+              threads: [{ id: 't1' }]
+            }
+          };
+        return { data: null };
+      }
+    );
 
     const result = await runTool(REQ, 'get_student_overview', {
       studentId: 's1'
@@ -172,11 +174,13 @@ describe('get_student_overview', () => {
   });
 
   it('handles null thread data via optional chaining', async () => {
-    mockedTools.runTool.mockImplementation(async (_req: any, name: string) => {
-      if (name === 'get_student_summary') return { data: {} };
-      if (name === 'get_student_applications') return { data: [] };
-      return { data: null }; // thread context null -> ?. yields undefined
-    });
+    (mockedTools.runTool as jest.Mock).mockImplementation(
+      async (_req: any, name: string) => {
+        if (name === 'get_student_summary') return { data: {} };
+        if (name === 'get_student_applications') return { data: [] };
+        return { data: null }; // thread context null -> ?. yields undefined
+      }
+    );
 
     const result = await registry.get_student_overview(REQ);
     expect(result.data.documentThreads).toEqual({

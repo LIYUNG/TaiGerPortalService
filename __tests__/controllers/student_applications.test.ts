@@ -13,9 +13,19 @@
 
 jest.mock('../../services/applications');
 
-import ApplicationService from '../../services/applications';
-import { getApplicationConflicts } from '../../controllers/student_applications';
+import ApplicationServiceReal from '../../services/applications';
+import studentApplicationsController from '../../controllers/student_applications';
 import { mockReq, mockRes } from '../helpers/httpMocks';
+
+const ApplicationService = ApplicationServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const { getApplicationConflicts } =
+  studentApplicationsController as unknown as Record<
+    string,
+    (...args: any[]) => Promise<void>
+  >;
 
 beforeEach(() => {
   jest.clearAllMocks();

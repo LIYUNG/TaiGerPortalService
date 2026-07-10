@@ -12,8 +12,15 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Basedocumentationslink } from '../../models';
+import { Basedocumentationslink as BasedocumentationslinkModel } from '../../models';
 import BasedocumentationslinkDAO from '../../dao/basedocumentationslink.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Basedocumentationslink = BasedocumentationslinkModel as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 beforeEach(() => {
   jest.clearAllMocks();

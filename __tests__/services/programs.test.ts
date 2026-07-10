@@ -6,8 +6,10 @@
 // composed return value.
 jest.mock('../../dao/program.dao');
 
-import ProgramDAO from '../../dao/program.dao';
+import ProgramDAOReal from '../../dao/program.dao';
 import ProgramService from '../../services/programs';
+
+const ProgramDAO = ProgramDAOReal as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -100,7 +102,10 @@ describe('ProgramService thin DAO delegators', () => {
     const daoResult = [{ _id: 'p1' }];
     ProgramDAO.findProgramsQuery.mockResolvedValue(daoResult);
 
-    const result = await ProgramService.findProgramsQuery(filter, options);
+    const result = await ProgramService.findProgramsQuery(
+      filter,
+      options as any
+    );
 
     expect(ProgramDAO.findProgramsQuery).toHaveBeenCalledTimes(1);
     expect(ProgramDAO.findProgramsQuery).toHaveBeenCalledWith(filter, options);

@@ -26,11 +26,20 @@ jest.mock('../../services/logger', () => ({
 }));
 
 import { Role } from '../../constants';
-import { getPostgresDb } from '../../database';
-import { openAIClient } from '../../services/openai';
-import { getPermission } from '../../utils/queryFunctions';
+import { getPostgresDb as getPostgresDbReal } from '../../database';
+import { openAIClient as openAIClientReal } from '../../services/openai';
+import { getPermission as getPermissionReal } from '../../utils/queryFunctions';
 import logger from '../../services/logger';
-import {
+import aiAssistController from '../../controllers/ai_assist';
+import StudentServiceReal from '../../services/students';
+import ApplicationServiceReal from '../../services/applications';
+import CommunicationServiceReal from '../../services/communications';
+import ComplaintService from '../../services/complaints';
+import { aiAssistConversations } from '../../drizzle/schema/schema';
+import studentAccess from '../../services/ai-assist/studentAccess';
+import aiAssistTools from '../../services/ai-assist/tools';
+
+const {
   createConversation,
   archiveConversation,
   getConversation,
@@ -41,14 +50,28 @@ import {
   sendFirstMessage,
   updateConversation,
   searchStudents
-} from '../../controllers/ai_assist';
-import StudentService from '../../services/students';
-import ApplicationService from '../../services/applications';
-import CommunicationService from '../../services/communications';
-import ComplaintService from '../../services/complaints';
-import { aiAssistConversations } from '../../drizzle/schema/schema';
-import { getAccessibleStudentFilter } from '../../services/ai-assist/studentAccess';
-import aiAssistTools from '../../services/ai-assist/tools';
+} = aiAssistController;
+const { getAccessibleStudentFilter } = studentAccess;
+
+// The following imports are jest.mock'd (or hold jest.fn()s), so retype them so
+// the jest mock API is visible to TypeScript while call sites stay unchanged.
+const getPostgresDb = getPostgresDbReal as unknown as jest.Mock;
+const openAIClient = openAIClientReal as unknown as {
+  responses: { create: jest.Mock };
+};
+const getPermission = getPermissionReal as unknown as jest.Mock;
+const StudentService = StudentServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const ApplicationService = ApplicationServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const CommunicationService = CommunicationServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 const { runTool } = aiAssistTools;
 
@@ -68,7 +91,7 @@ const createSseResponse = () => ({
   end: jest.fn()
 });
 
-const conditionIncludesValue = (condition, expectedValue) => {
+const conditionIncludesValue = (condition: any, expectedValue: any) => {
   const stack = [condition];
 
   while (stack.length) {
@@ -96,7 +119,7 @@ const conditionIncludesValue = (condition, expectedValue) => {
   return false;
 };
 
-const createLifecyclePostgres = (conversation) => {
+const createLifecyclePostgres = (conversation: any) => {
   const insertedRows = [
     { id: 'msg_user', role: 'user', content: 'question' },
     {
@@ -119,7 +142,7 @@ const createLifecyclePostgres = (conversation) => {
     };
   });
 
-  const postgres = {
+  const postgres: any = {
     insert: jest.fn(() => ({
       values: jest.fn(() => ({
         returning: jest.fn().mockImplementation(() => {
@@ -157,7 +180,7 @@ const createLifecyclePostgres = (conversation) => {
   return postgres;
 };
 
-const createInsertReturningDb = (row) => ({
+const createInsertReturningDb = (row: any) => ({
   insert: jest.fn(() => ({
     values: jest.fn(() => ({
       returning: jest.fn().mockResolvedValue([row])
@@ -168,23 +191,23 @@ const createInsertReturningDb = (row) => ({
 const createStudentQuickStartReq = ({
   students = [],
   user = { _id: 'agent_1', role: Role.Agent }
-} = {}) => {
+}: { students?: any[]; user?: any } = {}) => {
   // listRecentStudents / listMyStudents / searchStudents read students through
   // StudentService.findStudentsSelect (default connection).
   jest.spyOn(StudentService, 'findStudentsSelect').mockResolvedValue(students);
 
   return {
-    req: { user, query: {} }
+    req: { user, query: {} } as any
   };
 };
 
 const createStudentAccessReq = ({
   students = [],
   user = { _id: 'agent_1', role: Role.Agent }
-} = {}) => {
+}: { students?: any[]; user?: any } = {}) => {
   // The ai-assist tools read students through the service/DAO layer; mirror the
   // id-filtering the legacy req.db.model('Student') mock did.
-  const filterStudents = (filter = {}) => {
+  const filterStudents = (filter: any = {}) => {
     const requestedIds = filter._id
       ? Array.isArray(filter._id.$in)
         ? filter._id.$in
@@ -205,7 +228,7 @@ const createStudentAccessReq = ({
     );
 
   return {
-    req: { user, query: {} }
+    req: { user, query: {} } as any
   };
 };
 
@@ -263,7 +286,7 @@ const createAiAssistReq = () => {
   return {
     req: {
       user: { _id: 'agent_1', role: Role.Agent }
-    }
+    } as any
   };
 };
 
@@ -378,7 +401,7 @@ describe('AI Assist Postgres persistence', () => {
     const updateSet = jest.fn(() => ({ where: updateWhere }));
     const selectResponses = [[conversation], [], []];
     let selectIndex = 0;
-    const postgres = {
+    const postgres: any = {
       insert: jest.fn(() => ({
         values: jest.fn(() => ({
           returning: jest.fn().mockImplementation(() => {
@@ -601,7 +624,7 @@ describe('AI Assist Postgres persistence', () => {
     }));
     const selectResponses = [[conversation], [], []];
     let selectIndex = 0;
-    const postgres = {
+    const postgres: any = {
       insert: jest.fn(() => ({
         values: jest.fn(() => ({
           returning: jest.fn().mockImplementation(() => {
@@ -654,7 +677,7 @@ describe('AI Assist Postgres persistence', () => {
   });
 
   it('ignores bound student fields on first-message conversations', async () => {
-    const postgres = {
+    const postgres: any = {
       insert: jest.fn(() => ({
         values: jest.fn(() => ({
           returning: jest
@@ -724,7 +747,7 @@ describe('AI Assist Postgres persistence', () => {
         content: 'mocked AI Assist answer'
       }
     ];
-    const insertedValues = [];
+    const insertedValues: any[] = [];
     let insertIndex = 0;
     const returning = jest
       .fn()
@@ -741,7 +764,7 @@ describe('AI Assist Postgres persistence', () => {
     const insert = jest.fn(() => ({ values }));
     const selectResponses = [[conversation], [], []];
     let selectIndex = 0;
-    const postgres = {
+    const postgres: any = {
       insert,
       select: jest.fn(() => ({
         from: jest.fn(() => ({
@@ -891,7 +914,7 @@ describe('AI Assist Postgres persistence', () => {
       .fn()
       .mockResolvedValueOnce(messages)
       .mockResolvedValueOnce(trace);
-    const postgres = {
+    const postgres: any = {
       select: jest.fn(() => ({
         from: jest.fn(() => ({
           where: jest.fn(() => ({
@@ -923,7 +946,7 @@ describe('AI Assist Postgres persistence', () => {
   });
 
   it('rejects conversation detail access when the user is not the owner', async () => {
-    const postgres = {
+    const postgres: any = {
       select: jest.fn(() => ({
         from: jest.fn(() => ({
           where: jest.fn(() => ({
@@ -1041,7 +1064,7 @@ describe('AI Assist Postgres persistence', () => {
       }
     ];
     const selectCalls = [];
-    const postgres = {
+    const postgres: any = {
       select: jest.fn(() => {
         const callIndex = selectCalls.length;
         selectCalls.push(callIndex);
@@ -1169,7 +1192,7 @@ describe('AI Assist Postgres persistence', () => {
     }));
     const conversationRows = [...duplicateRows, ...uniqueRows];
     const selectCalls = [];
-    const postgres = {
+    const postgres: any = {
       select: jest.fn(() => {
         selectCalls.push(selectCalls.length);
         return {
@@ -1324,7 +1347,7 @@ describe('AI Assist Postgres persistence', () => {
       ownerRole: Role.Agent,
       status: 'active'
     };
-    const postgres = {
+    const postgres: any = {
       insert: jest.fn(() => ({
         values: jest.fn(() => ({
           returning: jest
@@ -1391,7 +1414,7 @@ describe('AI Assist Postgres persistence', () => {
     const returning = jest.fn().mockResolvedValue([renamedConversation]);
     const updateWhere = jest.fn(() => ({ returning }));
     const updateSet = jest.fn(() => ({ where: updateWhere }));
-    const postgres = {
+    const postgres: any = {
       select: jest.fn(() => ({
         from: jest.fn(() => ({
           where: jest.fn(() => ({
@@ -1478,9 +1501,9 @@ describe('AI Assist Postgres persistence', () => {
     ]);
     const updateWhere = jest.fn(() => ({ returning: updateReturning }));
     const updateSet = jest.fn(() => ({ where: updateWhere }));
-    const insertedValues = [];
+    const insertedValues: any[] = [];
     let selectIndex = 0;
-    const postgres = {
+    const postgres: any = {
       insert: jest.fn(() => ({
         values: jest.fn((values) => {
           insertedValues.push(values);
@@ -1665,7 +1688,7 @@ describe('AI Assist read-only tools', () => {
       expect.any(String),
       5
     );
-    expect(result.data[0]).toMatchObject({
+    expect((result.data as any)[0]).toMatchObject({
       id: 'student_1',
       name: 'Ada Lovelace',
       email: 'ada@example.com'
@@ -1734,13 +1757,15 @@ describe('AI Assist read-only tools', () => {
     const req = {
       user: { role: Role.Agent, _id: 'agent_1' },
       db: {
-        model: jest.fn((name) => {
-          const model = {
-            Student: studentModel,
-            Application: applicationModel,
-            Communication: communicationModel,
-            Complaint: complaintModel
-          }[name];
+        model: jest.fn((name: string) => {
+          const model = (
+            {
+              Student: studentModel,
+              Application: applicationModel,
+              Communication: communicationModel,
+              Complaint: complaintModel
+            } as Record<string, any>
+          )[name];
 
           if (!model) {
             throw new Error(`Unexpected model: ${name}`);
@@ -1813,7 +1838,7 @@ describe('AI Assist read-only tools', () => {
       expect.any(String),
       expect.anything()
     );
-    expect(result.data[0]).toMatchObject({
+    expect((result.data as any)[0]).toMatchObject({
       id: 'application_1',
       admission: 'pending',
       program: {
@@ -1897,7 +1922,7 @@ describe('AI Assist CRM lead meeting access', () => {
     applying_program_count: 2
   };
 
-  const buildReq = (role, userId) => {
+  const buildReq = (role: any, userId: any) => {
     // CRM lead access reads the student through the service/DAO layer now.
     StudentService.findStudentsSelect.mockResolvedValue([baseStudent]);
     StudentService.getStudentByIdSelect.mockResolvedValue(baseStudent);
@@ -1940,7 +1965,7 @@ describe('AI Assist CRM lead meeting access', () => {
       }
     );
 
-    expect(result.data.lead).toMatchObject({ id: 'lead_1' });
+    expect((result.data as any).lead).toMatchObject({ id: 'lead_1' });
   });
 
   it('denies Agent when not assigned as student agent/editor', async () => {

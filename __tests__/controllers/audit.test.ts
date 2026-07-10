@@ -10,9 +10,14 @@
 
 jest.mock('../../services/audit');
 
-import AuditService from '../../services/audit';
-import { getAuditLogs } from '../../controllers/audit';
+import AuditServiceReal from '../../services/audit';
+import { getAuditLogs as getAuditLogsReal } from '../../controllers/audit';
 import { mockReq, mockRes } from '../helpers/httpMocks';
+
+const AuditService = AuditServiceReal as unknown as Record<string, jest.Mock>;
+const getAuditLogs = getAuditLogsReal as unknown as (
+  ...args: any[]
+) => Promise<void>;
 
 beforeEach(() => {
   jest.clearAllMocks();

@@ -18,14 +18,21 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Communication } from '../../models';
+import { Communication as CommunicationModel } from '../../models';
 import CommunicationDAO from '../../dao/communication.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Communication = CommunicationModel as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (populate/sort/skip/limit) return the same chain so they
 // compose.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     select: jest.fn(() => chain),
     sort: jest.fn(() => chain),
@@ -325,11 +332,11 @@ describe('CommunicationDAO (mocked models)', () => {
     });
 
     // older reversed to ascending, then target, then newer ascending
-    expect(result.messages.map((m) => m._id)).toEqual(['o1', 'o2', 't', 'n1']);
+    expect(result!.messages.map((m) => m._id)).toEqual(['o1', 'o2', 't', 'n1']);
     // olderDesc filled the `before` limit (2) -> hasOlder; newer did not -> false
-    expect(result.hasOlder).toBe(true);
-    expect(result.hasNewer).toBe(false);
-    expect(result.targetId).toBe('t');
+    expect(result!.hasOlder).toBe(true);
+    expect(result!.hasNewer).toBe(false);
+    expect(result!.targetId).toBe('t');
   });
 
   it('getAdjacentMessages (before) returns older messages oldest-first with hasMore', async () => {

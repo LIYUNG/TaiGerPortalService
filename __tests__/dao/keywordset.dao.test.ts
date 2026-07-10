@@ -15,17 +15,21 @@ jest.mock('../../models', () => {
   };
 });
 
-import { KeywordSet } from '../../models';
+import { KeywordSet as KeywordSetModel } from '../../models';
 import KeywordSetDAO from '../../dao/keywordset.dao';
 
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const KeywordSet = KeywordSetModel as unknown as Record<string, jest.Mock>;
+
 // A chain whose terminal `.lean()` resolves to `value`.
-const leanChain = (value) => ({
+const leanChain = (value: unknown): any => ({
   lean: jest.fn().mockResolvedValue(value)
 });
 
 // `find().sort().lean()` — `.sort()` returns the same chain.
-const sortLeanChain = (value) => {
-  const chain = {
+const sortLeanChain = (value: unknown): any => {
+  const chain: any = {
     sort: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value)
   };

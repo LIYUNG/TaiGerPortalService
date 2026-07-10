@@ -2,10 +2,19 @@ import { Role } from '@taiger-common/core';
 
 import { chatMultitenantFilter } from '../../middlewares/chatMultitenantFilter';
 import { ErrorResponse } from '../../common/errors';
-import { ten_minutes_cache } from '../../cache/node-cache';
+import { ten_minutes_cache as ten_minutes_cache_real } from '../../cache/node-cache';
 import { getPermission } from '../../utils/queryFunctions';
-import StudentService from '../../services/students';
+import StudentServiceReal from '../../services/students';
 import logger from '../../services/logger';
+
+const ten_minutes_cache = ten_minutes_cache_real as unknown as {
+  get: jest.Mock;
+  set: jest.Mock;
+};
+const StudentService = StudentServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 jest.mock('../../utils/queryFunctions');
 jest.mock('../../services/students');
@@ -17,7 +26,7 @@ jest.mock('../../cache/node-cache', () => ({
 }));
 
 describe('chatMultitenantFilter', () => {
-  let req, res, next;
+  let req: any, res: any, next: any;
 
   beforeEach(() => {
     res = {};
@@ -51,7 +60,7 @@ describe('chatMultitenantFilter', () => {
       agents: [{ toString: () => 'agent1' }],
       editors: []
     });
-    getPermission.mockResolvedValue({ canAccessAllChat: false });
+    (getPermission as jest.Mock).mockResolvedValue({ canAccessAllChat: false });
 
     await chatMultitenantFilter(req, res, next);
 
@@ -72,7 +81,7 @@ describe('chatMultitenantFilter', () => {
       agents: [],
       editors: [{ toString: () => 'editor1' }]
     });
-    getPermission.mockResolvedValue({ canAccessAllChat: false });
+    (getPermission as jest.Mock).mockResolvedValue({ canAccessAllChat: false });
 
     await chatMultitenantFilter(req, res, next);
 
@@ -86,7 +95,7 @@ describe('chatMultitenantFilter', () => {
       params: { studentId: 'stu1' }
     };
     ten_minutes_cache.get.mockReturnValue({ agents: [], editors: [] });
-    getPermission.mockResolvedValue({ canAccessAllChat: true });
+    (getPermission as jest.Mock).mockResolvedValue({ canAccessAllChat: true });
 
     await chatMultitenantFilter(req, res, next);
     expect(next).toHaveBeenCalledWith();
@@ -101,7 +110,7 @@ describe('chatMultitenantFilter', () => {
       agents: [{ toString: () => 'otherAgent' }],
       editors: [{ toString: () => 'otherEditor' }]
     });
-    getPermission.mockResolvedValue({ canAccessAllChat: false });
+    (getPermission as jest.Mock).mockResolvedValue({ canAccessAllChat: false });
 
     await chatMultitenantFilter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
@@ -122,7 +131,7 @@ describe('chatMultitenantFilter', () => {
       agents: [{ toString: () => 'agent1' }],
       editors: []
     });
-    getPermission.mockResolvedValue({ canAccessAllChat: false });
+    (getPermission as jest.Mock).mockResolvedValue({ canAccessAllChat: false });
 
     await chatMultitenantFilter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(Error));
@@ -134,7 +143,7 @@ describe('chatMultitenantFilter', () => {
       params: { studentId: 'stu1' }
     };
     ten_minutes_cache.get.mockReturnValue({});
-    getPermission.mockResolvedValue(undefined);
+    (getPermission as jest.Mock).mockResolvedValue(undefined);
 
     await chatMultitenantFilter(req, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));

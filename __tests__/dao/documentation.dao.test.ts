@@ -20,18 +20,32 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Docspage, Documentation, Internaldoc } from '../../models';
+import {
+  Docspage as DocspageModel,
+  Documentation as DocumentationModel,
+  Internaldoc as InternaldocModel
+} from '../../models';
 import DocspageDAO from '../../dao/docspage.dao';
 import DocumentationDAO from '../../dao/documentation.dao';
 import InternaldocDAO from '../../dao/internaldoc.dao';
 
+// The models are auto-mocked above (every method is a jest.fn()); retype
+// them so the mock API (mockReturnValue/…) is visible to the type-checker.
+const Docspage = DocspageModel as unknown as Record<string, jest.Mock>;
+const Documentation = DocumentationModel as unknown as Record<
+  string,
+  jest.Mock
+>;
+const Internaldoc = InternaldocModel as unknown as Record<string, jest.Mock>;
+
 // A query chain that is both chainable (select returns the same chain) and
 // thenable, so `await chain` resolves to `value` when the method ends in
 // .select() (no trailing .lean()).
-const queryChain = (value) => {
-  const chain = {
+const queryChain = (value: unknown): any => {
+  const chain: any = {
     select: jest.fn(() => chain),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };

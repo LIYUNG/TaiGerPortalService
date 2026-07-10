@@ -10,7 +10,7 @@ jest.mock('../../models', () => {
   // Documentthread is used both as a constructor (new Documentthread(payload))
   // and as a holder of static query methods, so model it as a jest.fn() with
   // statics attached.
-  const Documentthread = jest.fn(function (payload) {
+  const Documentthread = jest.fn(function (this: any, payload) {
     Object.assign(this, payload);
   });
   Object.assign(Documentthread, {
@@ -35,14 +35,21 @@ jest.mock('../../utils/modelHelper/versionControl', () => ({
   createApplicationThreadV2: jest.fn()
 }));
 
-import { Documentthread } from '../../models';
-import { createApplicationThreadV2 } from '../../utils/modelHelper/versionControl';
+import { Documentthread as DocumentthreadModel } from '../../models';
+import { createApplicationThreadV2 as createApplicationThreadV2Real } from '../../utils/modelHelper/versionControl';
 import DocumentthreadDAO from '../../dao/documentthread.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker. It is also
+// used as a constructor (`new Documentthread(payload)`), so keep it callable.
+const Documentthread = DocumentthreadModel as unknown as jest.Mock &
+  Record<string, jest.Mock>;
+const createApplicationThreadV2 = createApplicationThreadV2Real as jest.Mock;
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls return the same chain so they compose.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     select: jest.fn(() => chain),
     sort: jest.fn(() => chain),
@@ -53,18 +60,19 @@ const leanChain = (value) => {
 
 // A query chain that is itself thenable (no terminal `.lean()`): awaiting it
 // resolves to `value`, while builder calls return the same chain.
-const queryChain = (value) => {
-  const chain = {
+const queryChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     select: jest.fn(() => chain),
     sort: jest.fn(() => chain),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };
 
 // Aggregations are called as `Documentthread.aggregate(pipeline).allowDiskUse(true)`.
-const aggDiskChain = (value) => ({
+const aggDiskChain = (value: unknown) => ({
   allowDiskUse: jest.fn().mockResolvedValue(value)
 });
 
@@ -394,7 +402,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated (mocked models)', () => {
   it('returns the empty page without touching aggregate when studentIds is empty', async () => {
     const res = await DocumentthreadDAO.findActiveThreadsPaginated({
       studentIds: [],
-      query: { page: 2, limit: 30 }
+      query: { page: 2, limit: 30 } as any
     });
 
     expect(res).toEqual({ threads: [], total: 0, page: 2, limit: 30 });
@@ -409,7 +417,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated (mocked models)', () => {
 
     const res = await DocumentthreadDAO.findActiveThreadsPaginated({
       studentIds: ['64b000000000000000000001'],
-      query: { page: 1, limit: 20 }
+      query: { page: 1, limit: 20 } as any
     });
 
     expect(Documentthread.aggregate).toHaveBeenCalledTimes(1);
@@ -575,7 +583,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
 
   // Returns the preMatch ($match on the thread) and the post-computed-fields
   // $match (the one carrying $and with student.archiv).
-  const runAndGetPipeline = async (extra) => {
+  const runAndGetPipeline = async (extra?: any) => {
     Documentthread.aggregate.mockReturnValue(
       aggDiskChain([{ rows: [], total: [] }])
     );
@@ -627,7 +635,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
       }
     });
     const scope = pipeline[0].$match.$and;
-    const orCond = scope.find((c) => c.$or);
+    const orCond = scope.find((c: any) => c.$or);
     expect(orCond.$or[0].file_type.$nin).toEqual([
       'Supplementary_Form',
       'Supplementary_Material'
@@ -643,7 +651,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
       }
     });
     const scope = pipeline[0].$match.$and;
-    const orCond = scope.find((c) => c.$or);
+    const orCond = scope.find((c: any) => c.$or);
     expect(orCond.$or[0].file_type.$nin).toEqual([
       'Supplementary_Form',
       'Supplementary_Material'
@@ -669,16 +677,16 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
       query: { category: 'no_writer' }
     });
     const hasNoWriter = pipeline.some(
-      (s) => s.$match && s.$match._noWriter === true
+      (s: any) => s.$match && s.$match._noWriter === true
     );
     expect(hasNoWriter).toBe(true);
   });
 
   it('appends a closed category match (_isFinal: true)', async () => {
     const pipeline = await runAndGetPipeline({ query: { category: 'closed' } });
-    expect(pipeline.some((s) => s.$match && s.$match._isFinal === true)).toBe(
-      true
-    );
+    expect(
+      pipeline.some((s: any) => s.$match && s.$match._isFinal === true)
+    ).toBe(true);
   });
 
   it('appends an in_progress category match (_hasMessages: true, excludes withdraw)', async () => {
@@ -687,7 +695,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
     });
     expect(
       pipeline.some(
-        (s) =>
+        (s: any) =>
           s.$match &&
           s.$match._isFinal === false &&
           s.$match._hasMessages === true &&
@@ -702,7 +710,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
     });
     expect(
       pipeline.some(
-        (s) =>
+        (s: any) =>
           s.$match &&
           s.$match._isFinal === false &&
           s.$match._hasMessages === false &&
@@ -717,7 +725,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
     });
     expect(
       pipeline.some(
-        (s) =>
+        (s: any) =>
           s.$match &&
           s.$match._isFinal === false &&
           s.$match._isWithdraw === true
@@ -730,7 +738,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
       query: { category: 'fav', viewerId: '64b000000000000000000003' }
     });
     expect(
-      pipeline.some((s) => s.$match && s.$match._favForViewer === true)
+      pipeline.some((s: any) => s.$match && s.$match._favForViewer === true)
     ).toBe(true);
   });
 
@@ -740,7 +748,8 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
     });
     expect(
       pipeline.some(
-        (s) => s.$match && s.$match._latestById && s.$match._latestById.$nin
+        (s: any) =>
+          s.$match && s.$match._latestById && s.$match._latestById.$nin
       )
     ).toBe(true);
   });
@@ -751,7 +760,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
     });
     expect(
       pipeline.some(
-        (s) =>
+        (s: any) =>
           s.$match &&
           s.$match._isFinal === false &&
           s.$match._hasMessages === false
@@ -765,7 +774,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
       query: { category: 'followup', viewerId }
     });
     const followup = pipeline.find(
-      (s) => s.$match && s.$match._latestById === viewerId
+      (s: any) => s.$match && s.$match._latestById === viewerId
     );
     expect(followup).toBeDefined();
   });
@@ -783,10 +792,10 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
     });
     // The post-lookup $and match always starts with student.archiv filter.
     const andMatch = pipeline.find(
-      (s) =>
+      (s: any) =>
         s.$match &&
         Array.isArray(s.$match.$and) &&
-        s.$match.$and.some((c) => c['student.archiv'])
+        s.$match.$and.some((c: any) => c['student.archiv'])
     ).$match.$and;
     const flat = JSON.stringify(andMatch);
     expect(flat).toContain('student.firstname');
@@ -794,7 +803,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
     expect(flat).toContain('lang');
     expect(flat).toContain('deadline');
     // status Locked -> isLocked true
-    expect(andMatch.some((c) => c.isLocked === true)).toBe(true);
+    expect(andMatch.some((c: any) => c.isLocked === true)).toBe(true);
     // search metacharacters escaped (a\\*b)
     expect(flat).toContain('a\\\\*b');
   });
@@ -808,22 +817,24 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
       }
     });
     const andMatch = pipeline.find(
-      (s) =>
+      (s: any) =>
         s.$match &&
         Array.isArray(s.$match.$and) &&
-        s.$match.$and.some((c) => c['student.archiv'])
+        s.$match.$and.some((c: any) => c['student.archiv'])
     ).$match.$and;
 
-    const editor = andMatch.find((c) => c['editors.firstname']);
+    const editor = andMatch.find((c: any) => c['editors.firstname']);
     expect(editor['editors.firstname']).toEqual({
       $regex: 'Al\\.ice', // metacharacters escaped
       $options: 'i'
     });
-    expect(andMatch.some((c) => c['agents.firstname']?.$regex === 'Bob')).toBe(
-      true
-    );
     expect(
-      andMatch.some((c) => c['outsourced_user_id.firstname']?.$regex === 'Eve')
+      andMatch.some((c: any) => c['agents.firstname']?.$regex === 'Bob')
+    ).toBe(true);
+    expect(
+      andMatch.some(
+        (c: any) => c['outsourced_user_id.firstname']?.$regex === 'Eve'
+      )
     ).toBe(true);
   });
 
@@ -832,12 +843,12 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
       query: { status: 'Unlocked' }
     });
     const andMatch = pipeline.find(
-      (s) =>
+      (s: any) =>
         s.$match &&
         Array.isArray(s.$match.$and) &&
-        s.$match.$and.some((c) => c['student.archiv'])
+        s.$match.$and.some((c: any) => c['student.archiv'])
     ).$match.$and;
-    expect(andMatch.some((c) => c.isLocked === false)).toBe(true);
+    expect(andMatch.some((c: any) => c.isLocked === false)).toBe(true);
   });
 
   it('honours the document_name sort field map', async () => {
@@ -849,7 +860,7 @@ describe('DocumentthreadDAO.findActiveThreadsPaginated pipeline assembly', () =>
       query: { sortBy: 'document_name', sortOrder: 'desc' }
     });
     const pipeline = Documentthread.aggregate.mock.calls[0][0];
-    const facet = pipeline.find((s) => s.$facet).$facet;
+    const facet = pipeline.find((s: any) => s.$facet).$facet;
     expect(facet.rows[0].$sort).toEqual({ document_name: -1, _id: 1 });
   });
 });
@@ -890,7 +901,7 @@ describe('DocumentthreadDAO.countActiveThreads pipeline assembly', () => {
       }
     });
     const scope = Documentthread.aggregate.mock.calls[0][0][0].$match.$and;
-    const orCond = scope.find((c) => c.$or);
+    const orCond = scope.find((c: any) => c.$or);
     expect(orCond.$or[0].file_type.$nin).toEqual(['Supplementary_Form']);
     expect(orCond.$or[1].outsourced_user_id).toBeDefined();
   });

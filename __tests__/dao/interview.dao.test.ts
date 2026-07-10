@@ -18,25 +18,30 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Interview } from '../../models';
+import { Interview as InterviewModel } from '../../models';
 import InterviewDAO from '../../dao/interview.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Interview = InterviewModel as unknown as Record<string, jest.Mock>;
 
 // A query chain that is both chainable (populate returns the same chain) and
 // thenable, so `await chain` (for the raw, non-lean methods) resolves to
 // `value`. Terminal `.lean()` and `.distinct()` resolve to value too.
-const queryChain = (value) => {
-  const chain = {
+const queryChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value),
     distinct: jest.fn().mockResolvedValue(value),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };
 
 // Aggregate returns a cursor-like object exposing .allowDiskUse(true) which
 // resolves to the aggregation result (an array with the single $facet doc).
-const aggChain = (value) => ({
+const aggChain = (value: unknown) => ({
   allowDiskUse: jest.fn().mockResolvedValue(value)
 });
 
@@ -293,7 +298,7 @@ describe('InterviewDAO (mocked models)', () => {
       expect(res.page).toBe(1);
       expect(res.limit).toBe(20);
       // Order follows the aggregation (i2 then i1), not the find() order.
-      expect(res.interviews.map((i) => i._id)).toEqual(['i2', 'i1']);
+      expect(res.interviews.map((i: any) => i._id)).toEqual(['i2', 'i1']);
       // Computed columns from the aggregation are merged onto the hydrated docs.
       expect(res.interviews[0]).toMatchObject({
         _id: 'i2',
@@ -357,20 +362,22 @@ describe('InterviewDAO (mocked models)', () => {
 
       const pipeline = Interview.aggregate.mock.calls[0][0];
       // The $facet sort stage reflects sortBy/sortOrder (asc) + _id tiebreak.
-      const facetStage = pipeline.find((s) => s.$facet);
+      const facetStage = pipeline.find((s: any) => s.$facet);
       expect(facetStage.$facet.rows[0]).toEqual({
         $sort: { 'student.firstname': 1, _id: 1 }
       });
 
       // The post-match $and carries one condition per active filter + search.
-      const matchStages = pipeline.filter((s) => s.$match && s.$match.$and);
+      const matchStages = pipeline.filter(
+        (s: any) => s.$match && s.$match.$and
+      );
       expect(matchStages).toHaveLength(1);
       const and = matchStages[0].$match.$and;
       expect(and).toContainEqual({ status: { $in: ['Open', 'Closed'] } });
       expect(and).toContainEqual({ isDuplicate: true });
       expect(and).toContainEqual({ surveySubmitted: false });
       // studentName / trainerName / program / search each add an $or group.
-      expect(and.filter((c) => c.$or)).toHaveLength(4);
+      expect(and.filter((c: any) => c.$or)).toHaveLength(4);
     });
 
     it('joins the student agents and adds an agentName $or filter over their names', async () => {
@@ -384,19 +391,20 @@ describe('InterviewDAO (mocked models)', () => {
       const pipeline = Interview.aggregate.mock.calls[0][0];
       // The agent lookup (student.agents -> users) is present and aliased 'agent'.
       const agentLookup = pipeline.find(
-        (s) => s.$lookup && s.$lookup.as === 'agent'
+        (s: any) => s.$lookup && s.$lookup.as === 'agent'
       );
       expect(agentLookup).toBeDefined();
 
       // The page projection carries the agents through to hydration.
-      const facetStage = pipeline.find((s) => s.$facet);
+      const facetStage = pipeline.find((s: any) => s.$facet);
       const projection = facetStage.$facet.rows.find(
-        (s) => s.$project
+        (s: any) => s.$project
       ).$project;
       expect(projection.agents).toBe('$agent');
 
       // The post-match carries an $or over the agent-name paths.
-      const and = pipeline.find((s) => s.$match && s.$match.$and).$match.$and;
+      const and = pipeline.find((s: any) => s.$match && s.$match.$and).$match
+        .$and;
       expect(and).toContainEqual({
         $or: [
           { 'agent.firstname': { $regex: 'leo', $options: 'i' } },
@@ -418,9 +426,10 @@ describe('InterviewDAO (mocked models)', () => {
       });
 
       const pipeline = Interview.aggregate.mock.calls[0][0];
-      const and = pipeline.find((s) => s.$match && s.$match.$and).$match.$and;
+      const and = pipeline.find((s: any) => s.$match && s.$match.$and).$match
+        .$and;
 
-      const training = and.find((c) => c.eventStart);
+      const training = and.find((c: any) => c.eventStart);
       expect(training.eventStart.$gte).toEqual(new Date('2025-06-01'));
       // "to" is pushed to end-of-day so the whole day is included.
       const expectedTo = new Date('2025-06-30');
@@ -428,7 +437,7 @@ describe('InterviewDAO (mocked models)', () => {
       expect(training.eventStart.$lte).toEqual(expectedTo);
 
       // interview_date with only a "from" bound -> $gte, no $lte.
-      const interview = and.find((c) => c.interview_date);
+      const interview = and.find((c: any) => c.interview_date);
       expect(interview.interview_date.$gte).toEqual(new Date('2025-07-01'));
       expect(interview.interview_date.$lte).toBeUndefined();
     });
@@ -443,7 +452,9 @@ describe('InterviewDAO (mocked models)', () => {
 
       const pipeline = Interview.aggregate.mock.calls[0][0];
       // No valid filters/search -> no post-match $and stage at all.
-      expect(pipeline.filter((s) => s.$match && s.$match.$and)).toHaveLength(0);
+      expect(
+        pipeline.filter((s: any) => s.$match && s.$match.$and)
+      ).toHaveLength(0);
     });
 
     it('casts a string student_id / trainer_id to ObjectId and isClosed to boolean in the base $match (aggregation does not auto-cast)', async () => {
@@ -485,9 +496,11 @@ describe('InterviewDAO (mocked models)', () => {
 
       const pipeline = Interview.aggregate.mock.calls[0][0];
       // No post-match $and stage when there are no filters/search.
-      expect(pipeline.filter((s) => s.$match && s.$match.$and)).toHaveLength(0);
+      expect(
+        pipeline.filter((s: any) => s.$match && s.$match.$and)
+      ).toHaveLength(0);
       // Default sort is interview_date desc.
-      const facetStage = pipeline.find((s) => s.$facet);
+      const facetStage = pipeline.find((s: any) => s.$facet);
       expect(facetStage.$facet.rows[0]).toEqual({
         $sort: { interview_date: -1, _id: 1 }
       });

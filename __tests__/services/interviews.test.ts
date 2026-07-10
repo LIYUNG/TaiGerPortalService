@@ -5,9 +5,13 @@
 jest.mock('../../dao/interview.dao');
 jest.mock('../../dao/interviewSurveyResponse.dao');
 
-import InterviewDAO from '../../dao/interview.dao';
-import InterviewSurveyResponseDAO from '../../dao/interviewSurveyResponse.dao';
+import InterviewDAOReal from '../../dao/interview.dao';
+import InterviewSurveyResponseDAOReal from '../../dao/interviewSurveyResponse.dao';
 import InterviewService from '../../services/interviews';
+
+const InterviewDAO = InterviewDAOReal as unknown as Record<string, jest.Mock>;
+const InterviewSurveyResponseDAO =
+  InterviewSurveyResponseDAOReal as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -65,7 +69,10 @@ describe('InterviewService — InterviewDAO delegators (mocked DAO)', () => {
     const daoResult = [{ _id: 'iv1' }];
     InterviewDAO.findInterviews.mockResolvedValue(daoResult);
 
-    const result = await InterviewService.findInterviews(filter, populates);
+    const result = await InterviewService.findInterviews(
+      filter,
+      populates as any
+    );
 
     expect(InterviewDAO.findInterviews).toHaveBeenCalledTimes(1);
     expect(InterviewDAO.findInterviews).toHaveBeenCalledWith(filter, populates);
@@ -79,7 +86,7 @@ describe('InterviewService — InterviewDAO delegators (mocked DAO)', () => {
 
     const result = await InterviewService.findInterviewByIdPopulated(
       'iv1',
-      populates
+      populates as any
     );
 
     expect(InterviewDAO.findInterviewByIdPopulated).toHaveBeenCalledTimes(1);
@@ -96,7 +103,10 @@ describe('InterviewService — InterviewDAO delegators (mocked DAO)', () => {
     const daoResult = { _id: 'iv1' };
     InterviewDAO.findOneInterview.mockResolvedValue(daoResult);
 
-    const result = await InterviewService.findOneInterview(filter, populates);
+    const result = await InterviewService.findOneInterview(
+      filter,
+      populates as any
+    );
 
     expect(InterviewDAO.findOneInterview).toHaveBeenCalledTimes(1);
     expect(InterviewDAO.findOneInterview).toHaveBeenCalledWith(
@@ -147,7 +157,7 @@ describe('InterviewService — InterviewDAO delegators (mocked DAO)', () => {
     const result = await InterviewService.updateInterviewByIdPopulated(
       'iv1',
       payload,
-      populates
+      populates as any
     );
 
     expect(InterviewDAO.updateInterviewByIdPopulated).toHaveBeenCalledTimes(1);
@@ -169,7 +179,7 @@ describe('InterviewService — InterviewDAO delegators (mocked DAO)', () => {
     const result = await InterviewService.upsertInterviewPopulated(
       filter,
       payload,
-      populates
+      populates as any
     );
 
     expect(InterviewDAO.upsertInterviewPopulated).toHaveBeenCalledTimes(1);
@@ -235,7 +245,7 @@ describe('InterviewService — InterviewSurveyResponseDAO delegators (mocked DAO
     const daoResult = [{ _id: 'sr1' }];
     InterviewSurveyResponseDAO.findSurveys.mockResolvedValue(daoResult);
 
-    const result = await InterviewService.findSurveys(filter, populates);
+    const result = await InterviewService.findSurveys(filter, populates as any);
 
     expect(InterviewSurveyResponseDAO.findSurveys).toHaveBeenCalledTimes(1);
     expect(InterviewSurveyResponseDAO.findSurveys).toHaveBeenCalledWith(
@@ -251,7 +261,10 @@ describe('InterviewService — InterviewSurveyResponseDAO delegators (mocked DAO
     const daoResult = { _id: 'sr1' };
     InterviewSurveyResponseDAO.findOneSurvey.mockResolvedValue(daoResult);
 
-    const result = await InterviewService.findOneSurvey(filter, populates);
+    const result = await InterviewService.findOneSurvey(
+      filter,
+      populates as any
+    );
 
     expect(InterviewSurveyResponseDAO.findOneSurvey).toHaveBeenCalledTimes(1);
     expect(InterviewSurveyResponseDAO.findOneSurvey).toHaveBeenCalledWith(
@@ -270,8 +283,8 @@ describe('InterviewService — InterviewSurveyResponseDAO delegators (mocked DAO
 
     const result = await InterviewService.upsertSurvey(
       filter,
-      payload,
-      populates
+      payload as any,
+      populates as any
     );
 
     expect(InterviewSurveyResponseDAO.upsertSurvey).toHaveBeenCalledTimes(1);

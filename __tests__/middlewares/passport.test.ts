@@ -7,15 +7,18 @@
 // (options, verify). We then invoke the captured verify callbacks directly with
 // fake args and assert the done() outcomes. UserService is mocked — no DB.
 
-const mockStrategies = [];
+const mockStrategies: any[] = [];
 jest.mock('passport', () => ({
-  use: jest.fn((strategy) => {
+  use: jest.fn((strategy: any) => {
     mockStrategies.push(strategy);
   })
 }));
 jest.mock('passport-local', () => ({
   Strategy: class LocalStrategy {
-    constructor(options, verify) {
+    name: string;
+    options: any;
+    verify: any;
+    constructor(options: any, verify: any) {
       this.name = 'local';
       this.options = options;
       this.verify = verify;
@@ -24,7 +27,10 @@ jest.mock('passport-local', () => ({
 }));
 jest.mock('passport-jwt', () => ({
   Strategy: class JwtStrategy {
-    constructor(options, verify) {
+    name: string;
+    options: any;
+    verify: any;
+    constructor(options: any, verify: any) {
       this.name = 'jwt';
       this.options = options;
       this.verify = verify;
@@ -39,8 +45,10 @@ jest.mock('../../config', () => ({
 jest.mock('../../models', () => ({}));
 jest.mock('../../services/users');
 
-import UserService from '../../services/users';
+import UserServiceReal from '../../services/users';
 import '../../middlewares/passport';
+
+const UserService = UserServiceReal as unknown as Record<string, jest.Mock>;
 
 const localStrategy = mockStrategies.find((s) => s.name === 'local');
 const jwtStrategy = mockStrategies.find((s) => s.name === 'jwt');
@@ -50,9 +58,11 @@ beforeEach(() => {
 });
 
 describe('LocalStrategy verify', () => {
-  const verify = (req, email, password) =>
-    new Promise((resolve) => {
-      localStrategy.verify(req, email, password, (...args) => resolve(args));
+  const verify = (req: any, email: any, password: any) =>
+    new Promise<any[]>((resolve) => {
+      localStrategy.verify(req, email, password, (...args: any[]) =>
+        resolve(args)
+      );
     });
 
   it('uses email as the username field and passes req', () => {
@@ -115,9 +125,9 @@ describe('LocalStrategy verify', () => {
 });
 
 describe('JwtStrategy verify', () => {
-  const verify = (req, payload) =>
-    new Promise((resolve) => {
-      jwtStrategy.verify(req, payload, (...args) => resolve(args));
+  const verify = (req: any, payload: any) =>
+    new Promise<any[]>((resolve) => {
+      jwtStrategy.verify(req, payload, (...args: any[]) => resolve(args));
     });
 
   it('extracts the jwt from the x-auth cookie', () => {

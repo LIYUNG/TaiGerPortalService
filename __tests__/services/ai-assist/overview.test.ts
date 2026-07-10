@@ -46,7 +46,7 @@ const {
   deriveStatus,
   studentLabel,
   buildOverview
-} = overview as {
+} = overview as unknown as {
   collectThreadsWaitingOnTeam: (
     threads: any[],
     studentById: Map<string, any>,
@@ -596,7 +596,9 @@ describe('buildStudentsView', () => {
     const label = { id: 's1', name: 'Ann' };
     const collected = {
       ...emptyCollected,
-      upcomingDeadlines: [{ student: label, daysUntil: 3, deadline: '2099/01/01' }],
+      upcomingDeadlines: [
+        { student: label, daysUntil: 3, deadline: '2099/01/01' }
+      ],
       communicationGaps: [{ student: label, lastContactDays: 20 }],
       missingBaseDocuments: [{ student: label, missingDocuments: ['CV'] }]
     };

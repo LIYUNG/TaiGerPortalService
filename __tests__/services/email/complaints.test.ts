@@ -4,13 +4,18 @@ jest.mock('../../../services/email/configuration', () => ({
   transporter: { sendMail: jest.fn() }
 }));
 
-import { sendEmail } from '../../../services/email/configuration';
-import {
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see services/email/configuration.ts
+import EmailConfiguration = require('../../../services/email/configuration');
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see services/email/complaints.ts
+import ComplaintsEmail = require('../../../services/email/complaints');
+
+const { sendEmail } = EmailConfiguration;
+const {
   newCustomerCenterTicketEmail,
   newCustomerCenterTicketSubmitConfirmationEmail,
   newCustomerCenterTicketMessageEmail,
   complaintResolvedRequesterReminderEmail
-} from '../../../services/email/complaints';
+} = ComplaintsEmail;
 
 const recipient = {
   firstname: 'Recip',
@@ -35,7 +40,7 @@ beforeEach(() => {
 // Returns the (recipient, subject, message) tuple from the single sendEmail call.
 const lastCall = () => {
   expect(sendEmail).toHaveBeenCalledTimes(1);
-  return sendEmail.mock.calls[0];
+  return (sendEmail as jest.Mock).mock.calls[0];
 };
 
 describe('email/complaints templates', () => {

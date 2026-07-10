@@ -4,8 +4,10 @@
 // the exact args and returns the DAO's (mocked) value.
 jest.mock('../../dao/allcourse.dao');
 
-import AllcourseDAO from '../../dao/allcourse.dao';
+import AllcourseDAOReal from '../../dao/allcourse.dao';
 import AllcourseService from '../../services/allcourses';
+
+const AllcourseDAO = AllcourseDAOReal as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -56,7 +58,7 @@ describe('AllcourseService.updateAllcourseById (mocked DAO)', () => {
     const daoResult = { _id: 'c1', name: 'Algebra' };
     AllcourseDAO.updateAllcourseById.mockReturnValue(daoResult);
 
-    const result = AllcourseService.updateAllcourseById('c1', payload);
+    const result = AllcourseService.updateAllcourseById('c1', payload as any);
 
     expect(AllcourseDAO.updateAllcourseById).toHaveBeenCalledTimes(1);
     expect(AllcourseDAO.updateAllcourseById).toHaveBeenCalledWith(
@@ -73,7 +75,7 @@ describe('AllcourseService.createAllcourse (mocked DAO)', () => {
     const daoResult = { _id: 'c3', name: 'Calculus' };
     AllcourseDAO.createAllcourse.mockReturnValue(daoResult);
 
-    const result = AllcourseService.createAllcourse(payload);
+    const result = AllcourseService.createAllcourse(payload as any);
 
     expect(AllcourseDAO.createAllcourse).toHaveBeenCalledTimes(1);
     expect(AllcourseDAO.createAllcourse).toHaveBeenCalledWith(payload);

@@ -17,19 +17,34 @@ jest.mock('../../models', () => ({}));
 jest.mock('../../services/documentthreads');
 jest.mock('../../services/students');
 
-import { is_TaiGer_Editor, is_TaiGer_Agent } from '@taiger-common/core';
-import { getPermission } from '../../utils/queryFunctions';
-import DocumentThreadService from '../../services/documentthreads';
-import StudentService from '../../services/students';
+import {
+  is_TaiGer_Editor as is_TaiGer_Editor_real,
+  is_TaiGer_Agent as is_TaiGer_Agent_real
+} from '@taiger-common/core';
+import { getPermission as getPermission_real } from '../../utils/queryFunctions';
+import DocumentThreadServiceReal from '../../services/documentthreads';
+import StudentServiceReal from '../../services/students';
 import { ErrorResponse } from '../../common/errors';
 import { AssignOutsourcerFilter } from '../../middlewares/AssignOutsourcerFilter';
 
-const makeReq = (user, messagesThreadId = 'thread-1') => ({
+const is_TaiGer_Editor = is_TaiGer_Editor_real as unknown as jest.Mock;
+const is_TaiGer_Agent = is_TaiGer_Agent_real as unknown as jest.Mock;
+const getPermission = getPermission_real as unknown as jest.Mock;
+const DocumentThreadService = DocumentThreadServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const StudentService = StudentServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+
+const makeReq = (user: any, messagesThreadId = 'thread-1') => ({
   user,
   params: { messagesThreadId }
 });
 
-const id = (v) => ({ toString: () => v });
+const id = (v: any) => ({ toString: () => v });
 
 beforeEach(() => {
   jest.clearAllMocks();

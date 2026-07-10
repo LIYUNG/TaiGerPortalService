@@ -18,13 +18,17 @@ jest.mock('../../models', () => ({
   }
 }));
 
-import { Program } from '../../models';
+import { Program as ProgramModel } from '../../models';
 import ProgramDAO from '../../dao/program.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Program = ProgramModel as unknown as Record<string, jest.Mock>;
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (select/sort/skip/limit) return the same chain so they compose.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     select: jest.fn(() => chain),
     sort: jest.fn(() => chain),
     skip: jest.fn(() => chain),

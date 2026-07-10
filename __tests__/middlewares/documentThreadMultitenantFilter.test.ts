@@ -5,15 +5,24 @@ import {
   surveyMultitenantFilter
 } from '../../middlewares/documentThreadMultitenantFilter';
 import { ErrorResponse } from '../../common/errors';
-import DocumentThreadService from '../../services/documentthreads';
-import SurveyInputService from '../../services/surveyInputs';
+import DocumentThreadServiceReal from '../../services/documentthreads';
+import SurveyInputServiceReal from '../../services/surveyInputs';
 import logger from '../../services/logger';
 
 jest.mock('../../services/documentthreads');
 jest.mock('../../services/surveyInputs');
 
+const DocumentThreadService = DocumentThreadServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const SurveyInputService = SurveyInputServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+
 describe('docThreadMultitenant_filter', () => {
-  let req, res, next;
+  let req: any, res: any, next: any;
 
   beforeEach(() => {
     res = {};
@@ -94,7 +103,7 @@ describe('docThreadMultitenant_filter', () => {
 });
 
 describe('surveyMultitenantFilter', () => {
-  let res, next;
+  let res: any, next: any;
 
   beforeEach(() => {
     res = {};
@@ -111,7 +120,7 @@ describe('surveyMultitenantFilter', () => {
       params: {},
       body: {}
     };
-    await surveyMultitenantFilter(req, res, next);
+    await surveyMultitenantFilter(req as any, res, next);
     expect(next).toHaveBeenCalledWith();
     expect(SurveyInputService.getSurveyInputById).not.toHaveBeenCalled();
   });
@@ -122,7 +131,7 @@ describe('surveyMultitenantFilter', () => {
       params: {},
       body: { input: { studentId: { toString: () => 'otherStudent' } } }
     };
-    await surveyMultitenantFilter(req, res, next);
+    await surveyMultitenantFilter(req as any, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
     expect(next.mock.calls[0][0].statusCode).toBe(403);
     expect(next.mock.calls[0][0].message).toBe(
@@ -139,7 +148,7 @@ describe('surveyMultitenantFilter', () => {
     SurveyInputService.getSurveyInputById.mockResolvedValue({
       studentId: { toString: () => 'otherStudent' }
     });
-    await surveyMultitenantFilter(req, res, next);
+    await surveyMultitenantFilter(req as any, res, next);
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
     expect(next.mock.calls[0][0].statusCode).toBe(403);
     expect(next.mock.calls[0][0].message).toBe(
@@ -156,7 +165,7 @@ describe('surveyMultitenantFilter', () => {
     SurveyInputService.getSurveyInputById.mockResolvedValue({
       studentId: { toString: () => 'stu1' }
     });
-    await surveyMultitenantFilter(req, res, next);
+    await surveyMultitenantFilter(req as any, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 
@@ -169,7 +178,7 @@ describe('surveyMultitenantFilter', () => {
     SurveyInputService.getSurveyInputById.mockResolvedValue({
       studentId: { toString: () => 'guest1' }
     });
-    await surveyMultitenantFilter(req, res, next);
+    await surveyMultitenantFilter(req as any, res, next);
     expect(next).toHaveBeenCalledWith();
   });
 });

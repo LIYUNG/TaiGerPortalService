@@ -8,13 +8,27 @@ jest.mock('../../../services/openai', () => ({
   OpenAiModel: { GPT_4_o: 'gpt-4o' }
 }));
 
-import { openAIClient } from '../../../services/openai';
-import {
+import { openAIClient as openAIClientReal } from '../../../services/openai';
+import answerComposerModule from '../../../services/ai-assist/answerComposer';
+
+const openAIClient = openAIClientReal as unknown as {
+  responses: {
+    create: jest.Mock;
+    stream?: jest.Mock;
+  };
+};
+
+const {
   composeAnswer,
   generateAnswerFromInput,
   extractAnswerLinkHints,
   extractAnswerReferences
-} from '../../../services/ai-assist/answerComposer';
+} = answerComposerModule as unknown as {
+  composeAnswer: (input: any) => Promise<any>;
+  generateAnswerFromInput: (input: any) => Promise<any>;
+  extractAnswerLinkHints: (input: any) => Promise<any>;
+  extractAnswerReferences: (input: any) => Promise<any>;
+};
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 
@@ -79,7 +93,7 @@ describe('generateAnswerFromInput', () => {
       },
       finalResponse: jest.fn().mockResolvedValue(finalResponse)
     });
-    const tokens = [];
+    const tokens: string[] = [];
     const onToken = jest.fn(async (t) => tokens.push(t));
 
     const result = await generateAnswerFromInput({
@@ -163,12 +177,12 @@ describe('generateAnswerFromInput', () => {
 describe('composeAnswer', () => {
   it('returns empty answer when responses API is unavailable', async () => {
     const original = openAIClient.responses;
-    openAIClient.responses = undefined;
+    (openAIClient as any).responses = undefined;
 
     const result = await composeAnswer({ message: 'hi' });
     expect(result).toEqual({ response: undefined, answer: '' });
 
-    openAIClient.responses = original;
+    (openAIClient as any).responses = original;
   });
 
   it('delegates to generateAnswerFromInput with composed input', async () => {
@@ -364,7 +378,7 @@ describe('extractAnswerLinkHints', () => {
       { length: 10 },
       (_, i) => `[reflink:${i + 1}|L${i}]`
     ).join(' ');
-    const link_hints = {};
+    const link_hints: Record<number, any> = {};
     const candidates = [];
     for (let i = 1; i <= 10; i += 1) {
       link_hints[i] = { entityType: 'student', entityId: `s${i}` };

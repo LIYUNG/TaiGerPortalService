@@ -14,16 +14,24 @@ jest.mock('../../models', () => ({
   }
 }));
 
-import { ProgramChangeRequest } from '../../models';
+import { ProgramChangeRequest as ProgramChangeRequestModel } from '../../models';
 import ProgramChangeRequestDAO from '../../dao/programChangeRequest.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const ProgramChangeRequest = ProgramChangeRequestModel as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 // A query chain that is BOTH chainable (populate returns the chain) AND thenable
 // (awaiting it resolves to `value`), for methods that don't terminate in
 // `.lean()`.
-const queryChain = (value) => {
-  const chain = {
+const queryChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };

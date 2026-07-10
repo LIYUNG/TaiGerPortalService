@@ -15,18 +15,23 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Course } from '../../models';
+import { Course as CourseModel } from '../../models';
 import CourseDAO from '../../dao/course.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Course = CourseModel as unknown as Record<string, jest.Mock>;
 
 // A query chain that is both chainable (populate/lean return the same chain)
 // and thenable, so `await chain` (when a method ends in .populate() without a
 // trailing .lean()) resolves to `value` too. Terminal `.lean()` resolves to
 // value as well.
-const queryChain = (value) => {
-  const chain = {
+const queryChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };
@@ -107,7 +112,7 @@ describe('CourseDAO (mocked models)', () => {
     const created = { _id: 'c1', ...data };
     Course.create.mockResolvedValue(created);
 
-    const res = await CourseDAO.createCourse(data);
+    const res = await CourseDAO.createCourse(data as any);
 
     expect(Course.create).toHaveBeenCalledWith(data);
     expect(res).toBe(created);

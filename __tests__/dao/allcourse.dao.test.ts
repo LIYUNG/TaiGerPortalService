@@ -16,13 +16,17 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Allcourse } from '../../models';
+import { Allcourse as AllcourseModel } from '../../models';
 import AllcourseDAO from '../../dao/allcourse.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Allcourse = AllcourseModel as unknown as Record<string, jest.Mock>;
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (populate) return the same chain so they compose.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value)
   };
@@ -31,8 +35,8 @@ const leanChain = (value) => {
 
 // A chain that resolves directly via populate (no terminal `.lean()`); the
 // populate-returned thenable carries the value.
-const populateChain = (value) => {
-  const chain = {
+const populateChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => Promise.resolve(value))
   };
   return chain;

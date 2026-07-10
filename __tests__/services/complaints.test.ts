@@ -4,8 +4,10 @@
 // the DAO is called with the exact args and the service returns the DAO result.
 jest.mock('../../dao/complaint.dao');
 
-import ComplaintDAO from '../../dao/complaint.dao';
+import ComplaintDAOReal from '../../dao/complaint.dao';
 import ComplaintService from '../../services/complaints';
+
+const ComplaintDAO = ComplaintDAOReal as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -71,7 +73,7 @@ describe('ComplaintService (mocked DAO)', () => {
     const daoResult = { _id: 't1', subject: 'Help' };
     ComplaintDAO.createComplaint.mockResolvedValue(daoResult);
 
-    const result = await ComplaintService.createComplaint(ticket);
+    const result = await ComplaintService.createComplaint(ticket as any);
 
     expect(ComplaintDAO.createComplaint).toHaveBeenCalledTimes(1);
     expect(ComplaintDAO.createComplaint).toHaveBeenCalledWith(ticket);

@@ -4,7 +4,7 @@
 // returned buffer, S3 template-loading/caching, and passport-photo embedding
 // (magic-byte format detection for common image formats).
 
-const mockProcess = jest.fn(() => Buffer.from('DOCX-BYTES'));
+const mockProcess = jest.fn((..._args: unknown[]) => Buffer.from('DOCX-BYTES'));
 
 const mockGetTemplateByCategory = jest.fn();
 const mockGetS3Object = jest.fn();
@@ -54,8 +54,7 @@ const GIF = Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
 const BMP = Buffer.from([0x42, 0x4d, 0x00, 0x00]);
 const UNKNOWN = Buffer.from([0x00, 0x01, 0x02, 0x03]);
 
-const dataOf = () =>
-  mockProcess.mock.calls[0][1] as Record<string, unknown>;
+const dataOf = () => mockProcess.mock.calls[0][1] as Record<string, unknown>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -121,17 +120,20 @@ describe('renderCVDraftDocx', () => {
     ['JPEG', JPEG, 'image/jpeg'],
     ['GIF', GIF, 'image/gif'],
     ['BMP', BMP, 'image/bmp']
-  ])('embeds a %s photo with the detected format', async (_label, buf, mime) => {
-    await renderCVDraftDocx(emptyCVDraft(), buf as Buffer);
-    const photo = dataOf().photo as Record<string, unknown>;
-    expect(photo).toMatchObject({
-      _type: 'image',
-      format: mime,
-      source: buf
-    });
-    expect(photo.width).toBeGreaterThan(0);
-    expect(photo.height).toBeGreaterThan(0);
-  });
+  ])(
+    'embeds a %s photo with the detected format',
+    async (_label, buf, mime) => {
+      await renderCVDraftDocx(emptyCVDraft(), buf as Buffer);
+      const photo = dataOf().photo as Record<string, unknown>;
+      expect(photo).toMatchObject({
+        _type: 'image',
+        format: mime,
+        source: buf
+      });
+      expect(photo.width).toBeGreaterThan(0);
+      expect(photo.height).toBeGreaterThan(0);
+    }
+  );
 
   it('skips a photo in an unsupported/unknown format', async () => {
     await renderCVDraftDocx(emptyCVDraft(), UNKNOWN);

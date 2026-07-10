@@ -35,15 +35,33 @@ import {
   sendAssignEditorReminderEmail,
   sendNewGeneraldocMessageInThreadEmail
 } from '../../services/email';
-import DocumentThreadService from '../../services/documentthreads';
-import StudentService from '../../services/students';
-import PermissionService from '../../services/permissions';
-import { isArchiv, isNotArchiv } from '../../constants';
+import DocumentThreadServiceReal from '../../services/documentthreads';
+import StudentServiceReal from '../../services/students';
+import PermissionServiceReal from '../../services/permissions';
+import {
+  isArchiv as isArchivReal,
+  isNotArchiv as isNotArchivReal
+} from '../../constants';
 import { ErrorResponse } from '../../common/errors';
 import {
   informOnSurveyUpdate,
   addMessageInThread
 } from '../../utils/informEditor';
+
+const DocumentThreadService = DocumentThreadServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const StudentService = StudentServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const PermissionService = PermissionServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const isArchiv = isArchivReal as unknown as jest.Mock;
+const isNotArchiv = isNotArchivReal as unknown as jest.Mock;
 
 // informOnSurveyUpdate calls informNoEditor WITHOUT awaiting it, so its async
 // side-effects settle on later microtasks. Flush them before asserting.
@@ -62,8 +80,8 @@ describe('addMessageInThread', () => {
   });
 
   it('appends a structured message and saves the thread', async () => {
-    const save = jest.fn().mockResolvedValue();
-    const messages = [];
+    const save = jest.fn().mockResolvedValue(undefined);
+    const messages: any[] = [];
     DocumentThreadService.getThreadDocById.mockResolvedValue({
       messages,
       save
@@ -82,18 +100,18 @@ describe('addMessageInThread', () => {
 });
 
 describe('informOnSurveyUpdate', () => {
-  const baseThread = { _id: { toString: () => 'thread-1' } };
+  const baseThread: any = { _id: { toString: () => 'thread-1' } };
 
   const threadDoc = () => ({
     messages: [],
-    save: jest.fn().mockResolvedValue()
+    save: jest.fn().mockResolvedValue(undefined)
   });
 
   it('adds the automatic notification message then returns for non-Student callers', async () => {
     DocumentThreadService.getThreadDocById.mockResolvedValue(threadDoc());
 
     await informOnSurveyUpdate(
-      { role: Role.Agent, firstname: 'A', lastname: 'B' },
+      { role: Role.Agent, firstname: 'A', lastname: 'B' } as any,
       { studentId: 'stu-1' },
       baseThread
     );
@@ -112,7 +130,7 @@ describe('informOnSurveyUpdate', () => {
     isArchiv.mockReturnValue(true);
 
     await informOnSurveyUpdate(
-      { role: Role.Student, firstname: 'S', lastname: 'T' },
+      { role: Role.Student, firstname: 'S', lastname: 'T' } as any,
       { studentId: 'stu-1', fileType: 'ML' },
       baseThread
     );
@@ -144,7 +162,7 @@ describe('informOnSurveyUpdate', () => {
     ]);
 
     await informOnSurveyUpdate(
-      { role: Role.Student, firstname: 'S', lastname: 'T' },
+      { role: Role.Student, firstname: 'S', lastname: 'T' } as any,
       { studentId: 'stu-1', fileType: 'ML' },
       baseThread
     );
@@ -176,7 +194,7 @@ describe('informOnSurveyUpdate', () => {
     PermissionService.findPermissionsWithUser.mockResolvedValue([]);
 
     await informOnSurveyUpdate(
-      { role: Role.Student, firstname: 'S', lastname: 'T' },
+      { role: Role.Student, firstname: 'S', lastname: 'T' } as any,
       { studentId: 'stu-1', fileType: 'ML' },
       baseThread
     );
@@ -191,7 +209,7 @@ describe('informOnSurveyUpdate', () => {
 
   // The three branches below dereference `thread` (and inform staff with the
   // full 6-arg arity) — they crashed before the asyncHandler removal.
-  const threadWithProgram = {
+  const threadWithProgram: any = {
     _id: { toString: () => 'thread-1' },
     program_id: { school: 'ETH', program_name: 'CS' }
   };
@@ -209,14 +227,15 @@ describe('informOnSurveyUpdate', () => {
     isNotArchiv.mockReturnValue(true);
 
     await informOnSurveyUpdate(
-      { role: Role.Student, firstname: 'S', lastname: 'T' },
+      { role: Role.Student, firstname: 'S', lastname: 'T' } as any,
       { studentId: 'stu-1', fileType: 'Supplementary_Form' },
       threadWithProgram
     );
     await flush();
 
     expect(sendNewApplicationMessageInThreadEmail).toHaveBeenCalledTimes(1);
-    const [, payload] = sendNewApplicationMessageInThreadEmail.mock.calls[0];
+    const [, payload] = (sendNewApplicationMessageInThreadEmail as jest.Mock)
+      .mock.calls[0];
     expect(payload.school).toBe('ETH');
     expect(payload.thread_id).toBe('thread-1');
   });
@@ -234,7 +253,7 @@ describe('informOnSurveyUpdate', () => {
     isNotArchiv.mockReturnValue(true);
 
     await informOnSurveyUpdate(
-      { role: Role.Student, firstname: 'S', lastname: 'T' },
+      { role: Role.Student, firstname: 'S', lastname: 'T' } as any,
       { studentId: 'stu-1', fileType: 'ML', programId: 'prog-1' },
       threadWithProgram
     );
@@ -257,15 +276,16 @@ describe('informOnSurveyUpdate', () => {
     isNotArchiv.mockReturnValue(true);
 
     await informOnSurveyUpdate(
-      { role: Role.Student, firstname: 'S', lastname: 'T' },
+      { role: Role.Student, firstname: 'S', lastname: 'T' } as any,
       { studentId: 'stu-1', fileType: 'ML' },
-      { _id: { toString: () => 'thread-1' } }
+      { _id: { toString: () => 'thread-1' } } as any
     );
     await flush();
 
     expect(sendNewGeneraldocMessageInThreadEmail).toHaveBeenCalledTimes(1);
-    const [recipient, msg] =
-      sendNewGeneraldocMessageInThreadEmail.mock.calls[0];
+    const [recipient, msg] = (
+      sendNewGeneraldocMessageInThreadEmail as jest.Mock
+    ).mock.calls[0];
     expect(recipient.address).toBe('ed@x.io');
     expect(msg.thread_id).toBe('thread-1');
   });

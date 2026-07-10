@@ -4,8 +4,10 @@
 // and the service returns the DAO result.
 jest.mock('../../dao/course.dao');
 
-import CourseDAO from '../../dao/course.dao';
+import CourseDAOReal from '../../dao/course.dao';
 import CourseService from '../../services/course';
+
+const CourseDAO = CourseDAOReal as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -69,7 +71,7 @@ describe('CourseService (mocked DAO)', () => {
     const daoResult = { _id: 'c1' };
     CourseDAO.createCourse.mockResolvedValue(daoResult);
 
-    const result = await CourseService.createCourse(data);
+    const result = await CourseService.createCourse(data as any);
 
     expect(CourseDAO.createCourse).toHaveBeenCalledTimes(1);
     expect(CourseDAO.createCourse).toHaveBeenCalledWith(data);

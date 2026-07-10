@@ -18,14 +18,23 @@ jest.mock('../../../services/ai-assist/answerComposer', () => ({
   extractAnswerReferences: jest.fn()
 }));
 
-import { getLlmProvider } from '../../../services/ai-assist/llm';
-import aiTools from '../../../services/ai-assist/aiTools';
-import { extractAnswerReferences } from '../../../services/ai-assist/answerComposer';
+import llm from '../../../services/ai-assist/llm';
+import aiToolsReal from '../../../services/ai-assist/aiTools';
+import answerComposer from '../../../services/ai-assist/answerComposer';
 import orchestrator from '../../../services/ai-assist/orchestrator';
+
+const { getLlmProvider } = llm as unknown as Record<string, jest.Mock>;
+const aiTools = aiToolsReal as unknown as Record<string, jest.Mock>;
+const { extractAnswerReferences } = answerComposer as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 const { runAiAssist } = orchestrator;
 
-const makePostgres = ({ selectResults = [] } = {}) => {
+const makePostgres = ({
+  selectResults = []
+}: { selectResults?: any[] } = {}) => {
   let insertId = 0;
   const queue = [...selectResults];
 
@@ -43,7 +52,7 @@ const makePostgres = ({ selectResults = [] } = {}) => {
   return {
     select: jest.fn(selectChain),
     insert: () => ({
-      values: (values) => ({
+      values: (values: any) => ({
         returning: () => {
           insertId += 1;
           return Promise.resolve([{ id: `row_${insertId}`, ...values }]);
@@ -53,7 +62,7 @@ const makePostgres = ({ selectResults = [] } = {}) => {
   };
 };
 
-const REQ = { user: { role: 'Agent', _id: 'agent_1' } };
+const REQ: any = { user: { role: 'Agent', _id: 'agent_1' } };
 
 const makeProvider = () => ({
   name: 'anthropic',
@@ -63,7 +72,7 @@ const makeProvider = () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
-  extractAnswerReferences.mockImplementation(async ({ answer }) => ({
+  extractAnswerReferences.mockImplementation(async ({ answer }: any) => ({
     answer,
     linkHints: {}
   }));
@@ -114,7 +123,7 @@ describe('runAiAssist - single agentic loop', () => {
     aiTools.runTool.mockResolvedValue({ data: [{ id: 's1', name: 'Alice' }] });
 
     const postgres = makePostgres({ selectResults: [[], []] });
-    const progress = [];
+    const progress: any[] = [];
     const result = await runAiAssist(postgres, {
       conversationId: 'conv_1',
       message: 'Summarize @Alice',
@@ -508,7 +517,7 @@ describe('runAiAssist - single agentic loop', () => {
       await runAiAssist(postgres, {
         conversationId: 'conv_1',
         message: 'hi',
-        req: { user: { role, _id: 'u1' } },
+        req: { user: { role, _id: 'u1' } } as any,
         assistContext: {},
         preferredLanguage: 'en'
       });
@@ -531,7 +540,7 @@ describe('runAiAssist - single agentic loop', () => {
     await runAiAssist(postgres, {
       conversationId: 'conv_1',
       message: 'hi',
-      req: { user: { role: 'Student', _id: 'u1' } },
+      req: { user: { role: 'Student', _id: 'u1' } } as any,
       assistContext: {},
       preferredLanguage: 'en'
     });

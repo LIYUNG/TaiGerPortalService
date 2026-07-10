@@ -14,12 +14,16 @@ jest.mock('../../models', () => {
   };
 });
 
-import { VC } from '../../models';
+import { VC as VCModel } from '../../models';
 import VCDAO from '../../dao/vc.dao';
 
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const VC = VCModel as unknown as Record<string, jest.Mock>;
+
 // A query chain whose terminal `.lean()` resolves to `value`.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     lean: jest.fn().mockResolvedValue(value)
   };
   return chain;

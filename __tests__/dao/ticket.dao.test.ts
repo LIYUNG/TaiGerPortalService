@@ -18,13 +18,17 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Ticket } from '../../models';
+import { Ticket as TicketModel } from '../../models';
 import TicketDAO from '../../dao/ticket.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Ticket = TicketModel as unknown as Record<string, jest.Mock>;
 
 // A query chain whose terminal `.sort()` resolves to `value`. Intermediate
 // builder calls (populate) return the same chain so they compose.
-const sortChain = (value) => {
-  const chain = {
+const sortChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     sort: jest.fn().mockResolvedValue(value)
   };
@@ -34,10 +38,11 @@ const sortChain = (value) => {
 // A query chain whose terminal `.populate()` resolves to `value`. Each populate
 // returns the same chain; the last one in the DAO is awaited, so we make the
 // chain itself thenable.
-const populateChain = (value) => {
-  const chain = {
+const populateChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };
@@ -66,10 +71,13 @@ describe('TicketDAO.getTicketsOverview (mocked aggregate)', () => {
       $match: { type: 'program', status: 'open' }
     });
     // Joins program + requester.
-    const lookups = pipeline.filter((s) => s.$lookup);
-    expect(lookups.map((s) => s.$lookup.from)).toEqual(['programs', 'users']);
+    const lookups = pipeline.filter((s: any) => s.$lookup);
+    expect(lookups.map((s: any) => s.$lookup.from)).toEqual([
+      'programs',
+      'users'
+    ]);
     // Facet carries the pagination (sort/skip/limit) + count.
-    const facet = pipeline.find((s) => s.$facet);
+    const facet = pipeline.find((s: any) => s.$facet);
     expect(facet.$facet.data).toEqual([
       { $sort: { createdAt: -1 } },
       { $skip: 20 },
@@ -77,7 +85,7 @@ describe('TicketDAO.getTicketsOverview (mocked aggregate)', () => {
     ]);
     expect(facet.$facet.total).toEqual([{ $count: 'count' }]);
     // No search => no extra $or match stage before the facet.
-    expect(pipeline.some((s) => s.$match && s.$match.$or)).toBe(false);
+    expect(pipeline.some((s: any) => s.$match && s.$match.$or)).toBe(false);
   });
 
   it('adds a case-insensitive $or search across program + requester + description', async () => {
@@ -91,9 +99,9 @@ describe('TicketDAO.getTicketsOverview (mocked aggregate)', () => {
     // Empty total facet => total 0.
     expect(res).toEqual({ tickets: [], total: 0 });
     const [pipeline] = Ticket.aggregate.mock.calls[0];
-    const searchStage = pipeline.find((s) => s.$match && s.$match.$or);
+    const searchStage = pipeline.find((s: any) => s.$match && s.$match.$or);
     expect(searchStage).toBeDefined();
-    const fields = searchStage.$match.$or.map((c) => Object.keys(c)[0]);
+    const fields = searchStage.$match.$or.map((c: any) => Object.keys(c)[0]);
     expect(fields).toEqual([
       'description',
       'program_id.school',
@@ -114,7 +122,7 @@ describe('TicketDAO.getTicketsOverview (mocked aggregate)', () => {
     await TicketDAO.getTicketsOverview({ search: 'a.b*c' });
 
     const [pipeline] = Ticket.aggregate.mock.calls[0];
-    const searchStage = pipeline.find((s) => s.$match && s.$match.$or);
+    const searchStage = pipeline.find((s: any) => s.$match && s.$match.$or);
     expect(searchStage.$match.$or[0].description.$regex).toBe('a\\.b\\*c');
   });
 });

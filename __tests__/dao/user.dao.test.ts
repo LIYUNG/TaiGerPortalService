@@ -38,27 +38,50 @@ jest.mock('../../models', () => {
 
 import { Role } from '@taiger-common/core';
 import {
-  User,
-  Agent,
-  Editor,
-  Student,
-  Guest,
-  Documentthread,
-  Application,
-  Course,
-  Communication,
-  Complaint,
-  Event,
-  Interview,
-  surveyInput,
-  Ticket
+  User as UserModel,
+  Agent as AgentModel,
+  Editor as EditorModel,
+  Student as StudentModel,
+  Guest as GuestModel,
+  Documentthread as DocumentthreadModel,
+  Application as ApplicationModel,
+  Course as CourseModel,
+  Communication as CommunicationModel,
+  Complaint as ComplaintModel,
+  Event as EventModel,
+  Interview as InterviewModel,
+  surveyInput as surveyInputModel,
+  Ticket as TicketModel
 } from '../../models';
 import UserDAO from '../../dao/user.dao';
 
+// The models are auto-mocked above (every method is a jest.fn()); retype them
+// so the mock API (mockReturnValue/…) is visible to the type-checker.
+const User = UserModel as unknown as Record<string, jest.Mock>;
+const Agent = AgentModel as unknown as Record<string, jest.Mock>;
+const Editor = EditorModel as unknown as Record<string, jest.Mock>;
+const Student = StudentModel as unknown as Record<string, jest.Mock>;
+const Guest = GuestModel as unknown as Record<string, jest.Mock>;
+const Documentthread = DocumentthreadModel as unknown as Record<
+  string,
+  jest.Mock
+>;
+const Application = ApplicationModel as unknown as Record<string, jest.Mock>;
+const Course = CourseModel as unknown as Record<string, jest.Mock>;
+const Communication = CommunicationModel as unknown as Record<
+  string,
+  jest.Mock
+>;
+const Complaint = ComplaintModel as unknown as Record<string, jest.Mock>;
+const Event = EventModel as unknown as Record<string, jest.Mock>;
+const Interview = InterviewModel as unknown as Record<string, jest.Mock>;
+const surveyInput = surveyInputModel as unknown as Record<string, jest.Mock>;
+const Ticket = TicketModel as unknown as Record<string, jest.Mock>;
+
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (select/sort/skip/limit) return the same chain so they compose.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     select: jest.fn(() => chain),
     sort: jest.fn(() => chain),
     skip: jest.fn(() => chain),
@@ -155,7 +178,7 @@ describe('UserDAO (mocked models)', () => {
       { firstname: 'Renamed' },
       { new: true }
     );
-    expect(result.firstname).toBe('Renamed');
+    expect(result!.firstname).toBe('Renamed');
   });
 
   it('updateOfficehours casts against the Agent discriminator (not base User)', async () => {
@@ -195,7 +218,10 @@ describe('UserDAO (mocked models)', () => {
     User.countDocuments.mockResolvedValue(7);
 
     const parsed = UserDAO.parseUsersPaginationQuery({ page: 1, limit: 2 });
-    const res = await UserDAO.getUsersPaginated({ filter: {}, ...parsed });
+    const res = await UserDAO.getUsersPaginated({
+      filter: {},
+      ...parsed
+    } as any);
 
     expect(res.users).toBe(users);
     expect(res.total).toBe(7);
@@ -208,11 +234,11 @@ describe('UserDAO (mocked models)', () => {
     User.countDocuments.mockResolvedValue(0);
 
     const parsed = UserDAO.parseUsersPaginationQuery({ search: 'jane' });
-    await UserDAO.getUsersPaginated({ filter: {}, ...parsed });
+    await UserDAO.getUsersPaginated({ filter: {}, ...parsed } as any);
 
     const usedFilter = User.find.mock.calls[0][0];
     expect(usedFilter).toHaveProperty('$and');
-    expect(usedFilter.$and[0].$or.some((c) => c.firstname)).toBe(true);
+    expect(usedFilter.$and[0].$or.some((c: any) => c.firstname)).toBe(true);
     expect(User.countDocuments).toHaveBeenCalledWith(usedFilter);
   });
 
@@ -222,7 +248,10 @@ describe('UserDAO (mocked models)', () => {
 
     const parsed = UserDAO.parseUsersPaginationQuery({ search: 'jane' });
     const existing = { $and: [{ role: 'Student' }] };
-    await UserDAO.getUsersPaginated({ filter: existing, ...parsed });
+    await UserDAO.getUsersPaginated({
+      filter: existing,
+      ...parsed
+    } as any);
 
     const usedFilter = User.find.mock.calls[0][0];
     // The pre-existing $and condition is preserved and the search group appended.
@@ -236,7 +265,7 @@ describe('UserDAO (mocked models)', () => {
     User.countDocuments.mockResolvedValue(0);
 
     const parsed = UserDAO.parseUsersPaginationQuery({ search: 'a.b*c' });
-    await UserDAO.getUsersPaginated({ filter: {}, ...parsed });
+    await UserDAO.getUsersPaginated({ filter: {}, ...parsed } as any);
 
     const usedFilter = User.find.mock.calls[0][0];
     expect(usedFilter.$and[0].$or[0].firstname.$regex).toBe('a\\.b\\*c');

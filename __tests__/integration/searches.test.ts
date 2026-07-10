@@ -8,14 +8,18 @@
 // text score). The actual query/$text construction is covered by the DAO unit
 // tests. Fully deterministic — no engine flake.
 
-const passthrough = (req, res, next) => next();
+import type { Request, Response, NextFunction } from 'express';
+
+const passthrough = (req: Request, res: Response, next: NextFunction) => next();
 
 jest.mock('../../middlewares/tenantMiddleware', () => ({
   ...jest.requireActual('../../middlewares/tenantMiddleware'),
-  checkTenantDBMiddleware: jest.fn((req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  })
+  checkTenantDBMiddleware: jest.fn(
+    (req: Request, res: Response, next: NextFunction) => {
+      req.tenantId = 'test';
+      next();
+    }
+  )
 }));
 jest.mock('../../middlewares/decryptCookieMiddleware', () => ({
   ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
@@ -31,20 +35,34 @@ jest.mock('../../middlewares/auth', () => ({
 jest.mock('../../dao/search.dao');
 
 import request from 'supertest';
-import SearchDAO from '../../dao/search.dao';
+import SearchDAOModule from '../../dao/search.dao';
 import { app } from '../../app';
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin } from '../mock/user';
 
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()/.mockRejectedValue()` calls type-check while
+// still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const SearchDAO = SearchDAOModule as unknown as MockedDAO;
+
 const api = request(app);
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation((req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
 });
 
 describe('GET /api/search/students', () => {
@@ -65,7 +83,10 @@ describe('GET /api/search/students', () => {
     expect(SearchDAO.searchStudentsByName).toHaveBeenCalledWith('zephyr');
     expect(Array.isArray(resp.body.data)).toBe(true);
     // Sorted by score desc by the service.
-    expect(resp.body.data.map((u) => u._id)).toEqual(['b', 'a']);
+    expect(resp.body.data.map((u: { _id: string }) => u._id)).toEqual([
+      'b',
+      'a'
+    ]);
   });
 
   it('returns an empty array when the DAO finds nothing', async () => {
@@ -113,7 +134,12 @@ describe('GET /api/search/', () => {
     expect(SearchDAO.searchPrograms).toHaveBeenCalledWith('a');
     expect(Array.isArray(resp.body.data)).toBe(true);
     // students.concat(documentations, internaldocs, programs).sort(byScoreDesc)
-    expect(resp.body.data.map((r) => r._id)).toEqual(['d1', 'p1', 'i1', 'u1']);
+    expect(resp.body.data.map((r: { _id: string }) => r._id)).toEqual([
+      'd1',
+      'p1',
+      'i1',
+      'u1'
+    ]);
   });
 
   it('swallows a DAO error and still returns success with an empty array', async () => {

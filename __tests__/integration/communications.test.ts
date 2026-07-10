@@ -10,14 +10,25 @@
 // no engine flake.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 
 import { generateCommunicationMessage } from '../fixtures/faker';
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin, agent, student } from '../mock/user';
 
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -29,7 +40,8 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 });
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
@@ -38,7 +50,8 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 });
 
 jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/permission-filter'),
@@ -47,7 +60,8 @@ jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
 });
 
 jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/permission-filter'),
@@ -58,7 +72,8 @@ jest.mock('../../middlewares/permission-filter', () => {
 });
 
 jest.mock('../../middlewares/chatMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/chatMultitenantFilter'),
@@ -67,13 +82,14 @@ jest.mock('../../middlewares/chatMultitenantFilter', () => {
 });
 
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
     localAuth: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
+    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
   };
 });
 
@@ -92,10 +108,18 @@ jest.mock('../../dao/communicationDraft.dao');
 jest.mock('../../dao/student.dao');
 jest.mock('../../dao/permission.dao');
 
-import CommunicationDAO from '../../dao/communication.dao';
-import StudentDAO from '../../dao/student.dao';
-import PermissionDAO from '../../dao/permission.dao';
+import CommunicationDAOModule from '../../dao/communication.dao';
+import StudentDAOModule from '../../dao/student.dao';
+import PermissionDAOModule from '../../dao/permission.dao';
 import { app } from '../../app';
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const CommunicationDAO = CommunicationDAOModule as unknown as MockedDAO;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
+const PermissionDAO = PermissionDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();
@@ -109,10 +133,12 @@ const testMessage =
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
   // getPermission() reads the permission DAO (cached); default to all-access.
   PermissionDAO.getPermissionByUserId.mockResolvedValue({
     canAccessAllChat: true

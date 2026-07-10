@@ -11,70 +11,38 @@
 // Fully deterministic — no engine flake.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation(() => passthrough)
-  };
-});
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
 
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough),
-    permission_canAssignAgent_filter: jest.fn().mockImplementation(passthrough),
-    permission_canAssignEditor_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/auth', () =>
+  require('../helpers/middlewareMocks').authMock()
+);
+jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () =>
+  require('../helpers/middlewareMocks').innerTaigerMultitenantFilterMock()
+);
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/permission-filter', () =>
+  require('../helpers/middlewareMocks').permissionFilterMock()
+);
+jest.mock('../../middlewares/multitenant-filter', () =>
+  require('../helpers/middlewareMocks').multitenantFilterMock()
+);
+jest.mock('../../middlewares/limit_archiv_user', () =>
+  require('../helpers/middlewareMocks').limitArchivUserMock()
+);
 
 // The agent/editor assignment handlers notify users by email after the upsert;
 // stub the senders so no SMTP connection is opened.
@@ -94,14 +62,23 @@ jest.mock('../../dao/user.dao');
 jest.mock('../../dao/permission.dao');
 jest.mock('../../dao/audit.dao');
 
-import StudentDAO from '../../dao/student.dao';
-import UserDAO from '../../dao/user.dao';
-import PermissionDAO from '../../dao/permission.dao';
-import AuditDAO from '../../dao/audit.dao';
+import StudentDAOModule from '../../dao/student.dao';
+import UserDAOModule from '../../dao/user.dao';
+import PermissionDAOModule from '../../dao/permission.dao';
+import AuditDAOModule from '../../dao/audit.dao';
 import { protect } from '../../middlewares/auth';
 import { app } from '../../app';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin, agents, editors, student } from '../mock/user';
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
+const UserDAO = UserDAOModule as unknown as MockedDAO;
+const PermissionDAO = PermissionDAOModule as unknown as MockedDAO;
+const AuditDAO = AuditDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();
@@ -109,10 +86,12 @@ const studentId = student._id.toString();
 beforeEach(() => {
   jest.clearAllMocks();
 
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
 
   // Sensible defaults; individual tests override as needed.
   StudentDAO.getStudentById.mockResolvedValue({
@@ -132,7 +111,7 @@ beforeEach(() => {
 
 describe('POST /api/students/:id/agents (full stack)', () => {
   it('updates the student agents via the DAO with the resolved agent ids', async () => {
-    const agents_obj = {};
+    const agents_obj: Record<string, boolean> = {};
     agents.forEach((ag) => {
       agents_obj[ag._id] = true;
     });
@@ -184,15 +163,17 @@ describe('POST /api/students/:id/agents (full stack)', () => {
         agents: expect.arrayContaining(expectedAgentIds)
       })
     );
-    expect(resp.body.data.agents.map((a) => a._id.toString()).sort()).toEqual(
-      expectedAgentIds.sort()
-    );
+    expect(
+      resp.body.data.agents
+        .map((a: { _id: { toString: () => string } }) => a._id.toString())
+        .sort()
+    ).toEqual(expectedAgentIds.sort());
   });
 });
 
 describe('POST /api/students/:id/editors (full stack)', () => {
   it('updates the student editors via the DAO with the resolved editor ids', async () => {
-    const editors_obj = {};
+    const editors_obj: Record<string, boolean> = {};
     editors.forEach((editor) => {
       editors_obj[editor._id] = true;
     });
@@ -242,9 +223,11 @@ describe('POST /api/students/:id/editors (full stack)', () => {
         editors: expect.arrayContaining(expectedEditorIds)
       })
     );
-    expect(resp.body.data.editors.map((e) => e._id.toString()).sort()).toEqual(
-      expectedEditorIds.sort()
-    );
+    expect(
+      resp.body.data.editors
+        .map((e: { _id: { toString: () => string } }) => e._id.toString())
+        .sort()
+    ).toEqual(expectedEditorIds.sort());
   });
 });
 

@@ -7,14 +7,19 @@
 // UserQueryBuilder from the query params) to the DAO and shapes the HTTP
 // response from the DAO's (mocked) return. Fully deterministic — no database
 // engine, no seeding.
-const passthrough = async (req, res, next) => next();
+import type { Request, Response, NextFunction } from 'express';
+
+const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+  next();
 
 jest.mock('../../middlewares/tenantMiddleware', () => ({
   ...jest.requireActual('../../middlewares/tenantMiddleware'),
-  checkTenantDBMiddleware: jest.fn(async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  })
+  checkTenantDBMiddleware: jest.fn(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.tenantId = 'test';
+      next();
+    }
+  )
 }));
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => ({
@@ -41,7 +46,15 @@ import request from 'supertest';
 import { app } from '../../app';
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
-import AuditDAO from '../../dao/audit.dao';
+import AuditDAOModule from '../../dao/audit.dao';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+type MockedDAO = Record<string, jest.Mock>;
+const AuditDAO = AuditDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 
@@ -53,10 +66,12 @@ const AUDIT_LOGS = [
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = { role: 'Admin', _id: '012345678901234567891234' };
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = { role: 'Admin', _id: '012345678901234567891234' };
+      next();
+    }
+  );
 });
 
 describe('GET /api/audit', () => {

@@ -9,9 +9,14 @@
 // (__tests__/dao/course.dao.test.js). Fully deterministic — no engine flake.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -22,7 +27,8 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 });
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
     decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
@@ -30,7 +36,8 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 });
 
 jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/permission-filter'),
     InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
@@ -38,12 +45,13 @@ jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
 });
 
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
     localAuth: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
+    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
   };
 });
 
@@ -59,12 +67,25 @@ jest.mock('../../services/email', () => ({
 jest.mock('../../dao/course.dao');
 jest.mock('../../dao/student.dao');
 
-import CourseDAO from '../../dao/course.dao';
-import StudentDAO from '../../dao/student.dao';
+import CourseDAOModule from '../../dao/course.dao';
+import StudentDAOModule from '../../dao/student.dao';
 import { protect } from '../../middlewares/auth';
 import { app } from '../../app';
 import { TENANT_ID } from '../fixtures/constants';
 import { student } from '../mock/user';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const CourseDAO = CourseDAOModule as unknown as MockedDAO;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();
@@ -75,10 +96,12 @@ const EXAMPLE_TABLE =
 beforeEach(() => {
   jest.clearAllMocks();
   // Default: the logged-in user is the student themselves.
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = student;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = student;
+      next();
+    }
+  );
   // Sensible defaults; individual tests override as needed.
   StudentDAO.getStudentByIdLean.mockResolvedValue({
     _id: student._id,

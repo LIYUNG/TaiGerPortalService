@@ -11,8 +11,14 @@
 // for the streaming routes is "did NOT 500" plus the streamed body, because the
 // body is a stream, not JSON. Fully deterministic — no engine flake, no DB.
 
+import type { Request, Response, NextFunction } from 'express';
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -23,7 +29,8 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 });
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
     decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
@@ -31,16 +38,18 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 });
 
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
+    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
   };
 });
 
 jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/permission-filter'),
     permission_canModifyProgramList_filter: jest
@@ -52,7 +61,8 @@ jest.mock('../../middlewares/permission-filter', () => {
 });
 
 jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/multitenant-filter'),
     multitenant_filter: jest.fn().mockImplementation(passthrough)
@@ -60,7 +70,8 @@ jest.mock('../../middlewares/multitenant-filter', () => {
 });
 
 jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/limit_archiv_user'),
     filter_archiv_user: jest.fn().mockImplementation(passthrough)
@@ -68,7 +79,8 @@ jest.mock('../../middlewares/limit_archiv_user', () => {
 });
 
 jest.mock('../../middlewares/chatMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/chatMultitenantFilter'),
     chatMultitenantFilter: jest.fn().mockImplementation(passthrough)
@@ -131,18 +143,35 @@ jest.mock('../../dao/student.dao');
 jest.mock('../../dao/permission.dao');
 
 import request from 'supertest';
-import ProgramDAO from '../../dao/program.dao';
-import ProgramAIDAO from '../../dao/programAI.dao';
-import CommunicationDAO from '../../dao/communication.dao';
-import ApplicationDAO from '../../dao/application.dao';
-import StudentDAO from '../../dao/student.dao';
-import PermissionDAO from '../../dao/permission.dao';
+import ProgramDAOModule from '../../dao/program.dao';
+import ProgramAIDAOModule from '../../dao/programAI.dao';
+import CommunicationDAOModule from '../../dao/communication.dao';
+import ApplicationDAOModule from '../../dao/application.dao';
+import StudentDAOModule from '../../dao/student.dao';
+import PermissionDAOModule from '../../dao/permission.dao';
 import { protect } from '../../middlewares/auth';
 import { app } from '../../app';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin, student } from '../mock/user';
 const { ObjectId } = require('mongoose').Types;
 import { generateProgram } from '../fixtures/faker';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const ProgramDAO = ProgramDAOModule as unknown as MockedDAO;
+const ProgramAIDAO = ProgramAIDAOModule as unknown as MockedDAO;
+const CommunicationDAO = CommunicationDAOModule as unknown as MockedDAO;
+const ApplicationDAO = ApplicationDAOModule as unknown as MockedDAO;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
+const PermissionDAO = PermissionDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 
@@ -151,10 +180,12 @@ const program1 = generateProgram();
 beforeEach(() => {
   jest.clearAllMocks();
 
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
 
   // Sensible defaults; individual tests override as needed.
   ProgramDAO.getProgramByIdLean.mockResolvedValue(null);

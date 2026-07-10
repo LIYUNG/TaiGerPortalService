@@ -12,7 +12,11 @@
 // ── Mock declarations (must be at top, before any require()) ─────────────────
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -23,7 +27,8 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 });
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
     decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
@@ -31,16 +36,18 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 });
 
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
+    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
   };
 });
 
 jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
     InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
@@ -48,7 +55,8 @@ jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
 });
 
 jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/permission-filter'),
     permission_canAccessStudentDatabase_filter: jest
@@ -58,7 +66,8 @@ jest.mock('../../middlewares/permission-filter', () => {
 });
 
 jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/multitenant-filter'),
     multitenant_filter: jest.fn().mockImplementation(passthrough)
@@ -66,7 +75,8 @@ jest.mock('../../middlewares/multitenant-filter', () => {
 });
 
 jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/limit_archiv_user'),
     filter_archiv_user: jest.fn().mockImplementation(passthrough)
@@ -87,14 +97,28 @@ jest.mock('../../dao/student.dao');
 // ── Imports ───────────────────────────────────────────────────────────────────
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 
 import { app } from '../../app';
 import { protect } from '../../middlewares/auth';
 import { getS3Object } from '../../aws/s3';
-import ApplicationDAO from '../../dao/application.dao';
-import StudentDAO from '../../dao/student.dao';
+import ApplicationDAOModule from '../../dao/application.dao';
+import StudentDAOModule from '../../dao/student.dao';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin, student } from '../mock/user';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const ApplicationDAO = ApplicationDAOModule as unknown as MockedDAO;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();
@@ -103,10 +127,12 @@ const studentId = student._id.toString();
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -174,7 +200,7 @@ describe('GET /api/admissions/:applications_year', () => {
 describe('GET /api/admissions/:studentId/admission/:fileName', () => {
   it('streams the admission letter from S3 as an attachment', async () => {
     const fileName = 'offer_letter.pdf';
-    getS3Object.mockResolvedValue(Buffer.from('mock pdf content'));
+    asMock(getS3Object).mockResolvedValue(Buffer.from('mock pdf content'));
 
     const resp = await requestWithSupertest
       .get(`/api/admissions/${studentId}/admission/${fileName}`)

@@ -11,28 +11,38 @@
 
 jest.mock('../../middlewares/tenantMiddleware', () => ({
   ...jest.requireActual('../../middlewares/tenantMiddleware'),
-  checkTenantDBMiddleware: jest.fn((req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  })
+  checkTenantDBMiddleware: jest.fn(
+    (req: Request, res: Response, next: NextFunction) => {
+      req.tenantId = 'test';
+      next();
+    }
+  )
 }));
 jest.mock('../../middlewares/decryptCookieMiddleware', () => ({
   ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-  decryptCookieMiddleware: jest.fn((req, res, next) => next())
+  decryptCookieMiddleware: jest.fn(
+    (req: Request, res: Response, next: NextFunction) => next()
+  )
 }));
 jest.mock('../../middlewares/auth', () => ({
   ...jest.requireActual('../../middlewares/auth'),
-  protect: jest.fn((req, res, next) => next()),
-  permit: jest.fn(() => (req, res, next) => next())
+  protect: jest.fn((req: Request, res: Response, next: NextFunction) => next()),
+  permit: jest.fn(
+    (...roles: string[]) =>
+      (req: Request, res: Response, next: NextFunction) =>
+        next()
+  )
 }));
 jest.mock('../../middlewares/limit_archiv_user', () => ({
   ...jest.requireActual('../../middlewares/limit_archiv_user'),
-  filter_archiv_user: jest.fn((req, res, next) => next())
+  filter_archiv_user: jest.fn(
+    (req: Request, res: Response, next: NextFunction) => next()
+  )
 }));
 jest.mock('../../middlewares/permission-filter', () => ({
   ...jest.requireActual('../../middlewares/permission-filter'),
-  permission_canAccessStudentDatabase_filter: jest.fn((req, res, next) =>
-    next()
+  permission_canAccessStudentDatabase_filter: jest.fn(
+    (req: Request, res: Response, next: NextFunction) => next()
   )
 }));
 
@@ -45,26 +55,46 @@ jest.mock('../../dao/documentthread.dao');
 jest.mock('../../dao/user.dao');
 
 import request from 'supertest';
-import TeamDAO from '../../dao/team.dao';
-import PermissionDAO from '../../dao/permission.dao';
-import StudentDAO from '../../dao/student.dao';
-import InterviewDAO from '../../dao/interview.dao';
-import DocumentthreadDAO from '../../dao/documentthread.dao';
-import UserDAO from '../../dao/user.dao';
+import type { Request, Response, NextFunction } from 'express';
+import TeamDAOModule from '../../dao/team.dao';
+import PermissionDAOModule from '../../dao/permission.dao';
+import StudentDAOModule from '../../dao/student.dao';
+import InterviewDAOModule from '../../dao/interview.dao';
+import DocumentthreadDAOModule from '../../dao/documentthread.dao';
+import UserDAOModule from '../../dao/user.dao';
 import { protect } from '../../middlewares/auth';
 import { app } from '../../app';
 import { TENANT_ID } from '../fixtures/constants';
 import { agent } from '../mock/user';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const TeamDAO = TeamDAOModule as unknown as MockedDAO;
+const PermissionDAO = PermissionDAOModule as unknown as MockedDAO;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
+const InterviewDAO = InterviewDAOModule as unknown as MockedDAO;
+const DocumentthreadDAO = DocumentthreadDAOModule as unknown as MockedDAO;
+const UserDAO = UserDAOModule as unknown as MockedDAO;
 
 const api = request(app);
 
 beforeEach(() => {
   jest.clearAllMocks();
 
-  protect.mockImplementation((req, res, next) => {
-    req.user = agent;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    (req: Request, res: Response, next: NextFunction) => {
+      req.user = agent;
+      next();
+    }
+  );
 
   // Sensible defaults; individual tests override as needed.
   TeamDAO.getTeamMembers.mockResolvedValue([]);

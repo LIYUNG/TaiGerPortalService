@@ -9,7 +9,11 @@
 // deterministic — no engine flake.
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -20,7 +24,8 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 });
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
     decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
@@ -28,11 +33,12 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 });
 
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
+    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
   };
 });
 
@@ -74,16 +80,29 @@ jest.mock('../../aws/s3', () => ({
 jest.mock('../../dao/communication.dao');
 
 import request from 'supertest';
-import CommunicationDAO from '../../dao/communication.dao';
+import type { Request, Response, NextFunction } from 'express';
+import CommunicationDAOModule from '../../dao/communication.dao';
 import { app } from '../../app';
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin, agent, student } from '../mock/user';
 
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const CommunicationDAO = CommunicationDAOModule as unknown as MockedDAO;
+
 const requestWithSupertest = request(app);
 
 // A communication thread as returned by the DAO (user_id populated).
-const buildThread = (message) => ({
+const buildThread = (message: string) => ({
   _id: student._id,
   student_id: student._id,
   user_id: {
@@ -98,10 +117,12 @@ const buildThread = (message) => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
 });
 
 describe('WidgetExportMessagePDF Controller', () => {
@@ -116,7 +137,7 @@ describe('WidgetExportMessagePDF Controller', () => {
       .set('tenantId', TENANT_ID)
       .buffer(true)
       .parse((res, callback) => {
-        const chunks = [];
+        const chunks: Buffer[] = [];
         res.on('data', (chunk) => chunks.push(chunk));
         res.on('end', () => callback(null, Buffer.concat(chunks)));
       });

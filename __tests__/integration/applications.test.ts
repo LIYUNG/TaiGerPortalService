@@ -10,6 +10,7 @@
 // (__tests__/dao/application.dao.test.js). Fully deterministic — no engine flake.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 
 import { protect } from '../../middlewares/auth';
 import { InnerTaigerMultitenantFilter } from '../../middlewares/InnerTaigerMultitenantFilter';
@@ -19,53 +20,30 @@ import { TENANT_ID } from '../fixtures/constants';
 import { agent, student, student2 } from '../mock/user';
 import { program1, programs } from '../mock/programs';
 
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
-});
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
 
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough),
-    permission_canAssignAgent_filter: jest.fn().mockImplementation(passthrough),
-    permission_canAssignEditor_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
+// The standard passthrough middleware mocks live in one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/auth', () =>
+  require('../helpers/middlewareMocks').authMock()
+);
+jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () =>
+  require('../helpers/middlewareMocks').innerTaigerMultitenantFilterMock()
+);
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/permission-filter', () =>
+  require('../helpers/middlewareMocks').permissionFilterMock()
+);
 
 // createApplicationV2 notifies the student by email after the upsert
 // (fire-and-forget); stub the sender so no SMTP connection is opened.
@@ -81,27 +59,39 @@ jest.mock('../../dao/program.dao');
 jest.mock('../../dao/user.dao');
 jest.mock('../../dao/documentthread.dao');
 
-import ApplicationDAO from '../../dao/application.dao';
-import StudentDAO from '../../dao/student.dao';
-import ProgramDAO from '../../dao/program.dao';
-import UserDAO from '../../dao/user.dao';
-import DocumentthreadDAO from '../../dao/documentthread.dao';
+import ApplicationDAOModule from '../../dao/application.dao';
+import StudentDAOModule from '../../dao/student.dao';
+import ProgramDAOModule from '../../dao/program.dao';
+import UserDAOModule from '../../dao/user.dao';
+import DocumentthreadDAOModule from '../../dao/documentthread.dao';
 import mongoose from 'mongoose';
 import { app } from '../../app';
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const ApplicationDAO = ApplicationDAOModule as unknown as MockedDAO;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
+const ProgramDAO = ProgramDAOModule as unknown as MockedDAO;
+const UserDAO = UserDAOModule as unknown as MockedDAO;
+const DocumentthreadDAO = DocumentthreadDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
-  });
-  InnerTaigerMultitenantFilter.mockImplementation(async (req, res, next) =>
-    next()
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = agent;
+      next();
+    }
   );
-  permission_canAccessStudentDatabase_filter.mockImplementation(
-    async (req, res, next) => next()
+  asMock(InnerTaigerMultitenantFilter).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => next()
+  );
+  asMock(permission_canAccessStudentDatabase_filter).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => next()
   );
 });
 
@@ -137,8 +127,11 @@ describe('POST /api/applications/student/:studentId', () => {
     // Each new program yields a created application doc. The subdocument array
     // exposes .create()/.push() (the controller appends thread entries to it).
     ApplicationDAO.createApplicationDoc.mockImplementation(async (payload) => {
-      const thread = [];
-      thread.create = (entry) => entry;
+      // Mimic the Mongoose subdocument array the controller appends thread
+      // entries to: a real array that also exposes .create().
+      const thread = Object.assign([] as Record<string, unknown>[], {
+        create: (entry: Record<string, unknown>) => entry
+      });
       return {
         _id: payload.programId,
         ...payload,
@@ -318,10 +311,9 @@ describe('GET /api/applications/program-update-status', () => {
       .set('tenantId', TENANT_ID);
 
     expect(resp.status).toBe(200);
-    expect(resp.body.data.map((p) => p.program_name)).toEqual([
-      'Alpha Program',
-      'Beta Program'
-    ]);
+    expect(
+      resp.body.data.map((p: { program_name: string }) => p.program_name)
+    ).toEqual(['Alpha Program', 'Beta Program']);
   });
 });
 

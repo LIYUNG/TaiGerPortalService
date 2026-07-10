@@ -13,6 +13,7 @@
 // construction is covered by the DAO unit tests.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 const { ObjectId } = require('mongoose').Types;
 
 import { app } from '../../app';
@@ -20,66 +21,52 @@ import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin, agent, student } from '../mock/user';
 
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
 const requestWithSupertest = request(app);
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation(() => passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting. The upload / doc-thread / outsourcer filters
+// below stay inline — they have route-specific mock bodies, not plain
+// passthroughs.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/auth', () =>
+  require('../helpers/middlewareMocks').authMock()
+);
+jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () =>
+  require('../helpers/middlewareMocks').innerTaigerMultitenantFilterMock()
+);
+jest.mock('../../middlewares/multitenant-filter', () =>
+  require('../helpers/middlewareMocks').multitenantFilterMock()
+);
+jest.mock('../../middlewares/limit_archiv_user', () =>
+  require('../helpers/middlewareMocks').limitArchivUserMock()
+);
 
 jest.mock('../../middlewares/file-upload', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.files = [];
     next();
   };
-  const passthroughSingle = async (req, res, next) => {
+  const passthroughSingle = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.file = undefined;
     next();
   };
@@ -99,7 +86,8 @@ jest.mock('../../middlewares/file-upload', () => {
 });
 
 jest.mock('../../middlewares/documentThreadMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     docThreadMultitenant_filter: jest.fn().mockImplementation(passthrough),
     surveyMultitenantFilter: jest.fn().mockImplementation(passthrough)
@@ -107,17 +95,20 @@ jest.mock('../../middlewares/documentThreadMultitenantFilter', () => {
 });
 
 jest.mock('../../middlewares/AssignOutsourcerFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return { AssignOutsourcerFilter: jest.fn().mockImplementation(passthrough) };
 });
 
 jest.mock('../../middlewares/editorIdsBodyFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return { editorIdsBodyFilter: jest.fn().mockImplementation(passthrough) };
 });
 
 jest.mock('../../middlewares/docs_thread_operation_validation', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     doc_thread_ops_validator: jest.fn().mockImplementation(passthrough)
   };
@@ -156,7 +147,7 @@ jest.mock('../../utils/informEditor', () => ({
 }));
 
 jest.mock('../../utils/log/auditLog', () => ({
-  auditLog: (req, res, next) => next()
+  auditLog: (req: Request, res: Response, next: NextFunction) => next()
 }));
 
 // ---- The data boundary: mock the DAOs the exercised handlers reach ----
@@ -165,17 +156,26 @@ jest.mock('../../dao/documentthread.dao');
 jest.mock('../../dao/student.dao');
 jest.mock('../../dao/surveyInput.dao');
 
-import DocumentthreadDAO from '../../dao/documentthread.dao';
-import StudentDAO from '../../dao/student.dao';
+import DocumentthreadDAOModule from '../../dao/documentthread.dao';
+import StudentDAOModule from '../../dao/student.dao';
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const DocumentthreadDAO = DocumentthreadDAOModule as unknown as MockedDAO;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
 
 const threadId = new ObjectId().toHexString();
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
   StudentDAO.fetchStudentIds.mockResolvedValue([{ _id: student._id }]);
 });
 
@@ -239,10 +239,12 @@ describe('GET /api/document-threads/overview/taiger-user/:userId/counts', () => 
 
 describe('GET /api/document-threads/student-threads/:studentId', () => {
   it('returns the student thread payload from findThreadsByStudentIdPopulated', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
+    asMock(protect).mockImplementation(
+      async (req: Request, res: Response, next: NextFunction) => {
+        req.user = agent;
+        next();
+      }
+    );
     DocumentthreadDAO.findThreadsByStudentIdPopulated.mockResolvedValue([
       { _id: threadId, file_type: 'ML', application_id: null }
     ]);

@@ -10,6 +10,7 @@
 // no engine flake.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
@@ -21,8 +22,18 @@ import {
   ticketWithMessage
 } from '../mock/complaintTickets';
 
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -34,7 +45,8 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 });
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
@@ -43,7 +55,8 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 });
 
 jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/permission-filter'),
@@ -52,7 +65,8 @@ jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
 });
 
 jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/permission-filter'),
@@ -63,7 +77,8 @@ jest.mock('../../middlewares/permission-filter', () => {
 });
 
 jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/multitenant-filter'),
@@ -72,13 +87,14 @@ jest.mock('../../middlewares/multitenant-filter', () => {
 });
 
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
     localAuth: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
+    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
   };
 });
 
@@ -108,20 +124,30 @@ jest.mock('../../dao/complaint.dao');
 jest.mock('../../dao/permission.dao');
 jest.mock('../../dao/student.dao');
 
-import ComplaintDAO from '../../dao/complaint.dao';
-import PermissionDAO from '../../dao/permission.dao';
-import StudentDAO from '../../dao/student.dao';
+import ComplaintDAOModule from '../../dao/complaint.dao';
+import PermissionDAOModule from '../../dao/permission.dao';
+import StudentDAOModule from '../../dao/student.dao';
 import { app } from '../../app';
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const ComplaintDAO = ComplaintDAOModule as unknown as MockedDAO;
+const PermissionDAO = PermissionDAOModule as unknown as MockedDAO;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = student;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = student;
+      next();
+    }
+  );
   // Defaults for the fire-and-forget email fan-out (post-response).
   PermissionDAO.getManagers.mockResolvedValue([]);
   StudentDAO.getStudentByIdWithTeam.mockResolvedValue({
@@ -151,10 +177,12 @@ describe('GET /api/complaints', () => {
 
 describe('POST /api/complaints', () => {
   it('creates a ticket stamped with the requester id', async () => {
-    ComplaintDAO.createComplaint.mockImplementation(async (t) => ({
-      _id: ticketNew._id,
-      ...t
-    }));
+    ComplaintDAO.createComplaint.mockImplementation(
+      async (t: Record<string, unknown>) => ({
+        _id: ticketNew._id,
+        ...t
+      })
+    );
 
     const resp = await requestWithSupertest
       .post('/api/complaints')
@@ -201,7 +229,7 @@ describe('POST /api/complaints/new-message/:ticketId/:studentId', () => {
   it('appends a message that is visible on the refreshed ticket', async () => {
     // The handler loads a live doc (mutates messages + .save()), then re-reads
     // the populated ticket for the response.
-    const messages = [];
+    const messages: Record<string, unknown>[] = [];
     const liveTicket = {
       _id: ticket._id,
       title: ticket.title,

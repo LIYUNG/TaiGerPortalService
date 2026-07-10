@@ -14,22 +14,31 @@
 // engine flake.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('../../middlewares/tenantMiddleware', () => ({
   ...jest.requireActual('../../middlewares/tenantMiddleware'),
-  checkTenantDBMiddleware: jest.fn((req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  })
+  checkTenantDBMiddleware: jest.fn(
+    (req: Request, res: Response, next: NextFunction) => {
+      req.tenantId = 'test';
+      next();
+    }
+  )
 }));
 jest.mock('../../middlewares/decryptCookieMiddleware', () => ({
   ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-  decryptCookieMiddleware: jest.fn((req, res, next) => next())
+  decryptCookieMiddleware: jest.fn(
+    (req: Request, res: Response, next: NextFunction) => next()
+  )
 }));
 jest.mock('../../middlewares/auth', () => ({
   ...jest.requireActual('../../middlewares/auth'),
-  protect: jest.fn((req, res, next) => next()),
-  permit: jest.fn(() => (req, res, next) => next())
+  protect: jest.fn((req: Request, res: Response, next: NextFunction) => next()),
+  permit: jest.fn(
+    (...roles: string[]) =>
+      (req: Request, res: Response, next: NextFunction) =>
+        next()
+  )
 }));
 
 // The data boundary: mock the DAOs the conflict + delta flows delegate to.
@@ -38,16 +47,31 @@ jest.mock('../../dao/team.dao');
 jest.mock('../../dao/program.dao');
 jest.mock('../../dao/documentthread.dao');
 
-import ApplicationDAO from '../../dao/application.dao';
-import TeamDAO from '../../dao/team.dao';
-import ProgramDAO from '../../dao/program.dao';
-import DocumentthreadDAO from '../../dao/documentthread.dao';
+import ApplicationDAOModule from '../../dao/application.dao';
+import TeamDAOModule from '../../dao/team.dao';
+import ProgramDAOModule from '../../dao/program.dao';
+import DocumentthreadDAOModule from '../../dao/documentthread.dao';
 import { protect } from '../../middlewares/auth';
 import { app } from '../../app';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin } from '../mock/user';
 import { generateProgram, generateUser } from '../fixtures/faker';
 import { Role } from '../../constants';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const ApplicationDAO = ApplicationDAOModule as unknown as MockedDAO;
+const TeamDAO = TeamDAOModule as unknown as MockedDAO;
+const ProgramDAO = ProgramDAOModule as unknown as MockedDAO;
+const DocumentthreadDAO = DocumentthreadDAOModule as unknown as MockedDAO;
 
 const api = request(app);
 
@@ -58,10 +82,12 @@ const conflictProgram = generateProgram();
 beforeEach(() => {
   jest.clearAllMocks();
 
-  protect.mockImplementation((req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
 
   // Sensible defaults; individual tests override as needed.
   ApplicationDAO.getApplicationConflicts.mockResolvedValue([]);
@@ -90,7 +116,8 @@ describe('GET /api/student-applications/conflicts', () => {
     expect(ApplicationDAO.getApplicationConflicts).toHaveBeenCalledTimes(1);
     expect(Array.isArray(resp.body.data)).toBe(true);
     const got = resp.body.data.find(
-      (c) => c.programId?.toString() === conflictProgram._id.toString()
+      (c: { programId?: { toString(): string } }) =>
+        c.programId?.toString() === conflictProgram._id.toString()
     );
     expect(got).toBeTruthy();
     expect(got.applicationCount).toBe(2);

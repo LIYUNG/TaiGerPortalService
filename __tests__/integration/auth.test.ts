@@ -11,16 +11,27 @@
 // database engine, no seeding.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 
 import { app } from '../../app';
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
 import { student, admin } from '../mock/user';
 
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
 const requestWithSupertest = request(app);
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -32,7 +43,8 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 });
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
@@ -41,7 +53,8 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 });
 
 jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
@@ -50,14 +63,15 @@ jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
 });
 
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/auth'),
     // protect is stubbed (the verify route is not under test here); localAuth is
     // kept REAL so the login password compare runs against the mocked user.
     protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
+    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
   };
 });
 
@@ -73,15 +87,24 @@ jest.mock('../../services/email', () => ({
 jest.mock('../../dao/user.dao');
 jest.mock('../../dao/token.dao');
 
-import UserDAO from '../../dao/user.dao';
-import TokenDAO from '../../dao/token.dao';
+import UserDAOModule from '../../dao/user.dao';
+import TokenDAOModule from '../../dao/token.dao';
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const UserDAO = UserDAOModule as unknown as MockedDAO;
+const TokenDAO = TokenDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = student;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = student;
+      next();
+    }
+  );
 });
 
 describe('POST /auth/login', () => {
@@ -122,7 +145,10 @@ describe('POST /auth/login', () => {
     expect(resp.status).toBe(200);
     expect(resp.body.success).toBe(true);
     expect(resp.body.data.email).toBe(student.email);
-    expect(resp.headers['set-cookie'].join(';')).toContain('x-auth');
+    // superagent's Response['headers'] type declares string values, but node
+    // normalizes repeated Set-Cookie headers into a real array at runtime.
+    const setCookie = resp.headers['set-cookie'] as unknown as string[];
+    expect(setCookie.join(';')).toContain('x-auth');
     expect(UserDAO.touchLastLoginByEmail).toHaveBeenCalledWith(student.email);
   });
 });

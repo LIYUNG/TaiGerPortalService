@@ -10,58 +10,35 @@
 // database engine, no seeding.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
 
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/multitenant-filter', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/multitenant-filter'),
-    multitenant_filter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/limit_archiv_user'),
-    filter_archiv_user: jest.fn().mockImplementation(passthrough)
-  };
-});
-
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () =>
+  require('../helpers/middlewareMocks').innerTaigerMultitenantFilterMock()
+);
+jest.mock('../../middlewares/multitenant-filter', () =>
+  require('../helpers/middlewareMocks').multitenantFilterMock()
+);
+jest.mock('../../middlewares/limit_archiv_user', () =>
+  require('../helpers/middlewareMocks').limitArchivUserMock()
+);
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    localAuth: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
+  const mw = require('../helpers/middlewareMocks');
+  return mw.authMock({ localAuth: mw.passthroughFn() });
 });
 
 // updateCredentials notifies the user by email after the update; stub the sender
@@ -74,11 +51,17 @@ jest.mock('../../services/email', () => ({
 // The data boundary: mock the DAO the user service delegates to.
 jest.mock('../../dao/user.dao');
 
-import UserDAO from '../../dao/user.dao';
+import UserDAOModule from '../../dao/user.dao';
 import { protect } from '../../middlewares/auth';
 import { app } from '../../app';
 import { TENANT_ID } from '../fixtures/constants';
 import { student, agent } from '../mock/user';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const UserDAO = UserDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 const studentId = student._id.toString();
@@ -87,9 +70,9 @@ const studentId = student._id.toString();
 // paths. The controller mutates `profile` (a subdoc array exposing
 // find/create/push) and calls `.save()`, so the mock must provide those.
 function makeProfileArray() {
-  const arr = [];
-  arr.create = (fields) => ({ ...fields });
-  return arr;
+  return Object.assign([] as Record<string, unknown>[], {
+    create: (fields: Record<string, unknown>) => ({ ...fields })
+  });
 }
 
 function makeStudentDoc(overrides = {}) {
@@ -109,10 +92,12 @@ function makeStudentDoc(overrides = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = student;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = student;
+      next();
+    }
+  );
 });
 
 describe('POST /api/account/credentials', () => {
@@ -147,10 +132,12 @@ describe('POST /api/account/credentials', () => {
 describe('PUT /api/account/profile/officehours/:user_id', () => {
   it('updates officehours via the role-aware DAO and reports success', async () => {
     // This route is for Agent/Editor; authenticate as an agent.
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = agent;
-      next();
-    });
+    asMock(protect).mockImplementation(
+      async (req: Request, res: Response, next: NextFunction) => {
+        req.user = agent;
+        next();
+      }
+    );
     UserDAO.updateOfficehours.mockResolvedValue({ _id: agent._id });
     const officehours = { Monday: { active: true, time_slots: [] } };
 

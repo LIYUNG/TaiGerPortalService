@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Sha256 } from '@aws-crypto/sha256-browser';
 import { SignatureV4 } from '@aws-sdk/signature-v4';
+import type { Credentials } from '@aws-sdk/client-sts';
 
 import logger from '../services/logger';
 import {
@@ -15,17 +16,17 @@ import { getTemporaryCredentials } from './sts';
 import { AWS_REGION } from '../config';
 
 export const callApiGateway = async (
-  credentials,
-  apiGatewayUrl,
-  method,
-  requestBody = null,
-  additionalHeaders = {}
+  credentials: Credentials,
+  apiGatewayUrl: string,
+  method: string,
+  requestBody: Record<string, unknown> | null = null,
+  additionalHeaders: Record<string, string> = {}
 ) => {
   try {
     const signer = new SignatureV4({
       credentials: {
-        accessKeyId: credentials.AccessKeyId,
-        secretAccessKey: credentials.SecretAccessKey,
+        accessKeyId: credentials.AccessKeyId ?? '',
+        secretAccessKey: credentials.SecretAccessKey ?? '',
         sessionToken: credentials.SessionToken
       },
       region: AWS_REGION,
@@ -34,16 +35,21 @@ export const callApiGateway = async (
     });
 
     const url = new URL(apiGatewayUrl);
+    const headers: Record<string, string> = {
+      host: url.hostname,
+      ...additionalHeaders // Include any additional headers provided
+    };
+    // Set content type if there is a body
+    if (requestBody) {
+      headers['Content-Type'] = 'application/json';
+    }
+
     const signedRequest = await signer.sign({
       method,
       hostname: url.hostname,
       path: url.pathname,
       protocol: url.protocol,
-      headers: {
-        host: url.hostname,
-        'Content-Type': requestBody ? 'application/json' : undefined, // Set content type if there is a body
-        ...additionalHeaders // Include any additional headers provided
-      },
+      headers,
       // Only stringify if there's a body
       body: requestBody ? JSON.stringify(requestBody) : undefined
     });
@@ -58,7 +64,7 @@ export const callApiGateway = async (
 
     return response.data;
   } catch (error) {
-    logger.error('Error calling API Gateway:', error);
+    logger.error('Error calling API Gateway:', { error });
     throw error;
   }
 };

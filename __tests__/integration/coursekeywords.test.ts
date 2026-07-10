@@ -9,14 +9,25 @@
 // no engine flake.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
 import { subjects, subject1, subject2 } from '../mock/allcourses';
 import { agent } from '../mock/user';
 
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -28,12 +39,13 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 });
 
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
 
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
+    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
   };
 });
 
@@ -41,18 +53,28 @@ jest.mock('../../middlewares/auth', () => {
 jest.mock('../../dao/keywordset.dao');
 jest.mock('../../dao/programRequirement.dao');
 
-import KeywordSetDAO from '../../dao/keywordset.dao';
-import ProgramRequirementDAO from '../../dao/programRequirement.dao';
+import KeywordSetDAOModule from '../../dao/keywordset.dao';
+import ProgramRequirementDAOModule from '../../dao/programRequirement.dao';
 import { app } from '../../app';
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const KeywordSetDAO = KeywordSetDAOModule as unknown as MockedDAO;
+const ProgramRequirementDAO =
+  ProgramRequirementDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = agent;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = agent;
+      next();
+    }
+  );
 });
 
 describe('GET /api/course-keywords', () => {

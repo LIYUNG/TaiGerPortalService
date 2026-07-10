@@ -9,26 +9,43 @@
 // deterministic — no engine flake.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
 
 jest.mock('../../middlewares/tenantMiddleware', () => ({
   ...jest.requireActual('../../middlewares/tenantMiddleware'),
-  checkTenantDBMiddleware: jest.fn((req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  })
+  checkTenantDBMiddleware: jest.fn(
+    (req: Request, res: Response, next: NextFunction) => {
+      req.tenantId = 'test';
+      next();
+    }
+  )
 }));
 jest.mock('../../middlewares/decryptCookieMiddleware', () => ({
   ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-  decryptCookieMiddleware: jest.fn((req, res, next) => next())
+  decryptCookieMiddleware: jest.fn(
+    (req: Request, res: Response, next: NextFunction) => next()
+  )
 }));
 jest.mock('../../middlewares/auth', () => ({
   ...jest.requireActual('../../middlewares/auth'),
-  protect: jest.fn((req, res, next) => next()),
-  permit: jest.fn(() => (req, res, next) => next())
+  protect: jest.fn((req: Request, res: Response, next: NextFunction) => next()),
+  permit: jest.fn(
+    (...roles: string[]) =>
+      (req: Request, res: Response, next: NextFunction) =>
+        next()
+  )
 }));
 jest.mock('../../middlewares/limit_archiv_user', () => ({
   ...jest.requireActual('../../middlewares/limit_archiv_user'),
-  filter_archiv_user: jest.fn((req, res, next) => next())
+  filter_archiv_user: jest.fn(
+    (req: Request, res: Response, next: NextFunction) => next()
+  )
 }));
 // createTicket fires an email to the student's agents after responding; stub it
 // so the test never reaches the mail transport.
@@ -53,27 +70,37 @@ jest.mock('../../services/students', () => ({
 // The data boundary: mock the DAO the ticket service delegates to.
 jest.mock('../../dao/ticket.dao');
 
-import TicketDAO from '../../dao/ticket.dao';
+import TicketDAOModule from '../../dao/ticket.dao';
 import { app } from '../../app';
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin } from '../mock/user';
 import { generateProgram, generateTicket } from '../fixtures/faker';
 
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()/.mockImplementation()` calls type-check while
+// still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const TicketDAO = TicketDAOModule as unknown as MockedDAO;
+
 const api = request(app);
 
 const program1 = generateProgram();
+// generateTicket (untyped JS fixture) infers requesterId as `null | undefined`
+// from its default value; cast the literal to the shape it actually accepts.
 const seededTicket = generateTicket({
   programId: program1._id,
   requesterId: admin._id
-});
+} as unknown as Parameters<typeof generateTicket>[0]);
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation((req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
 });
 
 describe('GET /api/tickets', () => {

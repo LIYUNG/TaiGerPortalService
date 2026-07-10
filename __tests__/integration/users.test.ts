@@ -9,7 +9,11 @@
 // engine flake.
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -20,7 +24,8 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 });
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
     decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
@@ -28,16 +33,18 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 });
 
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
+    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
   };
 });
 
 jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/limit_archiv_user'),
     filter_archiv_user: jest.fn().mockImplementation(passthrough)
@@ -56,12 +63,25 @@ jest.mock('../../services/email', () => ({
 jest.mock('../../dao/user.dao');
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 import { Role } from '@taiger-common/core';
-import UserDAO from '../../dao/user.dao';
+import UserDAOModule from '../../dao/user.dao';
 import { app } from '../../app';
 import { generateUser } from '../fixtures/faker';
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()/.mockImplementation()` calls type-check while
+// still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const UserDAO = UserDAOModule as unknown as MockedDAO;
 
 const requestWithSupertest = request(app);
 
@@ -74,10 +94,12 @@ const users = [...admins, ...agents, ...editors, ...students, ...guests];
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admins[0];
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = admins[0];
+      next();
+    }
+  );
 });
 
 describe('GET /api/users', () => {
@@ -145,7 +167,9 @@ describe('GET /api/users?role=Agent', () => {
     expect(resp.body.success).toBe(true);
 
     const agentIds = agents.map(({ _id }) => _id.toString()).sort();
-    const receivedIds = resp.body.data.map(({ _id }) => _id.toString()).sort();
+    const receivedIds = resp.body.data
+      .map(({ _id }: { _id: string }) => _id.toString())
+      .sort();
     expect(receivedIds).toEqual(agentIds);
     // The UserQueryBuilder encodes the role into the DAO filter.
     expect(UserDAO.getUsers).toHaveBeenCalledWith(

@@ -10,58 +10,33 @@
 // deterministic — no engine flake.
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
-    req.tenantId = 'test';
-    next();
-  };
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
 
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/permission-filter'),
-    permission_canAccessStudentDatabase_filter: jest
-      .fn()
-      .mockImplementation(passthrough)
-  };
-});
-
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () =>
+  require('../helpers/middlewareMocks').innerTaigerMultitenantFilterMock()
+);
+jest.mock('../../middlewares/permission-filter', () =>
+  require('../helpers/middlewareMocks').permissionFilterMock()
+);
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    protect: jest.fn().mockImplementation(passthrough),
-    localAuth: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
-  };
+  const mw = require('../helpers/middlewareMocks');
+  return mw.authMock({ localAuth: mw.passthroughFn() });
 });
 
 // The meeting create/update/delete handlers notify participants by email; stub
@@ -78,22 +53,31 @@ jest.mock('../../services/email', () => ({
 jest.mock('../../dao/event.dao');
 jest.mock('../../dao/user.dao');
 
-import EventDAO from '../../dao/event.dao';
-import UserDAO from '../../dao/user.dao';
+import EventDAOModule from '../../dao/event.dao';
+import UserDAOModule from '../../dao/user.dao';
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
 import { student, student2, agent2, student3, agent } from '../mock/user';
 import { event2, event3, eventNew, eventNew2 } from '../mock/events';
 import { app } from '../../app';
 
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const EventDAO = EventDAOModule as unknown as MockedDAO;
+const UserDAO = UserDAOModule as unknown as MockedDAO;
+
 const requestWithSupertest = request(app);
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = student;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = student;
+      next();
+    }
+  );
   // Sensible defaults; individual tests override as needed.
   UserDAO.findAgents.mockResolvedValue([]);
   UserDAO.findEditors.mockResolvedValue([]);
@@ -147,8 +131,11 @@ describe('GET /api/events/paginated', () => {
 
 describe('POST /api/events/', () => {
   it('rejects booking a further event when there is an upcoming one (403)', async () => {
-    eventNew2.requester_id = student._id;
-    eventNew2.receiver_id = agent._id;
+    // POST /api/events/ expects scalar requester_id/receiver_id (see
+    // controllers/events.ts), unlike the persisted Event doc's array shape the
+    // fixture's inferred type reflects.
+    eventNew2.requester_id = student._id as unknown as string[];
+    eventNew2.receiver_id = agent._id as unknown as string[];
     // First findEvents (the conflict check) returns a non-empty list => 403.
     EventDAO.findEvents.mockResolvedValue([{ _id: 'conflict' }]);
 
@@ -163,12 +150,14 @@ describe('POST /api/events/', () => {
   });
 
   it('creates a new event when there is no conflict (201)', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = student3;
-      next();
-    });
-    eventNew.requester_id = student3._id;
-    eventNew.receiver_id = agent2._id;
+    asMock(protect).mockImplementation(
+      async (req: Request, res: Response, next: NextFunction) => {
+        req.user = student3;
+        next();
+      }
+    );
+    eventNew.requester_id = student3._id as unknown as string[];
+    eventNew.receiver_id = agent2._id as unknown as string[];
 
     const createdId = new Types.ObjectId().toHexString();
     // 1st findEvents (conflict check) is empty => proceed to create.
@@ -216,10 +205,12 @@ describe('PUT /api/events/:event_id', () => {
   });
 
   it('updates an event the requester owns (200)', async () => {
-    protect.mockImplementation(async (req, res, next) => {
-      req.user = student2;
-      next();
-    });
+    asMock(protect).mockImplementation(
+      async (req: Request, res: Response, next: NextFunction) => {
+        req.user = student2;
+        next();
+      }
+    );
     const ownedId = new Types.ObjectId().toHexString();
     // event_multitenant_filter passes: requester_id contains student2._id.
     EventDAO.getEventByIdLean.mockResolvedValue({

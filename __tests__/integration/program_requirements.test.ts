@@ -9,8 +9,14 @@
 // schema/query construction is covered by the DAO unit tests. Fully
 // deterministic — no engine flake.
 
+import type { Request, Response, NextFunction } from 'express';
+
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -20,21 +26,24 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
   };
 });
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
     decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
   };
 });
 jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/permission-filter'),
     InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
   };
 });
 jest.mock('../../middlewares/permission-filter', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/permission-filter'),
     permission_canAccessStudentDatabase_filter: jest
@@ -43,7 +52,8 @@ jest.mock('../../middlewares/permission-filter', () => {
   };
 });
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
@@ -58,9 +68,9 @@ jest.mock('../../dao/program.dao');
 jest.mock('../../dao/keywordset.dao');
 
 import request from 'supertest';
-import ProgramRequirementDAO from '../../dao/programRequirement.dao';
-import ProgramDAO from '../../dao/program.dao';
-import KeywordSetDAO from '../../dao/keywordset.dao';
+import ProgramRequirementDAOModule from '../../dao/programRequirement.dao';
+import ProgramDAOModule from '../../dao/program.dao';
+import KeywordSetDAOModule from '../../dao/keywordset.dao';
 import { protect } from '../../middlewares/auth';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin } from '../mock/user';
@@ -73,14 +83,31 @@ import {
   programRequirementsNew
 } from '../mock/programRequirements';
 
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockImplementation()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const ProgramRequirementDAO =
+  ProgramRequirementDAOModule as unknown as MockedDAO;
+const ProgramDAO = ProgramDAOModule as unknown as MockedDAO;
+const KeywordSetDAO = KeywordSetDAOModule as unknown as MockedDAO;
+
 const requestWithSupertest = request(app);
 
 beforeEach(() => {
   jest.clearAllMocks();
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
   // Sensible defaults for the distinct-programs/keyword bundle reads.
   ProgramDAO.getDistinctSchoolProgramDegree.mockResolvedValue([]);
   KeywordSetDAO.getKeywordSets.mockResolvedValue([]);

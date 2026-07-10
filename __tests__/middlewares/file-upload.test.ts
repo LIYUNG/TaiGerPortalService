@@ -29,6 +29,11 @@ jest.mock('multer-s3', () =>
 // Capture every multer() option object (storage + fileFilter + limits). multer is
 // also called with `.single()` / `.array()` / `.diskStorage()`; stub those.
 const mockMulterConfigs = [];
+// Capture diskStorage configs the same way (a module-scope array, not the
+// jest.fn's own call record): these are recorded at module-import time, and the
+// suite runs with `--clearMocks`, which would wipe `multer.diskStorage.mock.calls`
+// before the assertions run.
+const mockDiskStorageConfigs = [];
 jest.mock('multer', () => {
   const fn = jest.fn((config) => {
     mockMulterConfigs.push(config || {});
@@ -37,7 +42,10 @@ jest.mock('multer', () => {
       array: jest.fn(() => `array-mw-${mockMulterConfigs.length}`)
     };
   });
-  fn.diskStorage = jest.fn((cfg) => ({ _disk: true, ...cfg }));
+  fn.diskStorage = jest.fn((cfg) => {
+    mockDiskStorageConfigs.push(cfg);
+    return { _disk: true, ...cfg };
+  });
   return fn;
 });
 
@@ -48,7 +56,6 @@ jest.mock('../../services/complaints');
 jest.mock('../../services/documentthreads');
 jest.mock('../../services/programs');
 
-import multer from 'multer';
 import StudentService from '../../services/students';
 import ApplicationService from '../../services/applications';
 import ComplaintService from '../../services/complaints';
@@ -89,7 +96,7 @@ describe('exports', () => {
   it('constructs a multer-s3 storage for each S3-backed uploader and a disk storage for the generic one', () => {
     // 10 multer-s3 storages are declared in the module.
     expect(mockMulterS3Configs.length).toBeGreaterThanOrEqual(10);
-    expect(multer.diskStorage).toHaveBeenCalledTimes(1);
+    expect(mockDiskStorageConfigs).toHaveLength(1);
   });
 });
 
@@ -508,7 +515,7 @@ describe('image key builders (uuid-based)', () => {
 
 describe('disk storage (generic upload)', () => {
   it('stores into upload/ keeping the original filename', () => {
-    const diskCfg = multer.diskStorage.mock.calls[0][0];
+    const diskCfg = mockDiskStorageConfigs[0];
     const destCb = jest.fn();
     diskCfg.destination({}, {}, destCb);
     expect(destCb).toHaveBeenCalledWith(null, 'upload/');

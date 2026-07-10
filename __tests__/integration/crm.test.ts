@@ -18,16 +18,20 @@ jest.mock('../../database', () => {
   // The shared builder resolves to state.selectResult when awaited; each
   // chainable method returns the same builder so any chain length works.
   // `returning()` resolves to the insert/update payload.
-  const state = {
+  const state: { selectResult: unknown[]; insertResult: unknown[] } = {
     selectResult: [],
     insertResult: [{ id: 1, userId: 'test-user' }]
   };
 
-  const builder = {};
-  builder.then = (resolve, reject) =>
-    Promise.resolve(state.selectResult).then(resolve, reject);
-  builder.catch = (cb) => Promise.resolve(state.selectResult).catch(cb);
-  builder.finally = (cb) => Promise.resolve(state.selectResult).finally(cb);
+  const builder: Record<string, unknown> = {};
+  builder.then = (
+    resolve: (value: unknown) => void,
+    reject: (reason?: unknown) => void
+  ) => Promise.resolve(state.selectResult).then(resolve, reject);
+  builder.catch = (cb: (reason?: unknown) => void) =>
+    Promise.resolve(state.selectResult).catch(cb);
+  builder.finally = (cb: () => void) =>
+    Promise.resolve(state.selectResult).finally(cb);
 
   const chainMethods = [
     'select',
@@ -57,10 +61,12 @@ jest.mock('../../database', () => {
     as: jest.fn().mockReturnValue({})
   });
 
-  const mockPostgresDb = {
+  const mockPostgresDb: Record<string, unknown> = {
     ...builder,
     $with,
-    transaction: jest.fn(async (callback) => callback(mockPostgresDb)),
+    transaction: jest.fn(async (callback: (db: unknown) => unknown) =>
+      callback(mockPostgresDb)
+    ),
     with: jest.fn().mockReturnValue(builder),
     execute: jest.fn().mockResolvedValue([]),
     query: {
@@ -68,10 +74,10 @@ jest.mock('../../database', () => {
         findFirst: jest.fn().mockResolvedValue(null)
       }
     },
-    _setSelectResult: (v) => {
+    _setSelectResult: (v: unknown[]) => {
       state.selectResult = v;
     },
-    _setInsertResult: (v) => {
+    _setInsertResult: (v: unknown[]) => {
       state.insertResult = v;
     },
     _resetState: () => {
@@ -102,11 +108,15 @@ jest.mock('../../cache/node-cache', () => ({
 }));
 
 jest.mock('../../utils/log/auditLog', () => ({
-  auditLog: (req, res, next) => next()
+  auditLog: (req: Request, res: Response, next: NextFunction) => next()
 }));
 
 jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (req, res, next) => {
+  const passthrough = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     req.tenantId = 'test';
     next();
   };
@@ -117,7 +127,8 @@ jest.mock('../../middlewares/tenantMiddleware', () => {
 });
 
 jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
     decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
@@ -125,16 +136,18 @@ jest.mock('../../middlewares/decryptCookieMiddleware', () => {
 });
 
 jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/auth'),
     protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles) => passthrough)
+    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
   };
 });
 
 jest.mock('../../middlewares/limit_archiv_user', () => {
-  const passthrough = async (req, res, next) => next();
+  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
+    next();
   return {
     ...jest.requireActual('../../middlewares/limit_archiv_user'),
     filter_archiv_user: jest.fn().mockImplementation(passthrough)
@@ -148,16 +161,37 @@ jest.mock('../../dao/user.dao');
 // ── Imports ───────────────────────────────────────────────────────────────────
 
 import request from 'supertest';
+import type { Request, Response, NextFunction } from 'express';
 const { ObjectId } = require('mongoose').Types;
 
 import { app } from '../../app';
 import { protect } from '../../middlewares/auth';
 import { getPostgresDb } from '../../database';
-import UserDAO from '../../dao/user.dao';
+import UserDAOModule from '../../dao/user.dao';
 import { TENANT_ID } from '../fixtures/constants';
 import { admin, student } from '../mock/user';
 
-const postgres = getPostgresDb();
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. `asMock` casts a binding to jest.Mock so the per-test
+// `.mockImplementation()/.mockResolvedValue()` calls type-check while allowing
+// partial (non-Mongoose) return shapes.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()` calls type-check.
+type MockedDAO = Record<string, jest.Mock>;
+const UserDAO = UserDAOModule as unknown as MockedDAO;
+
+// getPostgresDb() is fully replaced by the jest.mock('../../database') factory
+// above; re-type the returned double as a bag of jest.Mock methods plus the
+// test-only `_setSelectResult`/`_setInsertResult`/`_resetState` helpers.
+type MockedPostgresDb = Record<string, jest.Mock> & {
+  query: { leads: { findFirst: jest.Mock } };
+  _setSelectResult: (v: unknown[]) => void;
+  _setInsertResult: (v: unknown[]) => void;
+  _resetState: () => void;
+};
+const postgres = getPostgresDb() as unknown as MockedPostgresDb;
 
 const requestWithSupertest = request(app);
 
@@ -166,10 +200,12 @@ beforeEach(() => {
   postgres._resetState();
   postgres.query.leads.findFirst.mockResolvedValue(null);
 
-  protect.mockImplementation(async (req, res, next) => {
-    req.user = admin;
-    next();
-  });
+  asMock(protect).mockImplementation(
+    async (req: Request, res: Response, next: NextFunction) => {
+      req.user = admin;
+      next();
+    }
+  );
 });
 
 describe('GET /api/crm/leads (full stack)', () => {

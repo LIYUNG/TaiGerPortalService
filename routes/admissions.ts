@@ -17,13 +17,13 @@ const {
 } = admissionsController;
 
 const router = Router();
+router.use(GeneralGETRequestRateLimiter);
 router.use(protect);
 
 router
   .route('/program-counts')
   .get(
     filter_archiv_user,
-    GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
     getAdmissionsProgramCounts
@@ -33,7 +33,6 @@ router
   .route('/overview')
   .get(
     filter_archiv_user,
-    GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
     getAdmissionsOverview
@@ -44,7 +43,6 @@ router
   .get(
     validateStudentId,
     filter_archiv_user,
-    GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor, Role.Student),
     multitenant_filter,
     permission_canAccessStudentDatabase_filter,
@@ -56,7 +54,6 @@ router
   .route('/:applications_year')
   .get(
     filter_archiv_user,
-    GeneralGETRequestRateLimiter,
     permit(Role.Admin, Role.Manager, Role.Agent, Role.Editor),
     permission_canAccessStudentDatabase_filter,
     getAdmissionsYear

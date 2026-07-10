@@ -29,6 +29,7 @@ const {
 
 const router = Router();
 
+router.use(GeneralGETRequestRateLimiter);
 router.use(protect);
 
 router

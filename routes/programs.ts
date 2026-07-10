@@ -39,6 +39,7 @@ const {
 
 const router = Router();
 
+router.use(GetProgramListRateLimiter);
 router.use(protect);
 
 router

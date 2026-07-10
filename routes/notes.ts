@@ -12,6 +12,7 @@ import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 const { getStudentNotes, updateStudentNotes } = notesController;
 
 const router = Router();
+router.use(GeneralGETRequestRateLimiter);
 router.use(protect);
 
 router

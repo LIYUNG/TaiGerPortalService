@@ -18,7 +18,12 @@ import logger from '../logger';
 
 const { htmlContent } = EmailTemplate;
 
+// Recipients are built ad hoc at call sites from user documents whose name/email
+// fields are optional on the model (`IUser`), plus an optional `id` used by the
+// calendar-invite senders. Kept structurally loose to match what callers pass;
+// templates interpolate these fields directly and tolerate `undefined`.
 export interface Recipient {
+  id?: string | null;
   firstname: string;
   lastname: string;
   address: string;
@@ -44,8 +49,8 @@ export const transporter = isProd()
     });
 
 export const sendEmail = isTest()
-  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (_to: Recipient, _subject: string, _message: string) => {}
+  ? // `to` may be a recipient object or a bare email-address string.
+    (_to: Recipient | string, _subject: string, _message: string) => {}
   : async (
       // `to` is a recipient as accepted by nodemailer: an email string, a list
       // of them, or a user-like object ({ firstname, lastname, address/email }).

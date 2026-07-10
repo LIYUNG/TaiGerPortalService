@@ -13,7 +13,17 @@ import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultiten
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import { ProfilefileUpload, VPDfileUpload } from '../middlewares/file-upload';
 
+import studentsController from '../controllers/students';
+import filesController from '../controllers/files';
 import {
+  permission_canAssignEditor_filter,
+  permission_canAssignAgent_filter,
+  permission_canAccessStudentDatabase_filter
+} from '../middlewares/permission-filter';
+import { auditLog } from '../utils/log/auditLog';
+import { validateStudentId, validateApplicationId } from '../common/validation';
+
+const {
   getStudentAndDocLinks,
   updateDocumentationHelperLink,
   getStudentsAndDocLinks,
@@ -26,8 +36,8 @@ import {
   getStudentsV3,
   getStudentsV3Paginated,
   getActiveStudents
-} from '../controllers/students';
-import {
+} = studentsController;
+const {
   saveProfileFilePath,
   updateVPDFileNecessity,
   saveVPDFilePath,
@@ -37,14 +47,7 @@ import {
   deleteProfileFile,
   deleteVPDFile,
   updateVPDPayment
-} from '../controllers/files';
-import {
-  permission_canAssignEditor_filter,
-  permission_canAssignAgent_filter,
-  permission_canAccessStudentDatabase_filter
-} from '../middlewares/permission-filter';
-import { auditLog } from '../utils/log/auditLog';
-import { validateStudentId, validateApplicationId } from '../common/validation';
+} = filesController;
 
 const router = Router();
 

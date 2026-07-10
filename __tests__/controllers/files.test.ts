@@ -28,17 +28,50 @@ jest.mock('../../cache/node-cache', () => ({
   ten_minutes_cache: { get: jest.fn(), set: jest.fn() }
 }));
 
-import { deleteS3Object, getS3Object } from '../../aws/s3';
-import * as EmailService from '../../services/email';
-import ApplicationService from '../../services/applications';
-import TemplateService from '../../services/templates';
-import StudentService from '../../services/students';
-import UserService from '../../services/users';
-import BasedocumentationslinkService from '../../services/basedocumentationslinks';
-import { sendSlackMessageToWinChannel } from '../../utils/slackUtils';
-import { ten_minutes_cache } from '../../cache/node-cache';
-
 import {
+  deleteS3Object as deleteS3ObjectFn,
+  getS3Object as getS3ObjectFn
+} from '../../aws/s3';
+import * as EmailServiceModule from '../../services/email';
+import ApplicationServiceModule from '../../services/applications';
+import TemplateServiceModule from '../../services/templates';
+import StudentServiceModule from '../../services/students';
+import UserServiceModule from '../../services/users';
+import BasedocumentationslinkServiceModule from '../../services/basedocumentationslinks';
+import { sendSlackMessageToWinChannel } from '../../utils/slackUtils';
+import { ten_minutes_cache as ten_minutes_cacheModule } from '../../cache/node-cache';
+
+import FilesControllerModule from '../../controllers/files';
+import { admin, student } from '../mock/user';
+import type { Request, Response, NextFunction } from 'express';
+// helpers/httpMocks' mockReq() returns a partial fixture, not a real Express
+// Request; require() (typed `any`) avoids fighting the Request<...> generic
+// at every one of the ~60 call sites below (TS-only, no runtime change).
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+
+// Auto-mocked / factory-mocked modules expose jest.fn()s at runtime, but TS
+// still sees the real signatures. Re-type each as a bag of jest.Mock methods
+// so the per-test mock-configuration calls (mockResolvedValue, mockRejectedValue,
+// mockImplementation, etc.) type-check while still allowing partial
+// (non-Mongoose) return shapes.
+type MockedModule = Record<string, jest.Mock>;
+const asMock = (fn: unknown) => fn as jest.Mock;
+const deleteS3Object = asMock(deleteS3ObjectFn);
+const getS3Object = asMock(getS3ObjectFn);
+const EmailService = EmailServiceModule as unknown as MockedModule;
+const ApplicationService = ApplicationServiceModule as unknown as MockedModule;
+const TemplateService = TemplateServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const UserService = UserServiceModule as unknown as MockedModule;
+const BasedocumentationslinkService =
+  BasedocumentationslinkServiceModule as unknown as MockedModule;
+const ten_minutes_cache = ten_minutes_cacheModule as unknown as MockedModule;
+
+// controllers/files uses `export =`, so the module's real shape is a plain
+// object of handlers; cast to a uniform (req, res, next) signature and
+// destructure (named-import destructuring against `export =` errors TS2497).
+const {
   getTemplates,
   deleteTemplate,
   uploadTemplate,
@@ -57,9 +90,10 @@ import {
   removeNotification,
   removeAgentNotification,
   getMyAcademicBackground
-} from '../../controllers/files';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, student } from '../mock/user';
+} = FilesControllerModule as unknown as Record<
+  string,
+  (req: Request, res: Response, next: NextFunction) => Promise<void>
+>;
 
 const studentId = student._id.toString();
 
@@ -97,10 +131,10 @@ describe('deleteTemplate', () => {
     TemplateService.getTemplateByCategory.mockResolvedValue({
       path: 'taiger_template/CV_TaiGer_Template.pdf'
     });
-    deleteS3Object.mockResolvedValue();
-    TemplateService.deleteTemplateByCategory.mockResolvedValue();
+    deleteS3Object.mockResolvedValue(undefined);
+    TemplateService.deleteTemplateByCategory.mockResolvedValue(undefined);
     TemplateService.getTemplates.mockResolvedValue([]);
-    EmailService.deleteTemplateSuccessEmail.mockResolvedValue();
+    EmailService.deleteTemplateSuccessEmail.mockResolvedValue(undefined);
     const res = mockRes();
     const next = jest.fn();
 
@@ -227,8 +261,9 @@ describe('saveProfileFilePath', () => {
   });
 
   it('creates a new profile document (Admin uploads, emails the student) and returns 201', async () => {
-    const profile = [];
-    profile.create = (obj) => ({ ...obj });
+    const profile = Object.assign([] as Record<string, unknown>[], {
+      create: (obj: Record<string, unknown>) => ({ ...obj })
+    });
     const studentDoc = {
       _id: { toString: () => studentId },
       firstname: 'Stu',
@@ -237,10 +272,12 @@ describe('saveProfileFilePath', () => {
       archiv: false,
       agents: [],
       profile,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     StudentService.getStudentDocByIdPopulated.mockResolvedValue(studentDoc);
-    EmailService.sendAgentUploadedProfileFilesForStudentEmail.mockResolvedValue();
+    EmailService.sendAgentUploadedProfileFilesForStudentEmail.mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -262,7 +299,7 @@ describe('saveProfileFilePath', () => {
   });
 
   it('updates an existing profile document and returns 201', async () => {
-    const existing = { name: 'CV' };
+    const existing: Record<string, unknown> = { name: 'CV' };
     const profile = [existing];
     const studentDoc = {
       _id: { toString: () => studentId },
@@ -272,10 +309,12 @@ describe('saveProfileFilePath', () => {
       archiv: false,
       agents: [],
       profile,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     StudentService.getStudentDocByIdPopulated.mockResolvedValue(studentDoc);
-    EmailService.sendAgentUploadedProfileFilesForStudentEmail.mockResolvedValue();
+    EmailService.sendAgentUploadedProfileFilesForStudentEmail.mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -295,8 +334,9 @@ describe('saveProfileFilePath', () => {
   });
 
   it('student uploads a NEW profile doc: notifies + reminds the (active) agents', async () => {
-    const profile = [];
-    profile.create = (obj) => ({ ...obj });
+    const profile = Object.assign([] as Record<string, unknown>[], {
+      create: (obj: Record<string, unknown>) => ({ ...obj })
+    });
     const agentDoc = {
       _id: { toString: () => 'agent-1' },
       firstname: 'Ag',
@@ -308,7 +348,7 @@ describe('saveProfileFilePath', () => {
       agent_notification: {
         isRead_new_base_docs_uploaded: [{ student_id: 'someone-else' }]
       },
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     const studentDoc = {
       _id: { toString: () => studentId },
@@ -318,11 +358,13 @@ describe('saveProfileFilePath', () => {
       archiv: false,
       agents: [agentDoc],
       profile,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     StudentService.getStudentDocByIdPopulated.mockResolvedValue(studentDoc);
     UserService.getAgentDocById.mockResolvedValue(agentDoc);
-    EmailService.sendUploadedProfileFilesRemindForAgentEmail.mockResolvedValue();
+    EmailService.sendUploadedProfileFilesRemindForAgentEmail.mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -349,8 +391,9 @@ describe('saveProfileFilePath', () => {
   });
 
   it('student uploads a NEW profile doc: skips notification push when the agent has no notification object', async () => {
-    const profile = [];
-    profile.create = (obj) => ({ ...obj });
+    const profile = Object.assign([] as Record<string, unknown>[], {
+      create: (obj: Record<string, unknown>) => ({ ...obj })
+    });
     const agentDoc = {
       _id: { toString: () => 'agent-1' },
       firstname: 'Ag',
@@ -358,7 +401,7 @@ describe('saveProfileFilePath', () => {
       email: 'a@example.com',
       archiv: false,
       // No agent_notification => the `if (agent.agent_notification)` guard is false.
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     const studentDoc = {
       _id: { toString: () => studentId },
@@ -368,11 +411,13 @@ describe('saveProfileFilePath', () => {
       archiv: false,
       agents: [agentDoc],
       profile,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     StudentService.getStudentDocByIdPopulated.mockResolvedValue(studentDoc);
     UserService.getAgentDocById.mockResolvedValue(agentDoc);
-    EmailService.sendUploadedProfileFilesRemindForAgentEmail.mockResolvedValue();
+    EmailService.sendUploadedProfileFilesRemindForAgentEmail.mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -391,7 +436,7 @@ describe('saveProfileFilePath', () => {
   });
 
   it('student uploads to an EXISTING profile doc: notifies + reminds the agents', async () => {
-    const existing = { name: 'CV' };
+    const existing: Record<string, unknown> = { name: 'CV' };
     const profile = [existing];
     const agentDoc = {
       _id: { toString: () => 'agent-1' },
@@ -403,7 +448,7 @@ describe('saveProfileFilePath', () => {
       agent_notification: {
         isRead_new_base_docs_uploaded: [{ student_id: 'someone-else' }]
       },
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     const studentDoc = {
       _id: { toString: () => studentId },
@@ -413,11 +458,13 @@ describe('saveProfileFilePath', () => {
       archiv: false,
       agents: [agentDoc],
       profile,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     StudentService.getStudentDocByIdPopulated.mockResolvedValue(studentDoc);
     UserService.getAgentDocById.mockResolvedValue(agentDoc);
-    EmailService.sendUploadedProfileFilesRemindForAgentEmail.mockResolvedValue();
+    EmailService.sendUploadedProfileFilesRemindForAgentEmail.mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -443,7 +490,7 @@ describe('saveProfileFilePath', () => {
   });
 
   it('student uploads to an EXISTING profile doc: agent with no notification object is skipped', async () => {
-    const existing = { name: 'CV' };
+    const existing: Record<string, unknown> = { name: 'CV' };
     const agentDoc = {
       _id: { toString: () => 'agent-1' },
       firstname: 'Ag',
@@ -451,7 +498,7 @@ describe('saveProfileFilePath', () => {
       email: 'a@example.com',
       archiv: false,
       // No agent_notification => guard false in the existing-doc branch (line 230).
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     const studentDoc = {
       _id: { toString: () => studentId },
@@ -461,11 +508,13 @@ describe('saveProfileFilePath', () => {
       archiv: false,
       agents: [agentDoc],
       profile: [existing],
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     StudentService.getStudentDocByIdPopulated.mockResolvedValue(studentDoc);
     UserService.getAgentDocById.mockResolvedValue(agentDoc);
-    EmailService.sendUploadedProfileFilesRemindForAgentEmail.mockResolvedValue();
+    EmailService.sendUploadedProfileFilesRemindForAgentEmail.mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -579,9 +628,9 @@ describe('saveVPDFilePath', () => {
   });
 
   it('saves a VPD file path, returns 201 and emails the student (Admin upload)', async () => {
-    const app = {
+    const app: { uni_assist: Record<string, unknown>; save: jest.Mock } = {
       uni_assist: {},
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     ApplicationService.getApplicationDocByIdWithProgram.mockResolvedValue(app);
     StudentService.getStudentByIdPopulated.mockResolvedValue({
@@ -592,7 +641,9 @@ describe('saveVPDFilePath', () => {
       archiv: false,
       agents: []
     });
-    EmailService.sendAgentUploadedVPDForStudentEmail.mockResolvedValue();
+    EmailService.sendAgentUploadedVPDForStudentEmail.mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -615,7 +666,10 @@ describe('saveVPDFilePath', () => {
   });
 
   it('saves a VPDConfirmation file and (student upload) reminds the active agents', async () => {
-    const app = { uni_assist: {}, save: jest.fn().mockResolvedValue() };
+    const app: { uni_assist: Record<string, unknown>; save: jest.Mock } = {
+      uni_assist: {},
+      save: jest.fn().mockResolvedValue(undefined)
+    };
     ApplicationService.getApplicationDocByIdWithProgram.mockResolvedValue(app);
     StudentService.getStudentByIdPopulated.mockResolvedValue({
       _id: { toString: () => studentId },
@@ -632,7 +686,9 @@ describe('saveVPDFilePath', () => {
         }
       ]
     });
-    EmailService.sendUploadedVPDRemindForAgentEmail.mockResolvedValue();
+    EmailService.sendUploadedVPDRemindForAgentEmail.mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -863,18 +919,18 @@ describe('updateProfileDocumentStatus', () => {
   });
 
   it('updates an existing document status to rejected and emails the student', async () => {
-    const existing = { name: 'CV' };
+    const existing: Record<string, unknown> = { name: 'CV' };
     const studentDoc = {
       firstname: 'Stu',
       lastname: 'Dent',
       email: 's@example.com',
       archiv: false,
-      notification: {},
+      notification: {} as Record<string, unknown>,
       profile: [existing],
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     StudentService.getStudentDocByIdPopulated.mockResolvedValue(studentDoc);
-    EmailService.sendChangedProfileFileStatusEmail.mockResolvedValue();
+    EmailService.sendChangedProfileFileStatusEmail.mockResolvedValue(undefined);
     const res = mockRes();
     const next = jest.fn();
 
@@ -896,8 +952,9 @@ describe('updateProfileDocumentStatus', () => {
   });
 
   it('creates a new (NotNeeded) document when the category does not exist yet', async () => {
-    const profile = [];
-    profile.create = (obj) => ({ ...obj });
+    const profile = Object.assign([] as Record<string, unknown>[], {
+      create: (obj: Record<string, unknown>) => ({ ...obj })
+    });
     const studentDoc = {
       firstname: 'Stu',
       lastname: 'Dent',
@@ -905,7 +962,7 @@ describe('updateProfileDocumentStatus', () => {
       archiv: false,
       notification: {},
       profile,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     StudentService.getStudentDocByIdPopulated.mockResolvedValue(studentDoc);
     const res = mockRes();
@@ -930,7 +987,10 @@ describe('updateProfileDocumentStatus', () => {
   });
 
   it('clears feedback when an existing document is accepted (no email for accepted? emails)', async () => {
-    const existing = { name: 'CV', feedback: 'old feedback' };
+    const existing: Record<string, unknown> = {
+      name: 'CV',
+      feedback: 'old feedback'
+    };
     const studentDoc = {
       firstname: 'Stu',
       lastname: 'Dent',
@@ -938,10 +998,10 @@ describe('updateProfileDocumentStatus', () => {
       archiv: false,
       notification: {},
       profile: [existing],
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     StudentService.getStudentDocByIdPopulated.mockResolvedValue(studentDoc);
-    EmailService.sendChangedProfileFileStatusEmail.mockResolvedValue();
+    EmailService.sendChangedProfileFileStatusEmail.mockResolvedValue(undefined);
     const res = mockRes();
     const next = jest.fn();
 
@@ -964,7 +1024,7 @@ describe('updateProfileDocumentStatus', () => {
   });
 
   it('swallows a save error (catch branch) without forwarding it', async () => {
-    const existing = { name: 'CV' };
+    const existing: Record<string, unknown> = { name: 'CV' };
     const studentDoc = {
       firstname: 'Stu',
       lastname: 'Dent',
@@ -1071,7 +1131,9 @@ describe('updateStudentApplicationResultV2', () => {
     StudentService.updateStudentByFilter.mockResolvedValue({
       applications: [{ programId: { toString: () => programId } }]
     });
-    EmailService.AdmissionResultInformEmailToTaiGer.mockResolvedValue();
+    EmailService.AdmissionResultInformEmailToTaiGer.mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -1115,7 +1177,7 @@ describe('updateStudentApplicationResultV2', () => {
         }
       ]
     });
-    deleteS3Object.mockResolvedValue();
+    deleteS3Object.mockResolvedValue(undefined);
     StudentService.updateStudentByFilter.mockResolvedValue({
       applications: [{ programId: { toString: () => programId } }]
     });
@@ -1261,7 +1323,9 @@ describe('updateStudentApplicationResult', () => {
         }
       ]
     });
-    EmailService.AdmissionResultInformEmailToTaiGer.mockResolvedValue();
+    EmailService.AdmissionResultInformEmailToTaiGer.mockResolvedValue(
+      undefined
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -1322,7 +1386,7 @@ describe('updateStudentApplicationResult', () => {
       admission_letter: { admission_file_path: `${studentId}/admission/x.pdf` }
     });
     ApplicationService.updateApplication.mockResolvedValue({});
-    deleteS3Object.mockResolvedValue();
+    deleteS3Object.mockResolvedValue(undefined);
     StudentService.getStudentByIdPopulated.mockResolvedValue({
       _id: { toString: () => studentId },
       firstname: 'Stu',
@@ -1428,13 +1492,16 @@ describe('deleteProfileFile', () => {
   });
 
   it('deletes the S3 object, marks the document Missing and returns 200', async () => {
-    const doc = { name: 'CV', path: `${studentId}/CV.pdf` };
+    const doc: Record<string, unknown> = {
+      name: 'CV',
+      path: `${studentId}/CV.pdf`
+    };
     const studentDoc = {
       profile: [doc],
       save: jest.fn()
     };
     StudentService.getStudentDocById.mockResolvedValue(studentDoc);
-    deleteS3Object.mockResolvedValue();
+    deleteS3Object.mockResolvedValue(undefined);
     const res = mockRes();
     const next = jest.fn();
 
@@ -1502,7 +1569,7 @@ describe('deleteVPDFile', () => {
     ApplicationService.getApplicationDocByIdWithProgram.mockResolvedValue({
       uni_assist: { vpd_file_path: `${studentId}/vpd.pdf`, status: 'uploaded' }
     });
-    deleteS3Object.mockResolvedValue();
+    deleteS3Object.mockResolvedValue(undefined);
     ApplicationService.updateApplication.mockResolvedValue({ _id: 'a1' });
     const res = mockRes();
     const next = jest.fn();
@@ -1540,7 +1607,7 @@ describe('deleteVPDFile', () => {
         status: 'uploaded'
       }
     });
-    deleteS3Object.mockResolvedValue();
+    deleteS3Object.mockResolvedValue(undefined);
     ApplicationService.updateApplication.mockResolvedValue({ _id: 'a1' });
     const res = mockRes();
     const next = jest.fn();
@@ -1568,7 +1635,7 @@ describe('removeNotification', () => {
   it('marks the notification key true on the user and returns 200', async () => {
     const me = { notification: { foo: false } };
     UserService.getUserDocById.mockResolvedValue(me);
-    UserService.updateUser.mockResolvedValue();
+    UserService.updateUser.mockResolvedValue(undefined);
     const res = mockRes();
     const next = jest.fn();
 
@@ -1612,7 +1679,7 @@ describe('removeAgentNotification', () => {
       agent_notification: {
         isRead_new_base_docs_uploaded: [{ student_id: studentId }]
       },
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     UserService.getAgentDocById.mockResolvedValue(me);
     const res = mockRes();
@@ -1643,7 +1710,7 @@ describe('getMyAcademicBackground', () => {
       editors: [],
       academic_background: { foo: 'bar' },
       application_preference: {},
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     UserService.getUserDocById.mockResolvedValue(me);
     BasedocumentationslinkService.findByCategory.mockResolvedValue({
@@ -1676,7 +1743,7 @@ describe('getMyAcademicBackground', () => {
       editors: [],
       academic_background: undefined,
       application_preference: {},
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     UserService.getUserDocById.mockResolvedValue(me);
     BasedocumentationslinkService.findByCategory.mockResolvedValue(null);

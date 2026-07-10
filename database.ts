@@ -1,4 +1,4 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { MONGODB_URI, POSTGRES_URI } from './config';
 
@@ -9,10 +9,10 @@ const tenantDb = 'Tenant';
 const mongoDb = (dbName: string) =>
   `${MONGODB_URI}/${dbName}?retryWrites=true&w=majority`;
 
-let postgresPool: Pool;
-let postgresClient;
+let postgresPool: Pool | null = null;
+let postgresClient: NodePgDatabase<typeof postgresSchema> | null = null;
 
-const getPostgresPool = () => {
+const getPostgresPool = (): Pool => {
   if (!postgresPool) {
     postgresPool = new Pool({ connectionString: POSTGRES_URI });
   }

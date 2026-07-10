@@ -2,10 +2,13 @@ import { differenceInDays } from 'date-fns';
 import type { Request } from 'express';
 import { Role } from '@taiger-common/core';
 
-import { getAccessibleStudentFilter } from './studentAccess';
-import { getSignalsForStudents } from './signalLedger';
+// `studentAccess`, `signalLedger` and `normalizers` are exported via `export =`
+// (CommonJS-style), so they must be imported as a default (esModuleInterop)
+// rather than destructured as named ES exports.
+import studentAccess from './studentAccess';
+import signalLedger from './signalLedger';
 import type { StudentCommunicationSignal } from '../../drizzle/schema/schema';
-import { normalizeUser } from './normalizers';
+import normalizers from './normalizers';
 import { application_deadline_V2_calculator } from '../../constants';
 import StudentService from '../students';
 import ApplicationService from '../applications';
@@ -101,26 +104,34 @@ const loadPortfolio = async (
   req: Request,
   { maxStudents = MAX_PORTFOLIO_STUDENTS }: { maxStudents?: number } = {}
 ) => {
-  const filter = await getAccessibleStudentFilter(req);
-  const students = await StudentService.findStudentsSelect(
+  const filter = await studentAccess.getAccessibleStudentFilter(req);
+  // Lean mongoose documents with a hand-picked field selection — see the
+  // OverviewStudent comment above for why the loose Record shape is used.
+  const students = (await StudentService.findStudentsSelect(
     filter,
     OVERVIEW_STUDENT_FIELDS,
     maxStudents
-  );
+  )) as OverviewStudent[];
 
-  const studentById = new Map();
+  const studentById = new Map<string, OverviewStudent>();
   students.forEach((student) => {
     studentById.set(toIdString(student._id || student.id), student);
   });
   const studentIds = Array.from(studentById.keys());
 
   if (!studentIds.length) {
-    return { students, studentById, studentIds, applications: [], threads: [] };
+    return {
+      students,
+      studentById,
+      studentIds,
+      applications: [] as OverviewApplication[],
+      threads: [] as OverviewThread[]
+    };
   }
 
   const studentObjectIds = students.map((s) => s._id || s.id).filter(Boolean);
 
-  const [applications, threads] = await Promise.all([
+  const [applications, threads] = (await Promise.all([
     // Only committed, live applications: a program the student decided to apply
     // to (decided === 'O') and has not withdrawn (closed !== 'X'). Undecided and
     // withdrawn programs are excluded at the DB so nothing downstream surfaces
@@ -132,13 +143,13 @@ const loadPortfolio = async (
     ),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     DocumentThreadService.getThreadsWaitingOnTeam(studentObjectIds as any)
-  ]);
+  ])) as [OverviewApplication[], OverviewThread[]];
 
   return { students, studentById, studentIds, applications, threads };
 };
 
 const studentLabel = (student: OverviewStudent) => {
-  const normalized = normalizeUser(student);
+  const normalized = normalizers.normalizeUser(student);
   return {
     id: normalized?.id,
     name: normalized?.name,
@@ -175,8 +186,16 @@ const collectUpcomingDeadlines = (
 
   (applications || []).forEach((application) => {
     if (deriveStatus(application) !== 'in_progress') return;
+    // application_deadline_V2_calculator wants the strict (unexported)
+    // PopulatedApplication shape; this application is a lean/select-projected
+    // document (see OverviewApplication above), but it carries the same
+    // programId/application_year/closed fields the calculator actually reads.
     const { date, rolling, label } = parseDeadline(
-      application_deadline_V2_calculator(application)
+      application_deadline_V2_calculator(
+        application as unknown as Parameters<
+          typeof application_deadline_V2_calculator
+        >[0]
+      )
     );
     if (rolling || !date) return;
 
@@ -316,14 +335,15 @@ const SIGNAL_SEVERITY_RANK: Record<string, number> = {
 // A student is "Done" when carrying the Done attribute (value 8) or has
 // confirmed enrolment — implicit comms risk for them is no longer actionable,
 // so it is capped to "low".
-const hasDoneAttribute = (student) =>
+const hasDoneAttribute = (student: OverviewStudent) =>
   (student?.attributes || []).some(
-    (attribute) => String(attribute?.name).toLowerCase() === 'done'
+    (attribute: { name?: string }) =>
+      String(attribute?.name).toLowerCase() === 'done'
   );
 
 // Sortable term value: lower = sooner. Summer semester precedes winter within a
 // year. Students with no parseable term sort last (Infinity).
-const soonestTermValue = (applications) => {
+const soonestTermValue = (applications: OverviewApplication[] = []) => {
   let soonest = Infinity;
   (applications || []).forEach((app) => {
     const year = parseInt(String(app.application_year), 10);
@@ -345,12 +365,30 @@ const soonestTermValue = (applications) => {
 // students in this portfolio. Sorted most-severe first; within the same risk
 // level, the student whose nearest application term (year + semester) is sooner
 // comes first. Unresolved signals only; "Done" students capped to low.
+// One item per student carrying an unresolved communication risk signal.
+type CommunicationRiskSignalItem = {
+  student: ReturnType<typeof studentLabel>;
+  riskLevel: string;
+  termValue: number;
+  lastMessageAt: Date | null;
+  signals: {
+    type: string;
+    severity: string;
+    summaryEn: string;
+    summaryZh: string;
+    evidence: string;
+    occurredAt: string | null;
+    sourceMessageId: string | null;
+    sinceDays: number | null;
+  }[];
+};
+
 const collectCommunicationRiskSignals = (
-  studentById: Map<string, any>,
+  studentById: Map<string, OverviewStudent>,
   signalsById: Map<string, StudentCommunicationSignal>,
-  applicationsByStudentId: Map<string, any>
+  applicationsByStudentId: Map<string, OverviewApplication[]>
 ) => {
-  const items = [];
+  const items: CommunicationRiskSignalItem[] = [];
   signalsById.forEach((row, studentId) => {
     const student = studentById.get(studentId);
     if (!student) return;
@@ -376,15 +414,16 @@ const collectCommunicationRiskSignals = (
         evidence: signal.evidence,
         occurredAt: signal.occurredAt ?? null,
         sourceMessageId: signal.sourceMessageId ?? null,
-        sinceDays: (signal.occurredAt || signal.firstSeenAt)
-          ? Math.max(
-              differenceInDays(
-                new Date(),
-                new Date(signal.occurredAt || signal.firstSeenAt)
-              ),
-              0
-            )
-          : null
+        sinceDays:
+          signal.occurredAt || signal.firstSeenAt
+            ? Math.max(
+                differenceInDays(
+                  new Date(),
+                  new Date(signal.occurredAt || signal.firstSeenAt)
+                ),
+                0
+              )
+            : null
       }))
     });
   });
@@ -419,7 +458,11 @@ const collectMissingBaseDocuments = (students: OverviewStudent[]) => {
 
 // Lower number = more urgent. Used to compute a student's overall urgency (the
 // worst of their signals) and to sort students worst-first.
-const URGENCY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2 };
+const URGENCY_RANK: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2
+};
 const worstUrgency = (a: string, b: string) =>
   (URGENCY_RANK[a] ?? 99) <= (URGENCY_RANK[b] ?? 99) ? a : b;
 
@@ -517,8 +560,9 @@ const buildStudentsView = (
     add(it.student, {
       bucket: 'communicationRiskSignals',
       urgency:
-        (it.signals || []).some((s: { severity?: string }) => s.severity === 'high') ||
-        it.riskLevel === 'high'
+        (it.signals || []).some(
+          (s: { severity?: string }) => s.severity === 'high'
+        ) || it.riskLevel === 'high'
           ? 'high'
           : 'medium',
       riskLevel: it.riskLevel,
@@ -624,7 +668,9 @@ const buildOverview = async (
   // failure (or an empty/never-run ledger) must not break the rest.
   let signalsById = new Map<string, StudentCommunicationSignal>();
   try {
-    signalsById = await getSignalsForStudents(Array.from(studentById.keys()));
+    signalsById = await signalLedger.getSignalsForStudents(
+      Array.from(studentById.keys())
+    );
   } catch {
     // Leave empty; the communicationRiskSignals bucket will simply be empty.
   }
@@ -657,12 +703,13 @@ const buildOverview = async (
     applications,
     latestMessageAtById
   );
-  const applicationsByStudentId = new Map();
+  const applicationsByStudentId = new Map<string, OverviewApplication[]>();
   (applications || []).forEach((app) => {
     const id = toIdString(app.studentId);
     if (!id) return;
     if (!applicationsByStudentId.has(id)) applicationsByStudentId.set(id, []);
-    applicationsByStudentId.get(id).push(app);
+    // Guaranteed present: just set above when missing.
+    applicationsByStudentId.get(id)!.push(app);
   });
   const communicationRiskSignals = collectCommunicationRiskSignals(
     studentById,
@@ -696,19 +743,19 @@ const buildOverview = async (
         ];
 
   const { students: studentsView, hasMoreStudents } = buildStudentsView(
-      {
-        upcomingDeadlines,
-        threadsWaitingOnTeam,
-        communicationGaps,
-        communicationRiskSignals,
-        admittedNotConfirmed,
-        missingBaseDocuments
-      },
-      statsById,
-      termsById,
-      finalizedStudentIds,
-      sampleSize
-    );
+    {
+      upcomingDeadlines,
+      threadsWaitingOnTeam,
+      communicationGaps,
+      communicationRiskSignals,
+      admittedNotConfirmed,
+      missingBaseDocuments
+    },
+    statsById,
+    termsById,
+    finalizedStudentIds,
+    sampleSize
+  );
 
   return {
     role,

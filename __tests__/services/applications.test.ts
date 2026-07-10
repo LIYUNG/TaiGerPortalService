@@ -7,8 +7,15 @@
 // getApplicationStatusStats, getApplications) also have a test for the defaults.
 jest.mock('../../dao/application.dao');
 
-import ApplicationDAO from '../../dao/application.dao';
+import type { IApplication } from '@taiger-common/model';
+import ApplicationDAOModule from '../../dao/application.dao';
 import ApplicationService from '../../services/applications';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so
+// the per-test `.mockReturnValue()` calls type-check while still allowing
+// partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const ApplicationDAO = ApplicationDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -84,7 +91,7 @@ describe('ApplicationService.getActiveStudentsApplicationsDeadlineDistribution (
   });
 
   it('defaults studentIds to empty array when omitted', () => {
-    const daoResult = [];
+    const daoResult: unknown[] = [];
     ApplicationDAO.getActiveStudentsApplicationsDeadlineDistribution.mockReturnValue(
       daoResult
     );
@@ -120,7 +127,7 @@ describe('ApplicationService.getApplicationProgramsUpdateStatus (mocked DAO)', (
   });
 
   it('defaults studentIds to empty array and forwards undefined decided', () => {
-    const daoResult = [];
+    const daoResult: unknown[] = [];
     ApplicationDAO.getApplicationProgramsUpdateStatus.mockReturnValue(
       daoResult
     );
@@ -225,7 +232,9 @@ describe('ApplicationService.createApplicationDoc (mocked DAO)', () => {
     const daoResult = { _id: 'a1' };
     ApplicationDAO.createApplicationDoc.mockReturnValue(daoResult);
 
-    const result = ApplicationService.createApplicationDoc(payload);
+    const result = ApplicationService.createApplicationDoc(
+      payload as unknown as Partial<IApplication>
+    );
 
     expect(ApplicationDAO.createApplicationDoc).toHaveBeenCalledTimes(1);
     expect(ApplicationDAO.createApplicationDoc).toHaveBeenCalledWith(payload);
@@ -342,7 +351,7 @@ describe('ApplicationService.findApplicationsSelectPopulate (mocked DAO)', () =>
     const result = ApplicationService.findApplicationsSelectPopulate(
       filter,
       select,
-      populate
+      populate as unknown as { path: string; select?: string }
     );
 
     expect(ApplicationDAO.findApplicationsSelectPopulate).toHaveBeenCalledTimes(

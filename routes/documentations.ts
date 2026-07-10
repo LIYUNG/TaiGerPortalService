@@ -13,7 +13,11 @@ import {
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import { protect, permit, prohibit } from '../middlewares/auth';
 
-import {
+import documentationsController from '../controllers/documentations';
+
+import { permission_canModifyDocs_filter } from '../middlewares/permission-filter';
+
+const {
   getInternalDocumentationsPage,
   updateInternalDocumentationPage,
   updateDocumentationPage,
@@ -31,9 +35,7 @@ import {
   updateInternalDocumentation,
   deleteDocumentation,
   deleteInternalDocumentation
-} from '../controllers/documentations';
-
-import { permission_canModifyDocs_filter } from '../middlewares/permission-filter';
+} = documentationsController;
 
 const router = Router();
 

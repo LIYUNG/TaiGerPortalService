@@ -31,31 +31,86 @@ jest.mock('../../utils/utils_function', () => ({
   userChangesHelperFunction: jest.fn()
 }));
 
-import StudentService from '../../services/students';
-import ApplicationService from '../../services/applications';
-import UserService from '../../services/users';
-import PermissionService from '../../services/permissions';
-import BasedocumentationslinkService from '../../services/basedocumentationslinks';
+import type { Request, Response, NextFunction } from 'express';
+
+import StudentServiceModule from '../../services/students';
+import ApplicationServiceModule from '../../services/applications';
+import UserServiceModule from '../../services/users';
+import PermissionServiceModule from '../../services/permissions';
+import BasedocumentationslinkServiceModule from '../../services/basedocumentationslinks';
 import { getAuditLogs } from '../../services/audit';
 import { getPermission } from '../../utils/queryFunctions';
 import { userChangesHelperFunction } from '../../utils/utils_function';
-import {
-  getStudent,
-  getActiveStudents,
-  getStudentsV3,
-  getStudentsV3Paginated,
-  getStudentsByIds,
-  getStudentAndDocLinks,
-  getStudentsAndDocLinks,
-  updateDocumentationHelperLink,
-  updateStudentsArchivStatus,
-  assignAttributesToStudent,
+// controllers/students uses `export = {...}` (a plain object, not a
+// class/function instance); a NAMED `import { getStudent } from ...` against
+// that trips TS2497 (esModuleInterop only covers default-import interop).
+// Default-import the whole object (as routes/students.ts does) and destructure
+// off of it instead — same runtime access, no interop error.
+import studentsController from '../../controllers/students';
+const {
+  getStudent: getStudentRaw,
+  getActiveStudents: getActiveStudentsRaw,
+  getStudentsV3: getStudentsV3Raw,
+  getStudentsV3Paginated: getStudentsV3PaginatedRaw,
+  getStudentsByIds: getStudentsByIdsRaw,
+  getStudentAndDocLinks: getStudentAndDocLinksRaw,
+  getStudentsAndDocLinks: getStudentsAndDocLinksRaw,
+  updateDocumentationHelperLink: updateDocumentationHelperLinkRaw,
+  updateStudentsArchivStatus: updateStudentsArchivStatusRaw,
+  assignAttributesToStudent: assignAttributesToStudentRaw,
   assignAgentToStudent,
   assignEditorToStudent
-} from '../../controllers/students';
-import { mockReq, mockRes } from '../helpers/httpMocks';
+} = studentsController;
+// `helpers/httpMocks` is a plain CommonJS module (no ES import/export syntax),
+// so `import { mockReq, mockRes } from ...` trips "is not a module" under
+// esModuleInterop; require() sidesteps that (allowed in *.test.ts by eslintrc).
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 import { Role } from '@taiger-common/core';
 import { admin, agent, editor, student } from '../mock/user';
+
+// Auto-mocked module methods expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type each service as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockRejectedValue()/.mock` calls
+// type-check while still allowing partial (non-Mongoose) return shapes.
+type MockedModule = Record<string, jest.Mock>;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const ApplicationService = ApplicationServiceModule as unknown as MockedModule;
+const UserService = UserServiceModule as unknown as MockedModule;
+const PermissionService = PermissionServiceModule as unknown as MockedModule;
+const BasedocumentationslinkService =
+  BasedocumentationslinkServiceModule as unknown as MockedModule;
+
+// `asMock` casts a single named auto-mocked function binding to jest.Mock.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// Most of these handlers are asyncHandler-wrapped `(req, res)` (2-arg, no
+// `next`) functions. asyncHandler's runtime closure always accepts
+// `(req, res, next)` and forwards rejections to `next` — its TS type only
+// exposes the wrapped handler's own parameter list (see
+// middlewares/error-handler.ts). Cast back to the real 3-arg call shape so
+// tests can pass `next`; TS-only, no runtime change (mirrors the
+// informXEmail/getPermission casts already used in controllers/students.ts).
+type ControllerHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<void>;
+const getStudent = getStudentRaw as unknown as ControllerHandler;
+const getActiveStudents = getActiveStudentsRaw as unknown as ControllerHandler;
+const getStudentsV3 = getStudentsV3Raw as unknown as ControllerHandler;
+const getStudentsV3Paginated =
+  getStudentsV3PaginatedRaw as unknown as ControllerHandler;
+const getStudentsByIds = getStudentsByIdsRaw as unknown as ControllerHandler;
+const getStudentAndDocLinks =
+  getStudentAndDocLinksRaw as unknown as ControllerHandler;
+const getStudentsAndDocLinks =
+  getStudentsAndDocLinksRaw as unknown as ControllerHandler;
+const updateDocumentationHelperLink =
+  updateDocumentationHelperLinkRaw as unknown as ControllerHandler;
+const updateStudentsArchivStatus =
+  updateStudentsArchivStatusRaw as unknown as ControllerHandler;
+const assignAttributesToStudent =
+  assignAttributesToStudentRaw as unknown as ControllerHandler;
 
 const studentId = student._id.toString();
 
@@ -237,7 +292,7 @@ describe('getStudentAndDocLinks', () => {
     BasedocumentationslinkService.findByCategory
       .mockResolvedValueOnce({ base: 'docs' }) // base-documents
       .mockResolvedValueOnce({ survey: 'link' }); // survey
-    getAuditLogs.mockResolvedValue([{ _id: 'a1' }]);
+    asMock(getAuditLogs).mockResolvedValue([{ _id: 'a1' }]);
     const res = mockRes();
 
     await getStudentAndDocLinks(
@@ -262,7 +317,7 @@ describe('getStudentAndDocLinks', () => {
     StudentService.getStudentByIdWithDocThreads.mockResolvedValue(null);
     ApplicationService.getApplicationsByStudentId.mockResolvedValue([]);
     BasedocumentationslinkService.findByCategory.mockResolvedValue({});
-    getAuditLogs.mockResolvedValue([]);
+    asMock(getAuditLogs).mockResolvedValue([]);
     const res = mockRes();
 
     await getStudentAndDocLinks(
@@ -402,7 +457,7 @@ describe('assignAgentToStudent', () => {
     StudentService.getStudentById
       .mockResolvedValueOnce(existing) // initial fetch
       .mockResolvedValueOnce(updated); // refreshed after update
-    userChangesHelperFunction.mockResolvedValue({
+    asMock(userChangesHelperFunction).mockResolvedValue({
       addedUsers: [
         {
           _id: agent._id,
@@ -460,7 +515,7 @@ describe('assignAgentToStudent', () => {
     StudentService.getStudentById
       .mockResolvedValueOnce(existing)
       .mockResolvedValueOnce(updated);
-    userChangesHelperFunction.mockResolvedValue({
+    asMock(userChangesHelperFunction).mockResolvedValue({
       addedUsers: [{ _id: agent._id }],
       removedUsers: [],
       // non-empty updatedUsers -> informStudentTheirAgentEmail branch
@@ -515,7 +570,7 @@ describe('assignAgentToStudent', () => {
       _id: studentId,
       agents: []
     });
-    userChangesHelperFunction.mockRejectedValue(new Error('boom'));
+    asMock(userChangesHelperFunction).mockRejectedValue(new Error('boom'));
     const res = mockRes();
 
     await assignAgentToStudent(
@@ -541,7 +596,7 @@ describe('getStudentAndDocLinks agent notification pull', () => {
       { _id: 'app1', isLocked: undefined }
     ]);
     BasedocumentationslinkService.findByCategory.mockResolvedValue({});
-    getAuditLogs.mockResolvedValue([]);
+    asMock(getAuditLogs).mockResolvedValue([]);
     UserService.updateUser.mockResolvedValue({});
     const res = mockRes();
 
@@ -636,7 +691,7 @@ describe('updateStudentsArchivStatus', () => {
   it('archived + agent with canAssignAgents: returns all active students', async () => {
     StudentService.updateStudentById.mockResolvedValue({ editors: [] });
     StudentService.fetchStudents.mockResolvedValue([{ _id: 's2' }]);
-    getPermission.mockResolvedValue({ canAssignAgents: true });
+    asMock(getPermission).mockResolvedValue({ canAssignAgents: true });
     const res = mockRes();
 
     await updateStudentsArchivStatus(
@@ -658,7 +713,7 @@ describe('updateStudentsArchivStatus', () => {
   it('archived + agent without canAssignAgents: scopes to own students', async () => {
     StudentService.updateStudentById.mockResolvedValue({ editors: [] });
     StudentService.fetchStudents.mockResolvedValue([{ _id: 's3' }]);
-    getPermission.mockResolvedValue({ canAssignAgents: false });
+    asMock(getPermission).mockResolvedValue({ canAssignAgents: false });
     const res = mockRes();
 
     await updateStudentsArchivStatus(
@@ -826,7 +881,7 @@ describe('assignEditorToStudent', () => {
     StudentService.getStudentById
       .mockResolvedValueOnce(existing)
       .mockResolvedValueOnce(updated);
-    userChangesHelperFunction.mockResolvedValue({
+    asMock(userChangesHelperFunction).mockResolvedValue({
       addedUsers: [
         {
           _id: editor._id,
@@ -901,7 +956,7 @@ describe('assignEditorToStudent', () => {
     StudentService.getStudentById
       .mockResolvedValueOnce(existing)
       .mockResolvedValueOnce(updated);
-    userChangesHelperFunction.mockResolvedValue({
+    asMock(userChangesHelperFunction).mockResolvedValue({
       addedUsers: [{ _id: editor._id }],
       removedUsers: [],
       updatedUsers: [],
@@ -932,7 +987,7 @@ describe('assignEditorToStudent', () => {
       _id: studentId,
       editors: []
     });
-    userChangesHelperFunction.mockRejectedValue(new Error('boom'));
+    asMock(userChangesHelperFunction).mockRejectedValue(new Error('boom'));
     const res = mockRes();
 
     await assignEditorToStudent(

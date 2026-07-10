@@ -5,6 +5,19 @@ import {
   FIREFLIES_GOOGLE_INVITE_N8N_URL
 } from '../config';
 
+// Shape of a single Fireflies GraphQL error entry, per the instantInviteTA
+// JSDoc example below (`too_many_requests` rate-limit errors carry
+// `extensions.metadata.retryAfter`).
+interface FirefliesGraphQLError {
+  friendly?: boolean;
+  message?: string;
+  extensions?: {
+    code?: string;
+    status?: number;
+    metadata?: { retryAfter?: number };
+  };
+}
+
 /**
  * Schedule invite a TaiGer assitant to a meeting. Creates a Google meeting event by posting meeting details to an external workflow.
  *
@@ -17,10 +30,10 @@ import {
  * @throws {Error} If the request fails, includes the underlying error message or response data.
  */
 export const scheduleInviteTA = async (
-  meetingSummary,
-  meetingLink,
-  meetingTimeFrom,
-  meetingTimeTo
+  meetingSummary: string,
+  meetingLink: string | undefined,
+  meetingTimeFrom: string | Date | undefined,
+  meetingTimeTo: string | Date | undefined
 ) => {
   if (!FIREFLIES_GOOGLE_INVITE_N8N_URL) {
     throw new Error('FIREFLIES_GOOGLE_INVITE_N8N_URL is not configured');
@@ -43,7 +56,10 @@ export const scheduleInviteTA = async (
     const response = await axios.post(FIREFLIES_GOOGLE_INVITE_N8N_URL, payload);
     return response.data;
   } catch (error) {
-    const errorMessage = error.response?.data || error.message;
+    const responseData = (error as { response?: { data?: unknown } })?.response
+      ?.data;
+    const errorMessage =
+      responseData ?? (error as Error)?.message ?? 'Unknown error';
     throw new Error(
       `Failed to create Google Meeting event: ${JSON.stringify(errorMessage)}`
     );
@@ -78,7 +94,10 @@ export const scheduleInviteTA = async (
  *   }]
  *
  */
-export const instantInviteTA = async (meetingSummary, meetingLink) => {
+export const instantInviteTA = async (
+  meetingSummary: string,
+  meetingLink: string
+) => {
   if (!FIREFLIES_API_URL || !FIREFLIES_API_TOKEN) {
     throw new Error(
       'FIREFLIES_API_URL or FIREFLIES_API_TOKEN is not configured'
@@ -121,7 +140,8 @@ export const instantInviteTA = async (meetingSummary, meetingLink) => {
     // 1️⃣ Handle GraphQL errors (even if HTTP 200)
     if (errors?.length) {
       const rateLimitError = errors.find(
-        (err) => err.extensions?.code === 'too_many_requests'
+        (err: FirefliesGraphQLError) =>
+          err.extensions?.code === 'too_many_requests'
       );
 
       if (rateLimitError) {
@@ -172,7 +192,7 @@ export const instantInviteTA = async (meetingSummary, meetingLink) => {
     return {
       success: false,
       message: 'Unexpected error',
-      error: error.message
+      error: (error as Error)?.message
     };
   }
 };

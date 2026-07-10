@@ -14,7 +14,7 @@
 
 // The OpenAI client is mocked to return an async-iterable stream so the handlers'
 // `for await` loops run synchronously over canned chunks — no network, no hang.
-const makeStream = (chunks) =>
+const makeStream = (chunks: string[]) =>
   (async function* () {
     for (const c of chunks) {
       yield { choices: [{ delta: { content: c } }] };
@@ -54,20 +54,37 @@ jest.mock('../../services/applications');
 jest.mock('../../services/permissions');
 jest.mock('../../services/students');
 
-import { spawn } from 'child_process';
+import { spawn as spawnImport } from 'child_process';
 import { openAIClient } from '../../services/openai';
-import ProgramService from '../../services/programs';
-import CommunicationService from '../../services/communications';
-import ApplicationService from '../../services/applications';
-import PermissionService from '../../services/permissions';
-import StudentService from '../../services/students';
-import {
-  TaiGerAiChat,
-  cvmlrlAi,
-  processProgramListAi
-} from '../../controllers/taigerais';
-import { mockReq, mockRes } from '../helpers/httpMocks';
+import ProgramServiceModule from '../../services/programs';
+import CommunicationServiceModule from '../../services/communications';
+import ApplicationServiceModule from '../../services/applications';
+import PermissionServiceModule from '../../services/permissions';
+import StudentServiceModule from '../../services/students';
+// controllers/taigerais uses `export =` (CommonJS), so named ESM imports
+// trigger TS2497. Import the default export and destructure the members
+// instead.
+import taigeraisController from '../../controllers/taigerais';
+// httpMocks.ts is CommonJS (module.exports = {...}) with no import/export
+// syntax at all, so TS treats it as a non-module (TS2306) for ESM `import`
+// syntax; require() resolves to the same runtime module without that error.
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 import { admin, student } from '../mock/user';
+
+const { TaiGerAiChat, cvmlrlAi, processProgramListAi } = taigeraisController;
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures; recast each to a bag of jest.Mock methods so per-test
+// `.mockResolvedValue()/.mockRejectedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const ProgramService = ProgramServiceModule as unknown as MockedModule;
+const CommunicationService =
+  CommunicationServiceModule as unknown as MockedModule;
+const ApplicationService = ApplicationServiceModule as unknown as MockedModule;
+const PermissionService = PermissionServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const spawn = spawnImport as unknown as jest.Mock;
+const asMock = (fn: unknown) => fn as jest.Mock;
 
 const studentId = student._id.toString();
 
@@ -105,7 +122,7 @@ describe('TaiGerAiChat', () => {
     ]);
     ApplicationService.getApplicationsByStudentId.mockResolvedValue([]);
     PermissionService.decrementTaigerAiQuota.mockResolvedValue({});
-    openAIClient.chat.completions.create.mockResolvedValue(
+    asMock(openAIClient.chat.completions.create).mockResolvedValue(
       makeStream(['reply'])
     );
     const res = mockStreamRes();
@@ -127,7 +144,7 @@ describe('TaiGerAiChat', () => {
     CommunicationService.getRecentByStudentId.mockResolvedValue([]);
     ApplicationService.getApplicationsByStudentId.mockResolvedValue([]);
     PermissionService.decrementTaigerAiQuota.mockResolvedValue({});
-    openAIClient.chat.completions.create.mockResolvedValue(
+    asMock(openAIClient.chat.completions.create).mockResolvedValue(
       makeStream(['reply'])
     );
     const res = mockStreamRes();
@@ -176,7 +193,7 @@ describe('cvmlrlAi', () => {
       academic_background: {}
     });
     PermissionService.decrementTaigerAiQuota.mockResolvedValue({});
-    openAIClient.chat.completions.create.mockResolvedValue(
+    asMock(openAIClient.chat.completions.create).mockResolvedValue(
       makeStream(['draft text'])
     );
     const res = mockStreamRes();
@@ -210,7 +227,7 @@ describe('cvmlrlAi', () => {
       new Error('no student')
     );
     PermissionService.decrementTaigerAiQuota.mockResolvedValue({});
-    openAIClient.chat.completions.create.mockResolvedValue(
+    asMock(openAIClient.chat.completions.create).mockResolvedValue(
       makeStream(['rl draft'])
     );
     const res = mockStreamRes();
@@ -242,7 +259,7 @@ describe('cvmlrlAi', () => {
   it('forwards an OpenAI error to next()', async () => {
     StudentService.getStudentByIdLean.mockResolvedValue({});
     const err = new Error('openai down');
-    openAIClient.chat.completions.create.mockRejectedValue(err);
+    asMock(openAIClient.chat.completions.create).mockRejectedValue(err);
     const next = jest.fn();
 
     await cvmlrlAi(

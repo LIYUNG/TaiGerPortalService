@@ -23,6 +23,11 @@ export const auditLog = asyncHandler(async (req) => {
 
     await AuditService.createAuditLog(newAuditLog);
   } catch (e) {
-    logger.error(e);
+    // `e` is `unknown` under strict catch typing; logger.error requires a
+    // string message, so narrow it the same way other catch blocks in this
+    // codebase do (see utils/utils_function.ts).
+    logger.error('Failed to create audit log', {
+      error: e instanceof Error ? e.message : e
+    });
   }
 });

@@ -9,14 +9,16 @@ import {
 } from '../middlewares/rate_limiter';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import { protect, permit } from '../middlewares/auth';
-import {
+import programRequirementsController from '../controllers/program_requirements';
+
+const {
   getProgramRequirements,
   getProgramRequirement,
   createProgramRequirement,
   updateProgramRequirement,
   deleteProgramRequirement,
   getDistinctProgramsAndKeywordSets
-} from '../controllers/program_requirements';
+} = programRequirementsController;
 
 const router = Router();
 

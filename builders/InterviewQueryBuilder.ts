@@ -5,35 +5,35 @@ class InterviewQueryBuilder extends BaseQueryBuilder {
     super();
   }
 
-  withInterviewId(interviewId) {
+  withInterviewId(interviewId: unknown) {
     if (interviewId) {
       this.query.interviewId = interviewId;
     }
     return this;
   }
 
-  withStudentId(studentId) {
+  withStudentId(studentId: unknown) {
     if (studentId) {
       this.query.studentId = studentId;
     }
     return this;
   }
 
-  withProgramId(programId) {
+  withProgramId(programId: unknown) {
     if (programId) {
       this.query.programId = programId;
     }
     return this;
   }
 
-  withIsClosed(isClosed) {
+  withIsClosed(isClosed: unknown) {
     if (isClosed) {
       this.query.isClosed = isClosed;
     }
     return this;
   }
 
-  withTrainerId(trainerId) {
+  withTrainerId(trainerId: unknown) {
     if (trainerId) {
       this.query.trainer_id = trainerId;
     }
@@ -41,8 +41,9 @@ class InterviewQueryBuilder extends BaseQueryBuilder {
   }
 
   withoutLimit() {
-    delete this.options.limit;
-    delete this.options.page;
+    // See ApplicationQueryBuilder.withoutLimit for why the cast is needed.
+    delete (this.options as { limit?: number; page?: number }).limit;
+    delete (this.options as { limit?: number; page?: number }).page;
     return this;
   }
 

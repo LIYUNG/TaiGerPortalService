@@ -15,22 +15,21 @@ jest.mock('../../aws', () => ({
   ses: {},
   sesv2Client: { send: jest.fn() },
   SendEmailCommand: class {},
-  limiter: { schedule: (fn) => fn() },
+  limiter: { schedule: (fn: () => unknown) => fn() },
   SendRawEmailCommand: class {}
 }));
 jest.mock('../../services/emailTemplate', () => ({
-  htmlContent: (message) => `<wrap>${message}</wrap>`
+  htmlContent: (message: string) => `<wrap>${message}</wrap>`
 }));
 jest.mock('../../services/logger', () => ({
   error: jest.fn(),
   info: jest.fn()
 }));
 
-import {
-  sendEmail,
-  sendEmailWithAttachments
-} from '../../services/email/configuration';
+import EmailConfiguration from '../../services/email/configuration';
 import { taigerNotReplyGmail } from '../../constants/email';
+
+const { sendEmail, sendEmailWithAttachments } = EmailConfiguration;
 
 beforeEach(() => {
   jest.clearAllMocks();

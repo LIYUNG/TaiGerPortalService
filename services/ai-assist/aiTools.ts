@@ -6,13 +6,15 @@ import { getS3Object } from '../../aws/s3';
 import { extractTextFromBuffer } from '../../utils/utils_function';
 import tools from './tools';
 import signalLedger from './signalLedger';
-import {
-  buildOverview,
-  loadPortfolio,
-  collectUpcomingDeadlines
-} from './overview';
+import overviewModule from './overview';
 import ProgramService from '../programs';
 import DocumentThreadService from '../documentthreads';
+
+// `overview` is a CommonJS (`export =`) module aggregating several named
+// helpers; under isolatedModules it must be imported as a default and
+// destructured here rather than via a named import.
+const { buildOverview, loadPortfolio, collectUpcomingDeadlines } =
+  overviewModule;
 
 // Consolidated, provider-neutral AI Assist tool registry. Replaces the previous
 // 18 overlapping tool definitions with ~10 focused tools. Each handler is access
@@ -104,18 +106,19 @@ const getStudentOverview = async (req: AiRequest, args: AiToolArgs = {}) => {
             evidence: signal.evidence,
             occurredAt: signal.occurredAt ?? null,
             sourceMessageId: signal.sourceMessageId ?? null,
-            sinceDays: (signal.occurredAt || signal.firstSeenAt)
-              ? Math.max(
-                  Math.floor(
-                    (Date.now() -
-                      new Date(
-                        signal.occurredAt || signal.firstSeenAt
-                      ).getTime()) /
-                      86400000
-                  ),
-                  0
-                )
-              : null
+            sinceDays:
+              signal.occurredAt || signal.firstSeenAt
+                ? Math.max(
+                    Math.floor(
+                      (Date.now() -
+                        new Date(
+                          signal.occurredAt || signal.firstSeenAt
+                        ).getTime()) /
+                        86400000
+                    ),
+                    0
+                  )
+                : null
           }))
         };
       }
@@ -185,7 +188,13 @@ const readDocument = async (req: AiRequest, args: AiToolArgs = {}) => {
   let source = '';
 
   if (args.threadId) {
-    const thread = await DocumentThreadService.getThreadByIdLean(args.threadId);
+    // Heterogeneous Mongoose lean document whose runtime shape does not
+    // structurally match the strict @taiger-common/model interface (the
+    // underlying model's loose schema typing collapses the lean() result to
+    // an `any`-based union); read defensively via LeanDoc.
+    const thread = (await DocumentThreadService.getThreadByIdLean(
+      args.threadId
+    )) as LeanDoc | null;
     if (!thread) {
       throw new ErrorResponse(404, 'Document thread not found');
     }
@@ -280,7 +289,10 @@ const getThreadMessages = async (req: AiRequest, args: AiToolArgs = {}) => {
   if (!args.threadId) {
     throw new ErrorResponse(400, 'threadId is required');
   }
-  const thread = await DocumentThreadService.getThreadByIdLean(args.threadId);
+  // See LeanDoc comment above: read defensively.
+  const thread = (await DocumentThreadService.getThreadByIdLean(
+    args.threadId
+  )) as LeanDoc | null;
   if (!thread) {
     throw new ErrorResponse(404, 'Document thread not found');
   }

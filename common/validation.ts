@@ -1,16 +1,22 @@
-import { body, param, validationResult } from 'express-validator';
+import {
+  body,
+  param,
+  validationResult,
+  type ValidationChain
+} from 'express-validator';
+import type { Request, Response, NextFunction } from 'express';
 import { Role } from '@taiger-common/core';
 
 export const fieldsValidation =
-  (...rules) =>
-  async (req) => {
+  (...rules: ValidationChain[]) =>
+  async (req: Request) => {
     await Promise.all(rules.map((rule) => rule.run(req)));
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) errors.throw();
   };
 
-export const makeOptional = (rule) => rule.optional();
+export const makeOptional = (rule: ValidationChain) => rule.optional();
 
 // common rules
 export const checkUserFirstname = body('firstname')
@@ -40,7 +46,11 @@ export const checkToken = body('token').isString().notEmpty();
 
 // const checkObjectID = param('id', 'Invalid id').custom(ObjectID.isValid);
 
-export const validationCallBack = (req, res, next) => {
+export const validationCallBack = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, errors: errors.array() });

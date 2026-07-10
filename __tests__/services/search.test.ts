@@ -5,8 +5,14 @@
 // right args) and the real sort/combine behaviour.
 jest.mock('../../dao/search.dao');
 
-import SearchDAO from '../../dao/search.dao';
+import SearchDAOModule from '../../dao/search.dao';
 import SearchService from '../../services/search';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()` calls type-check while still allowing
+// partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const SearchDAO = SearchDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();

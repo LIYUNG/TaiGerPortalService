@@ -1,6 +1,12 @@
 import { IUser } from '@taiger-common/model';
 import { ORIGIN } from '../../config';
-import { sendEmail } from './configuration';
+// `configuration.ts` uses `export =`; import via `require` interop since a
+// named `import { sendEmail }` against an `export =` module is rejected under
+// this project's module settings (TS2497).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see comment above
+import EmailConfiguration = require('./configuration');
+
+const { sendEmail } = EmailConfiguration;
 
 interface ComplaintEmailPayload {
   ticket_id: string;

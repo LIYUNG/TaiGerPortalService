@@ -24,10 +24,29 @@ jest.mock('../../services/email', () => ({
 }));
 
 const { ObjectId } = require('mongoose').Types;
-import EventService from '../../services/events';
-import UserService from '../../services/users';
+import EventServiceModule from '../../services/events';
+import UserServiceModule from '../../services/users';
 import { scheduleInviteTA } from '../../utils/meeting-assistant.service';
-import {
+import EventsControllerModule from '../../controllers/events';
+import { admin, agent, student } from '../mock/user';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. Re-type each service as a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()/.mockImplementation()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const EventService = EventServiceModule as unknown as MockedModule;
+const UserService = UserServiceModule as unknown as MockedModule;
+// `scheduleInviteTA` is a NAMED import off a manually-mocked module; cast it
+// to jest.Mock at the call site instead of re-typing the whole module.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The controller handlers are asyncHandler-wrapped: asyncHandler's exposed
+// type mirrors the wrapped fn's OWN param count (2 for a plain (req, res)
+// handler), while the runtime wrapper always forwards a 3rd `next` used
+// internally for `.catch(next)`. Re-type the whole module so tests can call
+// each handler with (req, res, next) uniformly without under/over-arg errors.
+type Handler = (...args: unknown[]) => unknown;
+const {
   getEvents,
   getEventsPaginated,
   buildEventScopeFilter,
@@ -38,9 +57,13 @@ import {
   confirmEvent,
   updateEvent,
   deleteEvent
-} from '../../controllers/events';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, agent, student } from '../mock/user';
+} = EventsControllerModule as unknown as Record<string, Handler>;
+
+// httpMocks.ts is a plain CommonJS helper with no import/export statements of
+// its own, so under `isolatedModules` it isn't a module TS can `import` from
+// (TS2306); require it instead, as the integration tests do for similar
+// untyped JS helpers.
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 
 // `agents`/`editors` arrays the controller reads off req.user.
 const studentUser = { ...student, agents: [agent._id], editors: [] };
@@ -372,7 +395,13 @@ describe('postEvent (student branch)', () => {
     );
 
     const conflictQuery = EventService.findEvents.mock.calls[0][0];
-    const futureClause = conflictQuery.$or.find((c) => c.start && c.start.$gt);
+    const futureClause = conflictQuery.$or.find(
+      (c: {
+        start?: { $gt?: unknown };
+        requester_id?: unknown;
+        receiver_id?: unknown;
+      }) => c.start && c.start.$gt
+    );
     expect(futureClause).toBeDefined();
     expect(futureClause.requester_id).toBeDefined();
     // One appointment at a time across ALL agents -> the future clause must NOT
@@ -841,7 +870,10 @@ describe('confirmEvent', () => {
       start: new Date().toISOString(),
       end: new Date().toISOString()
     });
-    scheduleInviteTA.mockResolvedValueOnce({ success: true, meetingId: 'm1' });
+    asMock(scheduleInviteTA).mockResolvedValueOnce({
+      success: true,
+      meetingId: 'm1'
+    });
     const res = mockRes();
 
     await confirmEvent(
@@ -872,7 +904,7 @@ describe('confirmEvent', () => {
       start: new Date().toISOString(),
       end: new Date().toISOString()
     });
-    scheduleInviteTA.mockResolvedValueOnce({ success: false });
+    asMock(scheduleInviteTA).mockResolvedValueOnce({ success: false });
     const res = mockRes();
 
     await confirmEvent(
@@ -902,7 +934,7 @@ describe('confirmEvent', () => {
       start: new Date().toISOString(),
       end: new Date().toISOString()
     });
-    scheduleInviteTA.mockRejectedValueOnce(new Error('assistant down'));
+    asMock(scheduleInviteTA).mockRejectedValueOnce(new Error('assistant down'));
     const res = mockRes();
 
     await confirmEvent(

@@ -4,9 +4,18 @@
 jest.mock('../../dao/keywordset.dao');
 jest.mock('../../dao/programRequirement.dao');
 
-import KeywordSetDAO from '../../dao/keywordset.dao';
-import ProgramRequirementDAO from '../../dao/programRequirement.dao';
+import KeywordSetDAOModule from '../../dao/keywordset.dao';
+import ProgramRequirementDAOModule from '../../dao/programRequirement.dao';
 import KeywordSetService from '../../services/keywordsets';
+import type { KeywordSet } from '../../dao/keywordset.dao.types';
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockRejectedValue()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const KeywordSetDAO = KeywordSetDAOModule as unknown as MockedDAO;
+const ProgramRequirementDAO =
+  ProgramRequirementDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -44,7 +53,9 @@ describe('KeywordSetService — KeywordSetDAO delegators (mocked DAO)', () => {
     const daoResult = { _id: 'k1', ...fields };
     KeywordSetDAO.createKeywordSet.mockResolvedValue(daoResult);
 
-    const result = await KeywordSetService.createKeywordSet(fields);
+    const result = await KeywordSetService.createKeywordSet(
+      fields as unknown as Partial<KeywordSet>
+    );
 
     expect(KeywordSetDAO.createKeywordSet).toHaveBeenCalledTimes(1);
     expect(KeywordSetDAO.createKeywordSet).toHaveBeenCalledWith(fields);
@@ -56,7 +67,10 @@ describe('KeywordSetService — KeywordSetDAO delegators (mocked DAO)', () => {
     const daoResult = { _id: 'k1', name: 'physics' };
     KeywordSetDAO.updateKeywordSetById.mockResolvedValue(daoResult);
 
-    const result = await KeywordSetService.updateKeywordSetById('k1', fields);
+    const result = await KeywordSetService.updateKeywordSetById(
+      'k1',
+      fields as unknown as Partial<KeywordSet>
+    );
 
     expect(KeywordSetDAO.updateKeywordSetById).toHaveBeenCalledTimes(1);
     expect(KeywordSetDAO.updateKeywordSetById).toHaveBeenCalledWith(

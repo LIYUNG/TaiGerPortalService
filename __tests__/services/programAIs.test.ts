@@ -2,8 +2,14 @@
 // the DAO is mocked so no database is touched.
 jest.mock('../../dao/programAI.dao');
 
-import ProgramAIDAO from '../../dao/programAI.dao';
+import ProgramAIDAOModule from '../../dao/programAI.dao';
 import ProgramAIService from '../../services/programAIs';
+
+// Auto-mocked DAO exposes jest.fn()s at runtime, but TS still sees the real
+// signatures. Re-type it as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()` call type-checks.
+type MockedDAO = Record<string, jest.Mock>;
+const ProgramAIDAO = ProgramAIDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();

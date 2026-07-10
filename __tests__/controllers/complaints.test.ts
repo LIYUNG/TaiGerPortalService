@@ -37,26 +37,73 @@ jest.mock('../../cache/node-cache', () => ({
   ten_minutes_cache: { get: jest.fn(), set: jest.fn() }
 }));
 
-import ComplaintService from '../../services/complaints';
-import PermissionService from '../../services/permissions';
-import StudentService from '../../services/students';
+import type { Request, Response, NextFunction } from 'express';
+
+import ComplaintServiceModule from '../../services/complaints';
+import PermissionServiceModule from '../../services/permissions';
+import StudentServiceModule from '../../services/students';
 import { getS3Object } from '../../aws/s3';
 import { ten_minutes_cache } from '../../cache/node-cache';
 import { threadS3GarbageCollector } from '../../utils/utils_function';
 import emailComplaints from '../../services/email/complaints';
-import {
-  getComplaints,
-  getComplaint,
-  createComplaint,
-  updateComplaint,
-  getMessageFileInTicket,
-  postMessageInTicket,
-  updateAMessageInComplaint,
-  deleteAMessageInComplaint,
-  deleteComplaint
-} from '../../controllers/complaints';
-import { mockReq, mockRes } from '../helpers/httpMocks';
+// controllers/complaints uses `export = {...}` (a plain object, not a
+// class/function instance); a NAMED `import { getComplaints } from ...`
+// against that trips TS2497 (esModuleInterop only covers default-import
+// interop). Default-import the whole object and destructure off of it
+// instead — same runtime access, no interop error.
+import complaintsController from '../../controllers/complaints';
+const {
+  getComplaints: getComplaintsRaw,
+  getComplaint: getComplaintRaw,
+  createComplaint: createComplaintRaw,
+  updateComplaint: updateComplaintRaw,
+  getMessageFileInTicket: getMessageFileInTicketRaw,
+  postMessageInTicket: postMessageInTicketRaw,
+  updateAMessageInComplaint: updateAMessageInComplaintRaw,
+  deleteAMessageInComplaint: deleteAMessageInComplaintRaw,
+  deleteComplaint: deleteComplaintRaw
+} = complaintsController;
+// `helpers/httpMocks` is a plain CommonJS module (no ES import/export syntax),
+// so `import { mockReq, mockRes } from ...` trips "is not a module" under
+// esModuleInterop; require() sidesteps that (allowed in *.test.ts by eslintrc).
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 import { admin, student } from '../mock/user';
+
+// Auto-mocked module methods expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type each service as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()/.mockRejectedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const ComplaintService = ComplaintServiceModule as unknown as MockedModule;
+const PermissionService = PermissionServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+
+// `asMock` casts a single named auto-mocked function binding to jest.Mock.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// Every handler here is an asyncHandler-wrapped `(req, res)` (2-arg, no
+// `next`) function. asyncHandler's runtime closure always accepts
+// `(req, res, next)` and forwards rejections to `next` — its TS type only
+// exposes the wrapped handler's own parameter list (see
+// middlewares/error-handler.ts). Cast back to the real 3-arg call shape so
+// tests can pass `next`; TS-only, no runtime change.
+type ControllerHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<void>;
+const getComplaints = getComplaintsRaw as unknown as ControllerHandler;
+const getComplaint = getComplaintRaw as unknown as ControllerHandler;
+const createComplaint = createComplaintRaw as unknown as ControllerHandler;
+const updateComplaint = updateComplaintRaw as unknown as ControllerHandler;
+const getMessageFileInTicket =
+  getMessageFileInTicketRaw as unknown as ControllerHandler;
+const postMessageInTicket =
+  postMessageInTicketRaw as unknown as ControllerHandler;
+const updateAMessageInComplaint =
+  updateAMessageInComplaintRaw as unknown as ControllerHandler;
+const deleteAMessageInComplaint =
+  deleteAMessageInComplaintRaw as unknown as ControllerHandler;
+const deleteComplaint = deleteComplaintRaw as unknown as ControllerHandler;
 
 const ticketId = '5f9f1b9b9b9b9b9b9b9b9b9b';
 const messageId = '6f9f1b9b9b9b9b9b9b9b9b9b';
@@ -521,9 +568,9 @@ describe('getMessageFileInTicket', () => {
   };
 
   it('cache miss: fetches from S3, caches, and streams the file', async () => {
-    ten_minutes_cache.get.mockReturnValue(undefined);
-    ten_minutes_cache.set.mockReturnValue(true);
-    getS3Object.mockResolvedValue(Buffer.from('content'));
+    asMock(ten_minutes_cache.get).mockReturnValue(undefined);
+    asMock(ten_minutes_cache.set).mockReturnValue(true);
+    asMock(getS3Object).mockResolvedValue(Buffer.from('content'));
     const res = mockRes();
     res.attachment = jest.fn();
 
@@ -540,7 +587,7 @@ describe('getMessageFileInTicket', () => {
   });
 
   it('cache hit: streams the cached value without touching S3', async () => {
-    ten_minutes_cache.get.mockReturnValue(Buffer.from('cached'));
+    asMock(ten_minutes_cache.get).mockReturnValue(Buffer.from('cached'));
     const res = mockRes();
     res.attachment = jest.fn();
 
@@ -604,7 +651,7 @@ describe('updateComplaint resolved cleanup', () => {
       }
     };
     ComplaintService.updateComplaintById.mockResolvedValue(updated);
-    threadS3GarbageCollector.mockResolvedValue(undefined);
+    asMock(threadS3GarbageCollector).mockResolvedValue(undefined);
     const res = mockRes();
 
     await updateComplaint(
@@ -641,7 +688,9 @@ describe('updateComplaint resolved cleanup', () => {
       }
     };
     ComplaintService.updateComplaintById.mockResolvedValue(updated);
-    threadS3GarbageCollector.mockRejectedValueOnce(new Error('s3 fail'));
+    asMock(threadS3GarbageCollector).mockRejectedValueOnce(
+      new Error('s3 fail')
+    );
     const res = mockRes();
 
     await updateComplaint(

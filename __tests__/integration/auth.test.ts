@@ -26,54 +26,24 @@ const asMock = (fn: unknown) => fn as jest.Mock;
 
 const requestWithSupertest = request(app);
 
-jest.mock('../../middlewares/tenantMiddleware', () => {
-  const passthrough = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
-    req.tenantId = 'test';
-    next();
-  };
-
-  return {
-    ...jest.requireActual('../../middlewares/tenantMiddleware'),
-    checkTenantDBMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/decryptCookieMiddleware', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-
-  return {
-    ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-    decryptCookieMiddleware: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-
-  return {
-    ...jest.requireActual('../../middlewares/InnerTaigerMultitenantFilter'),
-    InnerTaigerMultitenantFilter: jest.fn().mockImplementation(passthrough)
-  };
-});
-
-jest.mock('../../middlewares/auth', () => {
-  const passthrough = async (req: Request, res: Response, next: NextFunction) =>
-    next();
-
-  return {
-    ...jest.requireActual('../../middlewares/auth'),
-    // protect is stubbed (the verify route is not under test here); localAuth is
-    // kept REAL so the login password compare runs against the mocked user.
-    protect: jest.fn().mockImplementation(passthrough),
-    permit: jest.fn().mockImplementation((...roles: string[]) => passthrough)
-  };
-});
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/InnerTaigerMultitenantFilter', () =>
+  require('../helpers/middlewareMocks').innerTaigerMultitenantFilterMock()
+);
+// protect is stubbed (the verify route is not under test here); localAuth is
+// kept REAL (via the helper's jest.requireActual spread) so the login
+// password compare runs against the mocked user.
+jest.mock('../../middlewares/auth', () =>
+  require('../helpers/middlewareMocks').authMock()
+);
 
 jest.mock('../../services/email', () => ({
   sendConfirmationEmail: jest.fn().mockResolvedValue(undefined),

@@ -10,11 +10,13 @@ import { multitenant_filter } from '../middlewares/multitenant-filter';
 import { InnerTaigerMultitenantFilter } from '../middlewares/InnerTaigerMultitenantFilter';
 import { protect, permit, prohibit } from '../middlewares/auth';
 
-import {
+import portalInformationsController from '../controllers/portal_informations';
+
+const {
   createPortalCredentials,
   getPortalCredentials
   //   updateCourses,
-} from '../controllers/portal_informations';
+} = portalInformationsController;
 
 const router = Router();
 

@@ -9,7 +9,11 @@ import {
 import { protect, permit } from '../middlewares/auth';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 
-import {
+import usersController from '../controllers/users';
+import { auditLog } from '../utils/log/auditLog';
+import { permission_canAddUser_filter } from '../middlewares/permission-filter';
+
+const {
   getUsers,
   updateUserArchivStatus,
   addUser,
@@ -18,9 +22,7 @@ import {
   getUser,
   getUsersCount,
   getUsersOverview
-} from '../controllers/users';
-import { auditLog } from '../utils/log/auditLog';
-import { permission_canAddUser_filter } from '../middlewares/permission-filter';
+} = usersController;
 
 const router = Router();
 

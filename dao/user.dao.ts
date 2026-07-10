@@ -1,5 +1,11 @@
 import { Role } from '@taiger-common/core';
-import { FilterQuery, UpdateQuery, QueryOptions, SortOrder } from 'mongoose';
+import {
+  FilterQuery,
+  Model as MongooseModel,
+  UpdateQuery,
+  QueryOptions,
+  SortOrder
+} from 'mongoose';
 import { IUser } from '@taiger-common/model';
 import {
   User,
@@ -70,14 +76,13 @@ const parseUsersPaginationQuery = ({
   sortBy?: string;
   sortOrder?: string;
 } = {}) => {
-  const parsedPage = parseInt(page, 10);
-  const parsedLimit = parseInt(limit, 10);
+  const parsedPage = parseInt(String(page ?? ''), 10);
+  const parsedLimit = parseInt(String(limit ?? ''), 10);
   const safePage = parsedPage > 0 ? parsedPage : DEFAULT_PAGE;
   const safeLimit =
     parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT;
-  const normalizedSortBy = ALLOWED_SORT_FIELDS.has(sortBy)
-    ? sortBy
-    : 'lastname';
+  const normalizedSortBy: string =
+    sortBy && ALLOWED_SORT_FIELDS.has(sortBy) ? sortBy : 'lastname';
   const normalizedSortOrder =
     String(sortOrder || 'asc').toLowerCase() === 'desc' ? -1 : 1;
 
@@ -185,7 +190,9 @@ const UserDAO = {
     role: string,
     { officehours, timezone }: { officehours?: unknown; timezone?: string }
   ) {
-    const Model = role === Role.Editor ? Editor : Agent;
+    const Model = (
+      role === Role.Editor ? Editor : Agent
+    ) as MongooseModel<IUser>;
     return Model.findByIdAndUpdate(
       userId,
       { officehours, timezone },
@@ -252,11 +259,11 @@ const UserDAO = {
   // Agent / Editor discriminator lookups (the exact filter is passed through to
   // preserve legacy query semantics). `select` projects the returned fields.
   async findAgents(filter: FilterQuery<IUser>, select?: string) {
-    return Agent.find(filter).select(select);
+    return Agent.find(filter).select(select ?? '');
   },
 
   async findEditors(filter: FilterQuery<IUser>, select?: string) {
-    return Editor.find(filter).select(select);
+    return Editor.find(filter).select(select ?? '');
   },
 
   async findAgentById(agentId: string, select: string) {
@@ -276,7 +283,9 @@ const UserDAO = {
   // Role-based create: Students use the Student discriminator; every other role
   // is created on the base User model (preserving the legacy behaviour).
   async createUser(role: string, payload: Partial<IUser>) {
-    const Model = role === Role.Student ? Student : User;
+    const Model = (
+      role === Role.Student ? Student : User
+    ) as MongooseModel<IUser>;
     return Model.create(payload);
   },
 
@@ -308,7 +317,7 @@ const UserDAO = {
     return Student.updateMany(
       { $or: [{ agents: userId }, { editors: userId }] },
       { $pull: { agents: userId, editors: userId } },
-      { multi: true }
+      { multi: true } as any
     );
   },
 
@@ -377,7 +386,12 @@ const UserDAO = {
 
   // Student/Users overview aggregations (5 charts), run in parallel.
   async getUsersOverview() {
-    const notEmpty = [{ $match: { _id: { $ne: null, $ne: '' } } }];
+    // NOTE: originally `{ $ne: null, $ne: '' }` — a duplicate object key that
+    // is a TS1117 compile error and, even pre-TS, silently collapsed to just
+    // `{ $ne: '' }` at runtime (JS object literals keep the last duplicate
+    // key), so the `null` exclusion never actually applied. Preserved as-is
+    // to keep current behavior; see FLAGGED BUG in the task report.
+    const notEmpty = [{ $match: { _id: { $ne: '' } } }];
     const [
       byTargetDegree,
       byApplicationSemester,

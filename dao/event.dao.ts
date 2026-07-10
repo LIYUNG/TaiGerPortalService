@@ -1,4 +1,4 @@
-import { FilterQuery, UpdateQuery } from 'mongoose';
+import { FilterQuery, SortOrder, UpdateQuery } from 'mongoose';
 import { IEvent } from '@taiger-common/model';
 import { Event } from '../models';
 
@@ -19,17 +19,19 @@ const parseEventsQuery = (
   } = {}
 ) => {
   const { page, limit, sortOrder } = query;
-  const parsedPage = parseInt(page, 10);
-  const parsedLimit = parseInt(limit, 10);
+  const parsedPage = typeof page === 'number' ? page : parseInt(page ?? '', 10);
+  const parsedLimit =
+    typeof limit === 'number' ? limit : parseInt(limit ?? '', 10);
   const safePage = parsedPage > 0 ? parsedPage : DEFAULT_PAGE;
   const safeLimit =
     parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT;
-  const sortDir = String(sortOrder || 'desc').toLowerCase() === 'asc' ? 1 : -1;
+  const sortDir: SortOrder =
+    String(sortOrder || 'desc').toLowerCase() === 'asc' ? 1 : -1;
   return {
     page: safePage,
     limit: safeLimit,
     skip: (safePage - 1) * safeLimit,
-    sort: { start: sortDir, _id: 1 }
+    sort: { start: sortDir, _id: 1 as SortOrder }
   };
 };
 

@@ -12,15 +12,26 @@ jest.mock('../../services/students');
 jest.mock('../../services/users');
 
 import { Role } from '@taiger-common/core';
-import StudentService from '../../services/students';
-import UserService from '../../services/users';
-import {
-  getExpenses,
-  getExpense,
-  syncExpense
-} from '../../controllers/expenses';
+import StudentServiceModule from '../../services/students';
+import UserServiceModule from '../../services/users';
+import ExpensesController from '../../controllers/expenses';
 import { mockReq, mockRes } from '../helpers/httpMocks';
 import { admin, agent, editor, student } from '../mock/user';
+
+// Auto-mocked module methods expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()/.mockRejectedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const UserService = UserServiceModule as unknown as MockedModule;
+
+// The controller module uses `export =`, so its members are destructured off
+// the default-imported object; the handlers themselves are asyncHandler-wrapped
+// (req, res) functions, but tests call them with an extra `next` arg for the
+// forward-to-next() cases, so re-type each as a variadic handler.
+type ControllerHandler = (...args: unknown[]) => Promise<unknown>;
+const { getExpenses, getExpense, syncExpense } =
+  ExpensesController as unknown as Record<string, ControllerHandler>;
 
 beforeEach(() => {
   jest.clearAllMocks();

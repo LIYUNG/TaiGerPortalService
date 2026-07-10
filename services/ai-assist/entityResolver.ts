@@ -1,6 +1,10 @@
 import type { Request } from 'express';
 
-import { searchAccessibleStudents, requireAccessibleStudent } from './tools';
+import tools from './tools';
+
+// `tools` is a CommonJS (`export =`) module; under isolatedModules it must be
+// imported as a default and destructured here rather than via a named import.
+const { searchAccessibleStudents, requireAccessibleStudent } = tools;
 
 // Mongoose lean student documents (union of FlattenMaps shapes) are probed
 // structurally here, so the param is left untyped.

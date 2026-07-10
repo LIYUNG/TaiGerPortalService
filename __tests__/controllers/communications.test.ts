@@ -32,11 +32,47 @@ jest.mock('../../aws/s3', () => ({
   getS3Object: jest.fn().mockResolvedValue(Buffer.from(''))
 }));
 
-import CommunicationService from '../../services/communications';
-import CommunicationDraftService from '../../services/communicationDraft';
-import StudentService from '../../services/students';
+import type { Request, Response, NextFunction } from 'express';
+
+import CommunicationServiceModule from '../../services/communications';
+import CommunicationDraftServiceModule from '../../services/communicationDraft';
+import StudentServiceModule from '../../services/students';
 import { ten_minutes_cache } from '../../cache/node-cache';
-import {
+import * as CommunicationsControllerModule from '../../controllers/communications';
+import { deleteS3Objects } from '../../aws/s3';
+import { admin, agent, editor, student } from '../mock/user';
+
+// The service modules above are auto-mocked (jest.mock(...) above), so their
+// methods are jest.fn()s at runtime even though TS still sees the real
+// signatures. Re-type each as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()/.mockRejectedValue()/.mock` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const CommunicationService =
+  CommunicationServiceModule as unknown as MockedModule;
+const CommunicationDraftService =
+  CommunicationDraftServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+// `deleteS3Objects` is a single named auto-mocked function (not a service
+// module default export); cast it per-call to a jest.Mock.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The controller handlers are plain (req, res, next) functions at runtime
+// (asyncHandler's wrapper always accepts 3 args, forwarding rejections to
+// `next`), even though a given handler's own declared parameter list may be
+// shorter (e.g. `(req, res) => {}` for handlers that never call next()). Cast
+// the whole exported namespace to a uniform call signature so every test call
+// site — which always passes (req, res, next) for consistency — type-checks.
+type ControllerHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<void>;
+const CommunicationsController =
+  CommunicationsControllerModule as unknown as Record<
+    string,
+    ControllerHandler
+  >;
+const {
   getSearchUserMessages,
   getSearchMessageKeywords,
   getUnreadNumberMessages,
@@ -53,10 +89,9 @@ import {
   deleteCommunicationDraft,
   uploadCommunicationDraftFiles,
   deleteCommunicationDraftFile
-} from '../../controllers/communications';
-import { deleteS3Objects } from '../../aws/s3';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, agent, editor, student } from '../mock/user';
+} = CommunicationsController;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 
 const studentId = student._id.toString();
 const messageId = '6f9f1b9b9b9b9b9b9b9b9b9b';
@@ -890,7 +925,7 @@ describe('deleteAMessageInCommunicationThread', () => {
       student_id: studentId,
       files: [{ name: 'a.pdf', path: `${studentId}/chat/a.pdf` }]
     });
-    deleteS3Objects.mockRejectedValueOnce(new Error('s3 down'));
+    asMock(deleteS3Objects).mockRejectedValueOnce(new Error('s3 down'));
     const next = jest.fn();
 
     await deleteAMessageInCommunicationThread(

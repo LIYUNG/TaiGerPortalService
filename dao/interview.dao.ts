@@ -20,7 +20,7 @@ const MAX_LIMIT = 100;
 // Map the field names the frontend table sends -> the field/path the aggregation
 // pipeline can sort on. Joined fields live under `student`/`program`; the
 // computed status/duplicate/survey/event-start live at the top level.
-const SORT_FIELD_MAP = {
+const SORT_FIELD_MAP: Record<string, string> = {
   status: 'status',
   isDuplicate: 'isDuplicate',
   surveySubmitted: 'surveySubmitted',
@@ -179,13 +179,13 @@ const parseInterviewsQuery = (
   } = {}
 ) => {
   const { page, limit, search, sortBy, sortOrder } = query;
-  const parsedPage = parseInt(page, 10);
-  const parsedLimit = parseInt(limit, 10);
+  const parsedPage = parseInt(page ?? '', 10);
+  const parsedLimit = parseInt(limit ?? '', 10);
   const safePage = parsedPage > 0 ? parsedPage : DEFAULT_PAGE;
   const safeLimit =
     parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT;
 
-  const sortPath = SORT_FIELD_MAP[sortBy] || 'interview_date';
+  const sortPath = SORT_FIELD_MAP[sortBy ?? ''] || 'interview_date';
   const sortDir = String(sortOrder || 'desc').toLowerCase() === 'asc' ? 1 : -1;
 
   const filters: Record<string, unknown> = {};
@@ -236,7 +236,7 @@ const parseInterviewsQuery = (
     search: typeof search === 'string' ? search.trim() : '',
     filters,
     // Stable secondary sort on _id so pagination is deterministic.
-    sort: { [sortPath]: sortDir, _id: 1 }
+    sort: { [sortPath]: sortDir, _id: 1 } as Record<string, 1 | -1>
   };
 };
 
@@ -409,7 +409,7 @@ const InterviewDAO = {
     }
     const postMatch = andConditions.length > 0 ? { $and: andConditions } : {};
 
-    const pipeline = [
+    const pipeline: mongoose.PipelineStage[] = [
       { $match: normalizeAggregateFilter(filter) },
       {
         $lookup: {
@@ -598,8 +598,8 @@ const InterviewDAO = {
     }
 
     const ids = rows.map((row: any) => row._id);
-    const computedById = new Map(
-      rows.map((row: any) => [
+    const computedById = new Map<string, Record<string, unknown>>(
+      rows.map((row: any): [string, Record<string, unknown>] => [
         row._id.toString(),
         {
           status: row.status,
@@ -617,14 +617,20 @@ const InterviewDAO = {
 
     // Re-attach the computed columns and restore the aggregation sort order
     // ($in does not preserve it).
-    const orderMap = new Map(
-      ids.map((id: any, index: number) => [id.toString(), index])
+    const orderMap = new Map<string, number>(
+      ids.map((id: any, index: number): [string, number] => [
+        id.toString(),
+        index
+      ])
     );
     const interviews = docs
-      .map((doc: any) => ({ ...doc, ...computedById.get(doc._id.toString()) }))
+      .map((doc: any) => ({
+        ...doc,
+        ...(computedById.get(doc._id.toString()) ?? {})
+      }))
       .sort(
         (a: any, b: any) =>
-          orderMap.get(a._id.toString()) - orderMap.get(b._id.toString())
+          orderMap.get(a._id.toString())! - orderMap.get(b._id.toString())!
       );
 
     return { interviews, total, page, limit };

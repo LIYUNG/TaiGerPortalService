@@ -9,6 +9,7 @@ import {
   is_TaiGer_Student,
   isProgramDecided
 } from '@taiger-common/core';
+import type { IUser } from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
@@ -2041,7 +2042,7 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
 
   for (let i = 0; i < toBeInformedEditors.length; i += 1) {
     if (isNotArchiv(student_upated)) {
-      if (isNotArchiv(toBeInformedEditors[i])) {
+      if (isNotArchiv(toBeInformedEditors[i] as unknown as IUser)) {
         await informEssayWriterNewEssayEmail(
           {
             firstname: toBeInformedEditors[i].firstname,

@@ -7,10 +7,18 @@ jest.mock('../../dao/docspage.dao');
 jest.mock('../../dao/documentation.dao');
 jest.mock('../../dao/internaldoc.dao');
 
-import DocspageDAO from '../../dao/docspage.dao';
-import DocumentationDAO from '../../dao/documentation.dao';
-import InternaldocDAO from '../../dao/internaldoc.dao';
+import DocspageDAOModule from '../../dao/docspage.dao';
+import DocumentationDAOModule from '../../dao/documentation.dao';
+import InternaldocDAOModule from '../../dao/internaldoc.dao';
 import DocumentationService from '../../services/documentations';
+
+// The DAOs are auto-mocked above; re-type each as a bag of jest.Mock methods
+// so the per-test `.mockResolvedValue()` calls type-check while still
+// allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const DocspageDAO = DocspageDAOModule as unknown as MockedDAO;
+const DocumentationDAO = DocumentationDAOModule as unknown as MockedDAO;
+const InternaldocDAO = InternaldocDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();

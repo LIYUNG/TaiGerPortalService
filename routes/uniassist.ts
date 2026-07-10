@@ -7,8 +7,10 @@ import { multitenant_filter } from '../middlewares/multitenant-filter';
 
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 
-import { getStudentUniAssist } from '../controllers/uniassist';
+import uniassistController from '../controllers/uniassist';
 import { permission_canAccessStudentDatabase_filter } from '../middlewares/permission-filter';
+
+const { getStudentUniAssist } = uniassistController;
 
 const router = Router();
 

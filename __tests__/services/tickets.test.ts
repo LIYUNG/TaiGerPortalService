@@ -4,8 +4,14 @@
 // DAO method with the exact args and returns the DAO's result.
 jest.mock('../../dao/ticket.dao');
 
-import TicketDAO from '../../dao/ticket.dao';
+import TicketDAOModule from '../../dao/ticket.dao';
 import TicketService from '../../services/tickets';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()` calls type-check while still allowing
+// partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const TicketDAO = TicketDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -14,7 +20,9 @@ beforeEach(() => {
 describe('TicketService (mocked DAO)', () => {
   it('getTickets delegates with query + options and returns its result', async () => {
     const query = { status: 'open' };
-    const options = { sort: { createdAt: -1 } };
+    const options = { sort: { createdAt: -1 } } as unknown as Parameters<
+      typeof TicketService.getTickets
+    >[1];
     const daoResult = [{ _id: 'tk1' }];
     TicketDAO.getTickets.mockResolvedValue(daoResult);
 
@@ -105,7 +113,10 @@ describe('TicketService (mocked DAO)', () => {
   });
 
   it('createTicket delegates with data and returns its result', async () => {
-    const data = { title: 'Missing transcript', programId: 'p1' };
+    const data = {
+      title: 'Missing transcript',
+      programId: 'p1'
+    } as unknown as Parameters<typeof TicketService.createTicket>[0];
     const daoResult = { _id: 'tk1', ...data };
     TicketDAO.createTicket.mockResolvedValue(daoResult);
 

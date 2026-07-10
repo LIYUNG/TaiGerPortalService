@@ -3,8 +3,16 @@
 // get*Populated methods map onto differently-named DAO find*Populated methods.
 jest.mock('../../dao/responseTime.dao');
 
-import ResponseTimeDAO from '../../dao/responseTime.dao';
+import type { AnyBulkWriteOperation } from 'mongoose';
+import type { IResponseTime } from '@taiger-common/model';
+import ResponseTimeDAOModule from '../../dao/responseTime.dao';
 import ResponseTimeService from '../../services/responseTimes';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()` calls type-check while still allowing
+// partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const ResponseTimeDAO = ResponseTimeDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -12,7 +20,9 @@ beforeEach(() => {
 
 describe('ResponseTimeService.bulkWrite (mocked DAO)', () => {
   it('delegates to DAO.bulkWrite with operations and returns its result', async () => {
-    const operations = [{ updateOne: {} }];
+    const operations = [
+      { updateOne: {} }
+    ] as unknown as AnyBulkWriteOperation<IResponseTime>[];
     const daoResult = { ok: 1, nModified: 1 };
     ResponseTimeDAO.bulkWrite.mockResolvedValue(daoResult);
 

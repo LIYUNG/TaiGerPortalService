@@ -19,13 +19,20 @@ jest.mock('../../database', () => {
   // A chainable + awaitable Drizzle double. `_setSelect` controls what an
   // awaited select chain resolves to; `_setReturning` controls insert/update
   // .returning().
-  const state = { selectResult: [], returningResult: [] };
+  const state: { selectResult: unknown; returningResult: unknown[] } = {
+    selectResult: [],
+    returningResult: []
+  };
 
-  const builder = {};
-  builder.then = (resolve, reject) =>
-    Promise.resolve(state.selectResult).then(resolve, reject);
-  builder.catch = (cb) => Promise.resolve(state.selectResult).catch(cb);
-  builder.finally = (cb) => Promise.resolve(state.selectResult).finally(cb);
+  const builder: Record<string, unknown> = {};
+  builder.then = (
+    resolve: (value: unknown) => void,
+    reject: (reason?: unknown) => void
+  ) => Promise.resolve(state.selectResult).then(resolve, reject);
+  builder.catch = (cb: (reason?: unknown) => void) =>
+    Promise.resolve(state.selectResult).catch(cb);
+  builder.finally = (cb: () => void) =>
+    Promise.resolve(state.selectResult).finally(cb);
 
   [
     'select',
@@ -49,17 +56,19 @@ jest.mock('../../database', () => {
     .fn()
     .mockImplementation(() => Promise.resolve(state.returningResult));
 
-  const mockPostgresDb = {
+  const mockPostgresDb: Record<string, unknown> = {
     ...builder,
     $with: jest.fn().mockReturnValue({ as: jest.fn().mockReturnValue({}) }),
     with: jest.fn().mockReturnValue(builder),
-    transaction: jest.fn(async (cb) => cb(mockPostgresDb)),
+    transaction: jest.fn(async (cb: (db: unknown) => unknown) =>
+      cb(mockPostgresDb)
+    ),
     execute: jest.fn().mockResolvedValue([]),
     query: { leads: { findFirst: jest.fn().mockResolvedValue(null) } },
-    _setSelect: (v) => {
+    _setSelect: (v: unknown) => {
       state.selectResult = v;
     },
-    _setReturning: (v) => {
+    _setReturning: (v: unknown[]) => {
       state.returningResult = v;
     },
     _reset: () => {
@@ -90,10 +99,48 @@ jest.mock('../../cache/node-cache', () => ({
 }));
 
 const { ObjectId } = require('mongoose').Types;
+import type { Request, Response, NextFunction } from 'express';
 import { getPostgresDb } from '../../database';
-import UserService from '../../services/users';
+import UserServiceModule from '../../services/users';
 import { instantInviteTA } from '../../utils/meeting-assistant.service';
-import {
+import crmControllerModule = require('../../controllers/crm');
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+import { admin, student } from '../mock/user';
+
+// Auto-mocked '../../services/users' exposes jest.fn()s at runtime, but TS
+// still sees the real signatures; cast to a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const UserService = UserServiceModule as unknown as MockedModule;
+
+// The '../../utils/meeting-assistant.service' factory mock above returns
+// jest.fn()s, but TS still sees the real `instantInviteTA` signature. `asMock`
+// casts a binding to jest.Mock so `.mockResolvedValue()` type-checks.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// getPostgresDb() is fully replaced by the jest.mock('../../database') factory
+// above; re-type the returned double as a bag of jest.Mock methods plus the
+// test-only `_setSelect`/`_setReturning`/`_reset` helpers (see
+// __tests__/integration/crm.test.ts for the same pattern).
+type MockedPostgresDb = Record<string, jest.Mock> & {
+  query: { leads: { findFirst: jest.Mock } };
+  _setSelect: (v: unknown) => void;
+  _setReturning: (v: unknown[]) => void;
+  _reset: () => void;
+};
+const postgres = getPostgresDb() as unknown as MockedPostgresDb;
+
+// controllers/crm uses `export =`; the handlers are wrapped in asyncHandler,
+// whose exposed type mirrors each wrapped function's own (req, res) parameter
+// list. Tests call the handlers directly as (req, res, next), so re-type the
+// module as a bag of full 3-arg handlers.
+type Handler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<unknown>;
+const crmController = crmControllerModule as unknown as Record<string, Handler>;
+const {
   getCRMStats,
   getLeads,
   getLead,
@@ -113,11 +160,7 @@ import {
   createDeal,
   updateDeal,
   instantInviteMeetingAssistant
-} from '../../controllers/crm';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, student } from '../mock/user';
-
-const postgres = getPostgresDb();
+} = crmController;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -143,7 +186,8 @@ describe('getLeads', () => {
     const err = new Error('pg down');
     // Make the awaited select chain reject.
     postgres.orderBy.mockReturnValueOnce({
-      then: (_res, rej) => Promise.reject(err).then(_res, rej)
+      then: (_res: (value: unknown) => void, rej: (reason?: unknown) => void) =>
+        Promise.reject(err).then(_res, rej)
     });
     const next = jest.fn();
 
@@ -356,7 +400,10 @@ describe('updateDeal', () => {
 
 describe('instantInviteMeetingAssistant', () => {
   it('200: forwards summary + link to the meeting assistant on success', async () => {
-    instantInviteTA.mockResolvedValue({ success: true, meetingId: 'm-1' });
+    asMock(instantInviteTA).mockResolvedValue({
+      success: true,
+      meetingId: 'm-1'
+    });
     const res = mockRes();
 
     await instantInviteMeetingAssistant(
@@ -386,7 +433,7 @@ describe('instantInviteMeetingAssistant', () => {
   });
 
   it('500: when the meeting assistant reports failure', async () => {
-    instantInviteTA.mockResolvedValue({ success: false });
+    asMock(instantInviteTA).mockResolvedValue({ success: false });
     const res = mockRes();
 
     await instantInviteMeetingAssistant(

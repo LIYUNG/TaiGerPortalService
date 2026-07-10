@@ -9,7 +9,16 @@ import {
 } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
 
-import {
+import complaintsController from '../controllers/complaints';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { complaintTicketMultitenant_filter } from '../middlewares/multitenant-filter';
+import { MessagesTicketUpload } from '../middlewares/file-upload';
+import { validateStudentId } from '../common/validation';
+// const {
+//   permission_canModifyComplaintList_filter
+// } = require('../middlewares/permission-filter');
+
+const {
   getComplaints,
   getComplaint,
   createComplaint,
@@ -19,14 +28,7 @@ import {
   postMessageInTicket,
   getMessageFileInTicket,
   updateAMessageInComplaint
-} from '../controllers/complaints';
-import { filter_archiv_user } from '../middlewares/limit_archiv_user';
-import { complaintTicketMultitenant_filter } from '../middlewares/multitenant-filter';
-import { MessagesTicketUpload } from '../middlewares/file-upload';
-import { validateStudentId } from '../common/validation';
-// const {
-//   permission_canModifyComplaintList_filter
-// } = require('../middlewares/permission-filter');
+} = complaintsController;
 
 const router = Router();
 

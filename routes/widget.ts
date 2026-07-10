@@ -7,11 +7,13 @@ import {
 } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
 
-import {
+import widgetController from '../controllers/widget';
+
+const {
   WidgetExportMessagePDF,
   WidgetProcessTranscriptV2,
   WidgetdownloadJson
-} from '../controllers/widget';
+} = widgetController;
 
 const router = Router();
 

@@ -3,13 +3,15 @@ import { Role } from '@taiger-common/core';
 
 import { GeneralGETRequestRateLimiter } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
-import { processProgramListAi, cvmlrlAi } from '../controllers/taigerais';
+import taigeraisController from '../controllers/taigerais';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import {
   permission_canModifyProgramList_filter,
   permission_canUseTaiGerAI_filter,
   permission_TaiGerAIRatelimiter
 } from '../middlewares/permission-filter';
+
+const { processProgramListAi, cvmlrlAi } = taigeraisController;
 
 const router = Router();
 router.use(protect);

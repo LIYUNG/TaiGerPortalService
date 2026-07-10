@@ -1,5 +1,6 @@
 import path from 'path';
 import { Role } from '@taiger-common/core';
+import type { IDocumentthread } from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
 import { AWS_S3_BUCKET_NAME } from '../config';
@@ -7,7 +8,13 @@ import { getS3Object, headS3ObjectSize } from '../aws/s3';
 import UserService from './users';
 import StudentService from './students';
 import DocumentThreadService from './documentthreads';
-import { sendEmailWithAttachments } from './email/configuration';
+// `email/configuration.ts` uses `export =`; import via `require` interop
+// since a named `import { sendEmailWithAttachments }` against an `export =`
+// module is rejected under this project's module settings (TS2497).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see comment above
+import EmailConfiguration = require('./email/configuration');
+
+const { sendEmailWithAttachments } = EmailConfiguration;
 
 const STAFF_ROLES = [Role.Admin, Role.Manager, Role.Agent, Role.Editor];
 
@@ -186,7 +193,12 @@ const forwardStudentDocuments = async ({
   // CV / ML / RL — the latest uploaded file(s) of each requested thread.
   const requestedThreadIds = toIdArray(threadIds);
   for (const threadId of requestedThreadIds) {
-    const thread = await DocumentThreadService.getThreadByIdLean(threadId);
+    // `Documentthread` is compiled from an untyped `model()` call, so `.lean()`
+    // resolves to a generic `FlattenMaps<any>` shape; cast to the real domain
+    // type (the fields read below match `IDocumentthread` exactly).
+    const thread = (await DocumentThreadService.getThreadByIdLean(
+      threadId
+    )) as IDocumentthread | null;
     if (!thread) {
       throw new ErrorResponse(404, `Document thread not found: ${threadId}`);
     }
@@ -199,8 +211,8 @@ const forwardStudentDocuments = async ({
       );
     }
     const fileGroups = (thread.messages || [])
-      .filter((msg: { file: ForwardFile[] }) => msg.file?.length > 0)
-      .map((msg: { file: ForwardFile[] }) => msg.file);
+      .filter((msg) => (msg.file?.length ?? 0) > 0)
+      .map((msg) => msg.file as ForwardFile[]);
     descriptors.push({
       label: thread.file_type || 'Document',
       files: fileGroups.length > 0 ? fileGroups[fileGroups.length - 1] : []

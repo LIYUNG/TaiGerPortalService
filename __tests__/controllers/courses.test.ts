@@ -29,18 +29,35 @@ jest.mock('../../aws/s3', () => ({
   uploadJsonToS3: jest.fn().mockResolvedValue(undefined)
 }));
 
-import CourseService from '../../services/course';
-import StudentService from '../../services/students';
+import CourseServiceModule from '../../services/course';
+import StudentServiceModule from '../../services/students';
 import { getS3Object } from '../../aws/s3';
-import {
+import CourseController from '../../controllers/course';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
+
+// Auto-mocked module methods expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()/.mockRejectedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const CourseService = CourseServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+// getS3Object is a named auto-mocked function (not a full module object);
+// cast it to jest.Mock for the per-test `.mockResolvedValue()` calls.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The controller module uses `export =`, so its members are destructured off
+// the default-imported object; the handlers themselves are asyncHandler-wrapped
+// (req, res) functions, but tests call them with an extra `next` arg for the
+// forward-to-next() cases, so re-type each as a variadic handler.
+type ControllerHandler = (...args: unknown[]) => Promise<unknown>;
+const {
   getMycourses,
   putMycourses,
   deleteMyCourse,
   downloadJson,
   processTranscript_api_gatway
-} from '../../controllers/course';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, student } from '../mock/user';
+} = CourseController as unknown as Record<string, ControllerHandler>;
 
 const studentId = student._id.toString();
 
@@ -180,7 +197,7 @@ describe('downloadJson', () => {
       student_id: { _id: studentId },
       analysis: { isAnalysedV2: true, pathV2: `${studentId}/analysed.json` }
     });
-    getS3Object.mockResolvedValue(Buffer.from('{"score":5}'));
+    asMock(getS3Object).mockResolvedValue(Buffer.from('{"score":5}'));
     const res = mockRes();
 
     await downloadJson(mockReq({ params: { studentId } }), res, jest.fn());

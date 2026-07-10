@@ -7,18 +7,56 @@ jest.mock('../../../utils/queryFunctions', () => ({
 }));
 
 import { Role } from '../../../constants';
-import { getPostgresDb } from '../../../database';
-import { getPermission } from '../../../utils/queryFunctions';
-import StudentService from '../../../services/students';
-import ApplicationService from '../../../services/applications';
-import CommunicationService from '../../../services/communications';
-import ComplaintService from '../../../services/complaints';
-import DocumentThreadService from '../../../services/documentthreads';
-import ProgramService from '../../../services/programs';
+import { getPostgresDb as getPostgresDbModule } from '../../../database';
+import { getPermission as getPermissionModule } from '../../../utils/queryFunctions';
+import StudentServiceModule from '../../../services/students';
+import ApplicationServiceModule from '../../../services/applications';
+import CommunicationServiceModule from '../../../services/communications';
+import ComplaintServiceModule from '../../../services/complaints';
+import DocumentThreadServiceModule from '../../../services/documentthreads';
+import ProgramServiceModule from '../../../services/programs';
 import tools from '../../../services/ai-assist/tools';
 
-const { runTool, hasTool, AI_ASSIST_TOOL_NAMES, normalizeStudentPickerRow } =
-  tools;
+// These service modules are NOT auto-mocked via `jest.mock(...)`; each method
+// is stubbed per-test via `jest.spyOn`. TS still sees the real, strictly-typed
+// signatures though, so re-type each as a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()/.mockResolvedValueOnce()/.mock.calls` access
+// type-checks while still allowing partial (non-Mongoose) return shapes. The
+// `jest.spyOn` calls below operate on the very same runtime object references,
+// so the cast has no effect on behavior.
+type MockedModule = Record<string, jest.Mock>;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const ApplicationService = ApplicationServiceModule as unknown as MockedModule;
+const CommunicationService =
+  CommunicationServiceModule as unknown as MockedModule;
+const ComplaintService = ComplaintServiceModule as unknown as MockedModule;
+const DocumentThreadService =
+  DocumentThreadServiceModule as unknown as MockedModule;
+const ProgramService = ProgramServiceModule as unknown as MockedModule;
+
+// `database` and `utils/queryFunctions` ARE auto-mocked above via factories;
+// TS resolves the named imports against the real module signatures, so cast
+// each single binding to jest.Mock for the per-test `.mockReturnValue()` /
+// `.mockResolvedValueOnce()` calls.
+const getPostgresDb = getPostgresDbModule as unknown as jest.Mock;
+const getPermission = getPermissionModule as unknown as jest.Mock;
+
+// `tools` is a CommonJS (`export =`) module. `runTool`'s inferred return type
+// is a union across every handler in the registry (since the handler is
+// looked up by a runtime-only `toolName` string), which TS cannot narrow at
+// any individual call site, and its `args` parameter is required even though
+// several tests intentionally pass `undefined` to exercise each handler's own
+// `= {}` default-arg branch. Cast to a permissive signature so
+// `result.data.<field>` access and `undefined` args type-check without
+// touching call sites or assertions.
+const { hasTool, AI_ASSIST_TOOL_NAMES, normalizeStudentPickerRow } = tools;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AiToolResult = { data: any };
+const runTool = tools.runTool as unknown as (
+  req: unknown,
+  toolName: string,
+  args?: unknown
+) => Promise<AiToolResult>;
 
 const ADMIN_REQ = { user: { role: Role.Admin, _id: 'admin_1' } };
 
@@ -64,7 +102,10 @@ describe('registry metadata', () => {
     expect(hasTool('get_student_context')).toBe(true);
     expect(hasTool('does_not_exist')).toBe(false);
     expect(() => {
-      AI_ASSIST_TOOL_NAMES.push('x');
+      // The registry name list is `Object.freeze`d at runtime (readonly at the
+      // type level); cast to a mutable array so the intentional
+      // frozen-array-throws assertion below type-checks.
+      (AI_ASSIST_TOOL_NAMES as unknown as string[]).push('x');
     }).toThrow();
   });
 
@@ -255,7 +296,8 @@ describe('get_student_applications & get_application_context', () => {
       studentId: 'student_1'
     });
     const byId = Object.fromEntries(
-      result.data.applications.map((a) => [a.id, a])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      result.data.applications.map((a: any) => [a.id, a])
     );
     expect(byId.a_final.status).toBe('final_enrolled');
     expect(byId.a_final.decision).toBe('final enrolment confirmed');
@@ -385,12 +427,14 @@ describe('document tools', () => {
     expect(result.data.totalThreads).toBe(2);
     expect(result.data.openThreadsCount).toBe(1);
     const appThread = result.data.threads.find(
-      (t) => t.threadType === 'application'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (t: any) => t.threadType === 'application'
     );
     expect(appThread.program).toMatchObject({ school: 'TU', name: 'CS' });
     expect(appThread.pendingOwner).toBe('team');
     const generalThread = result.data.threads.find(
-      (t) => t.threadType === 'general'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (t: any) => t.threadType === 'general'
     );
     expect(generalThread.riskFlags).toEqual(
       expect.arrayContaining(['no_recent_message'])

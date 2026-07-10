@@ -6,7 +6,11 @@
 // require time, each scenario uses jest.isolateModules + fresh mocks so the
 // module picks up the desired flags.
 
-const setup = ({ prod = false, test = false, logLevel } = {}) => {
+const setup = ({
+  prod = false,
+  test = false,
+  logLevel
+}: { prod?: boolean; test?: boolean; logLevel?: string } = {}) => {
   jest.resetModules();
   if (logLevel === undefined) {
     delete process.env.LOG_LEVEL;
@@ -27,9 +31,9 @@ const setup = ({ prod = false, test = false, logLevel } = {}) => {
   return { logger, getRequestId };
 };
 
-let logSpy;
-let warnSpy;
-let errorSpy;
+let logSpy: jest.SpyInstance;
+let warnSpy: jest.SpyInstance;
+let errorSpy: jest.SpyInstance;
 
 beforeEach(() => {
   logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});

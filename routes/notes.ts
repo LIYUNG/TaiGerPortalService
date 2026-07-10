@@ -6,8 +6,10 @@ import {
   GeneralPUTRequestRateLimiter
 } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
-import { getStudentNotes, updateStudentNotes } from '../controllers/notes';
+import notesController from '../controllers/notes';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+
+const { getStudentNotes, updateStudentNotes } = notesController;
 
 const router = Router();
 router.use(protect);

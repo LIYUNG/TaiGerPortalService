@@ -10,7 +10,20 @@ import {
 } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
 
-import {
+import programsController from '../controllers/programs';
+import programChangeRequestsController from '../controllers/programChangeRequests';
+import { filter_archiv_user } from '../middlewares/limit_archiv_user';
+import { permission_canModifyProgramList_filter } from '../middlewares/permission-filter';
+import getProgramFilter from '../middlewares/getProgramFilter';
+import { validateProgramId } from '../common/validation';
+
+const {
+  getProgramChangeRequests,
+  submitProgramChangeRequests,
+  reviewProgramChangeRequest
+} = programChangeRequestsController;
+
+const {
   getPrograms,
   getProgram,
   createProgram,
@@ -22,16 +35,7 @@ import {
   getProgramsOverview,
   getSchoolsDistribution,
   getSameProgramStudents
-} from '../controllers/programs';
-import {
-  getProgramChangeRequests,
-  submitProgramChangeRequests,
-  reviewProgramChangeRequest
-} from '../controllers/programChangeRequests';
-import { filter_archiv_user } from '../middlewares/limit_archiv_user';
-import { permission_canModifyProgramList_filter } from '../middlewares/permission-filter';
-import getProgramFilter from '../middlewares/getProgramFilter';
-import { validateProgramId } from '../common/validation';
+} = programsController;
 
 const router = Router();
 

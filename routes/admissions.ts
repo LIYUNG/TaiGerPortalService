@@ -3,16 +3,18 @@ import { Role } from '@taiger-common/core';
 
 import { GeneralGETRequestRateLimiter } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
-import {
-  getAdmissionsProgramCounts,
-  getAdmissionsOverview,
-  getAdmissionsYear,
-  getAdmissionLetter
-} from '../controllers/admissions';
+import admissionsController from '../controllers/admissions';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 import { permission_canAccessStudentDatabase_filter } from '../middlewares/permission-filter';
 import { multitenant_filter } from '../middlewares/multitenant-filter';
 import { validateStudentId } from '../common/validation';
+
+const {
+  getAdmissionsProgramCounts,
+  getAdmissionsOverview,
+  getAdmissionsYear,
+  getAdmissionLetter
+} = admissionsController;
 
 const router = Router();
 router.use(protect);

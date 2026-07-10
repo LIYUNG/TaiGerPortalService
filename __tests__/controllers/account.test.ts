@@ -12,27 +12,62 @@
 jest.mock('../../services/users');
 jest.mock('../../services/email');
 
-import UserService from '../../services/users';
-import { updateCredentialsEmail } from '../../services/email';
+import type { Request, Response, NextFunction } from 'express';
+import UserServiceModule from '../../services/users';
+import { updateCredentialsEmail as updateCredentialsEmailFn } from '../../services/email';
 import {
-  updateOfficehours,
-  updateCredentials,
-  updateAcademicBackground,
-  updateLanguageSkill,
-  updateApplicationPreferenceSkill,
-  updatePersonalData
+  updateOfficehours as updateOfficehoursFn,
+  updateCredentials as updateCredentialsFn,
+  updateAcademicBackground as updateAcademicBackgroundFn,
+  updateLanguageSkill as updateLanguageSkillFn,
+  updateApplicationPreferenceSkill as updateApplicationPreferenceSkillFn,
+  updatePersonalData as updatePersonalDataFn
 } from '../../controllers/account';
-import { mockReq, mockRes } from '../helpers/httpMocks';
 import { student, agent } from '../mock/user';
+// helpers/httpMocks is a plain CommonJS file (no import/export statements), so
+// TS sees it as a script, not a module (TS2306) — require() sidesteps that.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the real
+// signatures. Re-type each as a bag of jest.Mock methods so the per-test
+// mock-configuration calls (mockResolvedValue/mockRejectedValue/...)
+// type-check while still allowing partial (non-Mongoose) return shapes.
+type MockedService = Record<string, jest.Mock>;
+const UserService = UserServiceModule as unknown as MockedService;
+const asMock = (fn: unknown) => fn as jest.Mock;
+const updateCredentialsEmail = asMock(updateCredentialsEmailFn);
+
+// Each handler is `asyncHandler(async (req, res) => {...})`: asyncHandler
+// PRESERVES the wrapped callback's own (2-arg) parameter list in its exported
+// type, but its runtime closure always accepts (req, res, next) and forwards
+// rejections to next via `.catch(next)` (see middlewares/error-handler.ts).
+// These tests rely on that 3rd `next` argument actually being invoked on
+// error, so cast to the real runtime signature rather than dropping the arg.
+type CtrlHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<void>;
+const updateOfficehours = updateOfficehoursFn as unknown as CtrlHandler;
+const updateCredentials = updateCredentialsFn as unknown as CtrlHandler;
+const updateAcademicBackground =
+  updateAcademicBackgroundFn as unknown as CtrlHandler;
+const updateLanguageSkill = updateLanguageSkillFn as unknown as CtrlHandler;
+const updateApplicationPreferenceSkill =
+  updateApplicationPreferenceSkillFn as unknown as CtrlHandler;
+const updatePersonalData = updatePersonalDataFn as unknown as CtrlHandler;
 
 const studentId = student._id.toString();
 
 // A minimal Mongoose-document double for the handlers that mutate a student doc
 // (academic background / language). `profile` is a real array (so find/push
 // work) augmented with a `.create()` factory and the doc carries a `.save()`.
-const makeStudentDoc = (overrides = {}) => {
-  const profile = [];
-  profile.create = (fields) => ({ ...fields });
+const makeStudentDoc = (overrides: Record<string, unknown> = {}) => {
+  const profile: Record<string, unknown>[] & {
+    create?: (fields: Record<string, unknown>) => Record<string, unknown>;
+  } = [];
+  profile.create = (fields: Record<string, unknown>) => ({ ...fields });
   return {
     profile,
     academic_background: {
@@ -408,7 +443,7 @@ describe('updateLanguageSkill', () => {
     const germanDoc = doc.profile.find(
       (d) => d.name === ProfileNameType.German_Certificate
     );
-    expect(germanDoc.status).toBe(DocumentStatusType.NotNeeded);
+    expect(germanDoc!.status).toBe(DocumentStatusType.NotNeeded);
     expect(doc.save).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
   });

@@ -6,8 +6,14 @@
 // which is covered explicitly.
 jest.mock('../../dao/user.dao');
 
-import UserDAO from '../../dao/user.dao';
+import UserDAOModule from '../../dao/user.dao';
 import UserService from '../../services/users';
+
+// UserDAO is auto-mocked above; re-type it as a bag of jest.Mock methods so
+// the per-test `.mockReturnValue()/.mockResolvedValue()` calls type-check
+// while still allowing partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const UserDAO = UserDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -67,7 +73,9 @@ describe('UserService (mocked DAO)', () => {
     const daoResult = { users: [], total: 0 };
     UserDAO.getUsersPaginated.mockResolvedValue(daoResult);
 
-    const result = await UserService.getUsersPaginated(args);
+    const result = await UserService.getUsersPaginated(
+      args as unknown as Parameters<typeof UserService.getUsersPaginated>[0]
+    );
 
     expect(UserDAO.getUsersPaginated).toHaveBeenCalledTimes(1);
     expect(UserDAO.getUsersPaginated).toHaveBeenCalledWith(args);

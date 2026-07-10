@@ -10,6 +10,7 @@ import {
 import type {
   ICommunication,
   ICommunicationFile,
+  IPermission,
   IStudent,
   IUser
 } from '@taiger-common/model';
@@ -38,6 +39,28 @@ const pageSize = 5;
 type PopulatedStudent = IStudent & {
   _id: { toString(): string };
   agents: IUser[];
+};
+
+// `findThreadPopulated` returns a live (non-lean) Mongoose document, but its
+// return type is a broad lean/hydrated union (see dao/communication.dao.ts).
+// This narrows to the shape actually read/mutated in `getMessages` below: a
+// hydrated doc whose `readBy` has been populated to user docs (and into which a
+// bare ObjectId is subsequently pushed for the mark-as-read write).
+type MessageThreadDoc = Omit<ICommunication, 'readBy' | 'timeStampReadBy'> & {
+  _id: { toString(): string };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- readBy mixes
+  // populated IUser docs (read) with a raw pushed ObjectId (write); no single
+  // structural type covers both without changing runtime behavior.
+  readBy: any[];
+  timeStampReadBy?: Record<string, Date>;
+  save: () => Promise<unknown>;
+  populate: (path: string, select?: string) => Promise<unknown>;
+};
+
+// A single message from a populated thread, narrowed to just the `user_id`
+// ref needed to detect 3 consecutive student messages in `postMessages`.
+type MessageWithUserRef = {
+  user_id?: { _id: { toString(): string } };
 };
 
 // Friendly, human-readable display/download name for a chat attachment. The S3
@@ -255,7 +278,9 @@ export const getSearchUserMessages = asyncHandler(async (req, res) => {
   const studentsWithCommunications =
     await StudentService.getStudentsWithLatestCommunication();
 
-  const permissions = await getPermission(req, user);
+  const permissions = (await getPermission(req, user)) as
+    | IPermission
+    | undefined;
   if (
     is_TaiGer_Admin(user) ||
     (is_TaiGer_Agent(user) && permissions?.canAccessAllChat)
@@ -364,7 +389,9 @@ export const getUnreadNumberMessages = asyncHandler(async (req, res) => {
     logger.error(`getUnreadNumberMessages: no ${TENANT_SHORT_NAME} user!`);
     throw new ErrorResponse(401, `Invalid ${TENANT_SHORT_NAME} user`);
   }
-  const permissions = await getPermission(req, user);
+  const permissions = (await getPermission(req, user)) as
+    | IPermission
+    | undefined;
 
   const filter: Record<string, unknown> = {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
@@ -400,7 +427,9 @@ export const getMyMessages = asyncHandler(async (req, res) => {
   const { user } = req;
 
   // Role is enforced at the route via permit(Admin, Manager, Agent, Editor).
-  const permissions = await getPermission(req, user);
+  const permissions = (await getPermission(req, user)) as
+    | IPermission
+    | undefined;
 
   const filter: Record<string, unknown> = {
     $or: [{ archiv: { $exists: false } }, { archiv: false }]
@@ -508,7 +537,7 @@ export const getMessages = asyncHandler(async (req, res) => {
   );
 
   if (communication_thread.length > 0) {
-    const lastElement = communication_thread[0];
+    const lastElement = communication_thread[0] as unknown as MessageThreadDoc;
     const userIdStr = user._id.toString();
 
     // Check if user is in the readBy list
@@ -646,14 +675,12 @@ export const postMessages = asyncHandler(async (req, res) => {
   const { message } = req.body;
   // TODO: check if consecutive post?
   if (is_TaiGer_Student(user)) {
-    const communication_thread = await CommunicationService.findThreadPopulated(
-      studentId,
-      {
+    const communication_thread =
+      (await CommunicationService.findThreadPopulated(studentId, {
         populate: 'student_id user_id',
         select: 'firstname lastname role pictureUrl',
         limit: 3
-      }
-    );
+      })) as unknown as MessageWithUserRef[];
 
     if (communication_thread.length === 3) {
       let flag = true;

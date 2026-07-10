@@ -4,7 +4,9 @@ import { GeneralGETRequestRateLimiter } from '../middlewares/rate_limiter';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 
 import { protect, permit } from '../middlewares/auth';
-import { getAgentProfile, putAgentProfile } from '../controllers/teams';
+import teamsController from '../controllers/teams';
+
+const { getAgentProfile, putAgentProfile } = teamsController;
 
 const router = Router();
 

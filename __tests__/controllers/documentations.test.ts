@@ -24,10 +24,33 @@ jest.mock('../../aws/s3', () => ({
 }));
 
 const { ObjectId } = require('mongoose').Types;
-import DocumentationService from '../../services/documentations';
-import { ten_minutes_cache } from '../../cache/node-cache';
+import DocumentationServiceModule from '../../services/documentations';
+import { ten_minutes_cache as ten_minutes_cacheModule } from '../../cache/node-cache';
 import { getS3Object } from '../../aws/s3';
-import {
+import DocumentationsControllerModule from '../../controllers/documentations';
+import { admin } from '../mock/user';
+import type { Request, Response, NextFunction } from 'express';
+// helpers/httpMocks' mockReq() returns a partial fixture, not a real Express
+// Request; require() (typed `any`) avoids fighting the Request<...> generic
+// at every call site below (TS-only, no runtime change).
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+
+// Auto-mocked / factory-mocked modules expose jest.fn()s at runtime, but TS
+// still sees the real signatures. Re-type each as a bag of jest.Mock methods
+// so the per-test mock-configuration calls (mockResolvedValue, mockReturnValue,
+// etc.) type-check while still allowing partial (non-Mongoose) return shapes.
+type MockedModule = Record<string, jest.Mock>;
+const DocumentationService =
+  DocumentationServiceModule as unknown as MockedModule;
+const ten_minutes_cache = ten_minutes_cacheModule as unknown as MockedModule;
+
+// controllers/documentations uses `export =`, so the module's real shape is a
+// plain object of handlers (2-arg (req, res), per asyncHandler's
+// arity-preserving signature); cast to a uniform 3-arg (req, res, next)
+// signature to match how every test below calls them and destructure
+// (named-import destructuring against `export =` errors TS2497).
+const {
   getAllDocumentations,
   getAllInternalDocumentations,
   getDocumentation,
@@ -45,9 +68,10 @@ import {
   updateDocumentationPage,
   uploadDocImage,
   uploadDocDocs
-} from '../../controllers/documentations';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin } from '../mock/user';
+} = DocumentationsControllerModule as unknown as Record<
+  string,
+  (req: Request, res: Response, next: NextFunction) => Promise<void>
+>;
 
 const authorStamp = `${admin.firstname} ${admin.lastname}`;
 

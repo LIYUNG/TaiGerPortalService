@@ -34,13 +34,53 @@ import { getAuditLogs } from '../services/audit';
 import UserService from '../services/users';
 import PermissionService from '../services/permissions';
 import BasedocumentationslinkService from '../services/basedocumentationslinks';
-import type { IAgent, IEditor, IStudent } from '@taiger-common/model';
+import type {
+  IAgent,
+  IApplication,
+  IEditor,
+  IProgram,
+  IStudent,
+  IUser
+} from '@taiger-common/model';
 
 // Several handlers attach the student's applications onto the (lean) student doc
 // before responding; mirror that shape for typed reads/writes.
 type StudentWithApplications = IStudent & {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   applications?: any[];
+};
+
+// ApplicationService.getApplicationsByStudentId lean-populates `programId` to a
+// full IProgram (see dao/application.dao.ts's `.populate('programId', ...)`).
+// utils/utils_function.ts's add_portals_registered_status assumes exactly this
+// shape via its own (unexported) local alias — mirror it structurally here.
+type ApplicationWithProgram = Omit<IApplication, 'programId'> & {
+  programId: IProgram;
+};
+
+// `req.user` is populated by the `protect` auth middleware — routes/students.ts
+// mounts `router.use(protect)` ahead of every handler below, so `req.user` is
+// always a real authenticated user document by the time these handlers run.
+// The shared Express.Request augmentation (types/express.d.ts) types it as
+// `any`, but it also merges with @types/passport's `Express.User` (an empty
+// interface) which is what `req.user` actually resolves to at the call sites
+// below. Re-assert the concrete runtime shape locally instead of threading
+// `any`/`{}` through this file.
+type AuthUser = IUser & { _id: mongoose.Types.ObjectId };
+
+// `req.requestId` / `req.audit` are attached at runtime by other middleware
+// (middlewares/requestContext.ts, and an audit-logging middleware downstream
+// of the `next()` calls below) but are not part of the shared Express.Request
+// augmentation. Narrow locally wherever this file reads/writes them.
+type RequestWithContext = Request & {
+  requestId?: string;
+  audit?: {
+    performedBy: unknown;
+    targetUserId: string;
+    action: string;
+    field: string;
+    changes: { before: unknown; after: unknown };
+  };
 };
 
 // The inform*Email helpers are asyncHandler-wrapped (typed as 3-arg Express
@@ -83,10 +123,8 @@ const getPermission = getPermissionRaw as unknown as (
 
 const getStudentAndDocLinks = asyncHandler(
   async (req: Request, res: Response) => {
-    const {
-      user,
-      params: { studentId }
-    } = req;
+    const user = req.user as AuthUser;
+    const studentId = String(req.params.studentId);
     const applicationsPromise =
       ApplicationService.getApplicationsByStudentId(studentId);
 
@@ -130,7 +168,7 @@ const getStudentAndDocLinks = asyncHandler(
         app.isLocked = false; // Existing applications default to unlocked
       }
       return app;
-    });
+    }) as unknown as ApplicationWithProgram[];
 
     // TODO: remove agent notfication for new documents upload
     (student as unknown as StudentWithApplications).applications =
@@ -174,8 +212,12 @@ const updateDocumentationHelperLink = asyncHandler(
 const getActiveStudents = asyncHandler(async (req: Request, res: Response) => {
   const { editors, agents, archiv } = req.query;
   const { filter } = new UserQueryBuilder()
-    .withEditors(editors ? new mongoose.Types.ObjectId(editors) : null)
-    .withAgents(agents ? new mongoose.Types.ObjectId(agents) : null)
+    .withEditors(
+      typeof editors === 'string' ? new mongoose.Types.ObjectId(editors) : null
+    )
+    .withAgents(
+      typeof agents === 'string' ? new mongoose.Types.ObjectId(agents) : null
+    )
     .withArchiv(archiv)
     .build();
 
@@ -230,7 +272,7 @@ const getStudentsByIds = asyncHandler(async (req: Request, res: Response) => {
   if (invalidIds.length > 0) {
     logger.warn('Some student ids were ignored because they are invalid.', {
       invalidIds,
-      requestId: req.requestId
+      requestId: (req as RequestWithContext).requestId
     });
   }
 
@@ -257,7 +299,7 @@ const getStudentsByIds = asyncHandler(async (req: Request, res: Response) => {
   res.status(200).send(responsePayload);
 });
 
-const getStudentsV3 = asyncHandler(async (req, res) => {
+const getStudentsV3 = asyncHandler(async (req: Request, res: Response) => {
   const { editors, agents, archiv } = req.query;
   const { filter } = new UserQueryBuilder()
     .withEditors(editors)
@@ -289,9 +331,7 @@ const getStudentsV3Paginated = asyncHandler(
 );
 
 const getStudent = asyncHandler(async (req: Request, res: Response) => {
-  const {
-    params: { studentId }
-  } = req;
+  const studentId = String(req.params.studentId);
 
   const student = await StudentService.getStudentById(studentId);
 
@@ -306,7 +346,7 @@ const getStudent = asyncHandler(async (req: Request, res: Response) => {
 
 const getStudentsAndDocLinks = asyncHandler(
   async (req: Request, res: Response) => {
-    const { user } = req;
+    const user = req.user as AuthUser;
     const { editors, agents, archiv } = req.query;
     const { filter } = new UserQueryBuilder()
       .withEditors(editors)
@@ -324,7 +364,7 @@ const getStudentsAndDocLinks = asyncHandler(
         .status(200)
         .send({ success: true, data: students, base_docs_link: {} });
     } else if (is_TaiGer_Student(user)) {
-      const obj = user.notification; // create object
+      const obj = user.notification!; // create object (always set for a real user doc)
       obj['isRead_base_documents_rejected'] = true; // set value
       const student = await StudentService.updateStudentById(
         user._id.toString(),
@@ -349,11 +389,11 @@ const getStudentsAndDocLinks = asyncHandler(
 // (O) email : inform editor that student is archived.
 const updateStudentsArchivStatus = asyncHandler(
   async (req: Request, res: Response) => {
+    const user = req.user as AuthUser;
     const {
-      user,
-      params: { studentId },
       body: { isArchived, shouldInform }
     } = req;
+    const studentId = String(req.params.studentId);
 
     // TODO: data validation for isArchived and studentId
     const student = (await StudentService.updateStudentById(studentId, {
@@ -462,11 +502,9 @@ const updateStudentsArchivStatus = asyncHandler(
 // () TODO email : student better notification ()
 const assignAgentToStudent = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const {
-      user,
-      params: { studentId },
-      body: agentsId // agentsId is json (or agentsId array with boolean)
-    } = req;
+    const user = req.user as AuthUser;
+    const { body: agentsId } = req; // agentsId is json (or agentsId array with boolean)
+    const studentId = String(req.params.studentId);
 
     try {
       // Data validation
@@ -550,7 +588,7 @@ const assignAgentToStudent = asyncHandler(
 
       for (let i = 0; i < toBeInformedAgents.length; i += 1) {
         if (isNotArchiv(studentUpdated)) {
-          if (isNotArchiv(toBeInformedAgents[i])) {
+          if (isNotArchiv(toBeInformedAgents[i] as unknown as IUser)) {
             informAgentNewStudentEmail(
               {
                 firstname: toBeInformedAgents[i].firstname,
@@ -583,7 +621,7 @@ const assignAgentToStudent = asyncHandler(
       }
 
       if (addedAgents.length > 0 || removedAgents.length > 0) {
-        req.audit = {
+        (req as RequestWithContext).audit = {
           performedBy: user._id,
           targetUserId: studentId, // Change this if you have a different target user ID
           action: 'update', // Action performed
@@ -609,11 +647,9 @@ const assignAgentToStudent = asyncHandler(
 
 const assignEditorToStudent = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const {
-      user,
-      params: { studentId },
-      body: editorsId
-    } = req;
+    const user = req.user as AuthUser;
+    const { body: editorsId } = req;
+    const studentId = String(req.params.studentId);
     try {
       // Data validation
       if (!studentId || !editorsId || typeof editorsId !== 'object') {
@@ -669,8 +705,8 @@ const assignEditorToStudent = asyncHandler(
       // -------------------------------------
 
       for (let i = 0; i < toBeInformedEditors.length; i += 1) {
-        if (isNotArchiv(student)) {
-          if (isNotArchiv(toBeInformedEditors[i])) {
+        if (isNotArchiv(student as unknown as IUser)) {
+          if (isNotArchiv(toBeInformedEditors[i] as unknown as IUser)) {
             informEditorNewStudentEmail(
               {
                 firstname: toBeInformedEditors[i].firstname,
@@ -689,7 +725,7 @@ const assignEditorToStudent = asyncHandler(
       // TODO: inform Agent for assigning editor.
       const updatedAgentsList = (studentUpdated.agents ?? []) as IAgent[];
       for (let i = 0; i < updatedAgentsList.length; i += 1) {
-        if (isNotArchiv(student)) {
+        if (isNotArchiv(student as unknown as IUser)) {
           if (isNotArchiv(updatedAgentsList[i])) {
             informAgentStudentAssignedEmail(
               {
@@ -709,7 +745,7 @@ const assignEditorToStudent = asyncHandler(
       }
 
       if (updatedEditors.length !== 0) {
-        if (isNotArchiv(student)) {
+        if (isNotArchiv(student as unknown as IUser)) {
           await informStudentTheirEditorEmail(
             {
               firstname: student.firstname,
@@ -724,7 +760,7 @@ const assignEditorToStudent = asyncHandler(
       }
 
       if (addedEditors.length > 0 || removedEditors.length > 0) {
-        req.audit = {
+        (req as RequestWithContext).audit = {
           performedBy: user._id,
           targetUserId: studentId, // Change this if you have a different target user ID
           action: 'update', // Action performed
@@ -750,10 +786,8 @@ const assignEditorToStudent = asyncHandler(
 
 const assignAttributesToStudent = asyncHandler(
   async (req: Request, res: Response) => {
-    const {
-      params: { studentId },
-      body: attributesId
-    } = req;
+    const { body: attributesId } = req;
+    const studentId = String(req.params.studentId);
 
     await StudentService.updateStudentById(studentId, {
       attributes: attributesId

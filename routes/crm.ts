@@ -8,7 +8,9 @@ import {
 import { protect, permit } from '../middlewares/auth';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 
-import {
+import crmController from '../controllers/crm';
+
+const {
   getCRMStats,
   getLeads,
   getLead,
@@ -28,7 +30,7 @@ import {
   createDeal,
   updateDeal,
   instantInviteMeetingAssistant
-} from '../controllers/crm';
+} = crmController;
 
 const router = Router();
 

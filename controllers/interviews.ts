@@ -1,7 +1,13 @@
 import mongoose from 'mongoose';
 import path from 'path';
 import { Role, is_TaiGer_Student } from '@taiger-common/core';
-import type { IInterview, IStudent, IUser, IEvent } from '@taiger-common/model';
+import type {
+  IInterview,
+  IPermission,
+  IStudent,
+  IUser,
+  IEvent
+} from '@taiger-common/model';
 
 import { ErrorResponse } from '../common/errors';
 import { asyncHandler } from '../middlewares/error-handler';
@@ -276,7 +282,9 @@ const getMyInterview = asyncHandler(async (req, res) => {
   ])) as any[];
   if ([Role.Admin, Role.Agent, Role.Editor].includes(user.role)) {
     if ([Role.Agent, Role.Editor].includes(user.role)) {
-      const permissions = await getPermission(req, user);
+      const permissions = (await getPermission(req, user)) as
+        | IPermission
+        | undefined;
       if (!(permissions?.canAssignAgents || permissions?.canAssignEditors)) {
         studentFilter.agents = user._id;
       }

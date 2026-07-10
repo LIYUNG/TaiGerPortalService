@@ -11,7 +11,10 @@ import {
   permission_canUseTaiGerAI_filter,
   permission_TaiGerAIRatelimiter
 } from '../middlewares/permission-filter';
-import {
+import aiAssistController from '../controllers/ai_assist';
+import cvDraftController from '../controllers/cv_draft';
+
+const {
   archiveConversation,
   createConversation,
   generateReplyDraft,
@@ -25,8 +28,7 @@ import {
   sendFirstMessage,
   updateConversation,
   searchStudents
-} from '../controllers/ai_assist';
-import cvDraftController from '../controllers/cv_draft';
+} = aiAssistController;
 
 const router = Router();
 
@@ -110,10 +112,7 @@ router
 
 router
   .route('/threads/:documentsthreadId/cv-draft/attach')
-  .post(
-    GeneralPOSTRequestRateLimiter,
-    cvDraftController.attachCvDraftToThread
-  );
+  .post(GeneralPOSTRequestRateLimiter, cvDraftController.attachCvDraftToThread);
 
 router
   .route('/conversations/:conversationId/messages')

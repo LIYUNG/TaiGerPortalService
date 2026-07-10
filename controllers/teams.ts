@@ -5,8 +5,11 @@ import { is_TaiGer_Agent, Role } from '@taiger-common/core';
 import { asyncHandler } from '../middlewares/error-handler';
 import { ErrorResponse } from '../common/errors';
 import logger from '../services/logger';
-import { getStudentsByProgram } from './programs';
-import { findStudentDeltaGet } from '../utils/modelHelper/programChange';
+import ProgramsController from './programs';
+import {
+  findStudentDeltaGet,
+  ProgramLike
+} from '../utils/modelHelper/programChange';
 import { numStudentYearDistribution } from '../utils/utils_function';
 import { ten_minutes_cache } from '../cache/node-cache';
 import StudentService from '../services/students';
@@ -25,7 +28,7 @@ const getStudentDeltas = async (
   req: Request,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   student: any,
-  program: unknown,
+  program: ProgramLike,
   options: Record<string, unknown>
 ) => {
   const deltas = await findStudentDeltaGet(
@@ -53,7 +56,10 @@ const getApplicationDeltaByProgram = async (
   // getStudentsByProgram is an asyncHandler-wrapped helper (see FLAGS); its
   // awaited value is the student list at runtime but is mistyped by the wrapper.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const students = (await getStudentsByProgram(req, programId)) as any[];
+  const students = (await ProgramsController.getStudentsByProgram(
+    req,
+    programId
+  )) as any[];
   const program = await ProgramService.getProgramByIdLean(programId);
   if (!program) {
     return {};
@@ -64,7 +70,12 @@ const getApplicationDeltaByProgram = async (
     if (!student || student.closed !== '-') {
       continue;
     }
-    const studentDelta = getStudentDeltas(req, student, program, options);
+    const studentDelta = getStudentDeltas(
+      req,
+      student,
+      program as unknown as ProgramLike,
+      options
+    );
     studentDeltaPromises.push(studentDelta);
   }
   let studentDeltas = await Promise.all(studentDeltaPromises);

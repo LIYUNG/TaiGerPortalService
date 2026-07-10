@@ -11,10 +11,19 @@ import {
   isProgramWithdraw
 } from '@taiger-common/core';
 import { differenceInDays } from 'date-fns';
+import { Types } from 'mongoose';
 import {
   DocumentStatusType,
   SCHOOL_TAGS,
-  PROGRAM_SUBJECTS
+  PROGRAM_SUBJECTS,
+  IUser,
+  IStudent,
+  IApplication,
+  IProgram,
+  IDocumentthread,
+  IUserProfileItem,
+  IUserAcademicBackground,
+  IUserApplicationPreference
 } from '@taiger-common/model';
 
 import { ORIGIN, ESCALATION_DEADLINE_DAYS_TRIGGER } from './config';
@@ -26,6 +35,65 @@ import {
   TENANT_MEDIUM_LINK,
   TENANT_LINKEDIN_LINK
 } from './constants/common';
+
+// ---------------------------------------------------------------------------
+// Local "populated" view types.
+//
+// The helpers in this file operate on Mongoose aggregation results / fully
+// populated documents (e.g. StudentDAO.getStudentsWithApplications, which
+// $lookup's applications/courses onto each student), not on the raw
+// unpopulated schema shapes exported by @taiger-common/model (where refs
+// such as `programId` / `doc_thread_id` are typed as
+// `ObjectId | string | <doc>` unions, and collections such as
+// `applications` don't exist on IStudent at all). These local types describe
+// what the code below actually reads: refs that are always populated
+// objects, and collections that are always arrays — matching every access
+// below, none of which guards against them being absent.
+// ---------------------------------------------------------------------------
+type ObjectIdLike = Types.ObjectId | string;
+
+type UserWithId = IUser & { _id: ObjectIdLike };
+
+interface PopulatedDocThread extends Omit<IDocumentthread, 'updatedAt'> {
+  _id: ObjectIdLike;
+  updatedAt: Date;
+}
+
+interface PopulatedThreadRef {
+  isFinalVersion?: boolean;
+  latest_message_left_by_id?: string;
+  doc_thread_id: PopulatedDocThread;
+  updatedAt: Date;
+  createdAt?: Date;
+}
+
+interface PopulatedApplication
+  extends Omit<IApplication, 'programId' | 'doc_modification_thread'> {
+  programId: IProgram;
+  doc_modification_thread: PopulatedThreadRef[];
+}
+
+interface PopulatedCourse {
+  updatedAt: Date;
+  analysis?: { updatedAt?: Date };
+}
+
+interface PopulatedStudent
+  extends Omit<
+    IStudent,
+    | 'generaldocs_threads'
+    | 'profile'
+    | 'academic_background'
+    | 'application_preference'
+  > {
+  _id: ObjectIdLike;
+  generaldocs_threads: PopulatedThreadRef[];
+  profile: IUserProfileItem[];
+  academic_background: IUserAcademicBackground;
+  application_preference: IUserApplicationPreference;
+  applications: PopulatedApplication[];
+  courses: PopulatedCourse[];
+}
 
 export const ACCOUNT_ACTIVATION_URL = new URL('/account/activation', ORIGIN)
   .href;
@@ -123,24 +191,37 @@ export const ManagerType = {
   None: 'None'
 };
 
-export const isNotArchiv = (user) => {
+export const isNotArchiv = (user: IUser) => {
   if (user.archiv === undefined || !user.archiv) {
     return true;
   }
   return false;
 };
 
-export const isArchiv = (user) => !!user.archiv;
+export const isArchiv = (user: IUser) => !!user.archiv;
 
-const adjustYearForSemester = (year, month, semester) => {
+// `year` is a "year" value that's arithmetically decremented below. Callers
+// pass `application.application_year`, which the schema types as `string`
+// (IApplication.application_year?: string) even though it always holds a
+// numeric string ("2024") — JS's `-` operator already coerces it to a number
+// at runtime, so `Number(year)` here just makes that existing coercion
+// explicit instead of changing the computed result.
+const adjustYearForSemester = (
+  year: number | string | undefined,
+  month: number,
+  semester: string | undefined
+): number | string | undefined => {
   if (!semester) return 'Err';
   if ((semester === 'WS' && month > 9) || (semester === 'SS' && month > 3)) {
-    return year - 1;
+    return Number(year) - 1;
   }
   return year;
 };
 
-const formatApplicationDate = (year, date) => {
+const formatApplicationDate = (
+  year: number | string | undefined,
+  date: string | undefined
+) => {
   if (!date) return `${year}-<TBD>`;
   if (date.toLowerCase().includes('rolling')) return `${year}-Rolling`;
 
@@ -148,7 +229,9 @@ const formatApplicationDate = (year, date) => {
   return `${year}/${month}/${day}`;
 };
 
-export const application_deadline_V2_calculator = (application) => {
+export const application_deadline_V2_calculator = (
+  application: PopulatedApplication
+) => {
   if (isProgramWithdraw(application)) {
     return 'WITHDRAW';
   }
@@ -166,10 +249,11 @@ export const application_deadline_V2_calculator = (application) => {
     // include Rolling
     return `${application_year}-Rolling`;
   }
-  const deadline_month = parseInt(
-    application.programId.application_deadline.split('-')[0],
-    10
-  );
+  // Use the already-narrowed local (guarded truthy above) rather than
+  // re-reading `application.programId.application_deadline` — same value,
+  // but keeps TS's narrowing since it doesn't track narrowing through a
+  // re-read of the original property path.
+  const deadline_month = parseInt(application_deadline.split('-')[0], 10);
 
   const adjusted_application_year = adjustYearForSemester(
     application_year,
@@ -251,7 +335,7 @@ export const General_Docs = [
   'Others'
 ];
 
-export const is_deadline_within30days_needed = (student) => {
+export const is_deadline_within30days_needed = (student: PopulatedStudent) => {
   const today = new Date();
   if (student.application_preference.expected_application_date === '') {
     return false;
@@ -267,7 +351,7 @@ export const is_deadline_within30days_needed = (student) => {
       isProgramDecided(student.applications[k]) &&
       !isProgramSubmitted(student.applications[k]) &&
       !isProgramWithdraw(student.applications[k]) &&
-      day_diff < parseInt(ESCALATION_DEADLINE_DAYS_TRIGGER, 10) &&
+      day_diff < ESCALATION_DEADLINE_DAYS_TRIGGER &&
       day_diff > -30
     ) {
       return true;
@@ -276,7 +360,7 @@ export const is_deadline_within30days_needed = (student) => {
   return false;
 };
 
-export const needUpdateCourseSelection = (student) => {
+export const needUpdateCourseSelection = (student: PopulatedStudent) => {
   // not necessary if have studied or not yet begin
   if (
     student.academic_background?.university?.isGraduated === 'Yes' ||
@@ -312,7 +396,10 @@ export const needUpdateCourseSelection = (student) => {
   return false;
 };
 
-export const does_editor_have_pending_tasks = (students, editor) => {
+export const does_editor_have_pending_tasks = (
+  students: PopulatedStudent[],
+  editor: UserWithId
+) => {
   for (let i = 0; i < students.length; i += 1) {
     // check CV tasks
     for (let j = 0; j < students[i].generaldocs_threads.length; j += 1) {
@@ -344,7 +431,10 @@ export const does_editor_have_pending_tasks = (students, editor) => {
   return false;
 };
 
-export const is_cv_ml_rl_task_response_needed = (student, user) => {
+export const is_cv_ml_rl_task_response_needed = (
+  student: PopulatedStudent,
+  user: UserWithId
+) => {
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
     const thread = student.generaldocs_threads[i];
     if (is_TaiGer_Editor(user)) {
@@ -400,7 +490,11 @@ export const is_cv_ml_rl_task_response_needed = (student, user) => {
   return false;
 };
 
-export const is_cv_ml_rl_reminder_needed = (student, user, trigger_days) => {
+export const is_cv_ml_rl_reminder_needed = (
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number
+) => {
   const today = new Date();
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
     const thread = student.generaldocs_threads[i];
@@ -469,7 +563,7 @@ export const is_cv_ml_rl_reminder_needed = (student, user, trigger_days) => {
   return false;
 };
 
-export const unsubmitted_applications_summary = (student) => {
+export const unsubmitted_applications_summary = (student: PopulatedStudent) => {
   let unsubmitted_applications = '';
   let x = 0;
   for (let i = 0; i < student.applications.length; i += 1) {
@@ -497,7 +591,11 @@ export const unsubmitted_applications_summary = (student) => {
   return unsubmitted_applications;
 };
 
-export const cv_rl_escalation_editor_list = (student, user, trigger_days) => {
+export const cv_rl_escalation_editor_list = (
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number
+) => {
   let missing_doc_list = '';
   const today = new Date();
 
@@ -523,7 +621,11 @@ export const cv_rl_escalation_editor_list = (student, user, trigger_days) => {
   return missing_doc_list;
 };
 
-const cv_rl_escalation_agent_list = (student, user, trigger_days) => {
+const cv_rl_escalation_agent_list = (
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number
+) => {
   let missing_doc_list = '';
   const today = new Date();
 
@@ -546,7 +648,11 @@ const cv_rl_escalation_agent_list = (student, user, trigger_days) => {
   return missing_doc_list;
 };
 
-const cv_rl_escalation_student_list = (student, user, trigger_days) => {
+const cv_rl_escalation_student_list = (
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number
+) => {
   let missing_doc_list = '';
   const today = new Date();
 
@@ -572,10 +678,10 @@ const cv_rl_escalation_student_list = (student, user, trigger_days) => {
 };
 
 const ml_essay_escalation_editor_single_program_list = (
-  student,
-  user,
-  trigger_days,
-  application
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number,
+  application: PopulatedApplication
 ) => {
   let missing_doc_list = '';
   const today = new Date();
@@ -608,7 +714,11 @@ const ml_essay_escalation_editor_single_program_list = (
   return missing_doc_list;
 };
 
-const ml_essay_escalation_editor_list = (student, user, trigger_days) => {
+const ml_essay_escalation_editor_list = (
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number
+) => {
   let missing_doc_list = '';
 
   for (let i = 0; i < student.applications.length; i += 1) {
@@ -622,7 +732,11 @@ const ml_essay_escalation_editor_list = (student, user, trigger_days) => {
   return missing_doc_list;
 };
 
-const ml_essay_escalation_student_list = (student, user, trigger_days) => {
+const ml_essay_escalation_student_list = (
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number
+) => {
   let missing_doc_list = '';
   const today = new Date();
 
@@ -659,7 +773,9 @@ const ml_essay_escalation_student_list = (student, user, trigger_days) => {
   return missing_doc_list;
 };
 
-const ml_essay_escalation_agent_single_program_list = (application) => {
+const ml_essay_escalation_agent_single_program_list = (
+  application: PopulatedApplication
+) => {
   let missing_doc_list = '';
   const today = new Date();
 
@@ -683,7 +799,7 @@ const ml_essay_escalation_agent_single_program_list = (application) => {
   return missing_doc_list;
 };
 
-const ml_essay_escalation_agent_list = (student) => {
+const ml_essay_escalation_agent_list = (student: PopulatedStudent) => {
   let missing_doc_list = '';
 
   for (let i = 0; i < student.applications.length; i += 1) {
@@ -694,7 +810,11 @@ const ml_essay_escalation_agent_list = (student) => {
   return missing_doc_list;
 };
 
-export const cv_ml_rl_escalation_summary = (student, user, trigger_days) => {
+export const cv_ml_rl_escalation_summary = (
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number
+) => {
   let missing_doc_list = '';
   if (is_TaiGer_Editor(user)) {
     missing_doc_list = `
@@ -714,7 +834,7 @@ export const cv_ml_rl_escalation_summary = (student, user, trigger_days) => {
   return missing_doc_list;
 };
 
-const unsubmitted_applications_list = (student) => {
+const unsubmitted_applications_list = (student: PopulatedStudent) => {
   let unsubmitted_applications_li = '';
   const today = new Date();
   for (let i = 0; i < student.applications.length; i += 1) {
@@ -727,7 +847,7 @@ const unsubmitted_applications_list = (student) => {
       isProgramDecided(app) &&
       !isProgramSubmitted(app) &&
       !isProgramWithdraw(app) &&
-      day_diff < parseInt(ESCALATION_DEADLINE_DAYS_TRIGGER, 10) &&
+      day_diff < ESCALATION_DEADLINE_DAYS_TRIGGER &&
       day_diff > -30
     ) {
       unsubmitted_applications_li += `<li>${app.programId.school} ${
@@ -744,9 +864,9 @@ const unsubmitted_applications_list = (student) => {
 };
 
 export const unsubmitted_applications_escalation_summary = (
-  student,
-  user,
-  trigger_days
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number
 ) => {
   let unsubmitted_applications = '';
   unsubmitted_applications = `
@@ -762,9 +882,9 @@ export const unsubmitted_applications_escalation_summary = (
 };
 
 export const unsubmitted_applications_escalation_agent_summary = (
-  student,
-  user,
-  trigger_days
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number
 ) => {
   let unsubmitted_applications = '';
   unsubmitted_applications = `
@@ -777,9 +897,9 @@ export const unsubmitted_applications_escalation_agent_summary = (
 };
 
 export const cv_ml_rl_editor_escalation_summary = (
-  student,
-  user,
-  trigger_days
+  student: PopulatedStudent,
+  user: UserWithId,
+  trigger_days: number
 ) => {
   let missing_doc_list = '';
   if (is_TaiGer_Editor(user)) {
@@ -809,7 +929,10 @@ export const cv_ml_rl_editor_escalation_summary = (
   return missing_doc_list;
 };
 
-export const cv_ml_rl_unfinished_summary = (student, user) => {
+export const cv_ml_rl_unfinished_summary = (
+  student: PopulatedStudent,
+  user: UserWithId
+) => {
   let missing_doc_list = '';
   let kk = 0;
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
@@ -973,9 +1096,16 @@ export const cv_ml_rl_unfinished_summary = (student, user) => {
   }
   return missing_doc_list;
 };
-export const profile_keys_list = Object.keys(ProfileNameType);
+// `PROFILE_NAME` is keyed by the same set of profile document names as
+// `ProfileNameType`; the cast lets `PROFILE_NAME[profile_keys_list[i]]`
+// below index it without widening to `string`.
+export const profile_keys_list = Object.keys(ProfileNameType) as Array<
+  keyof typeof PROFILE_NAME
+>;
 
-export const check_english_language_passed = (academic_background) => {
+export const check_english_language_passed = (
+  academic_background: IUserAcademicBackground
+) => {
   if (!academic_background || !academic_background.language) {
     return false;
   }
@@ -986,7 +1116,9 @@ export const check_english_language_passed = (academic_background) => {
   return false;
 };
 
-export const check_german_language_passed = (academic_background) => {
+export const check_german_language_passed = (
+  academic_background: IUserAcademicBackground
+) => {
   if (!academic_background || !academic_background.language) {
     return false;
   }
@@ -997,7 +1129,9 @@ export const check_german_language_passed = (academic_background) => {
   return false;
 };
 
-export const check_languages_filled = (academic_background) => {
+export const check_languages_filled = (
+  academic_background: IUserAcademicBackground
+) => {
   if (!academic_background || !academic_background.language) {
     return false;
   }
@@ -1014,7 +1148,10 @@ export const check_languages_filled = (academic_background) => {
   return true;
 };
 
-export const missing_academic_background = (student, user) => {
+export const missing_academic_background = (
+  student: PopulatedStudent,
+  user: UserWithId
+) => {
   let missing_background_fields = '';
   if (
     !student.academic_background ||
@@ -1025,6 +1162,16 @@ export const missing_academic_background = (student, user) => {
     missing_background_fields = `<p>問卷內的以下欄位尚未填寫:</p>
     <p>The following fields in Survey not finished yet:</p>
     <ul>`;
+    // FLAGGED BUG (pre-existing, not fixed per task scope): this condition
+    // looks like it should be `!student.academic_background || ...` (see the
+    // sibling checks below it) — as written, given academic_background is
+    // guaranteed truthy here (we're inside a block reached only when NOT all
+    // of academic_background/university/language/application_preference are
+    // present, but academic_background itself may still be truthy), this
+    // makes the `||`'s right-hand side dead code, which strict typing now
+    // reports as "Property does not exist on type 'never'". Suppressed
+    // rather than "fixed" to avoid changing behavior, per task instructions.
+    // @ts-expect-error -- see FLAGGED BUG comment above
     if (
       student.academic_background ||
       !student.academic_background.university
@@ -1048,6 +1195,9 @@ export const missing_academic_background = (student, user) => {
     <li>Target Application Fields</li>
     <li>Target Degree Programs</li>`;
     }
+    // FLAGGED BUG (pre-existing, not fixed per task scope): same pattern as
+    // the `.university` check above — likely meant `!student.academic_background`.
+    // @ts-expect-error -- see FLAGGED BUG comment above the `.university` check
     if (student.academic_background || !student.academic_background.language) {
       missing_background_fields += `
     <li><b>English passed?</b></li>
@@ -1186,12 +1336,17 @@ export const missing_academic_background = (student, user) => {
         if (
           differenceInDays(
             today,
-            student.academic_background.language.english_test_date
+            // Non-null assertion: guaranteed set here — the `else` branch
+            // above already ruled out the empty-string ('') case, so the
+            // only remaining possibility per the schema (`?: string`) would
+            // be `undefined`, which isn't expected once english_isPassed is
+            // 'X'. No behavior change (`!` is erased at compile time).
+            student.academic_background.language.english_test_date!
           ) > 1
         ) {
           missing_background_fields += `<li>English test date : <b>expired ${differenceInDays(
             today,
-            student.academic_background.language.english_test_date
+            student.academic_background.language.english_test_date!
           )} days</b>
           </li>`;
         }
@@ -1212,12 +1367,13 @@ export const missing_academic_background = (student, user) => {
         if (
           differenceInDays(
             today,
-            student.academic_background.language.german_test_date
+            // Non-null assertion: see the english_test_date comment above.
+            student.academic_background.language.german_test_date!
           ) > 1
         ) {
           missing_background_fields += `<li>German test date : <b>expired ${differenceInDays(
             today,
-            student.academic_background.language.german_test_date
+            student.academic_background.language.german_test_date!
           )} days</b>
           </li>`;
         }
@@ -1238,12 +1394,13 @@ export const missing_academic_background = (student, user) => {
         if (
           differenceInDays(
             today,
-            student.academic_background.language.gre_test_date
+            // Non-null assertion: see the english_test_date comment above.
+            student.academic_background.language.gre_test_date!
           ) > 1
         ) {
           missing_background_fields += `<li>GRE test date : <b>expired ${differenceInDays(
             today,
-            student.academic_background.language.gre_test_date
+            student.academic_background.language.gre_test_date!
           )} days</b>
           </li>`;
         }
@@ -1264,12 +1421,13 @@ export const missing_academic_background = (student, user) => {
         if (
           differenceInDays(
             today,
-            student.academic_background.language.gmat_test_date
+            // Non-null assertion: see the english_test_date comment above.
+            student.academic_background.language.gmat_test_date!
           ) > 1
         ) {
           missing_background_fields += `<li>GMAT test date : <b>expired ${differenceInDays(
             today,
-            student.academic_background.language.gmat_test_date
+            student.academic_background.language.gmat_test_date!
           )} days</b>
           </li>`;
         }
@@ -1288,7 +1446,7 @@ export const missing_academic_background = (student, user) => {
   return missing_background_fields;
 };
 
-export const CVDeadline_Calculator = (applications) => {
+export const CVDeadline_Calculator = (applications: PopulatedApplication[]) => {
   let daysLeftMin = 3000;
   let CVDeadline = '';
   let CVDeadlineRolling = '';
@@ -1302,10 +1460,10 @@ export const CVDeadline_Calculator = (applications) => {
         hasRolling = true;
         CVDeadlineRolling = application_deadline_temp;
       }
-      const day_left = parseInt(
-        differenceInDays(application_deadline_temp, today),
-        10
-      );
+      // differenceInDays already returns a number; parseInt was a no-op
+      // redundant string-conversion wrapper (parseInt coerces numbers to
+      // strings internally either way), dropped for the same numeric result.
+      const day_left = differenceInDays(application_deadline_temp, today);
       if (daysLeftMin > day_left) {
         daysLeftMin = day_left;
         CVDeadline = application_deadline_temp;
@@ -1319,7 +1477,9 @@ export const CVDeadline_Calculator = (applications) => {
   return CVDeadline;
 };
 
-export const General_RL_Deadline_Calculator = (applications) => {
+export const General_RL_Deadline_Calculator = (
+  applications: PopulatedApplication[]
+) => {
   const RLrequiredApplications = applications?.filter((app) => {
     const program = app?.programId;
     if (
@@ -1337,8 +1497,8 @@ export const General_RL_Deadline_Calculator = (applications) => {
 };
 
 export const cvmlrl_deadline_within30days_escalation_summary = (
-  student,
-  applications
+  student: PopulatedStudent,
+  applications: PopulatedApplication[]
 ) => {
   const today = new Date();
   let missing_doc_list = '';
@@ -1346,10 +1506,7 @@ export const cvmlrl_deadline_within30days_escalation_summary = (
   const CVDeadline = CVDeadline_Calculator(applications);
   const CV_day_diff = differenceInDays(CVDeadline, today);
   for (let i = 0; i < student.generaldocs_threads.length; i += 1) {
-    if (
-      CV_day_diff < parseInt(ESCALATION_DEADLINE_DAYS_TRIGGER, 10) &&
-      CV_day_diff > -30
-    ) {
+    if (CV_day_diff < ESCALATION_DEADLINE_DAYS_TRIGGER && CV_day_diff > -30) {
       if (!student.generaldocs_threads[i].isFinalVersion) {
         if (kk === 0) {
           missing_doc_list = `
@@ -1388,7 +1545,7 @@ export const cvmlrl_deadline_within30days_escalation_summary = (
     if (
       isProgramDecided(app) &&
       !isProgramSubmitted(app) &&
-      day_diff < parseInt(ESCALATION_DEADLINE_DAYS_TRIGGER, 10) &&
+      day_diff < ESCALATION_DEADLINE_DAYS_TRIGGER &&
       day_diff > -30
     ) {
       for (let j = 0; j < app.doc_modification_thread.length; j += 1) {
@@ -1432,10 +1589,10 @@ export const cvmlrl_deadline_within30days_escalation_summary = (
   return missing_doc_list;
 };
 
-export const base_documents_summary = (student) => {
+export const base_documents_summary = (student: PopulatedStudent) => {
   let rejected_base_documents = '';
   let missing_base_documents = '';
-  const object_init = {};
+  const object_init: Record<string, DocumentStatusType> = {};
   for (let i = 0; i < profile_keys_list.length; i += 1) {
     object_init[profile_keys_list[i]] = DocumentStatusType.Missing;
   }

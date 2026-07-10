@@ -16,30 +16,18 @@
 import request from 'supertest';
 import type { Request, Response, NextFunction } from 'express';
 
-jest.mock('../../middlewares/tenantMiddleware', () => ({
-  ...jest.requireActual('../../middlewares/tenantMiddleware'),
-  checkTenantDBMiddleware: jest.fn(
-    (req: Request, res: Response, next: NextFunction) => {
-      req.tenantId = 'test';
-      next();
-    }
-  )
-}));
-jest.mock('../../middlewares/decryptCookieMiddleware', () => ({
-  ...jest.requireActual('../../middlewares/decryptCookieMiddleware'),
-  decryptCookieMiddleware: jest.fn(
-    (req: Request, res: Response, next: NextFunction) => next()
-  )
-}));
-jest.mock('../../middlewares/auth', () => ({
-  ...jest.requireActual('../../middlewares/auth'),
-  protect: jest.fn((req: Request, res: Response, next: NextFunction) => next()),
-  permit: jest.fn(
-    (...roles: string[]) =>
-      (req: Request, res: Response, next: NextFunction) =>
-        next()
-  )
-}));
+// The standard passthrough middleware mocks come from one shared helper (see
+// __tests__/helpers/middlewareMocks). require() keeps them compatible with
+// ts-jest's jest.mock hoisting.
+jest.mock('../../middlewares/tenantMiddleware', () =>
+  require('../helpers/middlewareMocks').tenantMiddlewareMock()
+);
+jest.mock('../../middlewares/decryptCookieMiddleware', () =>
+  require('../helpers/middlewareMocks').decryptCookieMiddlewareMock()
+);
+jest.mock('../../middlewares/auth', () =>
+  require('../helpers/middlewareMocks').authMock()
+);
 
 // The data boundary: mock the DAOs the conflict + delta flows delegate to.
 jest.mock('../../dao/application.dao');

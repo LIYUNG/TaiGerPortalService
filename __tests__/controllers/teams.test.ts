@@ -22,17 +22,45 @@ jest.mock('../../utils/modelHelper/programChange', () => ({
   findStudentDeltaGet: jest.fn()
 }));
 
-import TeamService from '../../services/teams';
-import StudentService from '../../services/students';
-import UserService from '../../services/users';
-import PermissionService from '../../services/permissions';
-import InterviewService from '../../services/interviews';
-import DocumentThreadService from '../../services/documentthreads';
-import ProgramService from '../../services/programs';
-import { getStudentsByProgram } from '../../controllers/programs';
+import TeamServiceModule from '../../services/teams';
+import StudentServiceModule from '../../services/students';
+import UserServiceModule from '../../services/users';
+import PermissionServiceModule from '../../services/permissions';
+import InterviewServiceModule from '../../services/interviews';
+import DocumentThreadServiceModule from '../../services/documentthreads';
+import ProgramServiceModule from '../../services/programs';
+import ProgramsControllerModule from '../../controllers/programs';
 import { findStudentDeltaGet } from '../../utils/modelHelper/programChange';
 import { ten_minutes_cache } from '../../cache/node-cache';
-import {
+import TeamsControllerModule from '../../controllers/teams';
+import { admin, agent } from '../mock/user';
+
+// Auto-mocked modules expose jest.fn()s at runtime, but TS still sees the
+// real signatures. Re-type each service (and the mocked controller helper) as
+// a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()/.mockImplementation()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const TeamService = TeamServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const UserService = UserServiceModule as unknown as MockedModule;
+const PermissionService = PermissionServiceModule as unknown as MockedModule;
+const InterviewService = InterviewServiceModule as unknown as MockedModule;
+const DocumentThreadService =
+  DocumentThreadServiceModule as unknown as MockedModule;
+const ProgramService = ProgramServiceModule as unknown as MockedModule;
+const { getStudentsByProgram } =
+  ProgramsControllerModule as unknown as MockedModule;
+// `findStudentDeltaGet` is a NAMED import off a manually-mocked module; cast
+// it to jest.Mock at the call site instead of re-typing the whole module.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The controller handlers are asyncHandler-wrapped: asyncHandler's exposed
+// type mirrors the wrapped fn's OWN param count (2 for a plain (req, res)
+// handler), while the runtime wrapper always forwards a 3rd `next` used
+// internally for `.catch(next)`. Re-type the whole module so tests can call
+// each handler with (req, res, next) uniformly without under/over-arg errors.
+type Handler = (...args: unknown[]) => unknown;
+const {
   getTeamMembers,
   getIsManager,
   getTasksOverview,
@@ -46,9 +74,13 @@ import {
   getStatisticsResponseTime,
   getAgentProfile,
   putAgentProfile
-} from '../../controllers/teams';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, agent } from '../mock/user';
+} = TeamsControllerModule as unknown as Record<string, Handler>;
+
+// httpMocks.ts is a plain CommonJS helper with no import/export statements of
+// its own, so under `isolatedModules` it isn't a module TS can `import` from
+// (TS2306); require it instead, as the integration tests do for similar
+// untyped JS helpers.
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -316,7 +348,7 @@ describe('getApplicationDeltas', () => {
       degree: 'MSc',
       semester: 'WS'
     });
-    findStudentDeltaGet.mockResolvedValue({
+    asMock(findStudentDeltaGet).mockResolvedValue({
       add: [{ _id: 'x' }],
       remove: []
     });
@@ -344,7 +376,7 @@ describe('getApplicationDeltas', () => {
       program_name: 'CS'
     });
     // empty add/remove -> getStudentDeltas returns undefined -> filtered out
-    findStudentDeltaGet.mockResolvedValue({ add: [], remove: [] });
+    asMock(findStudentDeltaGet).mockResolvedValue({ add: [], remove: [] });
     const res = mockRes();
 
     await getApplicationDeltas(mockReq({ user: admin }), res, jest.fn());

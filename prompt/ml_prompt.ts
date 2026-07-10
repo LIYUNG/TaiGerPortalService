@@ -1,4 +1,7 @@
-export const generalMLPrompt = (props) => `
+// The prompt payload is a loosely-shaped bag of optional student/program fields
+// assembled by the caller; typed as a flexible record for template interpolation.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const generalMLPrompt = (props: any) => `
 Your first name is ${props.student_info?.firstname} and last name ${
   props.student_info?.lastname
 }, a intelligent student. You will write a customed ${

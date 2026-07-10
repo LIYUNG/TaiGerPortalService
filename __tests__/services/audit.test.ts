@@ -4,8 +4,18 @@
 // args and returns the DAO's (mocked) value.
 jest.mock('../../dao/audit.dao');
 
-import AuditDAO from '../../dao/audit.dao';
+import AuditDAOModule from '../../dao/audit.dao';
 import AuditService from '../../services/audit';
+
+// Auto-mocked DAO exposes jest.fn()s at runtime, but TS still sees the real
+// signatures. Re-type it as a bag of jest.Mock methods so the per-test
+// `.mockReturnValue()` calls type-check.
+type MockedDAO = Record<string, jest.Mock>;
+const AuditDAO = AuditDAOModule as unknown as MockedDAO;
+
+// Real param type of the second arg, so the (intentionally partial) options
+// fixture below can be passed without changing its field values.
+type AuditLogsOptions = Parameters<typeof AuditService.getAuditLogs>[1];
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -14,7 +24,10 @@ beforeEach(() => {
 describe('AuditService.getAuditLogs (mocked DAO)', () => {
   it('delegates to DAO.getAuditLogs with filter+options and returns its result', () => {
     const filter = { userId: 'u1' };
-    const options = { limit: 10, sort: { createdAt: -1 } };
+    const options = {
+      limit: 10,
+      sort: { createdAt: -1 }
+    } as unknown as AuditLogsOptions;
     const daoResult = [{ _id: 'a1' }];
     AuditDAO.getAuditLogs.mockReturnValue(daoResult);
 

@@ -14,12 +14,42 @@ jest.mock('../../services/vs');
 jest.mock('../../services/programRequirements');
 jest.mock('../../services/tickets');
 
-import ProgramService from '../../services/programs';
-import ApplicationService from '../../services/applications';
-import VCService from '../../services/vs';
-import ProgramRequirementService from '../../services/programRequirements';
-import TicketService from '../../services/tickets';
-import {
+import type { Request, Response, NextFunction } from 'express';
+import ProgramServiceModule from '../../services/programs';
+import ApplicationServiceModule from '../../services/applications';
+import VCServiceModule from '../../services/vs';
+import ProgramRequirementServiceModule from '../../services/programRequirements';
+import TicketServiceModule from '../../services/tickets';
+import ProgramsControllerModule from '../../controllers/programs';
+import { admin, agent, student } from '../mock/user';
+// helpers/httpMocks is a plain CommonJS file (no import/export statements), so
+// TS sees it as a script, not a module (TS2306) — require() sidesteps that.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { mockReq, mockRes } = require('../helpers/httpMocks');
+
+// Auto-mocked service modules expose jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type each as a bag of jest.Mock methods so the
+// per-test mock-configuration calls (mockResolvedValue/mockRejectedValue/...)
+// type-check while still allowing partial (non-Mongoose) return shapes.
+type MockedService = Record<string, jest.Mock>;
+const ProgramService = ProgramServiceModule as unknown as MockedService;
+const ApplicationService = ApplicationServiceModule as unknown as MockedService;
+const VCService = VCServiceModule as unknown as MockedService;
+const ProgramRequirementService =
+  ProgramRequirementServiceModule as unknown as MockedService;
+const TicketService = TicketServiceModule as unknown as MockedService;
+
+// controllers/programs uses `export =`; cast to a uniform (req, res, next?)
+// signature and destructure (named-import destructuring against `export =`
+// errors TS2497). `next` is optional because getDistinctSchoolsAttributes /
+// updateBatchSchoolAttributes are plain (req, res) handlers (not
+// asyncHandler-wrapped) and are called with only 2 args below.
+type CtrlHandler = (
+  req: Request,
+  res: Response,
+  next?: NextFunction
+) => Promise<void>;
+const {
   getPrograms,
   getSameProgramStudents,
   getProgram,
@@ -31,9 +61,7 @@ import {
   updateBatchSchoolAttributes,
   getSchoolsDistribution,
   getProgramsOverview
-} from '../../controllers/programs';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, agent, student } from '../mock/user';
+} = ProgramsControllerModule as unknown as Record<string, CtrlHandler>;
 
 beforeEach(() => {
   jest.clearAllMocks();

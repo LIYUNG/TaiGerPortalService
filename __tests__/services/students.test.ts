@@ -9,8 +9,19 @@
 // here.
 jest.mock('../../dao/student.dao');
 
-import StudentDAO from '../../dao/student.dao';
+import StudentDAOModule from '../../dao/student.dao';
 import StudentService from '../../services/students';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so
+// the per-test `.mockReturnValue()` calls type-check while still allowing
+// partial (non-Mongoose) return shapes. StudentService itself is the real
+// (un-mocked) module under test, but a couple of describe blocks below index
+// both StudentDAO and StudentService dynamically by method name (string) —
+// StringIndexed gives those specific call sites a type-checkable shape
+// without touching the statically-named calls used everywhere else.
+type MockedDAO = Record<string, jest.Mock>;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
+type StringIndexed = Record<string, (...args: unknown[]) => unknown>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -23,7 +34,14 @@ describe('StudentService (mocked DAO) — fetch/get with default-arg delegators'
     const daoResult = [{ _id: 's1' }];
     StudentDAO.fetchStudents.mockReturnValue(daoResult);
 
-    const result = StudentService.fetchStudents(filter, options);
+    const result = StudentService.fetchStudents(
+      filter,
+      options as unknown as {
+        sort?: Record<string, unknown>;
+        skip?: number;
+        limit?: number;
+      }
+    );
 
     expect(StudentDAO.fetchStudents).toHaveBeenCalledTimes(1);
     expect(StudentDAO.fetchStudents).toHaveBeenCalledWith(filter, options);
@@ -31,7 +49,7 @@ describe('StudentService (mocked DAO) — fetch/get with default-arg delegators'
   });
 
   it('fetchStudents defaults filter and options to {} when omitted', () => {
-    const daoResult = [];
+    const daoResult: unknown[] = [];
     StudentDAO.fetchStudents.mockReturnValue(daoResult);
 
     const result = StudentService.fetchStudents();
@@ -78,7 +96,7 @@ describe('StudentService (mocked DAO) — fetch/get with default-arg delegators'
   });
 
   it('getStudents defaults filter and options to {} when omitted', () => {
-    const daoResult = [];
+    const daoResult: unknown[] = [];
     StudentDAO.getStudents.mockReturnValue(daoResult);
 
     const result = StudentService.getStudents({});
@@ -108,7 +126,7 @@ describe('StudentService (mocked DAO) — single-id getters', () => {
       const daoResult = { _id: 's1', method };
       StudentDAO[method].mockReturnValue(daoResult);
 
-      const result = StudentService[method](id);
+      const result = (StudentService as unknown as StringIndexed)[method](id);
 
       expect(StudentDAO[method]).toHaveBeenCalledTimes(1);
       expect(StudentDAO[method]).toHaveBeenCalledWith(id);
@@ -124,7 +142,7 @@ describe('StudentService (mocked DAO) — populated getters', () => {
 
     const withPopulates = StudentService.getStudentByIdPopulated('s1', [
       'agents'
-    ]);
+    ] as unknown as unknown[][]);
     expect(StudentDAO.getStudentByIdPopulated).toHaveBeenCalledWith('s1', [
       'agents'
     ]);
@@ -144,7 +162,7 @@ describe('StudentService (mocked DAO) — populated getters', () => {
 
     const withPopulates = StudentService.getStudentDocByIdPopulated('s1', [
       'editors'
-    ]);
+    ] as unknown as unknown[][]);
     expect(StudentDAO.getStudentDocByIdPopulated).toHaveBeenCalledWith('s1', [
       'editors'
     ]);
@@ -248,11 +266,13 @@ describe('StudentService (mocked DAO) — filter-based finders with default {}',
       const daoResult = { method };
       StudentDAO[method].mockReturnValue(daoResult);
 
-      const withFilter = StudentService[method](filter);
+      const withFilter = (StudentService as unknown as StringIndexed)[method](
+        filter
+      );
       expect(StudentDAO[method]).toHaveBeenCalledWith(filter);
       expect(withFilter).toBe(daoResult);
 
-      StudentService[method]();
+      (StudentService as unknown as StringIndexed)[method]();
       expect(StudentDAO[method]).toHaveBeenLastCalledWith({});
       expect(StudentDAO[method]).toHaveBeenCalledTimes(2);
     });

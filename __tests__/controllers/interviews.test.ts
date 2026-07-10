@@ -50,15 +50,53 @@ jest.mock('../../utils/utils_function', () => ({
   })
 }));
 
-import InterviewService from '../../services/interviews';
-import StudentService from '../../services/students';
-import ApplicationService from '../../services/applications';
-import EventService from '../../services/events';
-import DocumentThreadService from '../../services/documentthreads';
-import PermissionService from '../../services/permissions';
-import AuditService from '../../services/audit';
+import type { Request, Response, NextFunction } from 'express';
+
+import InterviewServiceModule from '../../services/interviews';
+import StudentServiceModule from '../../services/students';
+import ApplicationServiceModule from '../../services/applications';
+import EventServiceModule from '../../services/events';
+import DocumentThreadServiceModule from '../../services/documentthreads';
+import PermissionServiceModule from '../../services/permissions';
+import AuditServiceModule from '../../services/audit';
 import { getPermission } from '../../utils/queryFunctions';
-import {
+import InterviewsControllerModule from '../../controllers/interviews';
+import { admin, student } from '../mock/user';
+
+// controllers/interviews.ts is auto-mocked-free but exports via `export =`;
+// helper services below ARE auto-mocked (jest.mock(...) above), so their
+// methods are jest.fn()s at runtime even though TS still sees the real
+// signatures. Re-type each mocked service as a bag of jest.Mock methods so the
+// per-test `.mockResolvedValue()/.mockRejectedValue()` calls type-check.
+type MockedModule = Record<string, jest.Mock>;
+const InterviewService = InterviewServiceModule as unknown as MockedModule;
+const StudentService = StudentServiceModule as unknown as MockedModule;
+const ApplicationService = ApplicationServiceModule as unknown as MockedModule;
+const EventService = EventServiceModule as unknown as MockedModule;
+const DocumentThreadService =
+  DocumentThreadServiceModule as unknown as MockedModule;
+const PermissionService = PermissionServiceModule as unknown as MockedModule;
+const AuditService = AuditServiceModule as unknown as MockedModule;
+// `getPermission` is a single named auto-mocked function (not a service
+// module default export); cast it per-call to a jest.Mock.
+const asMock = (fn: unknown) => fn as jest.Mock;
+
+// The controller handlers are plain (req, res, next) functions at runtime
+// (asyncHandler's wrapper always accepts 3 args, forwarding rejections to
+// `next`), even though a given handler's own declared parameter list may be
+// shorter (e.g. `(req, res) => {}` for handlers that never call next()). Cast
+// the whole exported object to a uniform call signature so every test call
+// site — which always passes (req, res, next) for consistency — type-checks.
+type ControllerHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<void>;
+const InterviewsController = InterviewsControllerModule as unknown as Record<
+  string,
+  ControllerHandler
+>;
+const {
   getAllInterviewsPaginated,
   getMyInterviewPaginated,
   getMyInterview,
@@ -73,9 +111,9 @@ import {
   getInterviewQuestions,
   deleteInterview,
   createInterview
-} from '../../controllers/interviews';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, student } from '../mock/user';
+} = InterviewsController;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { mockReq, mockRes } = require('../helpers/httpMocks');
 
 const interviewId = '5f9f1b9b9c9d440000a1a1a1';
 const programId = '5f9f1b9b9c9d440000b1b1b1';
@@ -459,7 +497,7 @@ describe('getMyInterview', () => {
   it('agent without assign permission: scopes the student filter to the agent', async () => {
     const { agent } = require('../mock/user');
     InterviewService.findInterviews.mockResolvedValue([]);
-    getPermission.mockResolvedValueOnce({
+    asMock(getPermission).mockResolvedValueOnce({
       canAssignAgents: false,
       canAssignEditors: false
     });
@@ -1133,8 +1171,8 @@ describe('deleteInterview', () => {
       ]
     });
     StudentService.getStudentByIdWithAgents.mockResolvedValue({ agents: [] });
-    EventService.deleteEventById.mockResolvedValue();
-    DocumentThreadService.deleteThreadById.mockResolvedValue();
+    EventService.deleteEventById.mockResolvedValue(undefined);
+    DocumentThreadService.deleteThreadById.mockResolvedValue(undefined);
     const res = mockRes();
 
     await deleteInterview(
@@ -1160,7 +1198,7 @@ describe('deleteInterview', () => {
       student_id: { toString: () => studentId },
       event_id: null
     });
-    DocumentThreadService.deleteThreadById.mockResolvedValue();
+    DocumentThreadService.deleteThreadById.mockResolvedValue(undefined);
     const res = mockRes();
 
     await deleteInterview(
@@ -1188,7 +1226,9 @@ describe('addInterviewStatus (via getAllOpenInterviews)', () => {
     await getAllOpenInterviews(mockReq(), res, jest.fn());
 
     const data = res.send.mock.calls[0][0].data;
-    const byId = Object.fromEntries(data.map((i) => [i._id, i.status]));
+    const byId = Object.fromEntries(
+      data.map((i: { _id: string; status: string }) => [i._id, i.status])
+    );
     expect(byId['i-sched']).toBe('Scheduled');
     expect(byId['i-trained']).toBe('Trained');
   });
@@ -1210,7 +1250,9 @@ describe('addInterviewStatus (via getAllOpenInterviews)', () => {
     await getAllOpenInterviews(mockReq(), res, jest.fn());
 
     const data = res.send.mock.calls[0][0].data;
-    const byId = Object.fromEntries(data.map((i) => [i._id, i.status]));
+    const byId = Object.fromEntries(
+      data.map((i: { _id: string; status: string }) => [i._id, i.status])
+    );
     expect(byId['i-na']).toBe('N/A');
     expect(byId['i-open']).toBe('Open');
   });

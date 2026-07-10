@@ -1,6 +1,16 @@
 import path from 'path';
 import mammoth from 'mammoth';
 import PdfParse from 'pdf-parse';
+import type { Request } from 'express';
+import type { ObjectIdentifier } from '@aws-sdk/client-s3';
+import type { AnyBulkWriteOperation, FilterQuery } from 'mongoose';
+import type {
+  IApplication,
+  IInterval,
+  IProgram,
+  IResponseTime,
+  IStudent
+} from '@taiger-common/model';
 import { Role, isProgramDecided } from '@taiger-common/core';
 
 import {
@@ -11,18 +21,10 @@ import {
   InterviewSurveyRequestEmail
 } from '../services/email';
 
-import {
-  StudentTasksReminderEmail,
-  EditorTasksReminderEmail,
-  StudentApplicationsDeadline_Within30Days_DailyReminderEmail,
-  StudentCVMLRLEssay_NoReplyAfter3Days_DailyReminderEmail,
-  EditorCVMLRLEssay_NoReplyAfter7Days_DailyReminderEmail,
-  AgentCVMLRLEssay_NoReplyAfterXDays_DailyReminderEmail,
-  AgentApplicationsDeadline_Within30Days_DailyReminderEmail,
-  EditorCVMLRLEssayDeadline_Within30Days_DailyReminderEmail,
-  StudentCourseSelectionReminderEmail,
-  AgentCourseSelectionReminderEmail
-} from '../services/regular_system_emails';
+// `regular_system_emails` uses `export =`, which cannot be destructured with a
+// named ES import (TS2497) even with esModuleInterop — only a default-style
+// import works, so we bind the whole module and access members off it below.
+import RegularSystemEmails from '../services/regular_system_emails';
 import logger from '../services/logger';
 import {
   does_editor_have_pending_tasks,
@@ -46,12 +48,33 @@ import ResponseTimeService from '../services/responseTimes';
 import DocumentThreadService from '../services/documentthreads';
 import ComplaintService from '../services/complaints';
 
+const {
+  StudentTasksReminderEmail,
+  EditorTasksReminderEmail,
+  StudentApplicationsDeadline_Within30Days_DailyReminderEmail,
+  StudentCVMLRLEssay_NoReplyAfter3Days_DailyReminderEmail,
+  EditorCVMLRLEssay_NoReplyAfter7Days_DailyReminderEmail,
+  AgentCVMLRLEssay_NoReplyAfterXDays_DailyReminderEmail,
+  AgentApplicationsDeadline_Within30Days_DailyReminderEmail,
+  EditorCVMLRLEssayDeadline_Within30Days_DailyReminderEmail,
+  StudentCourseSelectionReminderEmail,
+  AgentCourseSelectionReminderEmail
+} = RegularSystemEmails;
+
+// Derived (not exported by `constants.ts`) argument types for the helpers
+// below, so student/user documents can be passed without re-declaring their
+// "populated aggregate result" shapes here.
+type PendingTasksStudents = Parameters<
+  typeof does_editor_have_pending_tasks
+>[0];
+type PendingTasksUser = Parameters<typeof does_editor_have_pending_tasks>[1];
+
 // Tested: redundant image is deleted
 export const threadS3GarbageCollector = async (
-  req,
-  collection,
-  userFolder,
-  ThreadId
+  req: Request,
+  collection: string,
+  userFolder: string,
+  ThreadId: string
 ) => {
   // This functino will be called when thread marked as finished.
   try {
@@ -65,21 +88,32 @@ export const threadS3GarbageCollector = async (
       throw new ErrorResponse(404, 'Thread not found');
     }
 
-    const deleteParams = {
+    const deleteParams: { Delete: { Objects: ObjectIdentifier[] } } = {
       Delete: { Objects: [] }
     };
 
-    const delete_files_Params = {
+    const delete_files_Params: { Delete: { Objects: ObjectIdentifier[] } } = {
       Delete: { Objects: [] }
     };
 
     logger.info(
       'Trying to delete redundant images S3 of corresponding message thread'
     );
+    // `ticket` is either a Complaint or Documentthread hydrated document —
+    // both have `_id`, and are keyed dynamically by `userFolder` (e.g.
+    // `requester_id`/`student_id`) and carry a `messages` array of the same
+    // shared shape ({ message, file: [{ path }] }).
     // eslint-disable-next-line no-underscore-dangle
     const thread_id = ticket._id.toString();
-    const user_id = ticket[userFolder].toString();
-    const message_a = ticket.messages;
+    const dynamicTicket = ticket as unknown as Record<
+      string,
+      { toString(): string }
+    >;
+    const user_id = dynamicTicket[userFolder].toString();
+    const message_a = ticket.messages as Array<{
+      message?: string;
+      file?: Array<{ path?: string }>;
+    }>;
 
     logger.info('Garbage collection context:', {
       threadId: thread_id,
@@ -100,30 +134,42 @@ export const threadS3GarbageCollector = async (
       bucketName: AWS_S3_BUCKET_NAME,
       Prefix: `${directory_files}/`
     };
-    let listedObjectsPublic;
-    let listedObjectsPublic_files;
+    let listedObjectsPublicResult: Awaited<ReturnType<typeof listS3ObjectsV2>>;
+    let listedObjectsPublicFilesResult: Awaited<
+      ReturnType<typeof listS3ObjectsV2>
+    >;
 
     try {
-      listedObjectsPublic = await listS3ObjectsV2(listParamsPublic);
-      listedObjectsPublic_files = await listS3ObjectsV2(listParamsPublic_files);
+      listedObjectsPublicResult = await listS3ObjectsV2(listParamsPublic);
+      listedObjectsPublicFilesResult = await listS3ObjectsV2(
+        listParamsPublic_files
+      );
     } catch (s3Error) {
       logger.error('Failed to list S3 objects:', {
-        error: s3Error?.message,
-        stack: s3Error?.stack,
+        error: s3Error instanceof Error ? s3Error.message : String(s3Error),
+        stack: s3Error instanceof Error ? s3Error.stack : undefined,
         listParamsPublic,
         listParamsPublic_files
       });
       throw s3Error;
     }
 
-    if (listedObjectsPublic_files.Contents?.length > 0) {
-      listedObjectsPublic_files.Contents.forEach((Obj2) => {
+    // `listS3ObjectsV2` can only resolve to `undefined` when it swallowed an
+    // S3ServiceException (see aws/s3.ts); the try/catch above already
+    // guarantees both calls above completed without throwing, so — matching
+    // the code's pre-existing (unguarded) assumption — both are treated as
+    // defined from here on.
+    const listedObjectsPublic = listedObjectsPublicResult!;
+    const listedObjectsPublic_files = listedObjectsPublicFilesResult!;
+
+    if ((listedObjectsPublic_files.Contents?.length || 0) > 0) {
+      listedObjectsPublic_files.Contents!.forEach((Obj2) => {
         let file_found = false;
         if (message_a.length === 0) {
           delete_files_Params.Delete.Objects.push({ Key: Obj2.Key });
         }
         for (let i = 0; i < message_a.length; i += 1) {
-          const file_name = Obj2.Key.split('/')[2];
+          const file_name = (Obj2.Key || '').split('/')[2];
           const messageFiles = message_a[i]?.file || [];
           for (let k = 0; k < messageFiles.length; k += 1) {
             const filePath = messageFiles[k]?.path || '';
@@ -146,14 +192,14 @@ export const threadS3GarbageCollector = async (
     logger.info('listedObjectsPublic', {
       listedObjectsPublic
     });
-    if (listedObjectsPublic.Contents?.length > 0) {
-      listedObjectsPublic.Contents.forEach((Obj) => {
+    if ((listedObjectsPublic.Contents?.length || 0) > 0) {
+      listedObjectsPublic.Contents!.forEach((Obj) => {
         let file_found = false;
         if (message_a.length === 0) {
           deleteParams.Delete.Objects.push({ Key: Obj.Key });
         }
         for (let i = 0; i < message_a.length; i += 1) {
-          const file_name = Obj.Key.split('/')[3];
+          const file_name = (Obj.Key || '').split('/')[3];
           const messageContent = message_a[i]?.message || '';
           if (messageContent.includes(file_name)) {
             file_found = true;
@@ -174,7 +220,7 @@ export const threadS3GarbageCollector = async (
       });
 
       logger.info('Deleted redundant images for threads.');
-      logger.info(deleteParams.Delete.Objects);
+      logger.info('Deleted objects:', { objects: deleteParams.Delete.Objects });
     } else {
       logger.info('No images to be deleted for threads.');
     }
@@ -186,15 +232,17 @@ export const threadS3GarbageCollector = async (
         objectKeys: delete_files_Params.Delete.Objects
       });
       logger.info('Deleted redundant files for threads.');
-      logger.info(delete_files_Params.Delete.Objects);
+      logger.info('Deleted objects:', {
+        objects: delete_files_Params.Delete.Objects
+      });
     } else {
       logger.info('No files to be deleted for threads.');
     }
   } catch (e) {
     logger.error('Error during garbage collection:', {
       error: e,
-      message: e?.message,
-      stack: e?.stack,
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : undefined,
       threadId: ThreadId,
       collection,
       userFolder
@@ -208,20 +256,23 @@ export const TasksReminderEmails_Editor_core = async () => {
   try {
     const editors = await UserService.findEditors({});
 
-    const studentQuery = {
+    const studentQuery: FilterQuery<IStudent> = {
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     };
 
     const editorPromises = editors.map(async (editor) => {
       studentQuery.editors = editor._id;
-      const editor_students = await StudentService.getStudentsWithApplications(
+      const editor_students = (await StudentService.getStudentsWithApplications(
         studentQuery
-      );
+      )) as PendingTasksStudents;
 
       if (
         editor_students.length > 0 &&
-        does_editor_have_pending_tasks(editor_students, editor) &&
-        isNotArchiv(editor)
+        does_editor_have_pending_tasks(
+          editor_students,
+          editor as unknown as PendingTasksUser
+        ) &&
+        isNotArchiv(editor as unknown as PendingTasksUser)
       ) {
         await EditorTasksReminderEmail(
           {
@@ -238,7 +289,7 @@ export const TasksReminderEmails_Editor_core = async () => {
 
     logger.info('Editor reminder email sent');
   } catch (error) {
-    logger.error('Error in TasksReminderEmails_Editor_core:', error);
+    logger.error('Error in TasksReminderEmails_Editor_core:', { error });
   }
 };
 
@@ -266,7 +317,7 @@ export const TasksReminderEmails_Student_core = async () => {
     }
     logger.info('Student reminder email sent');
   } catch (error) {
-    logger.error('Error in TasksReminderEmails_Student_core:', error);
+    logger.error('Error in TasksReminderEmails_Student_core:', { error });
   }
 };
 
@@ -322,7 +373,7 @@ export const _UrgentTasksReminderEmails_Student_core = async () => {
 
     await Promise.all(deadlineReminderPromises);
   } catch (error) {
-    logger.error('Error in UrgentTasksReminderEmails_Student_core:', error);
+    logger.error('Error in UrgentTasksReminderEmails_Student_core:', { error });
   }
 };
 
@@ -333,30 +384,30 @@ export const _UrgentTasksReminderEmails_Agent_core = async () => {
     const escalation_trigger_10days = 10;
     const escalation_trigger_3days = 3;
     const agents = await UserService.findAgents({});
-    const studentQuery = {
+    const studentQuery: FilterQuery<IStudent> = {
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     };
     const agentPromises = agents.map(async (agent) => {
       studentQuery.agents = agent._id;
-      const agent_students = await StudentService.getStudentsWithApplications(
+      const agent_students = (await StudentService.getStudentsWithApplications(
         studentQuery
-      );
+      )) as PendingTasksStudents;
       if (agent_students.length > 0) {
         let cv_ml_rl_10days_flag = false;
         let cv_ml_rl_3days_flag = false;
         let deadline_within30days_flag = false;
         for (let x = 0; x < agent_students.length; x += 1) {
-          deadline_within30days_flag |= is_deadline_within30days_needed(
+          deadline_within30days_flag ||= is_deadline_within30days_needed(
             agent_students[x]
           );
-          cv_ml_rl_10days_flag |= is_cv_ml_rl_reminder_needed(
+          cv_ml_rl_10days_flag ||= is_cv_ml_rl_reminder_needed(
             agent_students[x],
-            agent,
+            agent as unknown as PendingTasksUser,
             escalation_trigger_10days
           );
-          cv_ml_rl_3days_flag |= is_cv_ml_rl_reminder_needed(
+          cv_ml_rl_3days_flag ||= is_cv_ml_rl_reminder_needed(
             agent_students[x],
-            agent,
+            agent as unknown as PendingTasksUser,
             escalation_trigger_3days
           );
         }
@@ -414,7 +465,7 @@ export const _UrgentTasksReminderEmails_Agent_core = async () => {
 
     await Promise.all(agentPromises);
   } catch (error) {
-    logger.error('Error in UrgentTasksReminderEmails_Agent_core:', error);
+    logger.error('Error in UrgentTasksReminderEmails_Agent_core:', { error });
   }
 };
 
@@ -424,7 +475,7 @@ export const _UrgentTasksReminderEmails_Editor_core = async () => {
   try {
     const editor_trigger_7days = 7;
     const editor_trigger_3days = 3;
-    const studentQuery = {
+    const studentQuery: FilterQuery<IStudent> = {
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     };
     const editors = await UserService.findEditors({});
@@ -433,25 +484,25 @@ export const _UrgentTasksReminderEmails_Editor_core = async () => {
     // (O): Check if editor no reply (need to response) more than 3 days (Should configurable)
     for (let j = 0; j < editors.length; j += 1) {
       studentQuery.editors = editors[j]._id;
-      const editor_students = await StudentService.getStudentsWithApplications(
+      const editor_students = (await StudentService.getStudentsWithApplications(
         studentQuery
-      );
+      )) as PendingTasksStudents;
       if (editor_students.length > 0) {
         let cv_ml_rl_7days_flag = false;
         let cv_ml_rl_3days_flag = false;
         let deadline_within30days_flag = false;
         for (let x = 0; x < editor_students.length; x += 1) {
-          deadline_within30days_flag |= is_deadline_within30days_needed(
+          deadline_within30days_flag ||= is_deadline_within30days_needed(
             editor_students[x]
           );
-          cv_ml_rl_7days_flag |= is_cv_ml_rl_reminder_needed(
+          cv_ml_rl_7days_flag ||= is_cv_ml_rl_reminder_needed(
             editor_students[x],
-            editors[j],
+            editors[j] as unknown as PendingTasksUser,
             editor_trigger_7days
           );
-          cv_ml_rl_3days_flag |= is_cv_ml_rl_reminder_needed(
+          cv_ml_rl_3days_flag ||= is_cv_ml_rl_reminder_needed(
             editor_students[x],
-            editors[j],
+            editors[j] as unknown as PendingTasksUser,
             editor_trigger_3days
           );
         }
@@ -493,12 +544,12 @@ export const _UrgentTasksReminderEmails_Editor_core = async () => {
       }
     }
   } catch (error) {
-    logger.error('Error in UrgentTasksReminderEmails_Editor_core:', error);
+    logger.error('Error in UrgentTasksReminderEmails_Editor_core:', { error });
   }
 };
 
 export const UrgentTasksReminderEmails = async () => {
-  const UrgentTaskPromises = [
+  const UrgentTaskPromises: Promise<void>[] = [
     // UrgentTasksReminderEmails_Editor_core(), // TODO: check if this is needed
     // UrgentTasksReminderEmails_Student_core(), // TODO: check if this is needed
     // UrgentTasksReminderEmails_Agent_core() // TODO: check if this is needed
@@ -528,10 +579,9 @@ export const NextSemesterCourseSelectionStudentReminderEmails = async () => {
       }
     }
   } catch (error) {
-    logger.error(
-      'Error in NextSemesterCourseSelectionStudentReminderEmails:',
+    logger.error('Error in NextSemesterCourseSelectionStudentReminderEmails:', {
       error
-    );
+    });
   }
 };
 
@@ -561,10 +611,9 @@ export const _NextSemesterCourseSelectionAgentReminderEmails = async () => {
       }
     }
   } catch (error) {
-    logger.error(
-      'Error in NextSemesterCourseSelectionAgentReminderEmails:',
+    logger.error('Error in NextSemesterCourseSelectionAgentReminderEmails:', {
       error
-    );
+    });
   }
 };
 
@@ -573,10 +622,12 @@ export const NextSemesterCourseSelectionReminderEmails = async () => {
   // await NextSemesterCourseSelectionAgentReminderEmails();
 };
 
-export const numStudentYearDistribution = (students) =>
-  students.reduce((acc, student) => {
+export const numStudentYearDistribution = (
+  students: Array<Pick<IStudent, 'application_preference'>>
+): Record<string, number> =>
+  students.reduce((acc: Record<string, number>, student) => {
     const date =
-      student.application_preference.expected_application_date || 'TBD';
+      student.application_preference!.expected_application_date || 'TBD';
     acc[date] = (acc[date] || 0) + 1;
     return acc;
   }, {});
@@ -685,8 +736,16 @@ export const numStudentYearDistribution = (students) =>
 //   };
 // });
 
-export const add_portals_registered_status = (applications) => {
-  const new_applications = [];
+// `programId` is assumed populated (a full `IProgram`, not an ObjectId/string
+// ref) — this mirrors every unguarded `.programId.<field>` access below.
+type ApplicationWithProgram = Omit<IApplication, 'programId'> & {
+  programId: IProgram;
+};
+
+export const add_portals_registered_status = (
+  applications: ApplicationWithProgram[]
+): ApplicationWithProgram[] => {
+  const new_applications: ApplicationWithProgram[] = [];
   for (let i = 0; i < applications.length; i += 1) {
     const application = applications[i];
     if (isProgramDecided(application)) {
@@ -758,7 +817,17 @@ export const MeetingDailyReminderChecker = async () => {
     );
     if (upcomingEvents) {
       for (let j = 0; j < upcomingEvents.length; j += 1) {
-        if (upcomingEvents.event_type === 'Interview') {
+        // FLAGGED BUG (pre-existing, preserved as-is — see
+        // __tests__/utils/utils_function.test.ts "MeetingDailyReminderChecker
+        // - branches"): this reads `.event_type` off the `upcomingEvents`
+        // array rather than `upcomingEvents[j]`, so it's always `undefined`
+        // and the Interview branch below never actually runs. Left
+        // unchanged per instructions (no behavior changes); only cast here
+        // for type-safety.
+        if (
+          (upcomingEvents as unknown as { event_type?: string }).event_type ===
+          'Interview'
+        ) {
           // eslint-disable-next-line no-await-in-loop
           await InterviewTrainingReminderEmail(
             {
@@ -807,7 +876,7 @@ export const MeetingDailyReminderChecker = async () => {
       logger.info('Meeting attendees reminded');
     }
   } catch (error) {
-    logger.error('Error in MeetingDailyReminderChecker:', error);
+    logger.error('Error in MeetingDailyReminderChecker:', { error });
   }
 };
 
@@ -879,13 +948,31 @@ export const UnconfirmedMeetingDailyReminderChecker = async () => {
 
     logger.info('Unconfirmed Meeting attendee reminded');
   } catch (error) {
-    logger.error('Error in UnconfirmedMeetingDailyReminderChecker:', error);
+    logger.error('Error in UnconfirmedMeetingDailyReminderChecker:', { error });
   }
 };
 
-export const CalculateInterval = (message1, message2) => {
+// Shared shape for the "message-like" values `CalculateInterval` /
+// `CreateIntervalMessageOperation` / `CreateIntervalOperation` are invoked
+// with: real Communication/Documentthread messages (which carry `_id`,
+// `createdAt`, `updatedAt`, `user_id`, `ignore_message`), as well as the
+// pseudo "now" placeholder (`{ updatedAt: now }`) used for the "still
+// waiting on a reply" case — hence every field is optional.
+type IntervalMessage = {
+  _id?: unknown;
+  createdAt?: Date;
+  updatedAt?: Date;
+  ignore_message?: boolean;
+  user_id?: { role?: string } | null;
+};
+
+export const CalculateInterval = (
+  message1: Pick<IntervalMessage, 'createdAt'>,
+  message2: Pick<IntervalMessage, 'createdAt'>
+): number => {
   const intervalInDay =
-    Math.abs(message1.createdAt - message2.createdAt) / (1000 * 60 * 60 * 24);
+    Math.abs(Number(message1.createdAt) - Number(message2.createdAt)) /
+    (1000 * 60 * 60 * 24);
   return parseFloat(intervalInDay.toFixed(4));
 };
 
@@ -893,28 +980,40 @@ export const GroupCommunicationByStudent = async () => {
   try {
     const communications =
       await CommunicationService.getAllForIntervalGrouping();
-    const groupCommunication = communications.reduce((acc, communication) => {
-      const student = communication.student_id;
+    const groupCommunication = communications.reduce(
+      (acc: Record<string, typeof communications>, communication) => {
+        // student_id is populated here, so it's the student doc, not an id ref.
+        const student = communication.student_id as unknown as
+          | { archiv?: boolean; _id: { toString(): string } }
+          | null
+          | undefined;
 
-      if (student && !student.archiv) {
-        const studentId = student._id.toString();
+        if (student && !student.archiv) {
+          const studentId = student._id.toString();
 
-        if (!acc[studentId]) {
-          acc[studentId] = [communication];
-        } else {
-          acc[studentId].push(communication);
+          if (!acc[studentId]) {
+            acc[studentId] = [communication];
+          } else {
+            acc[studentId].push(communication);
+          }
         }
-      }
 
-      return acc;
-    }, {});
+        return acc;
+      },
+      {}
+    );
     return groupCommunication;
   } catch (error) {
-    logger.error('Error in GroupCommunicationByStudent:', error);
+    logger.error('Error in GroupCommunicationByStudent:', { error });
+    return undefined;
   }
 };
 
-export const CreateIntervalMessageOperation = (student_id, msg1, msg2) => {
+export const CreateIntervalMessageOperation = (
+  student_id: unknown,
+  msg1: IntervalMessage,
+  msg2: IntervalMessage
+) => {
   const intervalValue = CalculateInterval(msg1, msg2);
   const intervalData = {
     student_id,
@@ -926,8 +1025,16 @@ export const CreateIntervalMessageOperation = (student_id, msg1, msg2) => {
     updatedAt: new Date()
   };
 
-  // Create a query object excluding the updatedAt field
-  const { _updatedAt, ...queryData } = intervalData;
+  // FLAGGED BUG (pre-existing, preserved as-is): the comment says this
+  // excludes `updatedAt`, but it destructures `_updatedAt`, which doesn't
+  // exist on `intervalData` (the real field is `updatedAt`, no underscore).
+  // So `_updatedAt` is always undefined and `queryData` actually retains
+  // `updatedAt` (a fresh `new Date()`), which likely breaks the intended
+  // upsert de-duplication. Left unchanged per instructions; cast only so the
+  // (harmless at runtime) destructure of a non-existent key still typechecks.
+  const { _updatedAt, ...queryData } = intervalData as typeof intervalData & {
+    _updatedAt?: unknown;
+  };
 
   // Define the update operation
   const update = {
@@ -975,17 +1082,20 @@ export const CreateIntervalMessageOperation = (student_id, msg1, msg2) => {
  * - Messages are processed in chronological order
  * - Only first non-student response is used for interval calculation
  */
-export const ProcessMessages = (student, messages) => {
-  const bulkOps = [];
+export const ProcessMessages = (
+  student: unknown,
+  messages: IntervalMessage[]
+): Array<ReturnType<typeof CreateIntervalMessageOperation>> => {
+  const bulkOps: Array<ReturnType<typeof CreateIntervalMessageOperation>> = [];
   const now = new Date();
 
   // If no messages, return empty array
   if (!messages.length) return bulkOps;
 
   // Sort messages chronologically
-  messages.sort((a, b) => a.updatedAt - b.updatedAt);
+  messages.sort((a, b) => Number(a.updatedAt) - Number(b.updatedAt));
 
-  let lastValidStudentMsg = undefined;
+  let lastValidStudentMsg: IntervalMessage | undefined;
 
   for (let i = 0; i < messages.length; i++) {
     const currentMsg = messages[i];
@@ -1031,17 +1141,21 @@ export const ProcessMessages = (student, messages) => {
   return bulkOps;
 };
 
-export const ProcessThread = (thread) => {
-  const bulkOps = [];
+export const ProcessThread = (thread: {
+  _id: unknown;
+  file_type?: string;
+  messages?: IntervalMessage[];
+}): Array<ReturnType<typeof CreateIntervalOperation>> => {
+  const bulkOps: Array<ReturnType<typeof CreateIntervalOperation>> = [];
   const now = new Date();
 
   // If no messages in thread, return empty array
   if (!thread.messages?.length) return bulkOps;
 
   // Sort messages chronologically
-  thread.messages.sort((a, b) => a.updatedAt - b.updatedAt);
+  thread.messages.sort((a, b) => Number(a.updatedAt) - Number(b.updatedAt));
 
-  let lastValidStudentMsg = undefined;
+  let lastValidStudentMsg: IntervalMessage | undefined;
 
   for (let i = 0; i < thread.messages.length; i++) {
     try {
@@ -1084,7 +1198,7 @@ export const ProcessThread = (thread) => {
         lastValidStudentMsg = undefined; // Reset for next pair
       }
     } catch (error) {
-      logger.error('Error processing message:', error);
+      logger.error('Error processing message:', { error });
     }
   }
 
@@ -1095,26 +1209,40 @@ export const FindIntervalInCommunicationsAndSave = async () => {
   try {
     // TODO: active student's message only (should already done, please check GroupCommunicationByStudent)
     const groupCommunication = await GroupCommunicationByStudent();
-    const bulkOps = [];
+    const bulkOps: Array<ReturnType<typeof CreateIntervalMessageOperation>> =
+      [];
 
-    for (const [student, messages] of Object.entries(groupCommunication)) {
+    // FLAGGED BUG (pre-existing, preserved as-is): `GroupCommunicationByStudent`
+    // returns `undefined` if it hits its own catch block, and `Object.entries`
+    // would then throw at runtime. Cast (not guarded) to keep behavior
+    // unchanged; a `|| {}` fallback would be a real, if arguably desirable,
+    // behavior change.
+    for (const [student, messages] of Object.entries(
+      groupCommunication as Record<string, IntervalMessage[]>
+    )) {
       const studentBulkOps = ProcessMessages(student, messages);
       bulkOps.push(...studentBulkOps);
     }
 
     if (bulkOps.length > 0) {
-      const result = await IntervalService.bulkWrite(bulkOps);
+      const result = await IntervalService.bulkWrite(
+        bulkOps as AnyBulkWriteOperation<IInterval>[]
+      );
       logger.info(
         'FindIntervalInCommunicationsAndSave: Bulk operation result:',
-        result
+        { result }
       );
     }
   } catch (error) {
-    logger.error('Error finding valid interval:', error);
+    logger.error('Error finding valid interval:', { error });
   }
 };
 
-export const CreateIntervalOperation = (thread, msg1, msg2) => {
+export const CreateIntervalOperation = (
+  thread: { _id: unknown; file_type?: string },
+  msg1: IntervalMessage,
+  msg2: IntervalMessage
+) => {
   const intervalValue = CalculateInterval(msg1, msg2);
   const intervalData = {
     thread_id: thread._id,
@@ -1126,8 +1254,13 @@ export const CreateIntervalOperation = (thread, msg1, msg2) => {
     updatedAt: new Date()
   };
 
-  // Create a query object excluding the updatedAt field
-  const { _updatedAt, ...queryData } = intervalData;
+  // FLAGGED BUG (pre-existing, preserved as-is): see the identical note in
+  // `CreateIntervalMessageOperation` above — this destructures `_updatedAt`
+  // (which doesn't exist on `intervalData`) instead of `updatedAt`, so
+  // `queryData` still carries the fresh `updatedAt` timestamp.
+  const { _updatedAt, ...queryData } = intervalData as typeof intervalData & {
+    _updatedAt?: unknown;
+  };
 
   // Define the update operation
   const update = {
@@ -1143,8 +1276,9 @@ export const CreateIntervalOperation = (thread, msg1, msg2) => {
   };
 };
 
-export const FetchStudentsForDocumentThreads = async (filter) =>
-  StudentService.getStudentsForDocumentThreadIntervals(filter);
+export const FetchStudentsForDocumentThreads = async (
+  filter: FilterQuery<IStudent>
+) => StudentService.getStudentsForDocumentThreadIntervals(filter);
 
 export const FindIntervalInDocumentThreadAndSave = async () => {
   try {
@@ -1152,17 +1286,23 @@ export const FindIntervalInDocumentThreadAndSave = async () => {
     const students = await FetchStudentsForDocumentThreads({
       $or: [{ archiv: { $exists: false } }, { archiv: false }]
     });
-    const bulkOps = [];
+    const bulkOps: Array<ReturnType<typeof CreateIntervalOperation>> = [];
 
     for (const student of students) {
       try {
         for (const generaldocs_thread of student.generaldocs_threads) {
-          const thread = generaldocs_thread.doc_thread_id;
+          // `doc_thread_id` is typed as the unpopulated ref union
+          // (IDocumentthread | ObjectId | string), but the DAO query
+          // (`getStudentsForDocumentThreadIntervals`) always populates it.
+          const thread =
+            generaldocs_thread.doc_thread_id as unknown as Parameters<
+              typeof ProcessThread
+            >[0];
           const threadBulkOps = ProcessThread(thread);
           bulkOps.push(...threadBulkOps);
         }
       } catch (e) {
-        logger.error('Error retrieving general docs', e);
+        logger.error('Error retrieving general docs', { error: e });
       }
 
       // TODO:deprecated. use Application model instead
@@ -1180,27 +1320,45 @@ export const FindIntervalInDocumentThreadAndSave = async () => {
     }
 
     if (bulkOps.length > 0) {
-      const result = await IntervalService.bulkWrite(bulkOps);
+      const result = await IntervalService.bulkWrite(
+        bulkOps as AnyBulkWriteOperation<IInterval>[]
+      );
       logger.info(
         'FindIntervalInDocumentThreadAndSave: Bulk operation result:',
-        result
+        { result }
       );
     }
   } catch (error) {
-    logger.error('Error in FindIntervalInDocumentThreadAndSave:', error);
+    logger.error('Error in FindIntervalInDocumentThreadAndSave:', { error });
   }
+};
+
+// `IntervalService.findAllPopulated()` runs `.populate('thread_id
+// student_id')`, but `IInterval` declares those refs as plain
+// `Schema.Types.ObjectId`, so the populated shape (each carrying its own
+// `_id`, and `thread_id` additionally carrying the thread's `student_id`) is
+// declared locally here to match what the code below actually reads.
+type PopulatedIntervalRef = { _id: { toString(): string } };
+type PopulatedInterval = {
+  student_id?: PopulatedIntervalRef | null;
+  thread_id?:
+    | (PopulatedIntervalRef & { student_id?: { toString(): string } })
+    | null;
+  interval_type: string;
+  interval: number;
 };
 
 export const GroupIntervals = async () => {
   try {
-    const intervals = await IntervalService.findAllPopulated();
-    const studentGroupInterval = {};
-    const documentThreadGroupInterval = {};
+    const intervals =
+      (await IntervalService.findAllPopulated()) as unknown as PopulatedInterval[];
+    const studentGroupInterval: Record<string, PopulatedInterval[]> = {};
+    const documentThreadGroupInterval: Record<string, PopulatedInterval[]> = {};
     intervals.forEach((singleInterval) => {
       const { student_id, thread_id } = singleInterval;
       const key = student_id
         ? student_id._id.toString()
-        : thread_id._id.toString();
+        : thread_id!._id.toString();
       const group = student_id
         ? studentGroupInterval
         : documentThreadGroupInterval;
@@ -1210,9 +1368,9 @@ export const GroupIntervals = async () => {
         group[key].push(singleInterval);
       }
     });
-    return [studentGroupInterval, documentThreadGroupInterval];
+    return [studentGroupInterval, documentThreadGroupInterval] as const;
   } catch (error) {
-    logger.error('Error grouping communications:', error);
+    logger.error('Error grouping communications:', { error });
     return null;
   }
 };
@@ -1221,7 +1379,10 @@ export const GroupIntervals = async () => {
 // mammoth) and plain text formats. Returns '' for unsupported types or on
 // extraction failure. Shared by patternMatched and the AI Assist read_document
 // tool.
-export const extractTextFromBuffer = async (fileBuffer, extension) => {
+export const extractTextFromBuffer = async (
+  fileBuffer: Buffer,
+  extension: string
+): Promise<string> => {
   const ext = String(extension || '')
     .toLowerCase()
     .replace(/^\./, '');
@@ -1249,8 +1410,14 @@ export const extractTextFromBuffer = async (fileBuffer, extension) => {
   return '';
 };
 
-export const patternMatched = async (fileBuffer, extension, patterns) => {
-  const text = (await extractTextFromBuffer(fileBuffer, extension)).toLowerCase();
+export const patternMatched = async (
+  fileBuffer: Buffer,
+  extension: string,
+  patterns: string[]
+): Promise<boolean> => {
+  const text = (
+    await extractTextFromBuffer(fileBuffer, extension)
+  ).toLowerCase();
   if (!text) return false; // Early return if text extraction failed
 
   return patterns
@@ -1261,19 +1428,28 @@ export const patternMatched = async (fileBuffer, extension, patterns) => {
 export const CalculateAverageResponseTimeAndSave = async () => {
   try {
     const [studentGroupInterval, documentThreadGroupInterval] =
-      await GroupIntervals();
-    const calculateAndSaveAverage = async (groupInterval, idKey) => {
+      (await GroupIntervals()) as [
+        Record<string, PopulatedInterval[]>,
+        Record<string, PopulatedInterval[]>
+      ];
+    const calculateAndSaveAverage = async (
+      groupInterval: Record<string, PopulatedInterval[]>,
+      idKey: 'student_id' | 'thread_id'
+    ) => {
       try {
-        const bulkOps = [];
+        const bulkOps: Array<Record<string, unknown>> = [];
 
         // Prepare the bulk operations
         for (const key in groupInterval) {
           const intervals = groupInterval[key];
           const total = intervals.reduce(
-            (sum, interval) => sum + interval.interval,
+            (sum: number, interval) => sum + interval.interval,
             0
           );
-          const final_avg = (total / intervals.length).toFixed(2);
+          // `intervalAvg` on `IResponseTime` is typed `number`; `.toFixed(2)`
+          // still rounds to 2 decimals exactly as before, just converted back
+          // to a number instead of leaving it as a string.
+          const final_avg = Number((total / intervals.length).toFixed(2));
 
           const singleInterval = intervals[0];
           const intervalType = singleInterval.interval_type;
@@ -1290,7 +1466,7 @@ export const CalculateAverageResponseTimeAndSave = async () => {
                 updatedAt: new Date()
               },
               $setOnInsert: {
-                student_id: singleInterval.thread_id.student_id?.toString(),
+                student_id: singleInterval.thread_id?.student_id?.toString(),
                 [`${idKey}`]: key.toString(),
                 interval_type: intervalType
               }
@@ -1319,16 +1495,17 @@ export const CalculateAverageResponseTimeAndSave = async () => {
 
         // Execute bulk operations
         if (bulkOps.length > 0) {
-          const result = await ResponseTimeService.bulkWrite(bulkOps);
-          logger.info(
-            'calculateAndSaveAverage: Bulk operation result:',
-            result
+          const result = await ResponseTimeService.bulkWrite(
+            bulkOps as unknown as AnyBulkWriteOperation<IResponseTime>[]
           );
+          logger.info('calculateAndSaveAverage: Bulk operation result:', {
+            result
+          });
         }
       } catch (err) {
         logger.error(
           `Error calculating and saving average response time for ${idKey}:`,
-          err
+          { error: err }
         );
       }
     };
@@ -1336,7 +1513,7 @@ export const CalculateAverageResponseTimeAndSave = async () => {
     await calculateAndSaveAverage(studentGroupInterval, 'student_id');
     await calculateAndSaveAverage(documentThreadGroupInterval, 'thread_id');
   } catch (error) {
-    logger.error('Error in CalculateAverageResponseTimeAndSave:', error);
+    logger.error('Error in CalculateAverageResponseTimeAndSave:', { error });
   }
 };
 
@@ -1367,18 +1544,21 @@ export const DailyInterviewSurveyChecker = async () => {
     );
 
     // send interview survey request email
-    interviewTookPlacedToday?.map((interview) =>
-      InterviewSurveyRequestEmail(
-        {
-          firstname: interview.student_id.firstname,
-          lastname: interview.student_id.lastname,
-          address: interview.student_id.email
-        },
-        { interview }
-      )
+    interviewTookPlacedToday?.map(
+      (interview: {
+        student_id: { firstname?: string; lastname?: string; email?: string };
+      }) =>
+        InterviewSurveyRequestEmail(
+          {
+            firstname: interview.student_id.firstname,
+            lastname: interview.student_id.lastname,
+            address: interview.student_id.email
+          },
+          { interview }
+        )
     );
   } catch (error) {
-    logger.error('Error in DailyInterviewSurveyChecker:', error);
+    logger.error('Error in DailyInterviewSurveyChecker:', { error });
   }
 };
 
@@ -1442,12 +1622,26 @@ export const NoInterviewTrainerOrTrainingDateDailyReminderChecker =
     } catch (error) {
       logger.error(
         'Error in NoInterviewTrainerOrTrainingDateDailyReminderChecker:',
-        error
+        { error }
       );
     }
   };
 
-export const userChangesHelperFunction = async (newUserIds, existingUsers) => {
+// Existing team member shape this helper compares against — student/editor
+// `agents`/`editors` and interview `trainer_id`, all populated arrays of user
+// documents carrying at least these fields.
+type ExistingTeamUser = {
+  _id: { toString(): string };
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+  archiv?: boolean;
+};
+
+export const userChangesHelperFunction = async (
+  newUserIds: Record<string, boolean>,
+  existingUsers: ExistingTeamUser[] | undefined
+) => {
   const newUserIdsArr = Object.keys(newUserIds);
   const updatedUserIds = newUserIdsArr.filter(
     (editorId) => newUserIds[editorId]
@@ -1470,15 +1664,27 @@ export const userChangesHelperFunction = async (newUserIds, existingUsers) => {
   const newEditorSet = new Set(updatedUserIds);
 
   // Find newly added and removed editors
+  // Note: `usr` can be `null` here (a stale/deleted id in `newUserIds` makes
+  // `getUserByIdSelect` resolve to null) — pre-existing, unguarded assumption
+  // that every id resolves; preserved as-is (non-null assertion only).
   const addedUsers = users.filter(
-    (usr) => !previousEditorSet.has(usr._id.toString())
+    (usr) => !previousEditorSet.has(usr!._id.toString())
   );
   const removedUsers = beforeChangeUsersArr.filter(
     (usr) => !newEditorSet.has(usr._id.toString())
   );
 
-  const toBeInformedUsers = [];
-  const updatedUsers = [];
+  const toBeInformedUsers: Array<{
+    firstname?: string | null;
+    lastname?: string | null;
+    archiv?: boolean;
+    email?: string | null;
+  }> = [];
+  const updatedUsers: Array<{
+    firstname?: string | null;
+    lastname?: string | null;
+    email?: string | null;
+  }> = [];
 
   users.forEach((usr) => {
     if (usr) {

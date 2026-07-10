@@ -26,9 +26,20 @@ const SearchService = {
         SearchDAO.searchPrograms(q)
       ]);
 
-    return students
-      .concat(documentations, internaldocs, programs)
-      .sort(byScoreDesc);
+    // Each DAO method returns a differently-shaped lean doc (student/user,
+    // documentation, program, ...); the combined list is genuinely
+    // heterogeneous — only `.score` (added by every DAO method) is common —
+    // so it's typed as the union of the four result shapes rather than
+    // forcing one onto the others (which is what made `.concat()` fail to
+    // type-check).
+    const combined: Array<
+      | (typeof students)[number]
+      | (typeof documentations)[number]
+      | (typeof internaldocs)[number]
+      | (typeof programs)[number]
+    > = [...students, ...documentations, ...internaldocs, ...programs];
+
+    return combined.sort(byScoreDesc);
   },
 
   async getStudentsResults(q: string) {

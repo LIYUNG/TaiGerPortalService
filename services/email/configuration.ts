@@ -9,8 +9,14 @@ import {
 } from '../../config';
 import { sesv2Client, SendEmailCommand, limiter } from '../../aws';
 import { senderName, taigerNotReplyGmail } from '../../constants/email';
-import { htmlContent } from '../emailTemplate';
+// `emailTemplate.ts` uses `export =`; import via `require` interop since a
+// named `import { htmlContent }` against an `export =` module is rejected
+// under this project's module settings (TS2497).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see comment above
+import EmailTemplate = require('../emailTemplate');
 import logger from '../logger';
+
+const { htmlContent } = EmailTemplate;
 
 // SES API v2 transport (nodemailer 9+). v2 `SendEmail` (raw content) allows ~40
 // MB messages vs v1 `SendRawEmail`'s 10 MB cap — required for forwarding

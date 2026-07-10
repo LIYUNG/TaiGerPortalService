@@ -5,7 +5,10 @@ import { GeneralGETRequestRateLimiter } from '../middlewares/rate_limiter';
 import { protect, permit } from '../middlewares/auth';
 import { filter_archiv_user } from '../middlewares/limit_archiv_user';
 
-import {
+import teamsController from '../controllers/teams';
+import { permission_canAccessStudentDatabase_filter } from '../middlewares/permission-filter';
+
+const {
   getTeamMembers,
   getStatisticsOverview,
   getStatisticsAgents,
@@ -16,8 +19,7 @@ import {
   getArchivStudents,
   getTasksOverview,
   getIsManager
-} from '../controllers/teams';
-import { permission_canAccessStudentDatabase_filter } from '../middlewares/permission-filter';
+} = teamsController;
 
 const router = Router();
 

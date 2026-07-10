@@ -5,8 +5,14 @@
 // (__tests__/integration/documentthread.test.js, "overview/all" happy path).
 jest.mock('../../dao/documentthread.dao');
 
-import DocumentthreadDAO from '../../dao/documentthread.dao';
+import DocumentthreadDAOModule from '../../dao/documentthread.dao';
 import DocumentThreadService from '../../services/documentthreads';
+
+// Auto-mocked DAO exposes jest.fn()s at runtime, but TS still sees the real
+// signatures. Re-type it as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()` calls type-check.
+type MockedDAO = Record<string, jest.Mock>;
+const DocumentthreadDAO = DocumentthreadDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();

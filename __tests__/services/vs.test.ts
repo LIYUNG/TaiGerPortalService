@@ -4,8 +4,14 @@
 // exact args and returns the DAO's result.
 jest.mock('../../dao/vc.dao');
 
-import VCDAO from '../../dao/vc.dao';
+import VCDAOModule from '../../dao/vc.dao';
 import VCService from '../../services/vs';
+
+// Auto-mocked DAO exposes jest.fn()s at runtime, but TS still sees the real
+// signatures. Re-type it as a bag of jest.Mock methods so the per-test
+// `.mockResolvedValue()` calls type-check.
+type MockedDAO = Record<string, jest.Mock>;
+const VCDAO = VCDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();

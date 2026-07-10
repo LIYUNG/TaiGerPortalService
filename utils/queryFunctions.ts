@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { ten_minutes_cache } from '../cache/node-cache';
 import { asyncHandler } from '../middlewares/error-handler';
 import logger from '../services/logger';
@@ -27,7 +28,10 @@ export const getPermission = asyncHandler(async (req, user) => {
   return cachedPermission;
 });
 
-export const getCachedStudentPermission = async (req, studentId) => {
+export const getCachedStudentPermission = async (
+  req: Request,
+  studentId: string
+) => {
   let cachedStudent = ten_minutes_cache.get(`/filter/studentId/${studentId}`);
   if (cachedStudent === undefined) {
     const student = await StudentService.getStudentByIdSelect(

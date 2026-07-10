@@ -6,8 +6,14 @@
 // against the DAO/model in the integration suite.
 jest.mock('../../dao/student.dao');
 
-import StudentDAO from '../../dao/student.dao';
+import StudentDAOModule from '../../dao/student.dao';
 import StudentService from '../../services/students';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()` calls type-check while still allowing
+// partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const StudentDAO = StudentDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();

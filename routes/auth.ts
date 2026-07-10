@@ -10,7 +10,9 @@ import {
 } from '../middlewares/rate_limiter';
 
 import { localAuth, protect } from '../middlewares/auth';
-import {
+import authController from '../controllers/auth';
+
+const {
   // signup,
   login,
   logout,
@@ -20,7 +22,7 @@ import {
   forgotPassword,
   resetPassword,
   thirdAuth
-} from '../controllers/auth';
+} = authController;
 
 const router = Router();
 // TODO: when public to all user, then activate registration.

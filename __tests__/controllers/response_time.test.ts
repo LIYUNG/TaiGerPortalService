@@ -12,14 +12,38 @@
 jest.mock('../../services/responseTimes');
 
 import { Role } from '@taiger-common/core';
-import ResponseTimeService from '../../services/responseTimes';
-import {
-  GenerateResponseTimeByTaigerUser,
-  GenerateResponseTimeByStudent
-} from '../../controllers/response_time';
+import ResponseTimeServiceModule from '../../services/responseTimes';
+import ResponseTimeControllerModule from '../../controllers/response_time';
+
+// Auto-mocked service module exposes jest.fn()s at runtime, but TS still sees
+// the real signatures. Re-type it as a bag of jest.Mock methods so the
+// per-test mock-configuration calls (mockResolvedValue/mockRejectedValue/...)
+// type-check while still allowing partial (non-Mongoose) return shapes.
+type MockedService = Record<string, jest.Mock>;
+const ResponseTimeService =
+  ResponseTimeServiceModule as unknown as MockedService;
+
+// controllers/response_time uses `export =`; cast to a uniform 0-arg async
+// signature and destructure (named-import destructuring against `export =`
+// errors TS2497). The lookup the controller builds is itself typed as
+// `Record<string, any>` in production (controllers/response_time.ts) — it's a
+// dynamically-keyed (per-user, per-file-type) structure, so mirror that here
+// rather than fighting it with an artificial shape.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const { GenerateResponseTimeByTaigerUser, GenerateResponseTimeByStudent } =
+  ResponseTimeControllerModule as unknown as Record<
+    string,
+    () => Promise<Record<string, any>>
+  >;
 
 // Small helpers to build the populated records the controller iterates over.
-const agentUser = (overrides = {}) => ({
+type UserOverrides = {
+  id?: string;
+  firstname?: string;
+  lastname?: string;
+  [key: string]: unknown;
+};
+const agentUser = (overrides: UserOverrides = {}) => ({
   _id: { toString: () => overrides.id || 'agent-1' },
   firstname: overrides.firstname || 'Alice',
   lastname: overrides.lastname || 'Agent',
@@ -27,7 +51,7 @@ const agentUser = (overrides = {}) => ({
   ...overrides
 });
 
-const editorUser = (overrides = {}) => ({
+const editorUser = (overrides: UserOverrides = {}) => ({
   _id: { toString: () => overrides.id || 'editor-1' },
   firstname: overrides.firstname || 'Eddie',
   lastname: overrides.lastname || 'Editor',
@@ -171,10 +195,9 @@ describe('GenerateResponseTimeByTaigerUser', () => {
     // AvgResponseTime collapses to null because the pushed array sum / length
     // is NaN-ish; the controller sets a computed value only via the array sum.
     // We just assert both ids are present.
-    expect(lookup['agent-1'].CV.ResponseTimeId.map((e) => e[0])).toEqual([
-      'th-1',
-      'th-2'
-    ]);
+    expect(
+      lookup['agent-1'].CV.ResponseTimeId.map((e: unknown[]) => e[0])
+    ).toEqual(['th-1', 'th-2']);
   });
 
   it('forwards a service rejection (the asyncHandler wrapper rejects)', async () => {

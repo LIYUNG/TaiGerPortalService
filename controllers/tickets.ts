@@ -1,4 +1,5 @@
 import { is_TaiGer_role } from '@taiger-common/core';
+import type { IUser } from '@taiger-common/model';
 import { asyncHandler } from '../middlewares/error-handler';
 import { isNotArchiv } from '../constants';
 import {
@@ -58,7 +59,7 @@ const createTicket = asyncHandler(async (req, res) => {
 
   const agents = (student as any).agents;
   for (let i = 0; i < agents.length; i += 1) {
-    if (isNotArchiv(student)) {
+    if (isNotArchiv(student as unknown as IUser)) {
       TicketCreatedAgentEmail(
         {
           firstname: agents[i].firstname,

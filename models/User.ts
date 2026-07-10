@@ -6,7 +6,7 @@ import {
   externalSchema,
   managerSchema
 } from '@taiger-common/model';
-import { model, Schema } from 'mongoose';
+import { model, Schema, type CallbackError } from 'mongoose';
 import { Role } from '@taiger-common/core';
 
 import bcrypt from 'bcryptjs';
@@ -54,31 +54,38 @@ UserSchema.pre('save', async function (next) {
 
   try {
     const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(user.password, salt);
+    user.password = await bcrypt.hash(user.password as string, salt);
     next();
   } catch (err) {
-    next(err);
+    next(err as CallbackError);
   }
 });
 
+// Narrow shape of the update payload this hook cares about — the raw
+// getUpdate() type is `UpdateQuery | UpdateWithAggregationPipeline | null`.
+type PasswordUpdate = {
+  password?: string;
+  $set?: { password?: string };
+};
+
 // eslint-disable-next-line func-names, consistent-return
 UserSchema.pre('findOneAndUpdate', async function (next) {
-  const update = this.getUpdate();
+  const update = this.getUpdate() as PasswordUpdate | null;
 
   // Check if password is being modified
-  if (update.password || (update.$set && update.$set.password)) {
+  if (update && (update.password || update.$set?.password)) {
     try {
-      const newPassword = update.password || update.$set.password;
+      const newPassword = update.password || update.$set?.password;
       const salt = await bcrypt.genSalt(10);
-      const hashed = await bcrypt.hash(newPassword, salt);
+      const hashed = await bcrypt.hash(newPassword as string, salt);
 
       if (update.password) {
         update.password = hashed;
-      } else {
+      } else if (update.$set) {
         update.$set.password = hashed;
       }
     } catch (err) {
-      return next(err);
+      return next(err as CallbackError);
     }
   }
 
@@ -86,7 +93,7 @@ UserSchema.pre('findOneAndUpdate', async function (next) {
 });
 
 // eslint-disable-next-line func-names
-UserSchema.methods.verifyPassword = function (password) {
+UserSchema.methods.verifyPassword = function (password: string) {
   const user = this;
   return bcrypt.compare(password, user.password);
 };

@@ -17,6 +17,14 @@ import StudentService from '../services/students';
 
 const pageSize = 3;
 
+// `getRecentByStudentId` returns lean communications with `user_id` populated
+// to just these fields (see dao/communication.dao.ts:getRecentByStudentId).
+type RecentMessage = {
+  message?: string;
+  createdAt?: Date;
+  user_id?: { firstname?: string; role?: string };
+};
+
 const processProgramListAi = asyncHandler(async (req, res, _next) => {
   const {
     params: { programId }
@@ -78,16 +86,16 @@ const TaiGerAiChat = asyncHandler(async (req, res, _next) => {
     params: { studentId }
   } = req;
 
-  const communication_thread = await CommunicationService.getRecentByStudentId(
+  const communication_thread = (await CommunicationService.getRecentByStudentId(
     studentId,
     pageSize
-  );
+  )) as unknown as RecentMessage[];
   const applications = await ApplicationService.getApplicationsByStudentId(
     studentId
   );
   const chat = communication_thread?.map((c) => {
     try {
-      const messageObj = JSON.parse(c.message);
+      const messageObj = JSON.parse(c.message ?? '');
       return {
         createdAt: c.createdAt,
         user: c.user_id?.firstname || '',

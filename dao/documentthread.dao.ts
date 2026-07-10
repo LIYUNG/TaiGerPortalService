@@ -40,7 +40,7 @@ const STALE_PROGRAM_MS = 270 * 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Frontend table column id -> aggregation sort path.
-const THREAD_SORT_FIELD_MAP = {
+const THREAD_SORT_FIELD_MAP: Record<string, string> = {
   deadline: 'deadlineDate',
   days_left: 'deadlineDate',
   document_name: 'document_name',
@@ -77,13 +77,13 @@ const buildFileTypeCond = (fileTypes: string[]) => {
 
 const parseActiveThreadsQuery = (query: ActiveThreadsQuery = {}) => {
   const { page, limit, search, sortBy, sortOrder } = query;
-  const parsedPage = parseInt(page, 10);
-  const parsedLimit = parseInt(limit, 10);
+  const parsedPage = parseInt(page ?? '', 10);
+  const parsedLimit = parseInt(limit ?? '', 10);
   const safePage = parsedPage > 0 ? parsedPage : DEFAULT_PAGE;
   const safeLimit =
     parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT;
 
-  const sortPath = THREAD_SORT_FIELD_MAP[sortBy] || 'deadlineDate';
+  const sortPath = THREAD_SORT_FIELD_MAP[sortBy ?? ''] || 'deadlineDate';
   const sortDir = String(sortOrder || 'asc').toLowerCase() === 'desc' ? -1 : 1;
 
   const trim = (v: unknown) => {
@@ -117,13 +117,13 @@ const parseActiveThreadsQuery = (query: ActiveThreadsQuery = {}) => {
       deadline: trim(query.deadline),
       category: trim(query.category) || 'all'
     },
-    sort: { [sortPath]: sortDir, _id: 1 }
+    sort: { [sortPath]: sortDir, _id: 1 } as Record<string, 1 | -1>
   };
 };
 
 // Per-thread category classification booleans, shared by the paginated list and
 // the counts endpoint. `viewerId` is needed for the viewer-dependent tabs.
-const THREAD_CATEGORY_FIELDS = (viewerId: string | null) => ({
+const THREAD_CATEGORY_FIELDS = (viewerId: string | null | undefined) => ({
   _hasMessages: { $gt: [{ $size: { $ifNull: ['$messages', []] } }, 0] },
   _isFinal: { $eq: ['$isFinalVersion', true] },
   // Withdrawn application (app.closed === 'X'). Requires the `app` field to be
@@ -161,7 +161,10 @@ const THREAD_CATEGORY_FIELDS = (viewerId: string | null) => ({
 });
 
 // Build a $match condition (on the computed category fields) for one tab.
-const buildCategoryMatch = (category: string, viewerId: string | null) => {
+const buildCategoryMatch = (
+  category: string,
+  viewerId: string | null | undefined
+): Record<string, unknown> | null => {
   switch (category) {
     case 'closed':
       return { _isFinal: true };
@@ -471,7 +474,7 @@ const DocumentthreadDAO = {
     // file_type may be a single value or a comma-separated list ($in).
     const fileTypeCond = buildFileTypeCond(parseArrayParam(filters.file_type));
 
-    const preMatch = { file_type: fileTypeCond };
+    const preMatch: Record<string, unknown> = { file_type: fileTypeCond };
     const scopeAnd = [];
     // Scope: the given students, plus (for the "my students" view) Essay threads
     // outsourced to the viewer even if their student isn't in the supervised set.
@@ -492,7 +495,9 @@ const DocumentthreadDAO = {
     // an outsourced collaborator on that specific thread.
     const excludeTypes = parseArrayParam(query.excludeFileType);
     if (excludeTypes.length > 0) {
-      const orConds = [{ file_type: { $nin: excludeTypes } }];
+      const orConds: Record<string, unknown>[] = [
+        { file_type: { $nin: excludeTypes } }
+      ];
       if (viewerId) {
         orConds.push({
           outsourced_user_id: new mongoose.Types.ObjectId(viewerId)
@@ -513,7 +518,7 @@ const DocumentthreadDAO = {
 
     const escapedSearch = search ? escapeRegex(search) : null;
 
-    const pipeline = [
+    const pipeline: mongoose.PipelineStage[] = [
       { $match: preMatch },
       // application (decided/closed/year/lock) — general threads have none.
       {
@@ -1006,7 +1011,9 @@ const DocumentthreadDAO = {
 
     // ---- post-lookup filters (computed/joined fields) ----
     // Exclude archived students (the essay-outsourced branch can surface them).
-    const andConditions = [{ 'student.archiv': { $ne: true } }];
+    const andConditions: Record<string, unknown>[] = [
+      { 'student.archiv': { $ne: true } }
+    ];
     if (filters.name) {
       const p = escapeRegex(filters.name);
       andConditions.push({
@@ -1191,7 +1198,7 @@ const DocumentthreadDAO = {
       $sum: { $cond: [{ $and: [{ $eq: ['$_isFinal', false] }, cond] }, 1, 0] }
     });
 
-    const preMatch = { file_type: fileTypeCond };
+    const preMatch: Record<string, unknown> = { file_type: fileTypeCond };
     const scopeAnd = [];
     if (outsourcedUserId) {
       scopeAnd.push({
@@ -1210,7 +1217,9 @@ const DocumentthreadDAO = {
     // an outsourced collaborator on that specific thread.
     const excludeTypes = parseArrayParam(query.excludeFileType);
     if (excludeTypes.length > 0) {
-      const orConds = [{ file_type: { $nin: excludeTypes } }];
+      const orConds: Record<string, unknown>[] = [
+        { file_type: { $nin: excludeTypes } }
+      ];
       if (viewerId) {
         orConds.push({
           outsourced_user_id: new mongoose.Types.ObjectId(viewerId)

@@ -5,6 +5,15 @@ import { Strategy as JwtStrategy } from 'passport-jwt';
 import { JWT_SECRET } from '../config';
 import UserService from '../services/users';
 
+// `verifyPassword` is attached to the User model at runtime via
+// `UserSchema.methods.verifyPassword = ...` (models/User.ts), which bypasses
+// the schema's static (generated) document typing. This narrow shape lets us
+// call it without widening the type of `user` itself (still needed below for
+// `done(null, user)` and the other UserService calls).
+interface UserDocumentWithVerify {
+  verifyPassword(password: string): Promise<boolean>;
+}
+
 passport.use(
   new LocalStrategy(
     { usernameField: 'email', passReqToCallback: true },
@@ -14,7 +23,9 @@ passport.use(
 
         if (!user) return done(null, false);
 
-        const isPasswordValid = await user.verifyPassword(password);
+        const isPasswordValid = await (
+          user as unknown as UserDocumentWithVerify
+        ).verifyPassword(password);
         if (!isPasswordValid) return done(null, false);
 
         if (user.isAccountActivated !== true) {

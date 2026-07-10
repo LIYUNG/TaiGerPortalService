@@ -4,8 +4,15 @@
 // DAO's result unchanged.
 jest.mock('../../dao/note.dao');
 
-import NoteDAO from '../../dao/note.dao';
+import NoteDAOModule from '../../dao/note.dao';
 import NoteService from '../../services/notes';
+import type { Note } from '../../dao/note.dao.types';
+
+// The DAO is auto-mocked above; re-type it as a bag of jest.Mock methods so
+// the per-test `.mockResolvedValue()` calls type-check while still allowing
+// partial (non-Mongoose) return shapes.
+type MockedDAO = Record<string, jest.Mock>;
+const NoteDAO = NoteDAOModule as unknown as MockedDAO;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -30,7 +37,10 @@ describe('NoteService.upsertNoteByStudentId (mocked DAO)', () => {
     const daoResult = { _id: 'n1', student_id: 's1', text: 'updated' };
     NoteDAO.upsertNoteByStudentId.mockResolvedValue(daoResult);
 
-    const result = await NoteService.upsertNoteByStudentId('s1', fields);
+    const result = await NoteService.upsertNoteByStudentId(
+      's1',
+      fields as unknown as Partial<Note>
+    );
 
     expect(NoteDAO.upsertNoteByStudentId).toHaveBeenCalledTimes(1);
     expect(NoteDAO.upsertNoteByStudentId).toHaveBeenCalledWith('s1', fields);

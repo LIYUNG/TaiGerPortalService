@@ -13,10 +13,12 @@ jest.mock('../../../services/openai', () => ({
 jest.mock('../../../services/ai-assist/tools', () => ({
   requireAccessibleStudent: jest.fn()
 }));
-jest.mock('../../../services/students', () => ({ findStudentsSelect: jest.fn() }));
+jest.mock('../../../services/students', () => ({
+  findStudentsSelect: jest.fn()
+}));
 
 import signalLedger from '../../../services/ai-assist/signalLedger';
-import databaseModule from '../../../database';
+import * as databaseModule from '../../../database';
 import CommunicationService from '../../../services/communications';
 import { openAIClient } from '../../../services/openai';
 import toolsModule from '../../../services/ai-assist/tools';
@@ -66,9 +68,19 @@ describe('signalLedger.extractOutputText', () => {
 describe('signalLedger.buildScanMessages', () => {
   it('keeps only text-bearing messages and tags student vs team', () => {
     const out = buildScanMessages([
-      { _id: 'm1', message: 'hi', user_id: { role: 'Student' }, createdAt: '2026-05-01' },
+      {
+        _id: 'm1',
+        message: 'hi',
+        user_id: { role: 'Student' },
+        createdAt: '2026-05-01'
+      },
       { _id: 'm2', message: '', user_id: { role: 'Agent' } }, // dropped: no text
-      { _id: 'm3', message: 'reply', user_id: { role: 'Agent' }, createdAt: '2026-05-02' }
+      {
+        _id: 'm3',
+        message: 'reply',
+        user_id: { role: 'Agent' },
+        createdAt: '2026-05-02'
+      }
     ]);
     expect(out).toHaveLength(2);
     expect(out[0]).toMatchObject({ id: 'm1', from: 'student' });
@@ -84,10 +96,7 @@ describe('signalLedger.withSourceRefs', () => {
   ];
 
   it('maps a 1-based msgIndex to the source id + timestamp', () => {
-    const [a, b] = withSourceRefs(
-      [{ msgIndex: 1 }, { msgIndex: 2 }],
-      messages
-    );
+    const [a, b] = withSourceRefs([{ msgIndex: 1 }, { msgIndex: 2 }], messages);
     expect(a.sourceMessageId).toBe('m1');
     expect(a.occurredAt).toBe('2026-05-01T00:00:00.000Z');
     expect(b.sourceMessageId).toBe('m2');
@@ -187,12 +196,19 @@ describe('signalLedger.mergeSignals', () => {
       ],
       now
     );
-    expect(out.map((s) => s.type)).toEqual(['broken_promise', 'frustration']);
-    expect(out.map((s) => s.severity)).toEqual(['high', 'low']);
+    expect(out.map((s: any) => s.type)).toEqual([
+      'broken_promise',
+      'frustration'
+    ]);
+    expect(out.map((s: any) => s.severity)).toEqual(['high', 'low']);
   });
 
   it('stamps firstSeenAt = now for a brand new signal type', () => {
-    const out = mergeSignals([], [{ type: 'frustration', severity: 'low', evidence: 'e' }], now);
+    const out = mergeSignals(
+      [],
+      [{ type: 'frustration', severity: 'low', evidence: 'e' }],
+      now
+    );
     expect(out[0].firstSeenAt).toBe(now.toISOString());
   });
 });
@@ -219,7 +235,9 @@ describe('signalLedger.rollupRiskLevel', () => {
   it('returns none for an empty / all-resolved set', () => {
     expect(rollupRiskLevel([])).toBe('none');
     expect(
-      rollupRiskLevel([{ type: 'frustration', severity: 'high', resolved: true }])
+      rollupRiskLevel([
+        { type: 'frustration', severity: 'high', resolved: true }
+      ])
     ).toBe('none');
   });
 });
@@ -244,7 +262,9 @@ const buildPg = (rows: any[], insertMock: jest.Mock) => ({
 });
 
 const okInsert = () =>
-  jest.fn(() => ({ values: () => ({ onConflictDoUpdate: () => Promise.resolve() }) }));
+  jest.fn(() => ({
+    values: () => ({ onConflictDoUpdate: () => Promise.resolve() })
+  }));
 
 const studentMsg = (id: string, text: string, at: string) => ({
   _id: id,
@@ -298,7 +318,13 @@ describe('signalLedger.scanStudentSignals', () => {
   it('incremental: filters messages since lastScannedAt', async () => {
     getPostgresDb.mockReturnValue(
       buildPg(
-        [{ studentId: 's1', lastScannedAt: '2026-04-01T00:00:00.000Z', signals: [] }],
+        [
+          {
+            studentId: 's1',
+            lastScannedAt: '2026-04-01T00:00:00.000Z',
+            signals: []
+          }
+        ],
         okInsert()
       )
     );
@@ -312,7 +338,11 @@ describe('signalLedger.scanStudentSignals', () => {
 
   it('no new messages: returns prior row, no upsert', async () => {
     const insertMock = okInsert();
-    const prior = { studentId: 's1', lastScannedAt: '2026-04-01T00:00:00.000Z', signals: [] };
+    const prior = {
+      studentId: 's1',
+      lastScannedAt: '2026-04-01T00:00:00.000Z',
+      signals: []
+    };
     getPostgresDb.mockReturnValue(buildPg([prior], insertMock));
     findPopulatedSorted.mockResolvedValue([]);
 
@@ -343,7 +373,11 @@ describe('signalLedger read gating', () => {
     getPostgresDb.mockReturnValue(
       buildPg(
         [
-          { studentId: 's1', riskLevel: 'high', signals: [{ resolved: false }] },
+          {
+            studentId: 's1',
+            riskLevel: 'high',
+            signals: [{ resolved: false }]
+          },
           { studentId: 's2', riskLevel: 'none', signals: [{ resolved: true }] }
         ],
         okInsert()

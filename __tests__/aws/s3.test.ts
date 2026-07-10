@@ -11,7 +11,9 @@
 // vars). The shared send() spy is exposed on the mocked module as `__send`.
 jest.mock('@aws-sdk/client-s3', () => {
   class FakeCommand {
-    constructor(input) {
+    input: any;
+
+    constructor(input: any) {
       this.input = input;
     }
   }
@@ -22,13 +24,13 @@ jest.mock('@aws-sdk/client-s3', () => {
   class ListObjectsCommand extends FakeCommand {}
 
   class S3ServiceException extends Error {
-    constructor(name, message) {
+    constructor(name: any, message: any) {
       super(message);
       this.name = name || 'S3ServiceException';
     }
   }
   class NoSuchKey extends S3ServiceException {
-    constructor(message) {
+    constructor(message: any) {
       super('NoSuchKey', message);
     }
   }
@@ -39,7 +41,7 @@ jest.mock('@aws-sdk/client-s3', () => {
   const waitUntilObjectNotExists = jest.fn().mockResolvedValue({});
 
   class S3Client {
-    send(command) {
+    send(command: any) {
       return send(command);
     }
   }
@@ -77,8 +79,10 @@ const {
   DeleteObjectsCommand,
   ListObjectsCommand,
   waitUntilObjectNotExists
-} = sdk;
-import logger from '../../services/logger';
+} = sdk as any;
+import loggerReal from '../../services/logger';
+
+const logger = loggerReal as unknown as Record<string, jest.Mock>;
 import * as s3 from '../../aws/s3';
 
 beforeEach(() => {

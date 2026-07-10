@@ -19,13 +19,18 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Student, User } from '../../models';
+import { Student as StudentModel, User as UserModel } from '../../models';
 import StudentDAO from '../../dao/student.dao';
+
+// The models are auto-mocked above (every method is a jest.fn()); retype
+// them so the mock API (mockReturnValue/…) is visible to the type-checker.
+const Student = StudentModel as unknown as Record<string, jest.Mock>;
+const User = UserModel as unknown as Record<string, jest.Mock>;
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls return the same chain so they compose.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     select: jest.fn(() => chain),
     sort: jest.fn(() => chain),
@@ -39,26 +44,28 @@ const leanChain = (value) => {
 
 // A query chain that is itself thenable (no terminal `.lean()`): awaiting it
 // resolves to `value`, while builder calls return the same chain.
-const queryChain = (value) => {
-  const chain = {
+const queryChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     select: jest.fn(() => chain),
     sort: jest.fn(() => chain),
     skip: jest.fn(() => chain),
     limit: jest.fn(() => chain),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };
 
 // `.lean()` returns a thenable query that also exposes `.limit()` — used by
 // findStudentsSelect, which calls `.limit()` AFTER `.lean()` and then awaits.
-const leanLimitChain = (value) => {
-  const leanQuery = {
+const leanLimitChain = (value: unknown) => {
+  const leanQuery: any = {
     limit: jest.fn(),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
-  const chain = {
+  const chain: any = {
     select: jest.fn(() => chain),
     lean: jest.fn(() => leanQuery)
   };
@@ -67,13 +74,13 @@ const leanLimitChain = (value) => {
 
 // `Student.find(filter).countDocuments()` — find() returns a chain whose
 // countDocuments() resolves to the count.
-const countChain = (value) => ({
+const countChain = (value: unknown) => ({
   countDocuments: jest.fn().mockResolvedValue(value)
 });
 
 // Aggregations are called as `Student.aggregate(pipeline).allowDiskUse(true)`
 // for the paginated read, or awaited directly for the simple aggregates.
-const aggDiskChain = (value) => ({
+const aggDiskChain = (value: unknown) => ({
   allowDiskUse: jest.fn().mockResolvedValue(value)
 });
 

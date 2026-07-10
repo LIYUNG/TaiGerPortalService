@@ -42,16 +42,25 @@ jest.mock('../../aws', () => ({
   })
 }));
 
-import CommunicationService from '../../services/communications';
+import CommunicationServiceReal from '../../services/communications';
 import { getS3Object, uploadJsonToS3 } from '../../aws/s3';
 import { callApiGateway, getTemporaryCredentials } from '../../aws';
-import {
+import widgetController from '../../controllers/widget';
+import { mockReq, mockRes } from '../helpers/httpMocks';
+import { admin, student } from '../mock/user';
+
+const CommunicationService = CommunicationServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const {
   WidgetProcessTranscriptV2,
   WidgetdownloadJson,
   WidgetExportMessagePDF
-} from '../../controllers/widget';
-import { mockReq, mockRes } from '../helpers/httpMocks';
-import { admin, student } from '../mock/user';
+} = widgetController as unknown as Record<
+  string,
+  (...args: any[]) => Promise<void>
+>;
 
 const studentId = student._id.toString();
 const adminId = admin._id.toString();
@@ -177,7 +186,9 @@ describe('WidgetProcessTranscriptV2', () => {
   });
 
   it('catches a gateway failure itself and responds 403', async () => {
-    callApiGateway.mockRejectedValueOnce(new Error('gateway down'));
+    (callApiGateway as jest.Mock).mockRejectedValueOnce(
+      new Error('gateway down')
+    );
     const req = mockReq({
       user: admin,
       params: { language: 'en' },
@@ -213,7 +224,7 @@ describe('WidgetdownloadJson', () => {
 
   it('forwards an S3 error to next()', async () => {
     const err = new Error('s3 down');
-    getS3Object.mockRejectedValueOnce(err);
+    (getS3Object as jest.Mock).mockRejectedValueOnce(err);
     const next = jest.fn();
 
     await WidgetdownloadJson(

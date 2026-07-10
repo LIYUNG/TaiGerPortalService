@@ -15,19 +15,24 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Internaldoc } from '../../models';
+import { Internaldoc as InternaldocModel } from '../../models';
 import InternaldocDAO from '../../dao/internaldoc.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Internaldoc = InternaldocModel as unknown as Record<string, jest.Mock>;
 
 // A query chain that is BOTH chainable AND thenable: builder calls (select/...)
 // return the same chain, and awaiting the chain directly (no `.lean()`) resolves
 // to `value` via `then`.
-const queryChain = (value) => {
-  const chain = {
+const queryChain = (value: unknown): any => {
+  const chain: any = {
     select: jest.fn(() => chain),
     sort: jest.fn(() => chain),
     populate: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };

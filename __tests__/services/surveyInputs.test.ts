@@ -4,8 +4,13 @@
 // returns the DAO's result unchanged.
 jest.mock('../../dao/surveyInput.dao');
 
-import SurveyInputDAO from '../../dao/surveyInput.dao';
+import SurveyInputDAOReal from '../../dao/surveyInput.dao';
 import SurveyInputService from '../../services/surveyInputs';
+
+const SurveyInputDAO = SurveyInputDAOReal as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -41,7 +46,7 @@ describe('SurveyInputService (mocked DAO)', () => {
     const daoResult = { _id: 'si1', ...payload };
     SurveyInputDAO.createSurveyInput.mockReturnValue(daoResult);
 
-    const result = SurveyInputService.createSurveyInput(payload);
+    const result = SurveyInputService.createSurveyInput(payload as any);
 
     expect(SurveyInputDAO.createSurveyInput).toHaveBeenCalledTimes(1);
     expect(SurveyInputDAO.createSurveyInput).toHaveBeenCalledWith(payload);

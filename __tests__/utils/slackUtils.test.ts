@@ -4,7 +4,7 @@ jest.mock('axios');
 // `isLocal` and `SLACK_DEVELOPER_ID` / `SLACK_NOTIFICATIONS_LOG_CHANNEL_ID`
 // are mutable per-test so the dev-redirect and manager-log branches of
 // sendApplicationWithdrawNotificationToEditors can be exercised.
-const mockConfig = {
+const mockConfig: Record<string, any> = {
   SLACK_BOT_TOKEN: 'xoxb-test-token',
   SLACK_TAIGER_WIN_CHANNEL_ID: 'C123WIN',
   SLACK_DEVELOPER_ID: 'U_DEV',
@@ -15,9 +15,9 @@ const mockConfig = {
 jest.mock('../../config', () => mockConfig);
 
 jest.mock('../../constants', () => ({
-  PROGRAM_URL: (id) => `https://app/program/${id}`,
-  BASE_DOCUMENT_FOR_AGENT_URL: (id) => `https://app/student/${id}`,
-  STUDENT_APPLICATION_STUDENT_URL: (id) => `https://app/appstudent/${id}`
+  PROGRAM_URL: (id: any) => `https://app/program/${id}`,
+  BASE_DOCUMENT_FOR_AGENT_URL: (id: any) => `https://app/student/${id}`,
+  STUDENT_APPLICATION_STUDENT_URL: (id: any) => `https://app/appstudent/${id}`
 }));
 
 jest.mock('../../services/logger', () => ({
@@ -26,8 +26,10 @@ jest.mock('../../services/logger', () => ({
   error: jest.fn()
 }));
 
-import axios from 'axios';
+import axiosReal from 'axios';
 import logger from '../../services/logger';
+
+const axios = axiosReal as unknown as { post: jest.Mock };
 
 import * as slackUtils from '../../utils/slackUtils';
 
@@ -41,32 +43,32 @@ beforeEach(() => {
 
 describe('sendSlackMessage - validation', () => {
   it('throws when text missing or not a string', async () => {
-    await expect(slackUtils.sendSlackMessage()).rejects.toThrow(
+    await expect((slackUtils.sendSlackMessage as any)()).rejects.toThrow(
       'Message text is required.'
     );
-    await expect(slackUtils.sendSlackMessage(123, 'C1')).rejects.toThrow(
+    await expect(slackUtils.sendSlackMessage(123 as any, 'C1')).rejects.toThrow(
       'Message text is required.'
     );
   });
 
   it('throws when channel missing or not a string', async () => {
-    await expect(slackUtils.sendSlackMessage('hi')).rejects.toThrow(
+    await expect((slackUtils.sendSlackMessage as any)('hi')).rejects.toThrow(
       'Slack channel is required.'
     );
-    await expect(slackUtils.sendSlackMessage('hi', 42)).rejects.toThrow(
+    await expect(slackUtils.sendSlackMessage('hi', 42 as any)).rejects.toThrow(
       'Slack channel is required.'
     );
   });
 
   it('throws when blocks provided but not an array', async () => {
     await expect(
-      slackUtils.sendSlackMessage('hi', 'C1', { not: 'array' })
+      slackUtils.sendSlackMessage('hi', 'C1', { not: 'array' } as any)
     ).rejects.toThrow('Slack blocks must be an array when provided.');
   });
 
   it('throws when options provided but not an object', async () => {
     await expect(
-      slackUtils.sendSlackMessage('hi', 'C1', [], 'notobj')
+      slackUtils.sendSlackMessage('hi', 'C1', [], 'notobj' as any)
     ).rejects.toThrow('Slack options must be an object when provided.');
   });
 });
@@ -145,8 +147,8 @@ describe('sendSlackMessage - missing token', () => {
       SLACK_TAIGER_WIN_CHANNEL_ID: 'C123WIN'
     }));
     jest.doMock('../../constants', () => ({
-      PROGRAM_URL: (id) => `p/${id}`,
-      BASE_DOCUMENT_FOR_AGENT_URL: (id) => `s/${id}`
+      PROGRAM_URL: (id: any) => `p/${id}`,
+      BASE_DOCUMENT_FOR_AGENT_URL: (id: any) => `s/${id}`
     }));
     jest.doMock('../../services/logger', () => ({
       info: jest.fn(),
@@ -255,7 +257,7 @@ describe('sendApplicationWithdrawNotificationToEditors', () => {
       degree: 'MSc'
     }
   };
-  const studentWith = (editors) => ({
+  const studentWith = (editors: any) => ({
     _id: 'stud1',
     firstname: 'Stu',
     lastname: 'Dent',

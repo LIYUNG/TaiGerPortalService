@@ -745,11 +745,11 @@ describe('normalizer fallback branches', () => {
     });
     // _id-only agent: normalizeUser sets id from _id.toString(), returning the
     // full user object whose id is the stringified _id.
-    expect(result.data.assignedTeam.agents.map((a) => a.id)).toEqual(
+    expect(result.data.assignedTeam.agents.map((a: any) => a.id)).toEqual(
       expect.arrayContaining(['agent_objid', 'agent_string'])
     );
     // null editor filtered out; the id-only editor resolved.
-    expect(result.data.assignedTeam.editors.map((e) => e.id)).toEqual([
+    expect(result.data.assignedTeam.editors.map((e: any) => e.id)).toEqual([
       'editor_str'
     ]);
   });
@@ -938,7 +938,7 @@ describe('document thread normalization edge cases', () => {
     expect(result.data.totalThreads).toBe(2);
     expect(result.data.openThreadsCount).toBe(1);
 
-    const appThread = result.data.threads.find((t) => t.id === 't_app');
+    const appThread = result.data.threads.find((t: any) => t.id === 't_app');
     // sorted ascending then sliced; messages with valid text retained
     expect(appThread.recentMessages.length).toBeGreaterThanOrEqual(2);
     // application_id present but not in program map -> program is the camel one
@@ -947,7 +947,7 @@ describe('document thread normalization edge cases', () => {
     expect(appThread.pendingOwner).toBe('student');
 
     const pendingThread = result.data.threads.find(
-      (t) => t.id === 't_general_pending_student'
+      (t: any) => t.id === 't_general_pending_student'
     );
     // application_id 'missing_app' not in map -> program null
     expect(pendingThread.program).toBeNull();
@@ -1079,7 +1079,9 @@ describe('thread message extraction fallbacks', () => {
     });
     const thread = result.data.threads[0];
     expect(thread.recentMessages.length).toBe(2);
-    const textOnly = thread.recentMessages.find((m) => m.text === 'only text');
+    const textOnly = thread.recentMessages.find(
+      (m: any) => m.text === 'only text'
+    );
     expect(textOnly.createdAt).toBeNull();
     expect(textOnly.authorId).toBeNull();
   });

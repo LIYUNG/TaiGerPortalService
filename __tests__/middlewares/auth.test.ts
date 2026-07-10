@@ -6,7 +6,7 @@ import { ErrorResponse } from '../../common/errors';
 jest.mock('passport');
 
 describe('auth middleware', () => {
-  let req, res, next;
+  let req: any, res: any, next: any;
 
   beforeEach(() => {
     req = { user: {} };
@@ -19,9 +19,11 @@ describe('auth middleware', () => {
   });
 
   // Helper to make passport.authenticate invoke its callback with given (err, user)
-  const mockAuthenticate = (err, user) => {
-    passport.authenticate.mockImplementation(
-      (strategy, opts, callback) => (rq, rs, nx) => callback(err, user)
+  const mockAuthenticate = (err: any, user: any) => {
+    (passport.authenticate as jest.Mock).mockImplementation(
+      (strategy: any, opts: any, callback: any) =>
+        (rq: any, rs: any, nx: any) =>
+          callback(err, user)
     );
   };
 

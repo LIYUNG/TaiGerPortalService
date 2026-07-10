@@ -14,15 +14,24 @@ jest.mock('../../utils/queryFunctions', () => ({
   getCachedStudentPermission: jest.fn()
 }));
 
-import { is_TaiGer_Editor, is_TaiGer_Agent } from '@taiger-common/core';
 import {
-  getPermission,
-  getCachedStudentPermission
+  is_TaiGer_Editor as is_TaiGer_Editor_real,
+  is_TaiGer_Agent as is_TaiGer_Agent_real
+} from '@taiger-common/core';
+import {
+  getPermission as getPermission_real,
+  getCachedStudentPermission as getCachedStudentPermission_real
 } from '../../utils/queryFunctions';
 import { ErrorResponse } from '../../common/errors';
 import { InnerTaigerMultitenantFilter } from '../../middlewares/InnerTaigerMultitenantFilter';
 
-const makeReq = (user, studentId = 'stu-1') => ({
+const is_TaiGer_Editor = is_TaiGer_Editor_real as unknown as jest.Mock;
+const is_TaiGer_Agent = is_TaiGer_Agent_real as unknown as jest.Mock;
+const getPermission = getPermission_real as unknown as jest.Mock;
+const getCachedStudentPermission =
+  getCachedStudentPermission_real as unknown as jest.Mock;
+
+const makeReq = (user: any, studentId = 'stu-1'): any => ({
   user,
   params: { studentId }
 });
@@ -37,7 +46,7 @@ describe('InnerTaigerMultitenantFilter', () => {
     is_TaiGer_Agent.mockReturnValue(false);
     const next = jest.fn();
 
-    await InnerTaigerMultitenantFilter(makeReq({ _id: 'u1' }), {}, next);
+    await InnerTaigerMultitenantFilter(makeReq({ _id: 'u1' }), {} as any, next);
 
     expect(next).toHaveBeenCalledWith();
     expect(getCachedStudentPermission).not.toHaveBeenCalled();
@@ -52,7 +61,7 @@ describe('InnerTaigerMultitenantFilter', () => {
 
     await InnerTaigerMultitenantFilter(
       makeReq({ _id: { toString: () => 'u1' } }),
-      {},
+      {} as any,
       next
     );
 
@@ -73,7 +82,7 @@ describe('InnerTaigerMultitenantFilter', () => {
 
     await InnerTaigerMultitenantFilter(
       makeReq({ _id: { toString: () => 'u1' } }),
-      {},
+      {} as any,
       next
     );
 
@@ -93,7 +102,7 @@ describe('InnerTaigerMultitenantFilter', () => {
 
     await InnerTaigerMultitenantFilter(
       makeReq({ _id: { toString: () => 'u1' } }),
-      {},
+      {} as any,
       next
     );
 
@@ -114,7 +123,7 @@ describe('InnerTaigerMultitenantFilter', () => {
 
     await InnerTaigerMultitenantFilter(
       makeReq({ _id: { toString: () => 'u1' } }),
-      {},
+      {} as any,
       next
     );
 

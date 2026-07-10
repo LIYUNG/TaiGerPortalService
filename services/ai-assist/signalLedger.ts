@@ -228,8 +228,9 @@ const extractOutputText = (
       if (part?.type === 'output_text') {
         return part.text;
       }
-      if (typeof part?.text === 'string') {
-        return part.text;
+      const partText = (part as { text?: unknown })?.text;
+      if (typeof partText === 'string') {
+        return partText;
       }
       return '';
     });

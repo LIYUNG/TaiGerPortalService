@@ -34,7 +34,7 @@ import { SignatureV4 } from '@aws-sdk/signature-v4';
 import logger from '../../services/logger';
 import * as awsIndex from '../../aws/index';
 
-const creds = {
+const creds: any = {
   AccessKeyId: 'AKIA',
   SecretAccessKey: 'secret',
   SessionToken: 'token'
@@ -65,7 +65,7 @@ describe('callApiGateway', () => {
       method: 'POST',
       headers: { host: 'api.test' }
     });
-    axios.mockResolvedValue({ data: { ok: true } });
+    (axios as unknown as jest.Mock).mockResolvedValue({ data: { ok: true } });
 
     const result = await awsIndex.callApiGateway(
       creds,
@@ -79,7 +79,7 @@ describe('callApiGateway', () => {
 
     // signer constructed with the right credentials/region/service
     expect(SignatureV4).toHaveBeenCalledTimes(1);
-    const signerConfig = SignatureV4.mock.calls[0][0];
+    const signerConfig = (SignatureV4 as unknown as jest.Mock).mock.calls[0][0];
     expect(signerConfig).toEqual(
       expect.objectContaining({
         region: 'eu-central-1',
@@ -123,7 +123,7 @@ describe('callApiGateway', () => {
 
   it('omits Content-Type and body when there is no requestBody', async () => {
     mockSign.mockResolvedValue({ method: 'GET', headers: {} });
-    axios.mockResolvedValue({ data: 'ok' });
+    (axios as unknown as jest.Mock).mockResolvedValue({ data: 'ok' });
 
     await awsIndex.callApiGateway(creds, 'https://api.test/x', 'GET');
 

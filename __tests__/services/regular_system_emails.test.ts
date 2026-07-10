@@ -42,8 +42,13 @@ import {
   missing_academic_background
 } from '../../constants';
 
-import { sendEmail } from '../../services/email/configuration';
-import {
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see services/email/configuration.ts
+import EmailConfiguration = require('../../services/email/configuration');
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see services/regular_system_emails.ts
+import RegularSystemEmails = require('../../services/regular_system_emails');
+
+const { sendEmail } = EmailConfiguration;
+const {
   StudentTasksReminderEmail,
   EditorTasksReminderEmail,
   StudentApplicationsDeadline_Within30Days_DailyReminderEmail,
@@ -54,7 +59,7 @@ import {
   AgentCVMLRLEssay_NoReplyAfterXDays_DailyReminderEmail,
   EditorCVMLRLEssayDeadline_Within30Days_DailyReminderEmail,
   AgentApplicationsDeadline_Within30Days_DailyReminderEmail
-} from '../../services/regular_system_emails';
+} = RegularSystemEmails;
 
 const recipient = {
   _id: { toString: () => '507f1f77bcf86cd799439011' },
@@ -127,7 +132,7 @@ describe('regular_system_emails service', () => {
         student: studentWithUnsubmittedApp()
       });
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [to, subject, message] = sendEmail.mock.calls[0];
+      const [to, subject, message] = (sendEmail as jest.Mock).mock.calls[0];
       expect(to).toBe(recipient);
       expect(subject).toContain('TaiGer Weekly Reminder');
       expect(message).toContain('Hi First Last');
@@ -154,7 +159,7 @@ describe('regular_system_emails service', () => {
         students: [emptyStudent()]
       });
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [, subject, message] = sendEmail.mock.calls[0];
+      const [, subject, message] = (sendEmail as jest.Mock).mock.calls[0];
       expect(subject).toContain('TaiGer Editor Reminder');
       expect(message).toContain('overview of the open tasks');
     });
@@ -168,7 +173,7 @@ describe('regular_system_emails service', () => {
         students: [emptyStudent(), emptyStudent()]
       });
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [, , message] = sendEmail.mock.calls[0];
+      const [, , message] = (sendEmail as jest.Mock).mock.calls[0];
       // Two student blocks rendered.
       expect(message.match(/<b>Stu Dent<\/b>/g)).toHaveLength(2);
     });
@@ -181,7 +186,7 @@ describe('regular_system_emails service', () => {
         { student: emptyStudent(), trigger_days: 30 }
       );
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [, subject] = sendEmail.mock.calls[0];
+      const [, subject] = (sendEmail as jest.Mock).mock.calls[0];
       expect(subject).toContain('Applications Deadline very close');
     });
   });
@@ -192,7 +197,7 @@ describe('regular_system_emails service', () => {
         student: emptyStudent()
       });
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [, subject, message] = sendEmail.mock.calls[0];
+      const [, subject, message] = (sendEmail as jest.Mock).mock.calls[0];
       expect(subject).toContain('Courses Update');
       expect(message).toContain('My Course');
     });
@@ -204,7 +209,7 @@ describe('regular_system_emails service', () => {
         student: emptyStudent()
       });
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [, subject] = sendEmail.mock.calls[0];
+      const [, subject] = (sendEmail as jest.Mock).mock.calls[0];
       expect(subject).toContain('Courses Update');
     });
   });
@@ -216,7 +221,7 @@ describe('regular_system_emails service', () => {
         trigger_days: 3
       });
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [, subject] = sendEmail.mock.calls[0];
+      const [, subject] = (sendEmail as jest.Mock).mock.calls[0];
       expect(subject).toContain('Your Editor is waiting for you');
     });
   });
@@ -229,7 +234,7 @@ describe('regular_system_emails service', () => {
         trigger_days: 7
       });
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [, subject] = sendEmail.mock.calls[0];
+      const [, subject] = (sendEmail as jest.Mock).mock.calls[0];
       expect(subject).toContain('waiting for your response');
     });
 
@@ -252,7 +257,7 @@ describe('regular_system_emails service', () => {
         trigger_days: 14
       });
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [, subject] = sendEmail.mock.calls[0];
+      const [, subject] = (sendEmail as jest.Mock).mock.calls[0];
       expect(subject).toContain('idle for 14 days');
     });
 
@@ -275,7 +280,7 @@ describe('regular_system_emails service', () => {
         trigger_days: 30
       });
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [, subject] = sendEmail.mock.calls[0];
+      const [, subject] = (sendEmail as jest.Mock).mock.calls[0];
       expect(subject).toContain('applications deadline very close');
     });
 
@@ -311,7 +316,7 @@ describe('regular_system_emails service', () => {
       });
 
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      const [, subject, message] = sendEmail.mock.calls[0];
+      const [, subject, message] = (sendEmail as jest.Mock).mock.calls[0];
       expect(subject).toContain('Tasks deadline very close');
       expect(message).toContain('ML deadline close');
     });

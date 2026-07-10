@@ -4,8 +4,10 @@
 // with the exact args and that the service returns the DAO's result unchanged.
 jest.mock('../../dao/team.dao');
 
-import TeamDAO from '../../dao/team.dao';
+import TeamDAOReal from '../../dao/team.dao';
 import TeamService from '../../services/teams';
+
+const TeamDAO = TeamDAOReal as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -29,7 +31,7 @@ describe('TeamService (mocked DAO) — no-arg delegators', () => {
       const daoResult = { method };
       TeamDAO[method].mockReturnValue(daoResult);
 
-      const result = TeamService[method]();
+      const result = (TeamService as any)[method]();
 
       expect(TeamDAO[method]).toHaveBeenCalledTimes(1);
       expect(TeamDAO[method]).toHaveBeenCalledWith();

@@ -12,13 +12,17 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Interval } from '../../models';
+import { Interval as IntervalModel } from '../../models';
 import IntervalDAO from '../../dao/interval.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Interval = IntervalModel as unknown as Record<string, jest.Mock>;
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (select/populate) return the same chain so they compose.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     select: jest.fn(() => chain),
     populate: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value)
@@ -36,7 +40,7 @@ describe('IntervalDAO (mocked models)', () => {
     const writeResult = { ok: 1, nModified: 1 };
     Interval.bulkWrite.mockResolvedValue(writeResult);
 
-    const result = await IntervalDAO.bulkWrite(ops);
+    const result = await IntervalDAO.bulkWrite(ops as any);
 
     expect(Interval.bulkWrite).toHaveBeenCalledWith(ops);
     expect(result).toBe(writeResult);

@@ -21,15 +21,17 @@ const mockCreateConnection = jest.fn();
 // createConnection so no real connection is opened.
 jest.mock('mongoose', () => ({
   ...jest.requireActual('mongoose'),
-  createConnection: (...args) => mockCreateConnection(...args)
+  createConnection: (...args: any[]) => mockCreateConnection(...args)
 }));
 
 // ---- pg / mockDrizzle mocks --------------------------------------------------
 const mockPoolEnd = jest.fn().mockResolvedValue(undefined);
-const mockPoolCtor = jest.fn().mockImplementation(function Pool(opts) {
-  this.opts = opts;
-  this.end = mockPoolEnd;
-});
+const mockPoolCtor = jest
+  .fn()
+  .mockImplementation(function Pool(this: any, opts: any) {
+    this.opts = opts;
+    this.end = mockPoolEnd;
+  });
 jest.mock('pg', () => ({ Pool: mockPoolCtor }));
 
 const mockDrizzle = jest.fn().mockReturnValue({ __drizzle: true });
@@ -38,7 +40,7 @@ jest.mock('drizzle-orm/node-postgres', () => ({ drizzle: mockDrizzle }));
 // Build a fresh fake connection for a require cycle.
 const makeFakeConnection = () => {
   const userModel = makeFakeUserModel();
-  const registered = {};
+  const registered: Record<string, any> = {};
   const conn = {
     registered,
     userModel,

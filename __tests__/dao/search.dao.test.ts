@@ -22,13 +22,28 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Documentation, User, Internaldoc, Program } from '../../models';
+import {
+  Documentation as DocumentationModel,
+  User as UserModel,
+  Internaldoc as InternaldocModel,
+  Program as ProgramModel
+} from '../../models';
 import SearchDAO from '../../dao/search.dao';
+
+// The models are auto-mocked above (every method is a jest.fn()); retype
+// them so the mock API (mockReturnValue/…) is visible to the type-checker.
+const Documentation = DocumentationModel as unknown as Record<
+  string,
+  jest.Mock
+>;
+const User = UserModel as unknown as Record<string, jest.Mock>;
+const Internaldoc = InternaldocModel as unknown as Record<string, jest.Mock>;
+const Program = ProgramModel as unknown as Record<string, jest.Mock>;
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (limit/select) return the same chain so they compose.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     sort: jest.fn(() => chain),
     limit: jest.fn(() => chain),
     select: jest.fn(() => chain),

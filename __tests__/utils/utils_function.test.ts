@@ -90,24 +90,68 @@ jest.mock('../../services/complaints', () => ({
 jest.mock('pdf-parse', () => jest.fn());
 jest.mock('mammoth', () => ({ extractRawText: jest.fn() }));
 
-import { deleteS3Objects, listS3ObjectsV2 } from '../../aws/s3';
+import {
+  deleteS3Objects as deleteS3ObjectsReal,
+  listS3ObjectsV2 as listS3ObjectsV2Real
+} from '../../aws/s3';
 import * as email from '../../services/email';
 import systemEmails from '../../services/regular_system_emails';
-import * as constants from '../../constants';
-import StudentService from '../../services/students';
-import UserService from '../../services/users';
-import EventService from '../../services/events';
-import InterviewService from '../../services/interviews';
-import PermissionService from '../../services/permissions';
-import CommunicationService from '../../services/communications';
-import IntervalService from '../../services/intervals';
-import ResponseTimeService from '../../services/responseTimes';
-import DocumentThreadService from '../../services/documentthreads';
-import ComplaintService from '../../services/complaints';
-import PdfParse from 'pdf-parse';
-import mammoth from 'mammoth';
+import * as constantsReal from '../../constants';
+import StudentServiceReal from '../../services/students';
+import UserServiceReal from '../../services/users';
+import EventServiceReal from '../../services/events';
+import InterviewServiceReal from '../../services/interviews';
+import PermissionServiceReal from '../../services/permissions';
+import CommunicationServiceReal from '../../services/communications';
+import IntervalServiceReal from '../../services/intervals';
+import ResponseTimeServiceReal from '../../services/responseTimes';
+import DocumentThreadServiceReal from '../../services/documentthreads';
+import ComplaintServiceReal from '../../services/complaints';
+import PdfParseReal from 'pdf-parse';
+import mammothReal from 'mammoth';
 
 import * as utils from '../../utils/utils_function';
+
+// Retype auto-mocked modules so their methods are seen as jest.Mock.
+const deleteS3Objects = deleteS3ObjectsReal as unknown as jest.Mock;
+const listS3ObjectsV2 = listS3ObjectsV2Real as unknown as jest.Mock;
+const constants = constantsReal as unknown as Record<string, jest.Mock>;
+const StudentService = StudentServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const UserService = UserServiceReal as unknown as Record<string, jest.Mock>;
+const EventService = EventServiceReal as unknown as Record<string, jest.Mock>;
+const InterviewService = InterviewServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const PermissionService = PermissionServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const CommunicationService = CommunicationServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const IntervalService = IntervalServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const ResponseTimeService = ResponseTimeServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const DocumentThreadService = DocumentThreadServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const ComplaintService = ComplaintServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const PdfParse = PdfParseReal as unknown as jest.Mock;
+const mammoth = mammothReal as unknown as { extractRawText: jest.Mock };
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -129,7 +173,7 @@ describe('threadS3GarbageCollector', () => {
       }); // files
 
     await utils.threadS3GarbageCollector(
-      {},
+      {} as any,
       'Documentthread',
       'student_id',
       'thread1'
@@ -154,7 +198,7 @@ describe('threadS3GarbageCollector', () => {
       .mockResolvedValueOnce({ Contents: [] });
 
     await utils.threadS3GarbageCollector(
-      {},
+      {} as any,
       'Complaint',
       'complaint_user',
       't2'
@@ -176,7 +220,7 @@ describe('threadS3GarbageCollector', () => {
       .mockResolvedValueOnce({ Contents: [{ Key: 'u3/t3/file.pdf' }] });
 
     await utils.threadS3GarbageCollector(
-      {},
+      {} as any,
       'Documentthread',
       'student_id',
       't3'
@@ -188,7 +232,7 @@ describe('threadS3GarbageCollector', () => {
   it('swallows error when ticket not found', async () => {
     DocumentThreadService.getThreadDocById.mockResolvedValue(null);
     await utils.threadS3GarbageCollector(
-      {},
+      {} as any,
       'Documentthread',
       'student_id',
       'missing'
@@ -216,7 +260,7 @@ describe('TasksReminderEmails', () => {
     constants.does_editor_have_pending_tasks.mockReturnValue(true);
     constants.isNotArchiv.mockReturnValue(true);
 
-    await utils.TasksReminderEmails({}, {}, jest.fn());
+    await (utils.TasksReminderEmails as any)({}, {}, jest.fn());
 
     expect(systemEmails.EditorTasksReminderEmail).toHaveBeenCalled();
     expect(systemEmails.StudentTasksReminderEmail).toHaveBeenCalled();
@@ -229,7 +273,7 @@ describe('TasksReminderEmails', () => {
     constants.does_editor_have_pending_tasks.mockReturnValue(false);
     constants.isNotArchiv.mockReturnValue(true);
 
-    await utils.TasksReminderEmails({}, {}, jest.fn());
+    await (utils.TasksReminderEmails as any)({}, {}, jest.fn());
 
     expect(systemEmails.EditorTasksReminderEmail).not.toHaveBeenCalled();
   });
@@ -309,7 +353,7 @@ describe('add_portals_registered_status', () => {
       }
     ];
     // only run meaningful assertion if program is considered decided
-    const result = utils.add_portals_registered_status(applications);
+    const result = utils.add_portals_registered_status(applications as any);
     expect(result).toHaveLength(1);
     expect(result[0].portal_credentials).toBeUndefined();
     if (isProgramDecided(applications[0])) {
@@ -320,7 +364,7 @@ describe('add_portals_registered_status', () => {
 
   it('marks credentials filled true for undecided programs', () => {
     const applications = [{ programId: {}, decided: 'X' }];
-    const result = utils.add_portals_registered_status(applications);
+    const result = utils.add_portals_registered_status(applications as any);
     expect(result[0].credential_a_filled).toBe(true);
     expect(result[0].credential_b_filled).toBe(true);
   });
@@ -335,7 +379,7 @@ describe('add_portals_registered_status', () => {
         portal_credentials: {}
       }
     ];
-    const result = utils.add_portals_registered_status(applications);
+    const result = utils.add_portals_registered_status(applications as any);
     expect(result).toHaveLength(1);
   });
 });
@@ -559,7 +603,7 @@ describe('userChangesHelperFunction', () => {
       { _id: { toString: () => 'u1' } },
       { _id: { toString: () => 'u9' } } // removed
     ];
-    UserService.getUserByIdSelect.mockImplementation((id) =>
+    UserService.getUserByIdSelect.mockImplementation((id: any) =>
       Promise.resolve({
         _id: { toString: () => id },
         firstname: id,
@@ -578,7 +622,7 @@ describe('userChangesHelperFunction', () => {
     expect(result.updatedUserIds).toEqual(['u1', 'u3']);
     expect(result.updatedUsers).toHaveLength(2);
     // u3 newly added (not in existing), u1 already existed
-    expect(result.addedUsers.map((u) => u._id.toString())).toEqual(['u3']);
+    expect(result.addedUsers.map((u) => u!._id.toString())).toEqual(['u3']);
     expect(result.toBeInformedUsers.map((u) => u.firstname)).toEqual(['u3']);
     // u9 existed before but not in new set -> removed
     expect(result.removedUsers).toHaveLength(1);
@@ -625,7 +669,7 @@ describe('threadS3GarbageCollector - extra branches', () => {
       .mockResolvedValueOnce({ Contents: [{ Key: 'user1/thread1/kept.pdf' }] }); // file referenced -> kept
 
     await utils.threadS3GarbageCollector(
-      {},
+      {} as any,
       'Documentthread',
       'student_id',
       'thread1'
@@ -644,7 +688,7 @@ describe('threadS3GarbageCollector - extra branches', () => {
     listS3ObjectsV2.mockResolvedValueOnce({}).mockResolvedValueOnce({});
 
     await utils.threadS3GarbageCollector(
-      {},
+      {} as any,
       'Documentthread',
       'student_id',
       'thread2'
@@ -661,7 +705,7 @@ describe('threadS3GarbageCollector - extra branches', () => {
     DocumentThreadService.getThreadDocById.mockResolvedValue(ticket);
     listS3ObjectsV2.mockRejectedValue(new Error('s3 down'));
     await utils.threadS3GarbageCollector(
-      {},
+      {} as any,
       'Documentthread',
       'student_id',
       'thread3'
@@ -677,7 +721,7 @@ describe('TasksReminderEmails - error paths', () => {
       new Error('db')
     );
     await expect(
-      utils.TasksReminderEmails({}, {}, jest.fn())
+      (utils.TasksReminderEmails as any)({}, {}, jest.fn())
     ).resolves.toBeUndefined();
   });
 
@@ -688,7 +732,7 @@ describe('TasksReminderEmails - error paths', () => {
     StudentService.getStudentsWithApplications.mockResolvedValue([]);
     constants.does_editor_have_pending_tasks.mockReturnValue(true);
     constants.isNotArchiv.mockReturnValue(true);
-    await utils.TasksReminderEmails({}, {}, jest.fn());
+    await (utils.TasksReminderEmails as any)({}, {}, jest.fn());
     expect(systemEmails.EditorTasksReminderEmail).not.toHaveBeenCalled();
   });
 });
@@ -1031,7 +1075,7 @@ describe('add_portals_registered_status - credential false branches', () => {
         portal_credentials: {}
       }
     ];
-    const result = utils.add_portals_registered_status(applications);
+    const result = utils.add_portals_registered_status(applications as any);
     expect(result).toHaveLength(1);
     expect(result[0].credential_a_filled).toBe(false);
     expect(result[0].credential_b_filled).toBe(false);
@@ -1048,7 +1092,7 @@ describe('add_portals_registered_status - credential false branches', () => {
         }
       }
     ];
-    const result = utils.add_portals_registered_status(applications);
+    const result = utils.add_portals_registered_status(applications as any);
     expect(result[0].credential_a_filled).toBe(true);
     expect(result[0].credential_b_filled).toBe(true);
   });
@@ -1057,7 +1101,7 @@ describe('add_portals_registered_status - credential false branches', () => {
     const applications = [
       { decided: 'O', programId: {}, portal_credentials: {} }
     ];
-    const result = utils.add_portals_registered_status(applications);
+    const result = utils.add_portals_registered_status(applications as any);
     expect(result[0].credential_a_filled).toBe(true);
     expect(result[0].credential_b_filled).toBe(true);
   });
@@ -1073,7 +1117,7 @@ describe('add_portals_registered_status - credential false branches', () => {
         }
       }
     ];
-    const result = utils.add_portals_registered_status(applications);
+    const result = utils.add_portals_registered_status(applications as any);
     expect(result[0].credential_a_filled).toBe(false);
     expect(result[0].credential_b_filled).toBe(false);
   });

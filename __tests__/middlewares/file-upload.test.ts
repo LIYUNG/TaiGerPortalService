@@ -18,7 +18,7 @@
 // Capture every multerS3 option object so the key/metadata/bucket builders can be
 // invoked directly in the assertions below. `mock`-prefixed names are the only
 // module-scope identifiers Jest lets a hoisted jest.mock() factory reference.
-const mockMulterS3Configs = [];
+const mockMulterS3Configs: any[] = [];
 jest.mock('multer-s3', () =>
   jest.fn((config) => {
     mockMulterS3Configs.push(config);
@@ -28,14 +28,14 @@ jest.mock('multer-s3', () =>
 
 // Capture every multer() option object (storage + fileFilter + limits). multer is
 // also called with `.single()` / `.array()` / `.diskStorage()`; stub those.
-const mockMulterConfigs = [];
+const mockMulterConfigs: any[] = [];
 // Capture diskStorage configs the same way (a module-scope array, not the
 // jest.fn's own call record): these are recorded at module-import time, and the
 // suite runs with `--clearMocks`, which would wipe `multer.diskStorage.mock.calls`
 // before the assertions run.
-const mockDiskStorageConfigs = [];
+const mockDiskStorageConfigs: any[] = [];
 jest.mock('multer', () => {
-  const fn = jest.fn((config) => {
+  const fn: any = jest.fn((config) => {
     mockMulterConfigs.push(config || {});
     return {
       single: jest.fn(() => `single-mw-${mockMulterConfigs.length}`),
@@ -56,12 +56,33 @@ jest.mock('../../services/complaints');
 jest.mock('../../services/documentthreads');
 jest.mock('../../services/programs');
 
-import StudentService from '../../services/students';
-import ApplicationService from '../../services/applications';
-import ComplaintService from '../../services/complaints';
-import DocumentThreadService from '../../services/documentthreads';
-import ProgramService from '../../services/programs';
+import StudentServiceReal from '../../services/students';
+import ApplicationServiceReal from '../../services/applications';
+import ComplaintServiceReal from '../../services/complaints';
+import DocumentThreadServiceReal from '../../services/documentthreads';
+import ProgramServiceReal from '../../services/programs';
 import { ErrorResponse } from '../../common/errors';
+
+const StudentService = StudentServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const ApplicationService = ApplicationServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const ComplaintService = ComplaintServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const DocumentThreadService = DocumentThreadServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const ProgramService = ProgramServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 // Require the module under test AFTER the mocks so its top-level multer /
 // multer-s3 calls are captured.
@@ -110,7 +131,7 @@ describe('fileFilter mime-type validation', () => {
     // The admission / VPD filters only allow application/pdf — feed a png and at
     // least one filter must reject it via cb(ErrorResponse).
     const filters = allFileFilters();
-    const rejections = [];
+    const rejections: any[] = [];
     filters.forEach((filter) => {
       const cb = jest.fn();
       const req = { headers: { 'content-length': '10' }, params: {} };
@@ -491,7 +512,7 @@ describe('ticket / thread / chat key builders (async, service-backed)', () => {
 
 describe('image key builders (uuid-based)', () => {
   it('produce a Documentations/<uuid>.ext or <studentId>/<thread>/img/<uuid>.ext key', () => {
-    const keys = [];
+    const keys: any[] = [];
     mockMulterS3Configs.forEach((cfg) => {
       if (!cfg.key) return;
       const cb = jest.fn();

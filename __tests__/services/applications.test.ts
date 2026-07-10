@@ -531,7 +531,7 @@ describe('ApplicationService.updateApplicationsBulk (mocked DAO)', () => {
     const daoResult = { modifiedCount: 1 };
     ApplicationDAO.updateApplicationsBulk.mockReturnValue(daoResult);
 
-    const result = ApplicationService.updateApplicationsBulk(updates);
+    const result = ApplicationService.updateApplicationsBulk(updates as any);
 
     expect(ApplicationDAO.updateApplicationsBulk).toHaveBeenCalledTimes(1);
     expect(ApplicationDAO.updateApplicationsBulk).toHaveBeenCalledWith(updates);

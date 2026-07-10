@@ -11,10 +11,17 @@
 
 jest.mock('../../services/notes');
 
-import NoteService from '../../services/notes';
-import { getStudentNotes, updateStudentNotes } from '../../controllers/notes';
+import NoteServiceReal from '../../services/notes';
+import notesController from '../../controllers/notes';
 import { mockReq, mockRes } from '../helpers/httpMocks';
 import { student } from '../mock/user';
+
+const NoteService = NoteServiceReal as unknown as Record<string, jest.Mock>;
+const { getStudentNotes, updateStudentNotes } =
+  notesController as unknown as Record<
+    string,
+    (...args: any[]) => Promise<void>
+  >;
 
 const studentId = student._id.toString();
 

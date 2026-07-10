@@ -14,13 +14,18 @@ jest.mock('../../models', () => {
   };
 });
 
-import { InterviewSurveyResponse } from '../../models';
+import { InterviewSurveyResponse as InterviewSurveyResponseModel } from '../../models';
 import SurveyDAO from '../../dao/interviewSurveyResponse.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const InterviewSurveyResponse =
+  InterviewSurveyResponseModel as unknown as Record<string, jest.Mock>;
 
 // A query chain whose terminal `.lean()` resolves to `value`. `.populate()`
 // returns the same chain so applyPopulates can compose multiple calls.
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value)
   };
@@ -39,7 +44,7 @@ describe('InterviewSurveyResponseDAO (mocked models)', () => {
     const filter = { interview_id: 'iv1' };
     const populates = [['student_id'], ['interview_id', 'program_id']];
 
-    const result = await SurveyDAO.findSurveys(filter, populates);
+    const result = await SurveyDAO.findSurveys(filter, populates as any);
 
     expect(InterviewSurveyResponse.find).toHaveBeenCalledWith(filter);
     expect(chain.populate).toHaveBeenCalledTimes(2);
@@ -67,7 +72,7 @@ describe('InterviewSurveyResponseDAO (mocked models)', () => {
     const filter = { _id: 's2' };
     const populates = [['student_id']];
 
-    const result = await SurveyDAO.findOneSurvey(filter, populates);
+    const result = await SurveyDAO.findOneSurvey(filter, populates as any);
 
     expect(InterviewSurveyResponse.findOne).toHaveBeenCalledWith(filter);
     expect(chain.populate).toHaveBeenCalledWith('student_id');
@@ -81,9 +86,11 @@ describe('InterviewSurveyResponseDAO (mocked models)', () => {
     const filter = { _id: 's3' };
     const payload = { score: 5 };
 
-    const result = await SurveyDAO.upsertSurvey(filter, payload, [
-      ['student_id']
-    ]);
+    const result = await SurveyDAO.upsertSurvey(
+      filter,
+      payload as any,
+      [['student_id']] as any
+    );
 
     expect(InterviewSurveyResponse.findOneAndUpdate).toHaveBeenCalledWith(
       filter,

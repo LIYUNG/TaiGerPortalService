@@ -14,8 +14,12 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Template } from '../../models';
+import { Template as TemplateModel } from '../../models';
 import TemplateDAO from '../../dao/template.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Template = TemplateModel as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -61,7 +65,7 @@ describe('TemplateDAO (mocked models)', () => {
     });
     const payload = { content: 'body' };
 
-    const result = await TemplateDAO.upsertTemplate('rl', payload);
+    const result = await TemplateDAO.upsertTemplate('rl', payload as any);
 
     expect(Template.findOneAndUpdate).toHaveBeenCalledWith(
       { category_name: 'rl' },

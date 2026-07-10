@@ -13,7 +13,7 @@ import logger from '../../services/logger';
 jest.mock('../../utils/queryFunctions');
 
 describe('permission-filter additional branches', () => {
-  let req, res, next;
+  let req: any, res: any, next: any;
 
   beforeEach(() => {
     res = {};
@@ -41,7 +41,9 @@ describe('permission-filter additional branches', () => {
 
     it('calls next() for Editor with permission', async () => {
       req = { user: { role: Role.Editor } };
-      getPermission.mockResolvedValue({ canModifyDocumentation: true });
+      (getPermission as jest.Mock).mockResolvedValue({
+        canModifyDocumentation: true
+      });
       await permission_canModifyDocs_filter(req, res, next);
       expect(next).toHaveBeenCalledWith();
     });
@@ -57,7 +59,9 @@ describe('permission-filter additional branches', () => {
 
     it('calls next() for Editor with permission', async () => {
       req = { user: { role: Role.Editor } };
-      getPermission.mockResolvedValue({ canAccessStudentDatabase: true });
+      (getPermission as jest.Mock).mockResolvedValue({
+        canAccessStudentDatabase: true
+      });
       await permission_canAccessStudentDatabase_filter(req, res, next);
       expect(next).toHaveBeenCalledWith();
     });
@@ -66,14 +70,14 @@ describe('permission-filter additional branches', () => {
   describe('permission_canAddUser_filter', () => {
     it('calls next() for Agent with canAddUser permission', async () => {
       req = { user: { role: Role.Agent } };
-      getPermission.mockResolvedValue({ canAddUser: true });
+      (getPermission as jest.Mock).mockResolvedValue({ canAddUser: true });
       await permission_canAddUser_filter(req, res, next);
       expect(next).toHaveBeenCalledWith();
     });
 
     it('passes 403 to next for Editor lacking canAddUser', async () => {
       req = { user: { role: Role.Editor } };
-      getPermission.mockResolvedValue({ canAddUser: false });
+      (getPermission as jest.Mock).mockResolvedValue({ canAddUser: false });
       await permission_canAddUser_filter(req, res, next);
       expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
       expect(next.mock.calls[0][0].statusCode).toBe(403);
@@ -105,14 +109,18 @@ describe('permission-filter additional branches', () => {
 
     it('calls next() for Agent with permission', async () => {
       req = { user: { role: Role.Agent } };
-      getPermission.mockResolvedValue({ canModifyTicketList: true });
+      (getPermission as jest.Mock).mockResolvedValue({
+        canModifyTicketList: true
+      });
       await permission_canModifyComplaintList_filter(req, res, next);
       expect(next).toHaveBeenCalledWith();
     });
 
     it('throws 403 for Agent lacking permission', async () => {
       req = { user: { role: Role.Agent } };
-      getPermission.mockResolvedValue({ canModifyTicketList: false });
+      (getPermission as jest.Mock).mockResolvedValue({
+        canModifyTicketList: false
+      });
       await expect(
         permission_canModifyComplaintList_filter(req, res, next)
       ).rejects.toBeInstanceOf(ErrorResponse);

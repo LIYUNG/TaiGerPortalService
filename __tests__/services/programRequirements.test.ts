@@ -7,10 +7,17 @@ jest.mock('../../dao/programRequirement.dao');
 jest.mock('../../dao/program.dao');
 jest.mock('../../dao/keywordset.dao');
 
-import ProgramRequirementDAO from '../../dao/programRequirement.dao';
-import ProgramDAO from '../../dao/program.dao';
-import KeywordSetDAO from '../../dao/keywordset.dao';
+import ProgramRequirementDAOReal from '../../dao/programRequirement.dao';
+import ProgramDAOReal from '../../dao/program.dao';
+import KeywordSetDAOReal from '../../dao/keywordset.dao';
 import ProgramRequirementService from '../../services/programRequirements';
+
+const ProgramRequirementDAO = ProgramRequirementDAOReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const ProgramDAO = ProgramDAOReal as unknown as Record<string, jest.Mock>;
+const KeywordSetDAO = KeywordSetDAOReal as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -120,7 +127,7 @@ describe('ProgramRequirementService.createProgramRequirement (mocked DAO)', () =
     ProgramRequirementDAO.createProgramRequirement.mockResolvedValue(daoResult);
 
     const result = await ProgramRequirementService.createProgramRequirement(
-      payload
+      payload as any
     );
 
     expect(

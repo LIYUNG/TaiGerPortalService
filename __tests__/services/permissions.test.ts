@@ -4,8 +4,10 @@
 // database is touched.
 jest.mock('../../dao/permission.dao');
 
-import PermissionDAO from '../../dao/permission.dao';
+import PermissionDAOReal from '../../dao/permission.dao';
 import PermissionService from '../../services/permissions';
+
+const PermissionDAO = PermissionDAOReal as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -25,7 +27,7 @@ describe('PermissionService — PermissionDAO delegators (mocked DAO)', () => {
   });
 
   it('getPermissions defaults filter to {} when omitted', async () => {
-    const daoResult = [];
+    const daoResult: any[] = [];
     PermissionDAO.getPermissions.mockResolvedValue(daoResult);
 
     const result = await PermissionService.getPermissions();
@@ -55,7 +57,7 @@ describe('PermissionService — PermissionDAO delegators (mocked DAO)', () => {
   });
 
   it('findPermissionsWithUser defaults filter to {} when omitted', async () => {
-    const daoResult = [];
+    const daoResult: any[] = [];
     PermissionDAO.findPermissionsWithUser.mockResolvedValue(daoResult);
 
     const result = await PermissionService.findPermissionsWithUser();
@@ -75,7 +77,7 @@ describe('PermissionService — PermissionDAO delegators (mocked DAO)', () => {
 
     const result = await PermissionService.upsertPermissionByUserId(
       'u1',
-      payload
+      payload as any
     );
 
     expect(PermissionDAO.upsertPermissionByUserId).toHaveBeenCalledTimes(1);
@@ -113,7 +115,7 @@ describe('PermissionService.decrementTaigerAiQuota (mocked DAO)', () => {
   it('decrements and saves when quota > 0, returning the doc', async () => {
     const permission = {
       taigerAiQuota: 3,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     PermissionDAO.getPermissionDocByUserId.mockResolvedValue(permission);
 
@@ -129,7 +131,7 @@ describe('PermissionService.decrementTaigerAiQuota (mocked DAO)', () => {
   it('does not decrement or save when quota is 0', async () => {
     const permission = {
       taigerAiQuota: 0,
-      save: jest.fn().mockResolvedValue()
+      save: jest.fn().mockResolvedValue(undefined)
     };
     PermissionDAO.getPermissionDocByUserId.mockResolvedValue(permission);
 

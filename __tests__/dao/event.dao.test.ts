@@ -15,22 +15,27 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Event } from '../../models';
+import { Event as EventModel } from '../../models';
 import EventDAO from '../../dao/event.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Event = EventModel as unknown as Record<string, jest.Mock>;
 
 // A query chain that is BOTH chainable AND thenable: builder calls
 // (populate/select/sort/...) return the same chain so they compose, the terminal
 // `.lean()` resolves to `value`, and awaiting the chain directly (no `.lean()`)
 // also resolves to `value` via `then`.
-const queryChain = (value) => {
-  const chain = {
+const queryChain = (value: unknown): any => {
+  const chain: any = {
     select: jest.fn(() => chain),
     sort: jest.fn(() => chain),
     skip: jest.fn(() => chain),
     limit: jest.fn(() => chain),
     populate: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };

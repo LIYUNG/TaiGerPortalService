@@ -7,10 +7,13 @@ jest.mock('../../services/email/configuration', () => ({
   transporter: { sendMail: jest.fn() }
 }));
 
-import { sendEmail, transporter } from '../../services/email/configuration';
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see services/email/configuration.ts
+import EmailConfiguration = require('../../services/email/configuration');
 import * as email from '../../services/email';
 
-const oid = (id) => ({ toString: () => id });
+const { sendEmail, transporter } = EmailConfiguration;
+
+const oid = (id: any) => ({ toString: () => id });
 
 const recipient = {
   _id: oid('507f1f77bcf86cd799439011'),
@@ -54,9 +57,9 @@ beforeEach(() => {
 });
 
 // Asserts sendEmail was called once with (recipient, subject, message)
-const expectSent = (subjectIncludes) => {
+const expectSent = (subjectIncludes: any) => {
   expect(sendEmail).toHaveBeenCalledTimes(1);
-  const [to, subject, message] = sendEmail.mock.calls[0];
+  const [to, subject, message] = (sendEmail as jest.Mock).mock.calls[0];
   expect(to).toBe(recipient);
   expect(typeof subject).toBe('string');
   expect(typeof message).toBe('string');
@@ -918,7 +921,7 @@ describe('email service - calendar event templates (transporter.sendMail)', () =
       isUpdatingEvent: false
     });
     expect(transporter.sendMail).toHaveBeenCalledTimes(1);
-    const mail = transporter.sendMail.mock.calls[0][0];
+    const mail = (transporter.sendMail as jest.Mock).mock.calls[0][0];
     expect(mail.to).toBe(recipient);
     expect(mail.subject).toContain('Meeting Confirmed');
     expect(mail.attachments[0].filename).toBe('event.ics');
@@ -933,9 +936,9 @@ describe('email service - calendar event templates (transporter.sendMail)', () =
       isUpdatingEvent: true
     });
     expect(transporter.sendMail).toHaveBeenCalledTimes(1);
-    expect(transporter.sendMail.mock.calls[0][0].subject).toContain(
-      'Meeting Cancelled'
-    );
+    expect(
+      (transporter.sendMail as jest.Mock).mock.calls[0][0].subject
+    ).toContain('Meeting Cancelled');
   });
 
   it('MeetingCancelledReminderEmail includes the reason block when a reason is given', async () => {
@@ -948,7 +951,7 @@ describe('email service - calendar event templates (transporter.sendMail)', () =
       isUpdatingEvent: true
     });
     expect(transporter.sendMail).toHaveBeenCalledTimes(1);
-    expect(transporter.sendMail.mock.calls[0][0].html).toContain(
+    expect((transporter.sendMail as jest.Mock).mock.calls[0][0].html).toContain(
       'Scheduling conflict'
     );
   });
@@ -962,9 +965,9 @@ describe('email service - calendar event templates (transporter.sendMail)', () =
       isUpdatingEvent: true
     });
     expect(transporter.sendMail).toHaveBeenCalledTimes(1);
-    expect(transporter.sendMail.mock.calls[0][0].subject).toContain(
-      'Interview Training Cancelled'
-    );
+    expect(
+      (transporter.sendMail as jest.Mock).mock.calls[0][0].subject
+    ).toContain('Interview Training Cancelled');
   });
 
   it('sendInterviewConfirmationEmail sends an ICS via transporter', async () => {
@@ -978,9 +981,9 @@ describe('email service - calendar event templates (transporter.sendMail)', () =
       isUpdatingEvent: false
     });
     expect(transporter.sendMail).toHaveBeenCalledTimes(1);
-    expect(transporter.sendMail.mock.calls[0][0].subject).toContain(
-      'Confirmed'
-    );
+    expect(
+      (transporter.sendMail as jest.Mock).mock.calls[0][0].subject
+    ).toContain('Confirmed');
   });
 
   it('sendInterviewCancelEmail sends a cancellation ICS', async () => {
@@ -992,8 +995,8 @@ describe('email service - calendar event templates (transporter.sendMail)', () =
       isUpdatingEvent: false
     });
     expect(transporter.sendMail).toHaveBeenCalledTimes(1);
-    expect(transporter.sendMail.mock.calls[0][0].subject).toContain(
-      'Cancelled'
-    );
+    expect(
+      (transporter.sendMail as jest.Mock).mock.calls[0][0].subject
+    ).toContain('Cancelled');
   });
 });

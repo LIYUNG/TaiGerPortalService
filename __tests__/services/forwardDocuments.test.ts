@@ -18,18 +18,21 @@ jest.mock('../../services/documentthreads', () => ({
   getThreadByIdLean: jest.fn()
 }));
 
-import { sendEmailWithAttachments } from '../../services/email/configuration';
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see services/email/configuration.ts
+import EmailConfiguration = require('../../services/email/configuration');
 import { getS3Object, headS3ObjectSize } from '../../aws/s3';
 import UserService from '../../services/users';
 import StudentService from '../../services/students';
 import DocumentThreadService from '../../services/documentthreads';
 import ForwardDocumentsService from '../../services/forwardDocuments';
 
-const oid = (id) => ({ toString: () => id });
+const { sendEmailWithAttachments } = EmailConfiguration;
+
+const oid = (id: any) => ({ toString: () => id });
 
 const STUDENT_ID = '507f1f77bcf86cd799439055';
 
-const agentUser = (id, email) => ({
+const agentUser = (id: any, email: any) => ({
   _id: oid(id),
   firstname: 'Ag',
   lastname: 'Ent',
@@ -103,7 +106,9 @@ describe('forwardStudentDocuments', () => {
     expect(arg.cc).toEqual(['cc@taiger.com']);
     // transcript (base) + latest CV file => 2 attachments, all Buffers.
     expect(arg.attachments).toHaveLength(2);
-    expect(arg.attachments.every((a) => Buffer.isBuffer(a.content))).toBe(true);
+    expect(arg.attachments.every((a: any) => Buffer.isBuffer(a.content))).toBe(
+      true
+    );
     // The email body lists the attached files and the program details.
     expect(arg.message).toContain('transcript.pdf');
     expect(arg.message).toContain('cv_v2.pdf');

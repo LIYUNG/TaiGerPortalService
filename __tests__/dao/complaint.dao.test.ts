@@ -16,20 +16,25 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Complaint } from '../../models';
+import { Complaint as ComplaintModel } from '../../models';
 import ComplaintDAO from '../../dao/complaint.dao';
+
+// The model is auto-mocked above (every method is a jest.fn()); retype it so
+// the mock API (mockReturnValue/…) is visible to the type-checker.
+const Complaint = ComplaintModel as unknown as Record<string, jest.Mock>;
 
 // A query chain that is both chainable (populate/sort/select/limit/lean return
 // the same chain) and thenable, so `await chain` (when no terminal .lean() is
 // called) resolves to `value` too. Terminal `.lean()` also resolves to value.
-const queryChain = (value) => {
-  const chain = {
+const queryChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     sort: jest.fn(() => chain),
     select: jest.fn(() => chain),
     limit: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };

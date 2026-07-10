@@ -12,9 +12,18 @@
 jest.mock('../../dao/documentthread.dao');
 jest.mock('../../services/students');
 
-import DocumentthreadDAO from '../../dao/documentthread.dao';
-import StudentService from '../../services/students';
+import DocumentthreadDAOReal from '../../dao/documentthread.dao';
+import StudentServiceReal from '../../services/students';
 import DocumentThreadService from '../../services/documentthreads';
+
+const DocumentthreadDAO = DocumentthreadDAOReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const StudentService = StudentServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -120,7 +129,7 @@ describe('DocumentThreadService — thin DAO delegators (mocked DAO)', () => {
     const result = await DocumentThreadService.findThreadsSelectSorted(
       filter,
       'file_type',
-      sort
+      sort as any
     );
 
     expect(DocumentthreadDAO.findThreadsSelectSorted).toHaveBeenCalledTimes(1);
@@ -150,7 +159,7 @@ describe('DocumentThreadService — thin DAO delegators (mocked DAO)', () => {
 
     const result = await DocumentThreadService.getThreadDocByIdPopulated(
       't1',
-      populates
+      populates as any
     );
 
     expect(DocumentthreadDAO.getThreadDocByIdPopulated).toHaveBeenCalledTimes(
@@ -170,7 +179,7 @@ describe('DocumentThreadService — thin DAO delegators (mocked DAO)', () => {
 
     const result = await DocumentThreadService.findThreadByIdPopulated(
       't1',
-      populates
+      populates as any
     );
 
     expect(DocumentthreadDAO.findThreadByIdPopulated).toHaveBeenCalledTimes(1);
@@ -189,7 +198,7 @@ describe('DocumentThreadService — thin DAO delegators (mocked DAO)', () => {
 
     const result = await DocumentThreadService.findOneThreadPopulated(
       filter,
-      populates
+      populates as any
     );
 
     expect(DocumentthreadDAO.findOneThreadPopulated).toHaveBeenCalledTimes(1);

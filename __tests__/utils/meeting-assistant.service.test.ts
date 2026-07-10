@@ -13,11 +13,16 @@ jest.mock('../../config', () => ({
   FIREFLIES_GOOGLE_INVITE_N8N_URL: 'https://n8n.test/invite'
 }));
 
-import axios from 'axios';
+import axiosReal from 'axios';
 import {
   scheduleInviteTA,
   instantInviteTA
 } from '../../utils/meeting-assistant.service';
+
+const axios = axiosReal as unknown as {
+  post: jest.Mock;
+  isAxiosError: jest.Mock;
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -45,9 +50,9 @@ describe('scheduleInviteTA', () => {
   });
 
   it('throws when required parameters are missing', async () => {
-    await expect(scheduleInviteTA(null, 'link', 'from', 'to')).rejects.toThrow(
-      'Missing required parameters'
-    );
+    await expect(
+      scheduleInviteTA(null as any, 'link', 'from', 'to')
+    ).rejects.toThrow('Missing required parameters');
     expect(axios.post).not.toHaveBeenCalled();
   });
 
@@ -70,7 +75,7 @@ describe('scheduleInviteTA', () => {
 
 describe('instantInviteTA', () => {
   it('validates required parameters', async () => {
-    await expect(instantInviteTA('summary')).rejects.toThrow(
+    await expect((instantInviteTA as any)('summary')).rejects.toThrow(
       'Missing required parameters: meetingSummary, meetingLink'
     );
     expect(axios.post).not.toHaveBeenCalled();

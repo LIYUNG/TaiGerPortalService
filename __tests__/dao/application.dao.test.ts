@@ -23,13 +23,24 @@ jest.mock('../../models', () => {
   };
 });
 
-import { Application, Documentthread } from '../../models';
+import {
+  Application as ApplicationModel,
+  Documentthread as DocumentthreadModel
+} from '../../models';
 import ApplicationDAO from '../../dao/application.dao';
+
+// The models are auto-mocked above (every method is a jest.fn()); retype them
+// so the mock API (mockReturnValue/…) is visible to the type-checker.
+const Application = ApplicationModel as unknown as Record<string, jest.Mock>;
+const Documentthread = DocumentthreadModel as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 // A query chain whose terminal `.lean()` resolves to `value`. Intermediate
 // builder calls (populate/select) return the same chain so they compose.
-const leanQueryChain = (value) => {
-  const chain = {
+const leanQueryChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     select: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value)
@@ -39,24 +50,25 @@ const leanQueryChain = (value) => {
 
 // A query chain that is itself thenable (no terminal `.lean()`): awaiting it
 // resolves to `value`, while builder calls return the same chain.
-const liveQueryChain = (value) => {
-  const chain = {
+const liveQueryChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     select: jest.fn(() => chain),
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    then: (resolve: any, reject: any) =>
+      Promise.resolve(value).then(resolve, reject)
   };
   return chain;
 };
 
 // The aggregation is called as `Application.aggregate(pipeline).allowDiskUse(true)`
 // and awaited, so allowDiskUse must return a promise resolving to the rows.
-const aggResultChain = (value) => ({
+const aggResultChain = (value: unknown) => ({
   allowDiskUse: jest.fn().mockResolvedValue(value)
 });
 
 // populateActiveApplications chains four .populate() calls and ends in .lean().
-const leanChain = (value) => {
-  const chain = {
+const leanChain = (value: unknown): any => {
+  const chain: any = {
     populate: jest.fn(() => chain),
     lean: jest.fn().mockResolvedValue(value)
   };
@@ -108,7 +120,7 @@ describe('ApplicationDAO.getStudentsApplicationsPaginated (mocked models)', () =
     expect(res.page).toBe(1);
     expect(res.limit).toBe(20);
     // Order restored to match the aggregation's id ordering (id2 then id1).
-    expect(res.applications.map((d) => d._id.toString())).toEqual([
+    expect(res.applications.map((d: any) => d._id.toString())).toEqual([
       'id2',
       'id1'
     ]);
@@ -139,9 +151,9 @@ describe('ApplicationDAO.getStudentsApplicationsPaginated (mocked models)', () =
     });
 
     const pipeline = Application.aggregate.mock.calls[0][0];
-    const postMatch = pipeline.find((s) => s.$match && s.$match.$and).$match
-      .$and;
-    const countryCond = postMatch.find((c) => c['prog.country']);
+    const postMatch = pipeline.find((s: any) => s.$match && s.$match.$and)
+      .$match.$and;
+    const countryCond = postMatch.find((c: any) => c['prog.country']);
     expect(countryCond['prog.country'].$in).toEqual(['de', 'nl']);
   });
 
@@ -174,13 +186,13 @@ describe('ApplicationDAO.getStudentsApplicationsPaginated (mocked models)', () =
     expect(preMatch.application_year).toBe('2025');
     // Agent/editor name filters add their own $lookup stages.
     const lookupAliases = pipeline
-      .filter((s) => s.$lookup)
-      .map((s) => s.$lookup.as);
+      .filter((s: any) => s.$lookup)
+      .map((s: any) => s.$lookup.as);
     expect(lookupAliases).toContain('agents');
     expect(lookupAliases).toContain('editors');
     // A post-lookup $match holds the joined-field $and conditions + search.
-    const postMatch = pipeline.find((s) => s.$match && s.$match.$and).$match
-      .$and;
+    const postMatch = pipeline.find((s: any) => s.$match && s.$match.$and)
+      .$match.$and;
     const flat = JSON.stringify(postMatch);
     expect(flat).toContain('prog.country');
     expect(flat).toContain('prog.semester');
@@ -406,7 +418,7 @@ describe('ApplicationDAO simple reads / writes (mocked models)', () => {
     const res = { modifiedCount: 2 };
     Application.bulkWrite.mockResolvedValue(res);
 
-    const updates = [{ updateOne: {} }];
+    const updates = [{ updateOne: {} }] as any;
     const result = await ApplicationDAO.updateApplicationsBulk(updates);
 
     expect(Application.bulkWrite).toHaveBeenCalledWith(updates);
@@ -417,8 +429,8 @@ describe('ApplicationDAO simple reads / writes (mocked models)', () => {
 describe('ApplicationDAO.getApplications builder (mocked models)', () => {
   // getApplications returns the live query builder; populate/select are invoked
   // on it conditionally. We model the builder as a chain with spies.
-  const builder = () => {
-    const chain = {
+  const builder = (): any => {
+    const chain: any = {
       populate: jest.fn(() => chain),
       select: jest.fn(() => chain),
       lean: jest.fn().mockResolvedValue([{ _id: 'a' }])

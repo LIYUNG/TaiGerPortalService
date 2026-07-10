@@ -6,15 +6,20 @@ import {
 } from '../../middlewares/interviewMultitenantFilter';
 import { ErrorResponse } from '../../common/errors';
 import { getPermission } from '../../utils/queryFunctions';
-import InterviewService from '../../services/interviews';
+import InterviewServiceReal from '../../services/interviews';
 
 jest.mock('../../utils/queryFunctions');
 jest.mock('../../services/interviews');
 
-const idStr = (s) => ({ toString: () => s });
+const InterviewService = InterviewServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+
+const idStr = (s: any) => ({ toString: () => s });
 
 describe('interviewMultitenantFilter', () => {
-  let res, next;
+  let res: any, next: any;
 
   beforeEach(() => {
     res = {};
@@ -34,7 +39,7 @@ describe('interviewMultitenantFilter', () => {
       student_id: { agents: [idStr('agent1')], editors: [] },
       trainer_id: []
     });
-    getPermission.mockResolvedValue({});
+    (getPermission as jest.Mock).mockResolvedValue({});
     await interviewMultitenantFilter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
@@ -48,7 +53,7 @@ describe('interviewMultitenantFilter', () => {
       student_id: { agents: [], editors: [idStr('editor1')] },
       trainer_id: []
     });
-    getPermission.mockResolvedValue({});
+    (getPermission as jest.Mock).mockResolvedValue({});
     await interviewMultitenantFilter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
@@ -62,7 +67,7 @@ describe('interviewMultitenantFilter', () => {
       student_id: { agents: [], editors: [] },
       trainer_id: [idStr('trainerX')]
     });
-    getPermission.mockResolvedValue({});
+    (getPermission as jest.Mock).mockResolvedValue({});
     await interviewMultitenantFilter(req, res, next);
     expect(next).toHaveBeenCalledWith();
   });
@@ -76,7 +81,7 @@ describe('interviewMultitenantFilter', () => {
       student_id: { agents: [], editors: [] },
       trainer_id: []
     });
-    getPermission.mockResolvedValue({ canAssignEditors: true });
+    (getPermission as jest.Mock).mockResolvedValue({ canAssignEditors: true });
     await interviewMultitenantFilter(req, res, next);
     // Only one (final) next() call, with no error
     expect(next).toHaveBeenLastCalledWith();
@@ -91,12 +96,14 @@ describe('interviewMultitenantFilter', () => {
       student_id: { agents: [idStr('other')], editors: [idStr('other2')] },
       trainer_id: [idStr('trainerY')]
     });
-    getPermission.mockResolvedValue({
+    (getPermission as jest.Mock).mockResolvedValue({
       canAssignEditors: false,
       canAssignAgents: false
     });
     await interviewMultitenantFilter(req, res, next);
-    const errCall = next.mock.calls.find((c) => c[0] instanceof ErrorResponse);
+    const errCall = next.mock.calls.find(
+      (c: any) => c[0] instanceof ErrorResponse
+    );
     expect(errCall).toBeDefined();
     expect(errCall[0].statusCode).toBe(403);
   });
@@ -109,9 +116,11 @@ describe('interviewMultitenantFilter', () => {
     // first call returns falsy interview -> 404 branch; but code then dereferences
     // interview.student_id, which throws. asyncHandler forwards to next.
     InterviewService.findInterviewByIdPopulated.mockResolvedValue(null);
-    getPermission.mockResolvedValue({});
+    (getPermission as jest.Mock).mockResolvedValue({});
     await interviewMultitenantFilter(req, res, next);
-    const errCall = next.mock.calls.find((c) => c[0] instanceof ErrorResponse);
+    const errCall = next.mock.calls.find(
+      (c: any) => c[0] instanceof ErrorResponse
+    );
     expect(errCall).toBeDefined();
     expect(errCall[0].statusCode).toBe(404);
   });
@@ -155,7 +164,7 @@ describe('interviewMultitenantFilter', () => {
 });
 
 describe('interviewMultitenantReadOnlyFilter', () => {
-  let res, next;
+  let res: any, next: any;
 
   beforeEach(() => {
     res = {};

@@ -4,8 +4,13 @@
 // the exact args and returns the DAO's (mocked) value.
 jest.mock('../../dao/communication.dao');
 
-import CommunicationDAO from '../../dao/communication.dao';
+import CommunicationDAOReal from '../../dao/communication.dao';
 import CommunicationService from '../../services/communications';
+
+const CommunicationDAO = CommunicationDAOReal as unknown as Record<
+  string,
+  jest.Mock
+>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -75,7 +80,10 @@ describe('CommunicationService.findPopulatedSorted (mocked DAO)', () => {
     const daoResult = [{ _id: 'm1' }];
     CommunicationDAO.findPopulatedSorted.mockReturnValue(daoResult);
 
-    const result = CommunicationService.findPopulatedSorted(filter, options);
+    const result = CommunicationService.findPopulatedSorted(
+      filter,
+      options as any
+    );
 
     expect(CommunicationDAO.findPopulatedSorted).toHaveBeenCalledTimes(1);
     expect(CommunicationDAO.findPopulatedSorted).toHaveBeenCalledWith(

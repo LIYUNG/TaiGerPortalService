@@ -4,8 +4,10 @@
 // service returns the DAO result.
 jest.mock('../../dao/event.dao');
 
-import EventDAO from '../../dao/event.dao';
+import EventDAOReal from '../../dao/event.dao';
 import EventService from '../../services/events';
+
+const EventDAO = EventDAOReal as unknown as Record<string, jest.Mock>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -18,7 +20,7 @@ describe('EventService (mocked DAO)', () => {
     const daoResult = [{ _id: 'e1' }];
     EventDAO.findEvents.mockResolvedValue(daoResult);
 
-    const result = await EventService.findEvents(filter, options);
+    const result = await EventService.findEvents(filter, options as any);
 
     expect(EventDAO.findEvents).toHaveBeenCalledTimes(1);
     expect(EventDAO.findEvents).toHaveBeenCalledWith(filter, options);

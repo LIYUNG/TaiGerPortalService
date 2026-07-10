@@ -9,8 +9,8 @@ const mockGet = jest.fn();
 const mockSet = jest.fn();
 jest.mock('../../cache/node-cache', () => ({
   ten_minutes_cache: {
-    get: (...a) => mockGet(...a),
-    set: (...a) => mockSet(...a)
+    get: (...a: any[]) => mockGet(...a),
+    set: (...a: any[]) => mockSet(...a)
   }
 }));
 jest.mock('../../services/logger', () => ({
@@ -21,14 +21,23 @@ jest.mock('../../services/logger', () => ({
 jest.mock('../../services/permissions');
 jest.mock('../../services/students');
 
-import PermissionService from '../../services/permissions';
-import StudentService from '../../services/students';
+import PermissionServiceReal from '../../services/permissions';
+import StudentServiceReal from '../../services/students';
 import {
   getPermission,
   getCachedStudentPermission
 } from '../../utils/queryFunctions';
 
-const user = { _id: { toString: () => 'user-1' } };
+const PermissionService = PermissionServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+const StudentService = StudentServiceReal as unknown as Record<
+  string,
+  jest.Mock
+>;
+
+const user: any = { _id: { toString: () => 'user-1' } };
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -77,7 +86,7 @@ describe('getCachedStudentPermission', () => {
     const cached = { agents: [], editors: [] };
     mockGet.mockReturnValue(cached);
 
-    const result = await getCachedStudentPermission({}, 'stu-1');
+    const result = await getCachedStudentPermission({} as any, 'stu-1');
 
     expect(result).toBe(cached);
     expect(StudentService.getStudentByIdSelect).not.toHaveBeenCalled();
@@ -89,7 +98,7 @@ describe('getCachedStudentPermission', () => {
     StudentService.getStudentByIdSelect.mockResolvedValue(student);
     mockSet.mockReturnValue(true);
 
-    const result = await getCachedStudentPermission({}, 'stu-1');
+    const result = await getCachedStudentPermission({} as any, 'stu-1');
 
     expect(StudentService.getStudentByIdSelect).toHaveBeenCalledWith(
       'stu-1',
@@ -104,7 +113,7 @@ describe('getCachedStudentPermission', () => {
     StudentService.getStudentByIdSelect.mockResolvedValue({ agents: [] });
     mockSet.mockReturnValue(false);
 
-    const result = await getCachedStudentPermission({}, 'stu-1');
+    const result = await getCachedStudentPermission({} as any, 'stu-1');
 
     expect(result).toBeUndefined();
   });

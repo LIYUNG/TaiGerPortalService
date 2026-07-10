@@ -51,9 +51,9 @@ const studentUser = { _id: 'student1', role: Role.Student };
 const agentUser = { _id: 'agent1', role: Role.Agent };
 const adminUser = { _id: 'admin1', role: Role.Admin };
 
-const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 
-const makeDocThread = (overrides = {}) => ({
+const makeDocThread = (overrides: any = {}): any => ({
   isFinalVersion: false,
   latest_message_left_by_id: 'someone-else',
   updatedAt: daysAgo(40),
@@ -65,7 +65,7 @@ const makeDocThread = (overrides = {}) => ({
   ...overrides
 });
 
-const makeProgram = (overrides = {}) => ({
+const makeProgram = (overrides: any = {}): any => ({
   school: 'MIT',
   program_name: 'CS',
   application_deadline: '12-01',
@@ -73,7 +73,7 @@ const makeProgram = (overrides = {}) => ({
   ...overrides
 });
 
-const makeApplication = (overrides = {}) => ({
+const makeApplication = (overrides: any = {}): any => ({
   decided: 'O',
   closed: '-',
   application_year: '2025',
@@ -137,7 +137,7 @@ describe('isNotArchiv / isArchiv', () => {
 
 describe('application_deadline_V2_calculator', () => {
   it('returns WITHDRAW for withdrawn application', () => {
-    expect(application_deadline_V2_calculator({ closed: 'X' })).toBe(
+    expect(application_deadline_V2_calculator({ closed: 'X' } as any)).toBe(
       'WITHDRAW'
     );
   });
@@ -146,7 +146,7 @@ describe('application_deadline_V2_calculator', () => {
       application_deadline_V2_calculator({
         closed: '-',
         programId: {}
-      })
+      } as any)
     ).toBe('No Data');
   });
   it('returns Rolling format', () => {
@@ -155,7 +155,7 @@ describe('application_deadline_V2_calculator', () => {
         closed: '-',
         application_year: '2025',
         programId: { application_deadline: 'Rolling', semester: 'WS' }
-      })
+      } as any)
     ).toBe('2025-Rolling');
   });
   it('formats a normal WS deadline (year adjusted)', () => {
@@ -264,7 +264,7 @@ describe('General_RL_Deadline_Calculator', () => {
 
 describe('language helpers', () => {
   it('check_english_language_passed', () => {
-    expect(check_english_language_passed(null)).toBe(false);
+    expect(check_english_language_passed(null as any)).toBe(false);
     expect(check_english_language_passed({})).toBe(false);
     expect(
       check_english_language_passed({ language: { english_isPassed: 'X' } })
@@ -274,7 +274,7 @@ describe('language helpers', () => {
     ).toBe(true);
   });
   it('check_german_language_passed', () => {
-    expect(check_german_language_passed(null)).toBe(false);
+    expect(check_german_language_passed(null as any)).toBe(false);
     expect(check_german_language_passed({})).toBe(false);
     expect(
       check_german_language_passed({ language: { german_isPassed: '-' } })
@@ -284,7 +284,7 @@ describe('language helpers', () => {
     ).toBe(true);
   });
   it('check_languages_filled', () => {
-    expect(check_languages_filled(null)).toBe(false);
+    expect(check_languages_filled(null as any)).toBe(false);
     expect(check_languages_filled({})).toBe(false);
     expect(
       check_languages_filled({
@@ -309,22 +309,22 @@ describe('needUpdateCourseSelection', () => {
     expect(
       needUpdateCourseSelection({
         academic_background: { university: { isGraduated: 'Yes' } }
-      })
+      } as any)
     ).toBe(false);
     expect(
       needUpdateCourseSelection({
         academic_background: { university: { isGraduated: 'No' } }
-      })
+      } as any)
     ).toBe(false);
   });
   it('returns true when no courses', () => {
-    expect(needUpdateCourseSelection({ courses: [] })).toBe(true);
+    expect(needUpdateCourseSelection({ courses: [] } as any)).toBe(true);
   });
   it('returns true if course is not analyzed', () => {
     expect(
       needUpdateCourseSelection({
         courses: [{ analysis: { updatedAt: null } }]
-      })
+      } as any)
     ).toBe(true);
   });
   it('returns true if analyzed but expired 39 days', () => {
@@ -333,7 +333,7 @@ describe('needUpdateCourseSelection', () => {
         courses: [
           { updatedAt: daysAgo(40), analysis: { updatedAt: daysAgo(40) } }
         ]
-      })
+      } as any)
     ).toBe(true);
   });
   it('returns false if recently updated', () => {
@@ -342,7 +342,7 @@ describe('needUpdateCourseSelection', () => {
         courses: [
           { updatedAt: daysAgo(10), analysis: { updatedAt: daysAgo(10) } }
         ]
-      })
+      } as any)
     ).toBe(false);
   });
 });
@@ -353,13 +353,13 @@ describe('is_deadline_within30days_needed', () => {
       is_deadline_within30days_needed({
         application_preference: { expected_application_date: '' },
         applications: []
-      })
+      } as any)
     ).toBe(false);
   });
   it('returns true when decided unsubmitted within trigger window', () => {
     const futureMonth = String(new Date().getMonth() + 1).padStart(2, '0');
     const futureYear = new Date().getFullYear();
-    const student = {
+    const student: any = {
       application_preference: { expected_application_date: '2025' },
       applications: [
         makeApplication({
@@ -380,14 +380,14 @@ describe('is_deadline_within30days_needed', () => {
       is_deadline_within30days_needed({
         application_preference: { expected_application_date: '2025' },
         applications: [makeApplication({ decided: 'O', closed: 'O' })]
-      })
+      } as any)
     ).toBe(false);
   });
 });
 
 describe('does_editor_have_pending_tasks', () => {
   it('returns true when generaldocs thread needs reply', () => {
-    const students = [
+    const students: any[] = [
       {
         generaldocs_threads: [
           {
@@ -401,7 +401,7 @@ describe('does_editor_have_pending_tasks', () => {
     expect(does_editor_have_pending_tasks(students, editorUser)).toBe(true);
   });
   it('returns true when app thread needs reply', () => {
-    const students = [
+    const students: any[] = [
       {
         generaldocs_threads: [],
         applications: [
@@ -417,7 +417,7 @@ describe('does_editor_have_pending_tasks', () => {
     expect(does_editor_have_pending_tasks(students, editorUser)).toBe(true);
   });
   it('returns false when all final or own message', () => {
-    const students = [
+    const students: any[] = [
       {
         generaldocs_threads: [
           { isFinalVersion: true, latest_message_left_by_id: 'other' }
@@ -435,7 +435,7 @@ describe('does_editor_have_pending_tasks', () => {
 });
 
 describe('is_cv_ml_rl_task_response_needed', () => {
-  const baseStudent = (thread, appThread) => ({
+  const baseStudent = (thread: any, appThread?: any): any => ({
     generaldocs_threads: thread,
     applications: appThread
       ? [makeApplication({ decided: 'O', doc_modification_thread: appThread })]
@@ -509,7 +509,7 @@ describe('is_cv_ml_rl_task_response_needed', () => {
 });
 
 describe('is_cv_ml_rl_reminder_needed', () => {
-  const student = (genThreads, appThreads) => ({
+  const student = (genThreads: any, appThreads?: any): any => ({
     generaldocs_threads: genThreads,
     applications: appThreads
       ? [makeApplication({ decided: 'O', doc_modification_thread: appThreads })]
@@ -602,7 +602,7 @@ describe('unsubmitted_applications_summary', () => {
     expect(
       unsubmitted_applications_summary({
         applications: [makeApplication({ decided: '-' })]
-      })
+      } as any)
     ).toBe('');
   });
   it('builds list for multiple unsubmitted programs', () => {
@@ -615,7 +615,7 @@ describe('unsubmitted_applications_summary', () => {
           programId: makeProgram({ school: 'Stanford', program_name: 'AI' })
         })
       ]
-    });
+    } as any);
     expect(result).toContain('not submitted yet');
     expect(result).toContain('Stanford');
     expect(result).toContain('</ul>');
@@ -623,7 +623,7 @@ describe('unsubmitted_applications_summary', () => {
 });
 
 describe('escalation list builders', () => {
-  const student = {
+  const student: any = {
     _id: 's1',
     firstname: 'John',
     lastname: 'Doe',
@@ -646,7 +646,7 @@ describe('escalation list builders', () => {
             }
           }
         ]
-      },
+      } as any,
       editorUser,
       7
     );
@@ -697,7 +697,7 @@ describe('escalation list builders', () => {
 });
 
 describe('cv_ml_rl_unfinished_summary', () => {
-  const buildStudent = (role) => ({
+  const buildStudent = (role?: any): any => ({
     generaldocs_threads: [
       {
         isFinalVersion: false,
@@ -752,7 +752,7 @@ describe('cv_ml_rl_unfinished_summary', () => {
             doc_modification_thread: [{ isFinalVersion: true }]
           })
         ]
-      },
+      } as any,
       agentUser
     );
     expect(r).toBe('');
@@ -762,7 +762,12 @@ describe('cv_ml_rl_unfinished_summary', () => {
 describe('cvmlrl_deadline_within30days_escalation_summary', () => {
   it('returns empty when nothing close to deadline', () => {
     const r = cvmlrl_deadline_within30days_escalation_summary(
-      { _id: 's1', firstname: 'A', lastname: 'B', generaldocs_threads: [] },
+      {
+        _id: 's1',
+        firstname: 'A',
+        lastname: 'B',
+        generaldocs_threads: []
+      } as any,
       []
     );
     expect(r).toBe('');
@@ -784,7 +789,7 @@ describe('cvmlrl_deadline_within30days_escalation_summary', () => {
         }
       ]
     });
-    const student = {
+    const student: any = {
       _id: 's1',
       firstname: 'A',
       lastname: 'B',
@@ -805,10 +810,10 @@ describe('base_documents_summary', () => {
       name,
       status: DocumentStatusType.Accepted
     }));
-    expect(base_documents_summary({ profile })).toBe('');
+    expect(base_documents_summary({ profile } as any)).toBe('');
   });
   it('lists missing documents', () => {
-    const r = base_documents_summary({ profile: [] });
+    const r = base_documents_summary({ profile: [] } as any);
     expect(r).toContain('missing');
     expect(r).toContain('Base Documents');
   });
@@ -818,7 +823,7 @@ describe('base_documents_summary', () => {
       status:
         idx === 0 ? DocumentStatusType.Rejected : DocumentStatusType.Accepted
     }));
-    const r = base_documents_summary({ profile });
+    const r = base_documents_summary({ profile } as any);
     expect(r).toContain('not okay');
   });
 });
@@ -830,7 +835,7 @@ describe('missing_academic_background', () => {
         _id: 's1',
         academic_background: { university: {}, language: {} },
         application_preference: undefined
-      },
+      } as any,
       studentUser
     );
     expect(r).toContain('Survey');
@@ -841,13 +846,13 @@ describe('missing_academic_background', () => {
         _id: 's1',
         academic_background: { university: {}, language: {} },
         application_preference: undefined
-      },
+      } as any,
       adminUser
     );
     expect(r).toContain('student-database');
   });
   it('returns empty when all fields filled', () => {
-    const student = {
+    const student: any = {
       _id: 's1',
       academic_background: {
         university: {
@@ -881,7 +886,7 @@ describe('missing_academic_background', () => {
     expect(missing_academic_background(student, studentUser)).toBe('');
   });
   it('lists individual missing fields when partially filled', () => {
-    const student = {
+    const student: any = {
       _id: 's1',
       academic_background: {
         university: {
@@ -915,7 +920,7 @@ describe('missing_academic_background', () => {
     expect(r).toContain('Survey');
   });
   it('lists expired test dates (X branch)', () => {
-    const student = {
+    const student: any = {
       _id: 's1',
       academic_background: {
         university: {

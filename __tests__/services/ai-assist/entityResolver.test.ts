@@ -6,14 +6,20 @@ jest.mock('../../../services/ai-assist/tools', () => ({
   requireAccessibleStudent: jest.fn()
 }));
 
-import {
-  searchAccessibleStudents,
-  requireAccessibleStudent
-} from '../../../services/ai-assist/tools';
-import {
-  resolveStudent,
-  resolveStudentById
-} from '../../../services/ai-assist/entityResolver';
+import toolsModule from '../../../services/ai-assist/tools';
+import entityResolverModule from '../../../services/ai-assist/entityResolver';
+
+const { searchAccessibleStudents, requireAccessibleStudent } =
+  toolsModule as unknown as Record<string, jest.Mock>;
+const { resolveStudent, resolveStudentById } =
+  entityResolverModule as unknown as {
+    resolveStudent: (req: any, query: any) => Promise<any>;
+    resolveStudentById: (
+      req: any,
+      id: any,
+      fallbackDisplayName?: string | null
+    ) => Promise<any>;
+  };
 
 const REQ = { user: { role: 'Admin', _id: 'admin_1' } };
 

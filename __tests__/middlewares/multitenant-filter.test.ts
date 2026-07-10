@@ -17,7 +17,7 @@ describe('multitenant_filter middleware', () => {
       user: { role: Role.Student, _id: 'user_id' },
       params: { studentId: 'user_id' }
     };
-    multitenant_filter(req, {}, next);
+    multitenant_filter(req as any, {} as any, next);
 
     expect(next).toHaveBeenCalledTimes(1);
   });
@@ -27,7 +27,7 @@ describe('multitenant_filter middleware', () => {
       user: { role: Role.Guest, _id: 'user_id' },
       params: { user_id: 'user_id' }
     };
-    multitenant_filter(req, {}, next);
+    multitenant_filter(req as any, {} as any, next);
 
     expect(next).toHaveBeenCalledTimes(1);
   });
@@ -37,7 +37,7 @@ describe('multitenant_filter middleware', () => {
       user: { role: Role.Admin, _id: 'admin_id' },
       params: {}
     };
-    multitenant_filter(req, {}, next);
+    multitenant_filter(req as any, {} as any, next);
 
     expect(next).toHaveBeenCalledTimes(1);
   });
@@ -47,7 +47,7 @@ describe('multitenant_filter middleware', () => {
       user: { role: Role.Student, _id: 'user_id' },
       params: { studentId: 'other_id' }
     };
-    multitenant_filter(req, {}, next);
+    multitenant_filter(req as any, {} as any, next);
 
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
     expect(next).toHaveBeenCalledTimes(1);
@@ -58,7 +58,7 @@ describe('multitenant_filter middleware', () => {
       user: { role: Role.Guest, _id: 'user_id' },
       params: { user_id: 'other_id' }
     };
-    multitenant_filter(req, {}, next);
+    multitenant_filter(req as any, {} as any, next);
 
     expect(next).toHaveBeenCalledWith(expect.any(ErrorResponse));
     expect(next).toHaveBeenCalledTimes(1);

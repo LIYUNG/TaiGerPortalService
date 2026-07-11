@@ -1,6 +1,6 @@
 name: Tests
 
-# Runs the Jest suite on every pull request.
+# Runs the Jest suite and static checks (type-check + lint) on every pull request.
 on:
   pull_request:
 
@@ -38,3 +38,25 @@ jobs:
       # database), so `test:ci` runs it once in parallel and deterministically.
       - name: Run tests
         run: npm run test:ci -- --forceExit
+
+  quality:
+    name: Type-check & lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint

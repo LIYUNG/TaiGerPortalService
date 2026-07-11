@@ -94,9 +94,9 @@ const MeetingAdjustReminder = async (
   await MeetingAdjustReminderEmail(
     {
       id: receiver._id.toString(),
-      firstname: receiver.firstname,
-      lastname: receiver.lastname,
-      address: receiver.email
+      firstname: receiver.firstname ?? '',
+      lastname: receiver.lastname ?? '',
+      address: receiver.email ?? ''
     },
     {
       taiger_user_firstname: user.firstname,
@@ -119,15 +119,15 @@ const MeetingCancelledReminder = async (
     is_TaiGer_Student(user)
       ? {
           id: meeting_event.receiver_id[0]._id.toString(),
-          firstname: meeting_event.receiver_id[0].firstname,
-          lastname: meeting_event.receiver_id[0].lastname,
-          address: meeting_event.receiver_id[0].email
+          firstname: meeting_event.receiver_id[0].firstname ?? '',
+          lastname: meeting_event.receiver_id[0].lastname ?? '',
+          address: meeting_event.receiver_id[0].email ?? ''
         }
       : {
           id: meeting_event.requester_id[0]._id.toString(),
-          firstname: meeting_event.requester_id[0].firstname,
-          lastname: meeting_event.requester_id[0].lastname,
-          address: meeting_event.requester_id[0].email
+          firstname: meeting_event.requester_id[0].firstname ?? '',
+          lastname: meeting_event.requester_id[0].lastname ?? '',
+          address: meeting_event.requester_id[0].email ?? ''
         },
     {
       taiger_user: user,
@@ -154,9 +154,9 @@ const meetingInvitation = async (
   await MeetingInvitationEmail(
     {
       id: receiver._id.toString(),
-      firstname: receiver.firstname,
-      lastname: receiver.lastname,
-      address: receiver.email
+      firstname: receiver.firstname ?? '',
+      lastname: receiver.lastname ?? '',
+      address: receiver.email ?? ''
     },
     {
       taiger_user: user,
@@ -180,9 +180,9 @@ const meetingConfirmationReminder = async (
   await MeetingConfirmationReminderEmail(
     {
       id: receiver._id.toString(),
-      firstname: receiver.firstname,
-      lastname: receiver.lastname,
-      address: receiver.email
+      firstname: receiver.firstname ?? '',
+      lastname: receiver.lastname ?? '',
+      address: receiver.email ?? ''
     },
     {
       taiger_user_firstname: user.firstname,
@@ -577,7 +577,7 @@ const confirmEvent = asyncRoute<ConfirmEventResponse>(async (req, res) => {
       )) as unknown as PopulatedEvent | null;
       let concat_name = '';
       let concat_id = '';
-      // eslint-disable-next-line no-restricted-syntax
+       
       for (const requester of event_temp!.requester_id) {
         concat_name += `${requester.firstname}_${requester.lastname}`;
         concat_id += `${requester._id.toString()}`;

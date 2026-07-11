@@ -103,7 +103,7 @@ export const threadS3GarbageCollector = async (
     // both have `_id`, and are keyed dynamically by `userFolder` (e.g.
     // `requester_id`/`student_id`) and carry a `messages` array of the same
     // shared shape ({ message, file: [{ path }] }).
-    // eslint-disable-next-line no-underscore-dangle
+     
     const thread_id = ticket._id.toString();
     const dynamicTicket = ticket as unknown as Record<
       string,
@@ -828,7 +828,7 @@ export const MeetingDailyReminderChecker = async () => {
           (upcomingEvents as unknown as { event_type?: string }).event_type ===
           'Interview'
         ) {
-          // eslint-disable-next-line no-await-in-loop
+           
           await InterviewTrainingReminderEmail(
             {
               firstname: upcomingEvents[j].requester_id[0].firstname,
@@ -850,7 +850,7 @@ export const MeetingDailyReminderChecker = async () => {
             }
           );
         } else {
-          // eslint-disable-next-line no-await-in-loop
+           
           await MeetingReminderEmail(
             {
               firstname: upcomingEvents[j].requester_id[0].firstname,
@@ -1550,9 +1550,9 @@ export const DailyInterviewSurveyChecker = async () => {
       }) =>
         InterviewSurveyRequestEmail(
           {
-            firstname: interview.student_id.firstname,
-            lastname: interview.student_id.lastname,
-            address: interview.student_id.email
+            firstname: interview.student_id.firstname ?? '',
+            lastname: interview.student_id.lastname ?? '',
+            address: interview.student_id.email ?? ''
           },
           { interview }
         )

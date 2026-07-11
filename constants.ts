@@ -1171,10 +1171,13 @@ export const missing_academic_background = (
     // makes the `||`'s right-hand side dead code, which strict typing now
     // reports as "Property does not exist on type 'never'". Suppressed
     // rather than "fixed" to avoid changing behavior, per task instructions.
-    // @ts-expect-error -- see FLAGGED BUG comment above
+    // FLAGGED BUG (see comment above): the `||`'s right-hand side is effectively
+    // dead code. The cast preserves the exact runtime behaviour while satisfying
+    // strict typing (replaces a stale `@ts-expect-error` that no longer matched
+    // the reported line).
     if (
       student.academic_background ||
-      !student.academic_background.university
+      !(student.academic_background as { university?: unknown }).university
     ) {
       missing_background_fields += `
     <li>High School Name</li>

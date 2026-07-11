@@ -485,9 +485,9 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
     if (isNotArchiv(student)) {
       assignDocumentTaskToEditorEmail(
         {
-          firstname: student.editors[i].firstname,
-          lastname: student.editors[i].lastname,
-          address: student.editors[i].email
+          firstname: student.editors[i].firstname ?? '',
+          lastname: student.editors[i].lastname ?? '',
+          address: student.editors[i].email ?? ''
         },
         {
           student_firstname: student.firstname,
@@ -502,9 +502,9 @@ const initGeneralMessagesThread = asyncHandler(async (req, res) => {
   if (isNotArchiv(student)) {
     await assignDocumentTaskToStudentEmail(
       {
-        firstname: student.firstname,
-        lastname: student.lastname,
-        address: student.email
+        firstname: student.firstname ?? '',
+        lastname: student.lastname ?? '',
+        address: student.email ?? ''
       },
       { documentname, updatedAt: new Date(), thread_id: new_doc_thread._id }
     );
@@ -581,9 +581,9 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
       if (!Essay_Writer_Scope.includes(document_category)) {
         assignDocumentTaskToEditorEmail(
           {
-            firstname: student.editors[i].firstname,
-            lastname: student.editors[i].lastname,
-            address: student.editors[i].email
+            firstname: student.editors[i].firstname ?? '',
+            lastname: student.editors[i].lastname ?? '',
+            address: student.editors[i].email ?? ''
           },
           {
             student_firstname: student.firstname,
@@ -599,9 +599,9 @@ const initApplicationMessagesThread = asyncHandler(async (req, res) => {
   if (isNotArchiv(student)) {
     assignDocumentTaskToStudentEmail(
       {
-        firstname: student.firstname,
-        lastname: student.lastname,
-        address: student.email
+        firstname: student.firstname ?? '',
+        lastname: student.lastname ?? '',
+        address: student.email ?? ''
       },
       {
         documentname,
@@ -981,9 +981,9 @@ const postMessages = asyncHandler(async (req, res) => {
           // Inform Agent
           if (isNotArchiv(student.agents[i])) {
             const agent_recipent = {
-              firstname: student.agents[i].firstname,
-              lastname: student.agents[i].lastname,
-              address: student.agents[i].email
+              firstname: student.agents[i].firstname ?? '',
+              lastname: student.agents[i].lastname ?? '',
+              address: student.agents[i].email ?? ''
             };
             const agent_payload: EmailPayload = {
               writer_firstname: user.firstname,
@@ -1028,9 +1028,9 @@ const postMessages = asyncHandler(async (req, res) => {
             if (isNotArchiv(student.agents[i])) {
               sendAssignEditorReminderEmail(
                 {
-                  firstname: student.agents[i].firstname,
-                  lastname: student.agents[i].lastname,
-                  address: student.agents[i].email
+                  firstname: student.agents[i].firstname ?? '',
+                  lastname: student.agents[i].lastname ?? '',
+                  address: student.agents[i].email ?? ''
                 },
                 {
                   student_firstname: student.firstname,
@@ -1066,9 +1066,9 @@ const postMessages = asyncHandler(async (req, res) => {
         // Inform Editor
         for (let i = 0; i < student.editors.length; i += 1) {
           const editor_recipient = {
-            firstname: student.editors[i].firstname,
-            lastname: student.editors[i].lastname,
-            address: student.editors[i].email
+            firstname: student.editors[i].firstname ?? '',
+            lastname: student.editors[i].lastname ?? '',
+            address: student.editors[i].email ?? ''
           };
           const editor_payload: EmailPayload = {
             writer_firstname: user.firstname,
@@ -1118,9 +1118,9 @@ const postMessages = asyncHandler(async (req, res) => {
           if (isNotArchiv(student)) {
             sendAssignEssayWriterReminderEmail(
               {
-                firstname: student.agents[i].firstname,
-                lastname: student.agents[i].lastname,
-                address: student.agents[i].email
+                firstname: student.agents[i].firstname ?? '',
+                lastname: student.agents[i].lastname ?? '',
+                address: student.agents[i].email ?? ''
               },
               payload
             );
@@ -1333,9 +1333,9 @@ const postMessages = asyncHandler(async (req, res) => {
     if (Editor_Scope.includes(document_thread.file_type)) {
       for (let i = 0; i < student.editors.length; i += 1) {
         const recipient = {
-          firstname: student.editors[i].firstname,
-          lastname: student.editors[i].lastname,
-          address: student.editors[i].email
+          firstname: student.editors[i].firstname ?? '',
+          lastname: student.editors[i].lastname ?? '',
+          address: student.editors[i].email ?? ''
         };
         const payload: EmailPayload = {
           writer_firstname: user.firstname,
@@ -1649,9 +1649,9 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
     if (isNotArchiv(student)) {
       await sendSetAsFinalProgramSpecificFileForStudentEmail(
         {
-          firstname: student.firstname,
-          lastname: student.lastname,
-          address: student.email
+          firstname: student.firstname ?? '',
+          lastname: student.lastname ?? '',
+          address: student.email ?? ''
         },
         {
           editor_firstname: user.firstname,
@@ -1679,9 +1679,9 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
     const emailPromises = validAgents.map((agent) =>
       sendSetAsFinalProgramSpecificFileForAgentEmail(
         {
-          firstname: agent.firstname,
-          lastname: agent.lastname,
-          address: agent.email
+          firstname: agent.firstname ?? '',
+          lastname: agent.lastname ?? '',
+          address: agent.email ?? ''
         },
         {
           student_firstname: student3.firstname,
@@ -1748,9 +1748,9 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
     if (isNotArchiv(student)) {
       await sendSetAsFinalGeneralFileForStudentEmail(
         {
-          firstname: student.firstname,
-          lastname: student.lastname,
-          address: student.email
+          firstname: student.firstname ?? '',
+          lastname: student.lastname ?? '',
+          address: student.email ?? ''
         },
         {
           editor_firstname: user.firstname,
@@ -1772,9 +1772,9 @@ const SetStatusMessagesThread = asyncHandler(async (req, res, next) => {
         if (isNotArchiv(student3.agents[i])) {
           await sendSetAsFinalGeneralFileForAgentEmail(
             {
-              firstname: student3.agents[i].firstname,
-              lastname: student3.agents[i].lastname,
-              address: student3.agents[i].email
+              firstname: student3.agents[i].firstname ?? '',
+              lastname: student3.agents[i].lastname ?? '',
+              address: student3.agents[i].email ?? ''
             },
             {
               student_firstname: student3.firstname,
@@ -2074,9 +2074,9 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
       if (isNotArchiv(toBeInformedEditors[i] as unknown as IUser)) {
         await informEssayWriterNewEssayEmail(
           {
-            firstname: toBeInformedEditors[i].firstname,
-            lastname: toBeInformedEditors[i].lastname,
-            address: toBeInformedEditors[i].email
+            firstname: toBeInformedEditors[i].firstname ?? '',
+            lastname: toBeInformedEditors[i].lastname ?? '',
+            address: toBeInformedEditors[i].email ?? ''
           },
           {
             std_firstname: student_upated.firstname,
@@ -2096,9 +2096,9 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
       if (isNotArchiv(student_upated.agents[i])) {
         await informAgentEssayAssignedEmail(
           {
-            firstname: student_upated.agents[i].firstname,
-            lastname: student_upated.agents[i].lastname,
-            address: student_upated.agents[i].email
+            firstname: student_upated.agents[i].firstname ?? '',
+            lastname: student_upated.agents[i].lastname ?? '',
+            address: student_upated.agents[i].email ?? ''
           },
           {
             std_firstname: student_upated.firstname,
@@ -2118,9 +2118,9 @@ const assignEssayWritersToEssayTask = asyncHandler(async (req, res, next) => {
     if (isNotArchiv(student_upated)) {
       await informStudentTheirEssayWriterEmail(
         {
-          firstname: student_upated.firstname,
-          lastname: student_upated.lastname,
-          address: student_upated.email
+          firstname: student_upated.firstname ?? '',
+          lastname: student_upated.lastname ?? '',
+          address: student_upated.email ?? ''
         },
         {
           program: essayDocumentThreads.program_id,

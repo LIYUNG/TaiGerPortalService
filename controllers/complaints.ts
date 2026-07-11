@@ -83,10 +83,10 @@ const createComplaint = asyncHandler(async (req, res) => {
     if (isNotArchiv(users[x])) {
       newCustomerCenterTicketEmail(
         {
-          firstname: users[x].firstname,
-          lastname: users[x].lastname,
-          address: users[x].email
-        } as unknown as IUser,
+          firstname: users[x].firstname ?? '',
+          lastname: users[x].lastname ?? '',
+          address: users[x].email ?? ''
+        },
         {
           requester: user,
           ticket_id: new_ticket._id?.toString(),
@@ -101,10 +101,10 @@ const createComplaint = asyncHandler(async (req, res) => {
   if (isNotArchiv(user)) {
     newCustomerCenterTicketSubmitConfirmationEmail(
       {
-        firstname: user.firstname,
-        lastname: user.lastname,
-        address: user.email
-      } as unknown as IUser,
+        firstname: user.firstname ?? '',
+        lastname: user.lastname ?? '',
+        address: user.email ?? ''
+      },
       {
         ticket_id: new_ticket._id?.toString(),
         ticket_title: new_ticket.title,
@@ -300,10 +300,10 @@ const updateComplaint = asyncHandler(async (req, res) => {
     if (isNotArchiv(updatedComplaint.requester_id)) {
       complaintResolvedRequesterReminderEmail(
         {
-          firstname: updatedComplaint.requester_id.firstname,
-          lastname: updatedComplaint.requester_id.lastname,
-          address: updatedComplaint.requester_id.email
-        } as unknown as IUser,
+          firstname: updatedComplaint.requester_id.firstname ?? '',
+          lastname: updatedComplaint.requester_id.lastname ?? '',
+          address: updatedComplaint.requester_id.email ?? ''
+        },
         {
           ticket_id: updatedComplaint._id,
           student: updatedComplaint.requester_id,

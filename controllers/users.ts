@@ -293,9 +293,9 @@ const updateUser = asyncRoute<UpdateUserResponse>(async (req, res) => {
   // Email inform user, the updated status
   await updateNotificationEmail(
     {
-      firstname: updated_user.firstname,
-      lastname: updated_user.lastname,
-      address: updated_user.email
+      firstname: updated_user.firstname ?? '',
+      lastname: updated_user.lastname ?? '',
+      address: updated_user.email ?? ''
     },
     {}
   );

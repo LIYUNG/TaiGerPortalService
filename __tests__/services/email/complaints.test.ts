@@ -4,9 +4,9 @@ jest.mock('../../../services/email/configuration', () => ({
   transporter: { sendMail: jest.fn() }
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see services/email/configuration.ts
+ 
 import EmailConfiguration = require('../../../services/email/configuration');
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- export = interop, see services/email/complaints.ts
+ 
 import ComplaintsEmail = require('../../../services/email/complaints');
 
 const { sendEmail } = EmailConfiguration;
@@ -19,7 +19,8 @@ const {
 
 const recipient = {
   firstname: 'Recip',
-  lastname: 'Ient'
+  lastname: 'Ient',
+  address: 'recip@example.com'
 };
 
 const payload = {

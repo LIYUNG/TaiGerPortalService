@@ -53,7 +53,7 @@ type PopulatedStudent = IStudent & {
 // bare ObjectId is subsequently pushed for the mark-as-read write).
 type MessageThreadDoc = Omit<ICommunication, 'readBy' | 'timeStampReadBy'> & {
   _id: { toString(): string };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- readBy mixes
+   
   // populated IUser docs (read) with a raw pushed ObjectId (write); no single
   // structural type covers both without changing runtime behavior.
   readBy: any[];
@@ -808,9 +808,9 @@ export const postMessages = asyncRoute<PostCommunicationResponse>(
             // inform agent
             sendAgentNewMessageReminderEmail(
               {
-                firstname: student.agents[i].firstname,
-                lastname: student.agents[i].lastname,
-                address: student.agents[i].email
+                firstname: student.agents[i].firstname ?? '',
+                lastname: student.agents[i].lastname ?? '',
+                address: student.agents[i].email ?? ''
               },
               {
                 student_firstname: student.firstname,
@@ -824,9 +824,9 @@ export const postMessages = asyncRoute<PostCommunicationResponse>(
     } else {
       sendStudentNewMessageReminderEmail(
         {
-          firstname: student.firstname,
-          lastname: student.lastname,
-          address: student.email
+          firstname: student.firstname ?? '',
+          lastname: student.lastname ?? '',
+          address: student.email ?? ''
         },
         {
           taiger_user_firstname: user.firstname,

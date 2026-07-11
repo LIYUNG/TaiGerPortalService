@@ -90,9 +90,9 @@ const InterviewCancelledReminder = async (
   InterviewCancelledReminderEmail(
     {
       id: receiver._id.toString(),
-      firstname: receiver.firstname,
-      lastname: receiver.lastname,
-      address: receiver.email
+      firstname: receiver.firstname ?? '',
+      lastname: receiver.lastname ?? '',
+      address: receiver.email ?? ''
     },
     {
       taiger_user: user,
@@ -121,9 +121,9 @@ const InterviewTrainingInvitation = async (
   sendInterviewConfirmationEmail(
     {
       id: receiver._id.toString(),
-      firstname: receiver.firstname,
-      lastname: receiver.lastname,
-      address: receiver.email
+      firstname: receiver.firstname ?? '',
+      lastname: receiver.lastname ?? '',
+      address: receiver.email ?? ''
     },
     {
       taiger_user: user,
@@ -471,7 +471,7 @@ const addInterviewTrainingDateTime = asyncHandler(async (req, res, next) => {
     let isUpdatingEvent = false;
     let concat_name = '';
     let concat_id = '';
-    // eslint-disable-next-line no-restricted-syntax
+     
     for (const requester of oldEvent.requester_id) {
       concat_name += `${requester.firstname}_${requester.lastname}`;
       concat_id += `${requester._id.toString()}`;
@@ -617,9 +617,9 @@ const updateInterview = asyncHandler(async (req, res, next) => {
     if (isNotArchiv(interview.student_id)) {
       await sendAssignedInterviewTrainerToStudentEmail(
         {
-          firstname: interview.student_id.firstname,
-          lastname: interview.student_id.lastname,
-          address: interview.student_id.email
+          firstname: interview.student_id.firstname ?? '',
+          lastname: interview.student_id.lastname ?? '',
+          address: interview.student_id.email ?? ''
         },
         { interview }
       );
@@ -630,9 +630,9 @@ const updateInterview = asyncHandler(async (req, res, next) => {
         isNotArchiv(trainer) &&
         sendAssignedInterviewTrainerToTrainerEmail(
           {
-            firstname: trainer.firstname,
-            lastname: trainer.lastname,
-            address: trainer.email
+            firstname: trainer.firstname ?? '',
+            lastname: trainer.lastname ?? '',
+            address: trainer.email ?? ''
           },
           { interview }
         )
@@ -644,9 +644,9 @@ const updateInterview = asyncHandler(async (req, res, next) => {
     if (isNotArchiv(interview.student_id)) {
       await sendSetAsFinalInterviewEmail(
         {
-          firstname: interview.student_id.firstname,
-          lastname: interview.student_id.lastname,
-          address: interview.student_id.email
+          firstname: interview.student_id.firstname ?? '',
+          lastname: interview.student_id.lastname ?? '',
+          address: interview.student_id.email ?? ''
         },
         { interview, isClosed: payload.isClosed, user }
       );
@@ -728,9 +728,9 @@ const updateInterviewSurvey = asyncHandler(async (req, res) => {
     if (isNotArchiv(interview.student_id)) {
       InterviewSurveyFinishedEmail(
         {
-          firstname: interview.student_id.firstname,
-          lastname: interview.student_id.lastname,
-          address: interview.student_id.email
+          firstname: interview.student_id.firstname ?? '',
+          lastname: interview.student_id.lastname ?? '',
+          address: interview.student_id.email ?? ''
         },
         { interview, user }
       );
@@ -743,9 +743,9 @@ const updateInterviewSurvey = asyncHandler(async (req, res) => {
     activeTrainers?.map((trainer: PopulatedUser) =>
       InterviewSurveyFinishedToTaiGerEmail(
         {
-          firstname: trainer.firstname,
-          lastname: trainer.lastname,
-          address: trainer.email
+          firstname: trainer.firstname ?? '',
+          lastname: trainer.lastname ?? '',
+          address: trainer.email ?? ''
         },
         { interview, user }
       )
@@ -837,9 +837,9 @@ const createInterview = asyncHandler(async (req, res) => {
           isNotArchiv(permission.user_id) &&
           sendAssignTrainerReminderEmail(
             {
-              firstname: permission.user_id.firstname,
-              lastname: permission.user_id.lastname,
-              address: permission.user_id.email
+              firstname: permission.user_id.firstname ?? '',
+              lastname: permission.user_id.lastname ?? '',
+              address: permission.user_id.email ?? ''
             },
             {
               student_firstname: student.firstname,
@@ -859,9 +859,9 @@ const createInterview = asyncHandler(async (req, res) => {
           isNotArchiv(agent) &&
           sendAssignTrainerReminderEmail(
             {
-              firstname: agent.firstname,
-              lastname: agent.lastname,
-              address: agent.email
+              firstname: agent.firstname ?? '',
+              lastname: agent.lastname ?? '',
+              address: agent.email ?? ''
             },
             {
               student_firstname: student.firstname,

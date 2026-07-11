@@ -93,9 +93,9 @@ const informStaff = async (
 ) => {
   await sendNewApplicationMessageInThreadEmail(
     {
-      firstname: staff.firstname,
-      lastname: staff.lastname,
-      address: staff.email
+      firstname: staff.firstname ?? '',
+      lastname: staff.lastname ?? '',
+      address: staff.email ?? ''
     },
     {
       writer_firstname: user.firstname,
@@ -125,9 +125,9 @@ const informNoEditor = async (student: PopulatedStudent) => {
     activeAgents.map((agent) =>
       sendAssignEditorReminderEmail(
         {
-          firstname: agent.firstname,
-          lastname: agent.lastname,
-          address: agent.email
+          firstname: agent.firstname ?? '',
+          lastname: agent.lastname ?? '',
+          address: agent.email ?? ''
         },
         {
           student_firstname: student.firstname,
@@ -225,9 +225,9 @@ export const informOnSurveyUpdate = async (
           return informStaff(user, editor, student, fileType, thread, message);
         }
         const recipient = {
-          firstname: editor.firstname,
-          lastname: editor.lastname,
-          address: editor.email
+          firstname: editor.firstname ?? '',
+          lastname: editor.lastname ?? '',
+          address: editor.email ?? ''
         };
         const msg = {
           writer_firstname: user.firstname,

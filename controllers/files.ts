@@ -115,9 +115,9 @@ const deleteTemplate = asyncHandler(
     res.status(200).send({ success: true, data: templates });
     await deleteTemplateSuccessEmail(
       {
-        firstname: user.firstname,
-        lastname: user.lastname,
-        address: user.email
+        firstname: user.firstname ?? '',
+        lastname: user.lastname ?? '',
+        address: user.email ?? ''
       },
       {
         category_name,
@@ -246,9 +246,9 @@ const saveProfileFilePath = asyncHandler(
           if (isNotArchiv(agentDoc)) {
             await sendUploadedProfileFilesRemindForAgentEmail(
               {
-                firstname: agentDoc.firstname,
-                lastname: agentDoc.lastname,
-                address: agentDoc.email
+                firstname: agentDoc.firstname ?? '',
+                lastname: agentDoc.lastname ?? '',
+                address: agentDoc.email ?? ''
               },
               {
                 student_firstname: student.firstname,
@@ -263,9 +263,9 @@ const saveProfileFilePath = asyncHandler(
       } else if (isNotArchiv(student as unknown as IUser)) {
         await sendAgentUploadedProfileFilesForStudentEmail(
           {
-            firstname: student.firstname,
-            lastname: student.lastname,
-            address: student.email
+            firstname: student.firstname ?? '',
+            lastname: student.lastname ?? '',
+            address: student.email ?? ''
           },
           {
             agent_firstname: user.firstname,
@@ -306,7 +306,7 @@ const saveProfileFilePath = asyncHandler(
             // if not notified yet:
             if (!temp_student) {
               agent.agent_notification.isRead_new_base_docs_uploaded.push({
-                // eslint-disable-next-line no-underscore-dangle
+                 
                 student_id: student._id.toString(),
                 student_firstname: student.firstname,
                 student_lastname: student.lastname
@@ -323,9 +323,9 @@ const saveProfileFilePath = asyncHandler(
           if (isNotArchiv(agentDoc)) {
             await sendUploadedProfileFilesRemindForAgentEmail(
               {
-                firstname: agentDoc.firstname,
-                lastname: agentDoc.lastname,
-                address: agentDoc.email
+                firstname: agentDoc.firstname ?? '',
+                lastname: agentDoc.lastname ?? '',
+                address: agentDoc.email ?? ''
               },
               {
                 student_firstname: student.firstname,
@@ -340,9 +340,9 @@ const saveProfileFilePath = asyncHandler(
       } else if (isNotArchiv(student as unknown as IUser)) {
         await sendAgentUploadedProfileFilesForStudentEmail(
           {
-            firstname: student.firstname,
-            lastname: student.lastname,
-            address: student.email
+            firstname: student.firstname ?? '',
+            lastname: student.lastname ?? '',
+            address: student.email ?? ''
           },
           {
             agent_firstname: user.firstname,
@@ -458,9 +458,9 @@ const saveVPDFilePath = asyncHandler(
         if (isNotArchiv(agentDoc)) {
           await sendUploadedVPDRemindForAgentEmail(
             {
-              firstname: agentDoc.firstname,
-              lastname: agentDoc.lastname,
-              address: agentDoc.email
+              firstname: agentDoc.firstname ?? '',
+              lastname: agentDoc.lastname ?? '',
+              address: agentDoc.email ?? ''
             },
             {
               student_firstname: student_updated.firstname,
@@ -476,9 +476,9 @@ const saveVPDFilePath = asyncHandler(
     } else if (isNotArchiv(student_updated as unknown as IUser)) {
       await sendAgentUploadedVPDForStudentEmail(
         {
-          firstname: student_updated.firstname,
-          lastname: student_updated.lastname,
-          address: student_updated.email
+          firstname: student_updated.firstname ?? '',
+          lastname: student_updated.lastname ?? '',
+          address: student_updated.email ?? ''
         },
         {
           agent_firstname: user.firstname,
@@ -645,9 +645,9 @@ const updateProfileDocumentStatus = asyncHandler(
           ) {
             await sendChangedProfileFileStatusEmail(
               {
-                firstname: student.firstname,
-                lastname: student.lastname,
-                address: student.email
+                firstname: student.firstname ?? '',
+                lastname: student.lastname ?? '',
+                address: student.email ?? ''
               },
               {
                 message: feedback,
@@ -777,9 +777,9 @@ const updateStudentApplicationResultV2 = asyncHandler(
             if (isNotArchiv(student.agents[i])) {
               await AdmissionResultInformEmailToTaiGer(
                 {
-                  firstname: student.agents[i].firstname,
-                  lastname: student.agents[i].lastname,
-                  address: student.agents[i].email
+                  firstname: student.agents[i].firstname ?? '',
+                  lastname: student.agents[i].lastname ?? '',
+                  address: student.agents[i].email ?? ''
                 },
                 {
                   student_id: student._id.toString(),
@@ -795,9 +795,9 @@ const updateStudentApplicationResultV2 = asyncHandler(
             if (isNotArchiv(student.editors[i])) {
               await AdmissionResultInformEmailToTaiGer(
                 {
-                  firstname: student.editors[i].firstname,
-                  lastname: student.editors[i].lastname,
-                  address: student.editors[i].email
+                  firstname: student.editors[i].firstname ?? '',
+                  lastname: student.editors[i].lastname ?? '',
+                  address: student.editors[i].email ?? ''
                 },
                 {
                   student_id: student._id.toString(),
@@ -916,9 +916,9 @@ const updateStudentApplicationResult = asyncHandler(
       for (const staff of taigerStaff) {
         await AdmissionResultInformEmailToTaiGer(
           {
-            firstname: staff.firstname,
-            lastname: staff.lastname,
-            address: staff.email
+            firstname: staff.firstname ?? '',
+            lastname: staff.lastname ?? '',
+            address: staff.email ?? ''
           },
           {
             student_id: student._id.toString(),
@@ -1055,7 +1055,7 @@ const removeNotification = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as AuthUser;
     const { notification_key } = req.body;
-    // eslint-disable-next-line no-underscore-dangle
+     
     const me = await UserService.getUserDocById(user._id.toString());
     if (!me) {
       logger.error('removeNotification: user not found');
@@ -1077,7 +1077,7 @@ const removeAgentNotification = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as AuthUser;
     const { notification_key, student_id } = req.body;
-    // eslint-disable-next-line no-underscore-dangle
+     
     const me = await UserService.getAgentDocById(user._id.toString());
     if (!me) {
       logger.error('removeAgentNotification: agent not found');

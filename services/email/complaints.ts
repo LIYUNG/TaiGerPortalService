@@ -1,4 +1,5 @@
 import { IUser } from '@taiger-common/model';
+import type { Recipient } from './configuration';
 import { ORIGIN } from '../../config';
 // `configuration.ts` uses `export =`; import via `require` interop since a
 // named `import { sendEmail }` against an `export =` module is rejected under
@@ -18,7 +19,7 @@ interface ComplaintEmailPayload {
 
 // For editor lead, manager
 const newCustomerCenterTicketEmail = async (
-  recipient: IUser,
+  recipient: Recipient,
   payload: ComplaintEmailPayload & {
     requester: Pick<IUser, 'firstname' | 'lastname'>;
   }
@@ -53,7 +54,7 @@ const newCustomerCenterTicketEmail = async (
 
 // For student confirmation
 const newCustomerCenterTicketSubmitConfirmationEmail = async (
-  recipient: IUser,
+  recipient: Recipient,
   payload: ComplaintEmailPayload
 ) => {
   const subject = `[Info] Thank you for your customer support request (Ticket id: ${payload.ticket_id}`;
@@ -82,7 +83,7 @@ const newCustomerCenterTicketSubmitConfirmationEmail = async (
 
 // For student confirmation
 const newCustomerCenterTicketMessageEmail = async (
-  recipient: IUser,
+  recipient: Recipient,
   payload: ComplaintEmailPayload
 ) => {
   const subject = `[Customer Center] There is a new message for the request (Ticket id: ${payload.ticket_id})`;
@@ -106,7 +107,7 @@ const newCustomerCenterTicketMessageEmail = async (
 
 // For student confirmation
 const complaintResolvedRequesterReminderEmail = async (
-  recipient: IUser,
+  recipient: Recipient,
   payload: ComplaintEmailPayload
 ) => {
   const subject = `[Resolved] Your customer support request is resolved (Ticket id: ${payload.ticket_id}`;

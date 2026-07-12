@@ -1,2 +1,16 @@
+#!/usr/bin/env sh
+# set -e: without it, a failing check falls through to any later command and the
+# hook exits with *that* status — silently letting a broken commit through.
+set -e
+
 echo "Running precommit"
+
+# prettier + eslint, on staged files only
 npm run pre-commit
+
+# Whole-project typecheck. Deliberately NOT a lint-staged task: lint-staged appends
+# staged filenames, and `tsc` given explicit files ignores tsconfig.json entirely.
+# It also chunks large file sets, which would spawn concurrent tsc runs.
+npm run typecheck
+
+echo "Pre-commit checks completed successfully!"

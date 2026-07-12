@@ -22,7 +22,10 @@ const PROGRAM_LIST_FIELDS = [
   'gmat',
   'application_deadline',
   'updatedAt',
-  'isLocked'
+  'isLocked',
+  'isPrivateSchool',
+  'isPartnerSchool',
+  'isNC'
 ].join(' ');
 
 const DEFAULT_PAGE = 1;
@@ -53,6 +56,27 @@ const TEXT_FILTER_FIELDS = [
 ];
 
 const ARRAY_FILTER_FIELDS = ['country', 'programSubjects', 'tags'];
+
+/**
+ * Boolean columns. Unlike the text fields these must NOT go through the
+ * `contains` regex — the values are real booleans in Mongo, so they are matched
+ * exactly. Only the literal strings 'true'/'false' are accepted; anything else
+ * leaves the filter unset rather than silently matching everything.
+ */
+const BOOLEAN_FILTER_FIELDS = ['isPrivateSchool', 'isPartnerSchool', 'isNC'];
+
+const parseBooleanParam = (value: unknown): boolean | undefined => {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'true') {
+    return true;
+  }
+  if (normalized === 'false') {
+    return false;
+  }
+  return undefined;
+};
 
 const GLOBAL_SEARCH_FIELDS = [
   'school',
@@ -134,6 +158,13 @@ const parseProgramsQuery = (
     }
   });
 
+  BOOLEAN_FILTER_FIELDS.forEach((field) => {
+    const value = parseBooleanParam(query[field]);
+    if (value !== undefined) {
+      filters[field] = String(value);
+    }
+  });
+
   return {
     page: safePage,
     limit: safeLimit,
@@ -174,6 +205,18 @@ const buildProgramsFilter = ({
   ARRAY_FILTER_FIELDS.forEach((field) => {
     if (filters[field]?.length) {
       andConditions.push({ [field]: { $in: filters[field] } });
+    }
+  });
+
+  BOOLEAN_FILTER_FIELDS.forEach((field) => {
+    const value = parseBooleanParam(filters[field]);
+    if (value === true) {
+      andConditions.push({ [field]: true });
+    } else if (value === false) {
+      // Legacy programs predate the flag, so "public" means false OR absent.
+      andConditions.push({
+        $or: [{ [field]: { $exists: false } }, { [field]: false }]
+      });
     }
   });
 

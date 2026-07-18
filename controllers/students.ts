@@ -131,8 +131,13 @@ const getPermission = getPermissionRaw as unknown as (
 const getStudentAndDocLinks = asyncRoute(async (req, res) => {
   const user = req.user as AuthUser;
   const studentId = String(req.params.studentId);
+  // Must be the *WithCredentials* variant: portal_credentials.account/password
+  // are `select: false`, so the plain query leaves them undefined and
+  // add_portals_registered_status below then marks every portal-bearing
+  // program as unregistered. The helper deletes the raw credentials again
+  // before the payload is sent.
   const applicationsPromise =
-    ApplicationService.getApplicationsByStudentId(studentId);
+    ApplicationService.getApplicationsWithCredentialsByStudentId(studentId);
 
   const studentPromise = StudentService.getStudentByIdWithDocThreads(studentId);
 

@@ -264,7 +264,7 @@ describe('getStudentApplications', () => {
     const studentDoc = { _id: studentId, firstname: 'Stu', attributes: ['x'] };
     StudentService.getStudentById.mockResolvedValue(studentDoc);
     const applications = [{ _id: 'a1' }];
-    ApplicationService.getApplicationsByStudentId.mockResolvedValue(
+    ApplicationService.getApplicationsWithCredentialsByStudentId.mockResolvedValue(
       applications
     );
     const res = mockRes();
@@ -276,15 +276,57 @@ describe('getStudentApplications', () => {
     );
 
     expect(StudentService.getStudentById).toHaveBeenCalledWith(studentId);
-    expect(ApplicationService.getApplicationsByStudentId).toHaveBeenCalledWith(
-      studentId
-    );
+    // Credentials variant: the plain query leaves account/password unselected
+    // (schema `select: false`), which silently zeroes the derived flags.
+    expect(
+      ApplicationService.getApplicationsWithCredentialsByStudentId
+    ).toHaveBeenCalledWith(studentId);
     expect(res.status).toHaveBeenCalledWith(200);
     const body = res.send.mock.calls[0][0];
     expect(body.success).toBe(true);
-    expect(body.data.applications).toBe(applications);
+    expect(body.data.applications).toEqual(applications);
     // Non-student callers keep the attributes field.
     expect(body.data.attributes).toBeDefined();
+  });
+
+  // Regression: this endpoint used to skip add_portals_registered_status
+  // entirely, so credential_a_filled / credential_b_filled were always
+  // undefined and the client's "Register University Portal" row never closed.
+  it('200: derives the portal registration flags and strips raw credentials', async () => {
+    StudentService.getStudentById.mockResolvedValue({ _id: studentId });
+    ApplicationService.getApplicationsWithCredentialsByStudentId.mockResolvedValue(
+      [
+        {
+          _id: 'registered',
+          decided: 'O',
+          programId: { application_portal_a: 'https://portal-a' },
+          portal_credentials: {
+            application_portal_a: { account: 'acc', password: 'pw' }
+          }
+        },
+        {
+          _id: 'not-registered',
+          decided: 'O',
+          programId: { application_portal_a: 'https://portal-a' },
+          portal_credentials: {}
+        }
+      ]
+    );
+    const res = mockRes();
+
+    await getStudentApplications(
+      mockReq({ user: agent, params: { studentId } }),
+      res,
+      jest.fn()
+    );
+
+    const [registered, notRegistered] =
+      res.send.mock.calls[0][0].data.applications;
+    expect(registered.credential_a_filled).toBe(true);
+    expect(notRegistered.credential_a_filled).toBe(false);
+    // The raw account/password must never reach the client.
+    expect(registered.portal_credentials).toBeUndefined();
+    expect(notRegistered.portal_credentials).toBeUndefined();
   });
 
   it('200: student caller clears the new-programs notification and strips attributes', async () => {
@@ -296,9 +338,9 @@ describe('getStudentApplications', () => {
     StudentService.updateStudentById.mockResolvedValue({});
     const studentDoc = { _id: studentId, firstname: 'Stu', attributes: ['x'] };
     StudentService.getStudentById.mockResolvedValue(studentDoc);
-    ApplicationService.getApplicationsByStudentId.mockResolvedValue([
-      { _id: 'a1' }
-    ]);
+    ApplicationService.getApplicationsWithCredentialsByStudentId.mockResolvedValue(
+      [{ _id: 'a1' }]
+    );
     const res = mockRes();
 
     await getStudentApplications(

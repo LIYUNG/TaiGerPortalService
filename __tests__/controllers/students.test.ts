@@ -286,9 +286,9 @@ describe('getStudentAndDocLinks', () => {
       _id: studentId,
       firstname: 'Ann'
     });
-    ApplicationService.getApplicationsByStudentId.mockResolvedValue([
-      { _id: 'app1' }
-    ]);
+    ApplicationService.getApplicationsWithCredentialsByStudentId.mockResolvedValue(
+      [{ _id: 'app1' }]
+    );
     BasedocumentationslinkService.findByCategory
       .mockResolvedValueOnce({ base: 'docs' }) // base-documents
       .mockResolvedValueOnce({ survey: 'link' }); // survey
@@ -315,7 +315,9 @@ describe('getStudentAndDocLinks', () => {
 
   it('responds 404 when the student does not exist', async () => {
     StudentService.getStudentByIdWithDocThreads.mockResolvedValue(null);
-    ApplicationService.getApplicationsByStudentId.mockResolvedValue([]);
+    ApplicationService.getApplicationsWithCredentialsByStudentId.mockResolvedValue(
+      []
+    );
     BasedocumentationslinkService.findByCategory.mockResolvedValue({});
     asMock(getAuditLogs).mockResolvedValue([]);
     const res = mockRes();
@@ -592,9 +594,9 @@ describe('getStudentAndDocLinks agent notification pull', () => {
     StudentService.getStudentByIdWithDocThreads.mockResolvedValue({
       _id: studentId
     });
-    ApplicationService.getApplicationsByStudentId.mockResolvedValue([
-      { _id: 'app1', isLocked: undefined }
-    ]);
+    ApplicationService.getApplicationsWithCredentialsByStudentId.mockResolvedValue(
+      [{ _id: 'app1', isLocked: undefined }]
+    );
     BasedocumentationslinkService.findByCategory.mockResolvedValue({});
     asMock(getAuditLogs).mockResolvedValue([]);
     UserService.updateUser.mockResolvedValue({});

@@ -29,6 +29,7 @@ import DocumentThreadService from '../services/documentthreads';
 import ApplicationQueryBuilder from '../builders/ApplicationQueryBuilder';
 import UserQueryBuilder from '../builders/UserQueryBuilder';
 import { sendApplicationWithdrawNotificationToEditors } from '../utils/slackUtils';
+import { add_portals_registered_status } from '../utils/utils_function';
 
 // Build a mongoose ObjectId typed as the model's Schema.Types.ObjectId. The two
 // ObjectId types are structurally interchangeable at runtime; this bridges the
@@ -47,6 +48,13 @@ const asSchemaObjectId = (value: unknown): Schema.Types.ObjectId =>
 // student's applications before responding — mirror that shape for typed reads.
 type StudentWithApplications = IStudent & {
   applications?: IApplication[];
+};
+
+// add_portals_registered_status assumes `programId` is populated to a full
+// IProgram (the DAO lean-populates it); mirror that shape structurally, as
+// controllers/students.ts does for the same helper.
+type ApplicationWithProgram = Omit<IApplication, 'programId'> & {
+  programId: IProgram;
 };
 
 export const getApplications = asyncRoute<GetApplicationsResponse>(
@@ -280,10 +288,19 @@ export const getStudentApplications =
       logger.error('getStudentApplications: Invalid student id');
       throw new ErrorResponse(404, 'Invalid student id');
     }
-    const applications = (await ApplicationService.getApplicationsByStudentId(
-      studentId
-    )) as unknown as IApplication[];
-    student.applications = applications;
+    // Credentials must be explicitly selected (schema marks account/password
+    // `select: false`) and then run through add_portals_registered_status,
+    // which derives credential_a_filled / credential_b_filled and strips the
+    // raw credentials before they leave the server. Without both steps those
+    // flags come back undefined and the client's "Register University Portal"
+    // checklist row is stuck open forever.
+    const applications =
+      (await ApplicationService.getApplicationsWithCredentialsByStudentId(
+        studentId
+      )) as unknown as ApplicationWithProgram[];
+    student.applications = add_portals_registered_status(
+      applications
+    ) as unknown as IApplication[];
     if (user.role === Role.Student) {
       delete student.attributes;
     }

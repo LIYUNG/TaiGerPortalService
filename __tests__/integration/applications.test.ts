@@ -174,7 +174,12 @@ describe('GET /api/applications/student/:studentId', () => {
       { _id: '1', programId: program1._id },
       { _id: '2', programId: program1._id }
     ];
-    ApplicationDAO.getApplicationsByStudentId.mockResolvedValue(applications);
+    // The route reads through the credentials-selecting DAO method, not the
+    // plain one: it needs the `select: false` account/password fields so
+    // add_portals_registered_status can derive credential_*_filled.
+    ApplicationDAO.getApplicationsWithCredentialsByStudentId.mockResolvedValue(
+      applications
+    );
 
     const resp = await requestWithSupertest
       .get(`/api/applications/student/${studentId}`)
@@ -184,9 +189,9 @@ describe('GET /api/applications/student/:studentId', () => {
     expect(resp.body.success).toBe(true);
     expect(resp.body.data.applications).toHaveLength(2);
     expect(StudentDAO.getStudentById).toHaveBeenCalledWith(studentId);
-    expect(ApplicationDAO.getApplicationsByStudentId).toHaveBeenCalledWith(
-      studentId
-    );
+    expect(
+      ApplicationDAO.getApplicationsWithCredentialsByStudentId
+    ).toHaveBeenCalledWith(studentId);
   });
 });
 

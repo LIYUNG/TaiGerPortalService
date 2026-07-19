@@ -5,7 +5,14 @@ const generateUser = (role) => ({
   _id: new ObjectId().toHexString(),
   firstname: faker.person.firstName(),
   lastname: faker.person.lastName(),
-  email: faker.internet.email().toLowerCase(),
+  // Pinned to example.com because the API runs every email through
+  // express-validator's normalizeEmail(). Its provider-specific rules rewrite
+  // real domains — a yahoo.com address treats `-` as a subaddress separator, so
+  // `ida.schuster-veum73@yahoo.com` reaches the DAO as `ida.schuster@yahoo.com`
+  // and any assertion against the raw fixture email fails. faker's default
+  // provider list includes yahoo/gmail/hotmail, so this fired at random. Under
+  // example.com normalization is the identity and the fixture round-trips.
+  email: faker.internet.email({ provider: 'example.com' }).toLowerCase(),
   password: '$2a$10$Xv45poDOdKSjmxPp7FSEfOYNfSDfLZyOEjt7z.WO7sOBKNyS25k1S', // somePassword
   generaldocs_threads: [],
   applications: [],

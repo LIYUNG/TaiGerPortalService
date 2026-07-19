@@ -52,7 +52,7 @@
     "date-fns": "^4.1.0",
     "debug": "~2.6.9",
     "dotenv": "^10.0.0",
-    "drizzle-orm": "^0.44.2",
+    "drizzle-orm": "^0.45.2",
     "easy-template-x": "^7.2.5",
     "ejson": "^2.2.3",
     "errorhandler": "^1.5.1",
